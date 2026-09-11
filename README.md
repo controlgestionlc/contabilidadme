@@ -482,3 +482,22 @@ La aplicación incorpora snapshots productivos por empresa y ejercicio además d
 Desde **Auditoría de Integridad → Preparación Productiva** un administrador puede crear un snapshot manual, verificar su integridad y ejecutar una restauración de emergencia. Antes de restaurar, la aplicación genera un punto de retorno del estado actual y exige una confirmación explícita `RESTAURAR`. La restauración se aplica mediante persistencia multi-clave y la aplicación se recarga al finalizar.
 
 Los snapshots no reemplazan el backup Excel: el Excel sigue siendo la copia portable/externa y los snapshots permiten un rollback rápido dentro de Firebase. Para operación productiva se recomienda mantener ambas capas.
+
+### V2.15.5 — Validación contable central
+
+La persistencia de asientos deja de depender de que cada pantalla recuerde validar sus datos. Antes de escribir `asientos-AAAA`, el núcleo verifica cuadratura, estructura de líneas, Plan de Cuentas, auxiliares, centro de costo obligatorio, referencias documentales y cierre mensual. La misma guardia se ejecuta dentro de la transacción Firebase sobre el resultado final de una eventual fusión entre equipos.
+
+El Plan de Cuentas permite marcar cuentas con **Centro de costo obligatorio**. Esta regla es opt-in: las cuentas existentes no cambian de comportamiento hasta que el administrador las marque explícitamente. Si una cuenta requiere CC, un asiento sin centro o con un centro inexistente no puede persistirse.
+
+La restauración de emergencia es la única excepción: un administrador puede restaurar un snapshot verificado porque el flujo crea previamente un punto de retorno y activa el bypass sólo durante el `setMany()` de recuperación.
+
+### V2.15.6 — Suite de regresión contable
+Antes del piloto puede ejecutarse desde **Auditoría de Integridad → Preparación Productiva** una batería integral de escenarios contables. La suite trabaja en memoria, restaura el estado real al finalizar y verifica, entre otros casos, ventas/compras/NC/ND, tratamientos de IVA, DTE 45/46, honorarios, pagos parciales, F29, activo fijo, remuneraciones y la igualdad **Diario = Mayor = Balance**. Una falla deja el criterio de regresión en rojo y bloquea el estado “Listo para productivo”.
+
+## V2.15.7 — Piloto controlado: PRUEBA / PRODUCCIÓN
+
+La aplicación incorpora un estado operacional explícito por empresa y ejercicio. Todo ejercicio nuevo parte en **PRUEBA**. En ese modo las escrituras de negocio se bloquean por defecto en cada nueva sesión; un administrador debe habilitarlas conscientemente mediante `HABILITAR PRUEBAS`, y la autorización desaparece al cerrar la app o el navegador.
+
+El paso a **PRODUCCIÓN** no es un simple interruptor. Requiere que el panel Preparación Productiva esté completamente verde, que un administrador confirme seis puntos de puesta en marcha (empresa, PDC, saldos de apertura, RCV, usuarios/roles y respaldo externo) y que escriba `ACTIVAR PRODUCCION`. El estado queda visible permanentemente en la barra superior y se registra en auditoría.
+
+Si se necesita volver a PRUEBA, sólo un administrador puede hacerlo y debe indicar un motivo de al menos 10 caracteres. La guardia central se aplica en `storage.set`, `storage.setMany` y `storage.delete`, por lo que módulos antiguos tampoco pueden saltarse accidentalmente el modo operativo.

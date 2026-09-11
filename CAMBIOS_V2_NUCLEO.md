@@ -382,3 +382,36 @@ Se incorpora un protocolo guiado para probar concurrencia real con dos dispositi
 - El panel Preparación Productiva incorpora un control de snapshot vigente y una sección para crear, verificar y restaurar puntos de recuperación.
 - Los snapshots de recuperación no se incluyen dentro de otros snapshots, evitando crecimiento recursivo.
 - La certificación Excel de V2.15.1 se mantiene: snapshot Firestore y backup Excel son capas distintas y complementarias.
+
+## V2.15.5 — Puerta central obligatoria de validación contable
+
+- Nuevo `asiento-validacion.js`: toda mutación de asientos valida estructura, cuadratura, reglas PDC, centros de costo y referencias documentales antes de persistir.
+- `storage.set()` y `storage.setMany()` ejecutan una guardia adicional sobre `asientos-AAAA`, por lo que las rutas antiguas que escribían directamente ya no pueden saltarse la validación del núcleo.
+- La transacción Firebase vuelve a validar el valor definitivo después de una posible fusión por concurrencia y antes del `commit`.
+- Se bloquea crear, editar, anular, eliminar o trasladar un asiento cuya fecha anterior o nueva pertenezca a un período mensual cerrado. El asiento anual de cierre mantiene su ruta formal de cierre/reapertura.
+- Reglas mínimas obligatorias: fecha válida, al menos dos líneas, ningún monto negativo o línea cero, una sola columna Debe/Haber por línea, cuadratura, cuenta existente/activa/no agrupadora, auxiliares requeridos y referencias documentales coherentes.
+- El Plan de Cuentas incorpora `requiereCentroCosto`. Cuando una cuenta se marca como **CC obligatorio**, ninguna contabilización puede persistir sin un centro existente.
+- Pagos validan que cada `docId` exista y no esté anulado. Asientos maestros y referencias manuales validan fuente, documento, DTE y folio cuando corresponda.
+- Recuperación ante desastre conserva un bypass explícito y acotado sólo durante la restauración administrativa de un snapshot ya verificado por hash y con punto de retorno creado.
+- Preparación Productiva incluye una prueba de la puerta central para comprobar aceptación de un asiento válido y rechazo de un asiento inválido.
+
+## V2.15.6 — Regresión contable integral
+
+Se agregó `js/regresion-contable.js`, una batería de pruebas aisladas en memoria para certificar los principales circuitos antes del piloto. Cubre ventas afectas/exentas, NC y ND, compras mixtas, IVA no recuperable/proporcional/activo fijo, DTE 45/46, fecha documental vs período RCV, honorarios, pagos parciales y auxiliares, F29 con remanente declarado, depreciación financiera/tributaria, remuneraciones y controles de cierre.
+
+La suite incluye una prueba transversal que agrega los movimientos de un escenario sintético y exige **Diario = Mayor = Balance**. También prueba la puerta central de asientos y el bloqueo de un período mensual cerrado. Los datos productivos se fotografían antes de ejecutar la suite y se restauran en un bloque `finally`, por lo que la prueba no crea documentos ni asientos reales.
+
+El panel de Preparación Productiva muestra cada escenario por área y la regresión completa pasa a ser un criterio bloqueante: si una prueba falla, el sistema no se declara listo para productivo.
+
+## V2.15.7 — Piloto controlado / Preproducción
+
+- Nuevo módulo `preproduccion.js` con estado operacional por empresa y ejercicio: `prueba` o `produccion`.
+- El encabezado muestra permanentemente el entorno activo: `PRUEBA · BLOQUEADA`, `PRUEBA · ESCRITURA` o `PRODUCCIÓN`.
+- En modo PRUEBA las escrituras de negocio quedan bloqueadas por defecto en cada nueva sesión. Un administrador puede habilitarlas sólo para esa sesión mediante confirmación `HABILITAR PRUEBAS`.
+- El cierre de la app/navegador elimina esa autorización porque se almacena únicamente en `sessionStorage`.
+- Activar PRODUCCIÓN exige: Preparación Productiva completamente verde, checklist manual completo y confirmación exacta `ACTIVAR PRODUCCION`.
+- Checklist de puesta en marcha: ficha tributaria, PDC, saldos de apertura, RCV piloto, usuarios/roles y respaldo externo.
+- El paso a PRODUCCIÓN y el retorno a PRUEBA quedan auditados. Volver a PRUEBA exige motivo administrativo de al menos 10 caracteres.
+- `storage.set`, `storage.setMany` y `storage.delete` consultan una guardia central de entorno antes de modificar datos.
+- Claves técnicas de hardening, recuperación y configuración del propio entorno permanecen disponibles para poder completar la certificación aun con las escrituras de negocio bloqueadas.
+- Las migraciones técnicas de inicio se completan antes de activar la guardia para evitar que el modo PRUEBA deje una migración estructural a medias.
