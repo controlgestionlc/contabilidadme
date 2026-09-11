@@ -501,3 +501,19 @@ La aplicación incorpora un estado operacional explícito por empresa y ejercici
 El paso a **PRODUCCIÓN** no es un simple interruptor. Requiere que el panel Preparación Productiva esté completamente verde, que un administrador confirme seis puntos de puesta en marcha (empresa, PDC, saldos de apertura, RCV, usuarios/roles y respaldo externo) y que escriba `ACTIVAR PRODUCCION`. El estado queda visible permanentemente en la barra superior y se registra en auditoría.
 
 Si se necesita volver a PRUEBA, sólo un administrador puede hacerlo y debe indicar un motivo de al menos 10 caracteres. La guardia central se aplica en `storage.set`, `storage.setMany` y `storage.delete`, por lo que módulos antiguos tampoco pueden saltarse accidentalmente el modo operativo.
+
+
+## V2.15.8 — Certificación mensual del piloto
+- Compara un período completo contra referencias externas de RCV Ventas, RCV Compras y F29.
+- Requiere como mínimo N° y total de ventas, N° y total de compras, y códigos F29 538/537.
+- Un período sólo puede certificarse si no existen diferencias. La certificación puede invalidarse con motivo y queda auditada.
+- Preparación Productiva exige al menos un período piloto certificado antes de activar PRODUCCIÓN.
+
+
+## V2.15.9 — Puesta en marcha asistida
+- Nuevo panel final de habilitación que consolida controles técnicos, checklist manual, empresa, ejercicio y período piloto certificado.
+- Muestra exactamente qué requisitos siguen pendientes y bloquea la activación mientras exista alguno.
+- Al activar PRODUCCIÓN se genera un acta inmutable de referencia con versión desplegada, usuario administrador, snapshot de criterios/checklist y huella SHA-256.
+- Se mantiene historial de actas si un ejercicio vuelve a PRUEBA y posteriormente se habilita otra vez.
+- El acta vigente puede descargarse en HTML para archivo interno, impresión o conversión posterior a PDF.
+- Los snapshots de recuperación incluyen explícitamente las claves de preproducción y certificación piloto.

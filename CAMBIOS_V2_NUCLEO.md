@@ -415,3 +415,19 @@ El panel de Preparación Productiva muestra cada escenario por área y la regres
 - `storage.set`, `storage.setMany` y `storage.delete` consultan una guardia central de entorno antes de modificar datos.
 - Claves técnicas de hardening, recuperación y configuración del propio entorno permanecen disponibles para poder completar la certificación aun con las escrituras de negocio bloqueadas.
 - Las migraciones técnicas de inicio se completan antes de activar la guardia para evitar que el modo PRUEBA deje una migración estructural a medias.
+
+
+## V2.15.8 — Certificación mensual del piloto
+- Compara un período completo contra referencias externas de RCV Ventas, RCV Compras y F29.
+- Requiere como mínimo N° y total de ventas, N° y total de compras, y códigos F29 538/537.
+- Un período sólo puede certificarse si no existen diferencias. La certificación puede invalidarse con motivo y queda auditada.
+- Preparación Productiva exige al menos un período piloto certificado antes de activar PRODUCCIÓN.
+
+
+## V2.15.9 — Puesta en marcha asistida
+- Nuevo panel final de habilitación que consolida controles técnicos, checklist manual, empresa, ejercicio y período piloto certificado.
+- Muestra exactamente qué requisitos siguen pendientes y bloquea la activación mientras exista alguno.
+- Al activar PRODUCCIÓN se genera un acta inmutable de referencia con versión desplegada, usuario administrador, snapshot de criterios/checklist y huella SHA-256.
+- Se mantiene historial de actas si un ejercicio vuelve a PRUEBA y posteriormente se habilita otra vez.
+- El acta vigente puede descargarse en HTML para archivo interno, impresión o conversión posterior a PDF.
+- Los snapshots de recuperación incluyen explícitamente las claves de preproducción y certificación piloto.
