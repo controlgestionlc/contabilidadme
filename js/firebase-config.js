@@ -6,7 +6,7 @@
 // contiene una clave privada de Service Account. La seguridad efectiva queda
 // en Firebase Authentication + firestore.rules.
 const FIREBASE_CONFIG={
-  apiKey:"AIzaSyCX_Rkw9aZnMNUB6nI-uweQeUvMU7aDDzg",
+  apiKey:"AIzaSyCX_Rkw9aZnMNUb6nI-uweQeUvMU7aDDzg",
   authDomain:"contabilidadmeapp.firebaseapp.com",
   projectId:"contabilidadmeapp",
   storageBucket:"contabilidadmeapp.firebasestorage.app",
