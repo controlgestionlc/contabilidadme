@@ -46,7 +46,7 @@ function clavesSnapshot(){
   const fijas=[
     'empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC','comprobantesTipo','fichasAux','indicadores','previsional','libroRem',
     `ventas-${anio()}`,`compras-${anio()}`,`honorarios-${anio()}`,`asientos-${anio()}`,`apertura-${anio()}`,
-    `f29-declaraciones-${anio()}`,`cierresContables-${anio()}`,`hardening-certificacion-${anio()}`
+    `f29-declaraciones-${anio()}`,`cierresContables-${anio()}`,`hardening-certificacion-${anio()}`,`preproduccion-${anio()}`,`piloto-${anio()}`
   ];
   return [...new Set([...base,...fijas])].sort();
 }

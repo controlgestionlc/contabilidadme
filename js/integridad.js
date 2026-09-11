@@ -3,7 +3,8 @@ import {estadoPreparacionProductiva,ejecutarPruebasProductivas,ejecutarRegresion
 import {toast,MESES} from './core.js';
 import {S,AUTH} from './state.js';
 import {RECOVERY,estadoRecuperacion,crearSnapshotRecuperacion,verificarSnapshotRecuperacion,restaurarSnapshotRecuperacion} from './recovery.js';
-import {estadoPreproduccion,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba} from './preproduccion.js';
+import {estadoPreproduccion,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion} from './preproduccion.js';
+import {CAMPOS,compararPeriodo,guardarReferenciaPiloto,certificarPiloto,invalidarPiloto,estadoPiloto} from './piloto.js';
 
 function periodoActualUI(){
   const sel=document.getElementById('hard-periodo');
@@ -35,7 +36,28 @@ function renderIntegridad(){
   const pre=estadoPreproduccion();
   const ult=rec.ultimo;
   const ultTxt=ult?`${new Date(ult.creadoEn).toLocaleString('es-CL')} · ${ult.tipo} · ${ult.totalClaves||0} claves · ${((ult.totalBytes||0)/1024).toFixed(1)} KB`:'Aún no hay snapshots';
+  const faltanTecnicos=prod.criterios.filter(c=>!c.ok);
+  const faltanChecklist=Object.entries(pre.checks).filter(([id])=>!pre.checklist[id]);
+  const faltan=[...faltanTecnicos.map(c=>c.nombre),...faltanChecklist.map(([,n])=>n)];
+  const acta=pre.actaHabilitacion;
+  const listoMarcha=prod.listo&&pre.checklistCompleto;
   el.innerHTML=`
+  <div class="card" style="margin-bottom:14px;border-left:4px solid ${pre.modo==='produccion'?'var(--ok)':listoMarcha?'var(--acc)':'var(--warn)'}">
+    <div class="card-title">🚀 Puesta en marcha asistida · V2.15.9</div>
+    <div class="info-tip" style="margin-bottom:12px;line-height:1.55">Este panel resume exactamente qué falta antes de habilitar datos reales. Al activar PRODUCCIÓN se genera una <strong>acta de habilitación</strong> con empresa, ejercicio, versión, administrador, período piloto, checklist, resultados técnicos y huella SHA-256.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <span class="badge ${pre.modo==='produccion'?'bg':listoMarcha?'bg':'br'}">${pre.modo==='produccion'?'PRODUCCIÓN HABILITADA':listoMarcha?'APTO PARA ACTIVAR':'REQUISITOS PENDIENTES'}</span>
+      <span class="badge">Empresa: ${S.empresa.nombre||'sin nombre'} · ${S.empresa.anio}</span>
+      <span class="badge">Piloto: ${estadoPiloto().ultimo?.periodo||'pendiente'}</span>
+    </div>
+    ${faltan.length?`<div style="margin-bottom:10px"><strong>Falta completar ${faltan.length} requisito(s):</strong><ol style="margin:6px 0 0 20px">${faltan.map(x=>`<li style="margin:3px 0">${x}</li>`).join('')}</ol></div>`:`<div style="margin-bottom:10px;color:var(--ok);font-weight:700">✅ Todos los requisitos previos están aprobados.</div>`}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${pre.modo==='prueba'?`<button class="btn btn-i" onclick="activarProduccion().then(()=>renderIntegridad())" ${!listoMarcha?'disabled title="Completa todos los requisitos"':''}>🚀 Activar PRODUCCIÓN y emitir acta</button>`:''}
+      ${acta?`<button class="btn btn-g" onclick="descargarActaHabilitacion()">📄 Descargar acta de habilitación</button>`:''}
+    </div>
+    ${acta?`<div style="margin-top:10px;font-size:11px;color:var(--mt)">Acta <strong>${acta.id}</strong> · ${new Date(acta.generadoEn).toLocaleString('es-CL')} · ${acta.autorizadoPor?.email||''}<br>SHA-256: <code style="word-break:break-all">${acta.hash||'—'}</code></div>`:''}
+  </div>
+
   <div class="card" style="margin-bottom:14px;border-left:4px solid ${prod.listo?'var(--ok)':'var(--warn)'}">
     <div class="card-title">${prod.listo?'🟢 LISTO PARA PRODUCTIVO':'🟡 PREPARACIÓN PRODUCTIVA V2.15'}</div>
     <div class="info-tip" style="margin-bottom:12px;line-height:1.55">
@@ -60,6 +82,13 @@ function renderIntegridad(){
       ${Object.entries(pre.checks).map(([id,nm])=>`<tr><td style="width:48px"><input type="checkbox" ${pre.checklist[id]?'checked':''} ${AUTH.user?.rol!=='admin'?'disabled':''} onchange="setChecklistPreprod('${id}',this.checked).then(()=>renderIntegridad())"></td><td class="tl">${nm}</td></tr>`).join('')}
     </tbody></table></div>
     ${pre.modo==='produccion'?`<div style="margin-top:10px;font-size:11px;color:var(--mt)">Activado: <strong>${pre.activadoEn?new Date(pre.activadoEn).toLocaleString('es-CL'):'—'}</strong> · ${pre.activadoPor||'—'}</div>`:''}
+  </div>
+
+  <div class="card" style="margin-bottom:14px;border-left:4px solid ${estadoPiloto().ok?'var(--ok)':'var(--warn)'}">
+    <div class="card-title">🧾 Certificación mensual de piloto · V2.15.8</div>
+    <div class="info-tip" style="margin-bottom:10px;line-height:1.55">Compara un período completo contra referencias externas conocidas de <strong>RCV Ventas, RCV Compras y F29</strong>. La certificación sólo se habilita cuando los campos mínimos están informados y no existen diferencias.</div>
+    <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px"><div><label>Período piloto</label><select id="piloto-periodo" onchange="renderPilotoUI()">${opcionesPeriodo()}</select></div><button class="btn btn-g" onclick="guardarPilotoUI()">💾 Guardar referencias</button><button class="btn btn-i" onclick="certificarPilotoUI()">✅ Certificar período</button><button class="btn btn-s" onclick="invalidarPilotoUI()">↩ Invalidar certificado</button></div>
+    <div id="piloto-contenido"></div>
   </div>
 
   <div class="card" style="margin-bottom:14px">
@@ -130,6 +159,8 @@ function renderIntegridad(){
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-i" onclick="migrarAsientosV2()" ${ejercicioCerrado()?'disabled title="Ejercicio cerrado"':''}>⚙️ Migrar documentos a asiento maestro</button><button class="btn btn-g" onclick="renderIntegridad()">🔄 Volver a auditar</button></div>
   </div>${r.ok?'':`<div class="card-np"><div class="tw"><table><thead><tr><th class="tl">GRAVEDAD</th><th class="tl">CONTROL</th><th class="tl">DETALLE</th></tr></thead><tbody>${filas}</tbody></table></div></div>`}`;
   const sel=document.getElementById('hard-periodo');if(sel&&per)sel.value=per;
+  const ps=document.getElementById('piloto-periodo');if(ps&&per)ps.value=per;
+  renderPilotoUI();
 }
 
 async function cerrarMesContableUI(){
@@ -218,9 +249,38 @@ async function restaurarSnapshotUI(){
   location.reload();
 }
 
+
+function renderPilotoUI(){
+  const el=document.getElementById('piloto-contenido');if(!el)return;
+  const periodo=document.getElementById('piloto-periodo')?.value||periodoActualUI();
+  const c=compararPeriodo(periodo), est=estadoPiloto(), cert=est.periodos?.[periodo];
+  const filas=c.filas.map(f=>`<tr><td class="tl">${f.nombre}</td><td><input data-piloto="${f.id}" type="number" step="1" value="${f.tiene?f.esperado:''}" placeholder="Referencia externa" style="width:150px"></td><td style="text-align:right">${Math.round(f.actual).toLocaleString('es-CL')}</td><td style="text-align:right">${f.tiene?Math.round(f.diferencia).toLocaleString('es-CL'):'—'}</td><td>${!f.tiene?'⚪':f.ok?'✅':'❌'}</td></tr>`).join('');
+  el.innerHTML=`<div class="tw" style="max-height:430px;overflow:auto"><table><thead><tr><th class="tl">CONTROL</th><th>REFERENCIA EXTERNA</th><th>SISTEMA</th><th>DIFERENCIA</th><th></th></tr></thead><tbody>${filas}</tbody></table></div><div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="badge ${c.ok?'bg':'br'}">${c.ok?'SIN DIFERENCIAS':'PENDIENTE / CON DIFERENCIAS'}</span><span class="badge ${cert?.certificado?'bg':''}">${cert?.certificado?'CERTIFICADO':'NO CERTIFICADO'}</span><span style="font-size:11px;color:var(--mt)">Campos informados: ${c.informados}/15 · mínimos requeridos: Ventas docs/total, Compras docs/total, F29 538/537</span>${cert?.certificado?`<span style="font-size:11px;color:var(--mt)">Certificado ${new Date(cert.certificadoEn).toLocaleString('es-CL')} · ${cert.certificadoPor||''}</span>`:''}</div>`;
+}
+async function guardarPilotoUI(){
+  const periodo=document.getElementById('piloto-periodo')?.value||periodoActualUI();
+  const ref={};document.querySelectorAll('[data-piloto]').forEach(i=>{if(String(i.value).trim()!=='')ref[i.dataset.piloto]=Number(i.value);});
+  try{const c=await guardarReferenciaPiloto(periodo,ref);toast(c.ok?'✅ Referencias guardadas · sin diferencias':'💾 Referencias guardadas · revisa las diferencias',c.ok?undefined:'e');renderIntegridad();}catch(e){toast('❌ '+e.message,'e');}
+}
+async function certificarPilotoUI(){
+  const periodo=document.getElementById('piloto-periodo')?.value||periodoActualUI();
+  const frase=prompt(`Certificar ${periodo} como período piloto conciliado contra RCV/F29.\n\nEscribe CERTIFICAR PILOTO:`,'');
+  if(frase!=='CERTIFICAR PILOTO'){toast('Certificación cancelada');return;}
+  const r=await certificarPiloto(periodo);
+  if(!r.ok){toast(r.motivo==='solo-admin'?'🚫 Sólo administrador puede certificar':'🚫 No se puede certificar: faltan referencias mínimas o existen diferencias','e');renderPilotoUI();return;}
+  toast(`✅ Período piloto ${periodo} certificado`);renderIntegridad();
+}
+async function invalidarPilotoUI(){
+  const periodo=document.getElementById('piloto-periodo')?.value||periodoActualUI();
+  const motivo=prompt(`Motivo para invalidar la certificación ${periodo} (mínimo 10 caracteres):`,'');
+  if(motivo===null)return;const r=await invalidarPiloto(periodo,motivo);
+  if(!r.ok){toast(r.motivo==='motivo-corto'?'⚠️ Motivo de mínimo 10 caracteres':'🚫 No se pudo invalidar el certificado','e');return;}
+  toast(`↩ Certificación ${periodo} invalidada`);renderIntegridad();
+}
+
 async function migrarAsientosV2(){
   const r=await migrarDocumentosAAsientos();
   if(!r.ok){toast(r.motivo==='ejercicio-cerrado'?'🔒 No se puede migrar con el ejercicio cerrado':'❌ No se pudo completar la migración','e');return;}
   toast(`✅ Migración V2: ${r.creados} asientos creados, ${r.actualizados} actualizados`);renderIntegridad();
 }
-export {renderIntegridad,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI};
+export {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI};

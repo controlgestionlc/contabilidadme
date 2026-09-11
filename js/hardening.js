@@ -8,6 +8,7 @@ import {compararCompraRCV,compararVentaRCV} from './rcv-control.js';
 import {diagnosticoNumeracion} from './correlativo-contable.js';
 import {estadoRecuperacion} from './recovery.js';
 import {ejecutarRegresionContableCompleta} from './regresion-contable.js';
+import {estadoPiloto} from './piloto.js';
 
 function prueba(nombre,fn){
   try{
@@ -181,6 +182,7 @@ function estadoPreparacionProductiva(){
   const conc=cert.concurrencia;
   const restore=cert.restore;
   const recovery=estadoRecuperacion();
+  const piloto=estadoPiloto();
   const criterios=[
     {id:'integridad',nombre:'Integridad contable sin hallazgos críticos',ok:!(integ.porSeveridad?.critica>0),detalle:`Críticas: ${integ.porSeveridad?.critica||0}`},
     {id:'tests',nombre:'Pruebas automáticas del motor y RCV',ok:tests.ok,detalle:`${tests.aprobadas}/${tests.total}`},
@@ -194,7 +196,8 @@ function estadoPreparacionProductiva(){
     {id:'cierreMensual',nombre:'Cierre contable mensual habilitado',ok:Array.isArray(S.cierresContables),detalle:`${(S.cierresContables||[]).filter(x=>x.estado==='cerrado').length} período(s) cerrado(s)`},
     {id:'concurrencia',nombre:'Prueba de concurrencia real en 2 equipos',ok:!!conc?.ok,pendiente:!conc?.ok,detalle:conc?.ok?`Aprobada ${new Date(conc.fecha).toLocaleString('es-CL')} · ${(conc.dispositivos||[]).map(x=>x.nombre).join(' + ')}`:'Pendiente: ejecutar protocolo con dos dispositivos conectados a Firebase'},
     {id:'restore',nombre:'Simulacro de restauración de backup',ok:!!restore?.ok,pendiente:!restore?.ok,detalle:restore?.ok?`Aprobado ${new Date(restore.fecha).toLocaleString('es-CL')} · ${restore.hojas||0} hojas`:'Pendiente: ejecutar round-trip del respaldo en memoria'},
-    {id:'recovery',nombre:'Snapshot de recuperación ante desastre vigente',ok:!!recovery.vigente,pendiente:!recovery.vigente,detalle:recovery.ultimo?`Último ${new Date(recovery.ultimo.creadoEn).toLocaleString('es-CL')} · ${recovery.snapshots} punto(s) disponible(s)`:'Pendiente: crear el primer snapshot productivo'}
+    {id:'recovery',nombre:'Snapshot de recuperación ante desastre vigente',ok:!!recovery.vigente,pendiente:!recovery.vigente,detalle:recovery.ultimo?`Último ${new Date(recovery.ultimo.creadoEn).toLocaleString('es-CL')} · ${recovery.snapshots} punto(s) disponible(s)`:'Pendiente: crear el primer snapshot productivo'},
+    {id:'piloto',nombre:'Período piloto certificado contra RCV/F29',ok:!!piloto.ok,pendiente:!piloto.ok,detalle:piloto.ultimo?`Certificado ${piloto.ultimo.periodo} · ${new Date(piloto.ultimo.certificadoEn).toLocaleString('es-CL')}`:'Pendiente: certificar al menos un período completo contra referencias externas'}
   ];
   const bloqueantes=criterios.filter(c=>!c.ok&&!c.pendiente);
   const pendientes=criterios.filter(c=>c.pendiente);

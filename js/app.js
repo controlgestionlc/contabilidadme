@@ -25,9 +25,10 @@ import {cargarUsuarios, renderUsuarios, abrirInvitarUsuario, editarUsuario,
         renderPermisosForm, cerrarUsuarioForm, guardarUsuario, aprobarUsuario,
         desactivarUsuario, US} from './usuarios.js';
 import {renderAuditLog} from './audit.js';
-import {renderIntegridad,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI} from './integridad.js';
+import {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI} from './integridad.js';
 import {initRecovery} from './recovery.js';
-import {cargarPreproduccion,actualizarBadgeEntorno,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba} from './preproduccion.js';
+import {cargarPreproduccion,actualizarBadgeEntorno,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion} from './preproduccion.js';
+import {cargarPiloto} from './piloto.js';
 
 // Configuración y datos
 import {fillEmpresaForm, saveEmpresa, updateHdr, aplicarRegimenEmpresa,
@@ -297,7 +298,7 @@ async function loadYear(y){
   try{actualizarBotonGuardar();}catch(e){}
   return S.cargaFallida;
 }
-async function changeYear(y){S.empresa.anio=y;await loadYear(y);await cargarPreproduccion();await cargarDeclaracionesF29(true);rerender();}
+async function changeYear(y){S.empresa.anio=y;await loadYear(y);await cargarPreproduccion();await cargarPiloto();await cargarDeclaracionesF29(true);rerender();}
 async function init(){
   // Firestore y Auth arrancan EN PARALELO.
   // Antes se esperaba a que Firestore terminara de conectar para recién empezar
@@ -408,7 +409,7 @@ async function initApp(){
   // V2.15.4: cargar índice de snapshots y activar respaldo automático periódico.
   try{await initRecovery();}catch(e){console.warn('Recovery init:',e);}
   // V2.15.7: recién ahora se activa la guardia PRUEBA/PRODUCCIÓN, después de migraciones de arranque.
-  try{await cargarPreproduccion();}catch(e){console.warn('Preproducción init:',e);}
+  try{await cargarPreproduccion();await cargarPiloto();}catch(e){console.warn('Preproducción/Piloto init:',e);}
   // Aplicar permisos por si el usuario no puede ver la sección actual
   aplicarPermisosUI();
   retomarUltimaSeccion();
@@ -553,6 +554,7 @@ async function recargarEmpresaActiva(){
   try{if(asegurarCuentasSistema(PDC))await window.storage.set('pdc',JSON.stringify(PDC));}catch(e){console.warn('No se pudo persistir cuentas de sistema:',e);}
   await loadYear(S.empresa.anio);
   await cargarPreproduccion();
+  await cargarPiloto();
   window.__entornoBypass=false;
   await cargarDeclaracionesF29(true);
   await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
@@ -656,8 +658,8 @@ Object.assign(window,{
   renderDiario, setDiarioQ, renderMayor, renderBalance, onCmpYear, renderResultados,
   onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
   onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel,
-  renderIntegridad,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,
-  setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,actualizarBadgeEntorno,
+  renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,
+  setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion,actualizarBadgeEntorno,
   ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI,
   renderCargaDatos, descargarPlantillaDatos, abrirCargaDatos, renderSistema,
   diagnosticarSeguridad, prepararAislamiento, repararAccesos, repararDocumentos,

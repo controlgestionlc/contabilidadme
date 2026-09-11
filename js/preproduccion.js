@@ -6,7 +6,7 @@ import {logAccion} from './firebase.js';
 const PREPRO={
   modo:'prueba',
   checklist:{empresa:false,pdc:false,saldos:false,rcv:false,usuarios:false,respaldo:false},
-  activadoEn:null,activadoPor:null,version:null,revision:null
+  activadoEn:null,activadoPor:null,version:null,revision:null,actaHabilitacion:null,actasHabilitacion:[]
 };
 const CHECKS={
   empresa:'Ficha de empresa y datos tributarios revisados',
@@ -23,7 +23,7 @@ function setEscrituraPrueba(v){try{v?sessionStorage.setItem(ss(),'1'):sessionSto
 function normalizar(x){
   const c={...PREPRO.checklist,...(x?.checklist||{})};
   Object.assign(PREPRO,{modo:x?.modo==='produccion'?'produccion':'prueba',checklist:c,
-    activadoEn:x?.activadoEn||null,activadoPor:x?.activadoPor||null,version:x?.version||null,revision:x?.revision||null});
+    activadoEn:x?.activadoEn||null,activadoPor:x?.activadoPor||null,version:x?.version||null,revision:x?.revision||null,actaHabilitacion:x?.actaHabilitacion||null,actasHabilitacion:Array.isArray(x?.actasHabilitacion)?x.actasHabilitacion:(x?.actaHabilitacion?[x.actaHabilitacion]:[])});
   return PREPRO;
 }
 async function cargarPreproduccion(){
@@ -45,7 +45,7 @@ function actualizarBadgeEntorno(){
   el.style.color=prod?'var(--ok)':'var(--warn)';
   el.title=prod?'Datos productivos: escrituras habilitadas':'Modo de preproducción: las escrituras de negocio requieren habilitación explícita por sesión';
 }
-function claveControl(k0){return /^preproduccion-\d{4}$/.test(k0)||/^hardening-/.test(k0)||/^recovery-/.test(k0)||/^_/.test(k0);}
+function claveControl(k0){return /^preproduccion-\d{4}$/.test(k0)||/^piloto-\d{4}$/.test(k0)||/^hardening-/.test(k0)||/^recovery-/.test(k0)||/^_/.test(k0);}
 function autorizarEscrituraEntorno(key){
   if(window.__entornoBypass===true)return {ok:true};
   if(claveControl(String(key||'')))return {ok:true};
@@ -70,6 +70,46 @@ async function habilitarEscriturasPrueba(){
   setEscrituraPrueba(true);toast('🧪 Escrituras de PRUEBA habilitadas sólo para esta sesión');return true;
 }
 function bloquearEscriturasPrueba(){setEscrituraPrueba(false);toast('🔒 Escrituras de PRUEBA bloqueadas');}
+
+function versionDesplegada(){
+  return document.querySelector('.logo span[title="Versión desplegada"]')?.textContent?.trim()||'sin-version';
+}
+async function sha256(txt){
+  try{const b=new TextEncoder().encode(String(txt));const h=await crypto.subtle.digest('SHA-256',b);return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');}catch(e){return '';}
+}
+function textoSeguro(v){return String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]||c));}
+function actaActual(){return PREPRO.actaHabilitacion||null;}
+async function construirActaHabilitacion(p){
+  const {estadoPiloto}=await import('./piloto.js');
+  const piloto=estadoPiloto();
+  const base={
+    id:`ACTA-${S.empresa.anio}-${Date.now()}`,
+    tipo:'habilitacion-produccion',
+    generadoEn:new Date().toISOString(),
+    empresa:{nombre:S.empresa.nombre||'',rut:S.empresa.rut||'',giro:S.empresa.giro||'',comuna:S.empresa.comuna||'',codigo:S.empresa.codigo||''},
+    ejercicio:S.empresa.anio,
+    version:versionDesplegada(),
+    autorizadoPor:{email:AUTH.user?.email||'',nombre:AUTH.user?.nombre||'',rol:AUTH.user?.rol||''},
+    periodoPiloto:piloto.ultimo?.periodo||null,
+    pilotoCertificadoEn:piloto.ultimo?.certificadoEn||null,
+    checklist:{...PREPRO.checklist},
+    criterios:(p?.criterios||[]).map(c=>({id:c.id,nombre:c.nombre,ok:!!c.ok,pendiente:!!c.pendiente,detalle:c.detalle||''})),
+    resultado:{listo:!!p?.listo,bloqueantes:(p?.bloqueantes||[]).length,pendientes:(p?.pendientes||[]).length},
+    modoAnterior:PREPRO.modo,
+    modoNuevo:'produccion'
+  };
+  base.hash=await sha256(JSON.stringify(base));
+  return base;
+}
+function descargarActaHabilitacion(){
+  const a=actaActual();
+  if(!a){toast('ℹ️ Aún no existe un acta de habilitación');return false;}
+  const rows=(a.criterios||[]).map(c=>`<tr><td>${c.ok?'APROBADO':c.pendiente?'PENDIENTE':'NO APROBADO'}</td><td>${textoSeguro(c.nombre)}</td><td>${textoSeguro(c.detalle)}</td></tr>`).join('');
+  const checks=Object.entries(CHECKS).map(([id,n])=>`<tr><td>${a.checklist?.[id]?'SI':'NO'}</td><td>${textoSeguro(n)}</td></tr>`).join('');
+  const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${textoSeguro(a.id)}</title><style>body{font-family:Arial,sans-serif;margin:34px;color:#111}h1{font-size:22px}h2{font-size:16px;margin-top:24px}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #bbb;padding:7px;text-align:left;font-size:12px}.meta{line-height:1.65;font-size:13px}.hash{font-family:monospace;word-break:break-all;font-size:11px;background:#f4f4f4;padding:8px}.ok{font-weight:bold}</style></head><body><h1>Acta de habilitación a PRODUCCIÓN</h1><div class="meta"><b>Acta:</b> ${textoSeguro(a.id)}<br><b>Empresa:</b> ${textoSeguro(a.empresa?.nombre)} · RUT ${textoSeguro(a.empresa?.rut)}<br><b>Ejercicio:</b> ${a.ejercicio}<br><b>Versión:</b> ${textoSeguro(a.version)}<br><b>Fecha/hora:</b> ${new Date(a.generadoEn).toLocaleString('es-CL')}<br><b>Administrador:</b> ${textoSeguro(a.autorizadoPor?.nombre||a.autorizadoPor?.email)} · ${textoSeguro(a.autorizadoPor?.email)}<br><b>Período piloto certificado:</b> ${textoSeguro(a.periodoPiloto||'—')}</div><h2>Checklist de puesta en marcha</h2><table><thead><tr><th>Estado</th><th>Confirmación</th></tr></thead><tbody>${checks}</tbody></table><h2>Controles técnicos</h2><table><thead><tr><th>Estado</th><th>Control</th><th>Resultado</th></tr></thead><tbody>${rows}</tbody></table><h2>Resultado</h2><p class="ok">APTO PARA PRODUCCIÓN: ${a.resultado?.listo?'SI':'NO'}</p><p>Esta acta documenta el estado de los controles al momento de habilitar el entorno productivo. No reemplaza respaldos, documentación tributaria ni procedimientos internos.</p><h2>Huella de integridad SHA-256</h2><div class="hash">${textoSeguro(a.hash||'')}</div></body></html>`;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});const u=URL.createObjectURL(blob);const x=document.createElement('a');x.href=u;x.download=`${a.id}.html`;document.body.appendChild(x);x.click();x.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);return true;
+}
+
 async function activarProduccion(){
   if(AUTH.user?.rol!=='admin'){toast('🚫 Sólo administrador puede activar PRODUCCIÓN','e');return {ok:false};}
   if(PREPRO.modo==='produccion')return {ok:true};
@@ -79,11 +119,14 @@ async function activarProduccion(){
   if(!checklistCompleto()){toast('🚫 Completa las 6 confirmaciones de puesta en marcha','e');return {ok:false,motivo:'checklist'};}
   const txt=prompt('Vas a habilitar operación PRODUCTIVA para esta empresa y ejercicio.\nLos cambios afectarán datos reales.\n\nEscribe exactamente: ACTIVAR PRODUCCION','');
   if(txt!=='ACTIVAR PRODUCCION'){toast('Activación cancelada');return {ok:false,motivo:'confirmacion'};}
-  PREPRO.modo='produccion';PREPRO.activadoEn=new Date().toISOString();PREPRO.activadoPor=AUTH.user?.email||'';
-  PREPRO.version=document.querySelector('.logo span[title="Versión desplegada"]')?.textContent||'';
+  const acta=await construirActaHabilitacion(p);
+  PREPRO.modo='produccion';PREPRO.activadoEn=acta.generadoEn;PREPRO.activadoPor=AUTH.user?.email||'';
+  PREPRO.version=versionDesplegada();
   PREPRO.revision={criterios:p.criterios.map(c=>({id:c.id,ok:c.ok,pendiente:!!c.pendiente,detalle:c.detalle})),checklist:{...PREPRO.checklist}};
+  PREPRO.actaHabilitacion=acta;
+  PREPRO.actasHabilitacion=[...(PREPRO.actasHabilitacion||[]),acta];
   await persistir();setEscrituraPrueba(false);actualizarBadgeEntorno();
-  try{await logAccion('activar_produccion',{entidad:'preproduccion',estadoNuevo:{modo:'produccion',anio:S.empresa.anio,checklist:PREPRO.checklist},empresa:window.storage?.getPrefijo?.()||''});}catch(e){}
+  try{await logAccion('activar_produccion',{entidad:'preproduccion',estadoNuevo:{modo:'produccion',anio:S.empresa.anio,checklist:PREPRO.checklist,actaId:acta.id,actaHash:acta.hash},empresa:window.storage?.getPrefijo?.()||''});}catch(e){}
   toast('🟢 Entorno PRODUCTIVO activado');return {ok:true};
 }
 async function volverAPrueba(){
@@ -95,6 +138,6 @@ async function volverAPrueba(){
   try{await logAccion('volver_modo_prueba',{entidad:'preproduccion',estadoAnterior:anterior,estadoNuevo:{modo:'prueba'},motivo:motivo.trim(),empresa:window.storage?.getPrefijo?.()||''});}catch(e){}
   toast('🟡 Entorno cambiado a PRUEBA · escrituras bloqueadas');return true;
 }
-function estadoPreproduccion(){return {modo:PREPRO.modo,checklist:{...PREPRO.checklist},checklistCompleto:checklistCompleto(),escrituraPrueba:escrituraPruebaHabilitada(),activadoEn:PREPRO.activadoEn,activadoPor:PREPRO.activadoPor,checks:CHECKS};}
+function estadoPreproduccion(){return {modo:PREPRO.modo,checklist:{...PREPRO.checklist},checklistCompleto:checklistCompleto(),escrituraPrueba:escrituraPruebaHabilitada(),activadoEn:PREPRO.activadoEn,activadoPor:PREPRO.activadoPor,version:PREPRO.version,revision:PREPRO.revision,actaHabilitacion:PREPRO.actaHabilitacion,actasHabilitacion:[...(PREPRO.actasHabilitacion||[])],checks:CHECKS};}
 
-export {PREPRO,CHECKS,cargarPreproduccion,estadoPreproduccion,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,actualizarBadgeEntorno,autorizarEscrituraEntorno};
+export {PREPRO,CHECKS,cargarPreproduccion,estadoPreproduccion,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,actualizarBadgeEntorno,autorizarEscrituraEntorno,actaActual,descargarActaHabilitacion};
