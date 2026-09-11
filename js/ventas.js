@@ -536,7 +536,7 @@ function renderImportModalVentas(){
   if(cnt)cnt.textContent=`${incluidos} seleccionados`;
 }
 
-function confirmarImportacionV(){
+async function confirmarImportacionV(){
   const incluidos=IMV.docs.filter(d=>d.incluir);
   if(!incluidos.length){toast('⚠️ No hay documentos seleccionados','e');return;}
   const sinCuenta=incluidos.filter(d=>!d.cuenta);
