@@ -28,14 +28,20 @@ async function renderAuditLog(){
       const d=doc.data();
       const fecha=d.tsLocal?new Date(d.tsLocal):(d.ts&&d.ts.toDate?d.ts.toDate():null);
       const fechaStr=fecha?fecha.toLocaleString('es-CL',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+      const campos=Array.isArray(d.camposModificados)?d.camposModificados:[];
+      const entidad=d.entidad?`${d.entidad}${d.correlativo?` · N°${d.correlativo}`:''}`:'';
       rows+=`<tr>
         <td style="text-align:center;font-size:15px">${icoAccion(d.accion||'')}</td>
-        <td class="tl" style="font-size:12px">${d.accion||''}${d.detalle?`<div style="font-size:10px;color:var(--mt)">${d.detalle}</div>`:''}</td>
+        <td class="tl" style="font-size:12px">${d.accion||''}
+          ${entidad?`<div style="font-size:10px;color:var(--info);font-family:var(--mono)">${entidad}</div>`:''}
+          ${d.detalle?`<div style="font-size:10px;color:var(--mt)">${d.detalle}</div>`:''}
+          ${campos.length?`<div style="font-size:10px;color:var(--mt)">Campos: ${campos.join(', ')}</div>`:''}
+        </td>
         <td class="tl" style="font-size:11px">${d.nombre||d.usuario||''}</td>
         <td class="tl" style="font-family:var(--mono);font-size:10px;color:var(--mt)">${fechaStr}</td>
       </tr>`;
     });
-    el.innerHTML=`<div class="info-tip" style="margin-bottom:14px">📜 Últimas ${snap.size} acciones de control registradas. Se conserva la trazabilidad de <strong>ediciones/anulaciones relevantes, cierres y reaperturas de ejercicio y procesos tributarios críticos</strong>. La operación rutinaria que no altera trazabilidad contable no se registra.</div>
+    el.innerHTML=`<div class="info-tip" style="margin-bottom:14px">📜 Últimas ${snap.size} acciones de control registradas. Los cambios estructurados conservan <strong>estado anterior, estado nuevo, campos modificados, usuario y fecha</strong>. El registro es create-only en Firestore: desde la app no puede editarse ni borrarse.</div>
     <div class="card-np"><div class="tw"><table>
       <thead><tr><th style="width:40px"></th><th class="tl">ACCIÓN</th><th class="tl">USUARIO</th><th class="tl">FECHA</th></tr></thead>
       <tbody>${rows}</tbody>

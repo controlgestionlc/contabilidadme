@@ -201,6 +201,120 @@ function calcularF29Anual(){
   }
   return meses;
 }
+
+// ═══ V2.13 — CONCILIACIÓN F29 ↔ ASIENTOS ↔ PAGO ═══
+// Concilia por período los importes declarados/calculados contra los asientos
+// efectivamente contabilizados. Para asientos V2.13 usa metadata f29Detalle;
+// para históricos conserva un fallback por descripción/código F29.
+function _asientosF29(periodo,origen){
+  return (S.asientos||[]).filter(a=>!a.anulado&&a.origenAuto===origen&&a.periodoIVA===periodo);
+}
+function _montoMov(a,re,lado='debe'){
+  return (a?.movs||[]).reduce((s,m)=>re.test(String(m.desc||''))?s+(+m[lado]||0):s,0);
+}
+function _detalleComp(a){
+  const d=a?.f29Detalle?.componentes||{};
+  return {
+    iva:d.ivaAPagar!=null?+d.ivaAPagar:_montoMov(a,/F29\s*c[oó]d\.?\s*89/i,'haber'),
+    ppm:d.ppmProvisionado!=null?+d.ppmProvisionado:_montoMov(a,/PPM por pagar/i,'haber'),
+  };
+}
+function _detallePago(a){
+  const d=a?.f29Detalle?.componentes||{};
+  const iva=d.iva!=null?+d.iva:_montoMov(a,/F29\s*c[oó]d\.?\s*89/i,'debe');
+  const ppm=d.ppm!=null?+d.ppm:_montoMov(a,/F29\s*c[oó]d\.?\s*62/i,'debe');
+  const honorarios=d.honorarios!=null?+d.honorarios:_montoMov(a,/F29\s*c[oó]d\.?\s*151/i,'debe');
+  const total=a?.f29Detalle?.totalPagado!=null?+a.f29Detalle.totalPagado:(a?.movs||[]).reduce((s,m)=>s+(+m.haber||0),0);
+  return {iva,ppm,honorarios,total};
+}
+function _pagosAcumuladosF29(periodo){
+  const pagos=_asientosF29(periodo,'pagof29');
+  const componentes={}; let totalPagado=0,totalTributos=0;
+  pagos.forEach(a=>{
+    const det=a?.f29Detalle?.componentes||{};
+    Object.entries(det).forEach(([k,v])=>componentes[k]=(componentes[k]||0)+Math.max(0,+v||0));
+    const d=_detallePago(a);
+    // Compatibilidad con pagos anteriores a V2.13, que no guardaban componentes.
+    if(!Object.keys(det).length){
+      componentes.iva=(componentes.iva||0)+Math.max(0,+d.iva||0);
+      componentes.ppm=(componentes.ppm||0)+Math.max(0,+d.ppm||0);
+      componentes.honorarios=(componentes.honorarios||0)+Math.max(0,+d.honorarios||0);
+    }
+    totalPagado+=Math.max(0,+d.total||0);
+    totalTributos+=a?.f29Detalle?.totalTributos!=null?Math.max(0,+a.f29Detalle.totalTributos||0):Math.max(0,(+d.iva||0)+(+d.ppm||0)+(+d.honorarios||0));
+  });
+  return {pagos,componentes,totalPagado,totalTributos};
+}
+function _retencionHonContabilizada(mes){
+  const pref=`${S.empresa.anio}-${String(mes).padStart(2,'0')}`;
+  return Math.round((S.asientos||[]).filter(a=>!a.anulado&&a.subtipo==='honorario'&&a.tipo==='documento'&&String(a.fecha||'').startsWith(pref))
+    .reduce((s,a)=>s+(a.movs||[]).reduce((x,m)=>x+(m.cd==='2103002'?(+m.haber||0)-(+m.debe||0):0),0),0));
+}
+function conciliarF29Periodo(mes){
+  const periodo=periodoF29(mes),calc=calcularF29Anual()[mes-1],decl=declaracionF29(periodo),presentado=esF29Presentado(decl);
+  const esperado={
+    iva:presentado?codDecl(decl,89,calc.ivaAPagar):Math.round(calc.ivaAPagar||0),
+    ppm:presentado?codDecl(decl,62,calc.ppm):Math.round(calc.ppm||0),
+    honorarios:presentado?codDecl(decl,151,calc.retencionHon):Math.round(calc.retencionHon||0),
+    total:presentado?codDecl(decl,91,calc.totalPagar):Math.round(calc.totalPagar||0),
+  };
+  const comps=_asientosF29(periodo,'ivaf29'), pagos=_asientosF29(periodo,'pagof29');
+  const provision=comps.reduce((r,a)=>{const d=_detalleComp(a);r.iva+=d.iva;r.ppm+=d.ppm;return r;},{iva:0,ppm:0});
+  const pagado=pagos.reduce((r,a)=>{const d=_detallePago(a);r.iva+=d.iva;r.ppm+=d.ppm;r.honorarios+=d.honorarios;r.total+=d.total;return r;},{iva:0,ppm:0,honorarios:0,total:0});
+  const retHonContable=_retencionHonContabilizada(mes);
+  const nucleoEsperado=esperado.iva+esperado.ppm+esperado.honorarios;
+  const nucleoPagado=pagado.iva+pagado.ppm+pagado.honorarios;
+  const saldos={
+    iva:Math.max(0,esperado.iva-pagado.iva),
+    ppm:Math.max(0,esperado.ppm-pagado.ppm),
+    honorarios:Math.max(0,esperado.honorarios-pagado.honorarios),
+    total:Math.max(0,nucleoEsperado-nucleoPagado),
+  };
+  const sobrepagos={
+    iva:Math.max(0,pagado.iva-esperado.iva),ppm:Math.max(0,pagado.ppm-esperado.ppm),
+    honorarios:Math.max(0,pagado.honorarios-esperado.honorarios),total:Math.max(0,nucleoPagado-nucleoEsperado)
+  };
+  const alertas=[];
+  if(comps.length>1)alertas.push(`Hay ${comps.length} asientos activos de compensación para ${periodo}.`);
+  // V2.14: múltiples pagos son válidos; sólo se alertan sobrepagos o inconsistencias.
+  if(presentado&&Math.abs(esperado.iva-provision.iva)>0)alertas.push(`IVA declarado ${fmtC(esperado.iva)} ≠ provisionado ${fmtC(provision.iva)}.`);
+  if(presentado&&esperado.ppm>0&&provision.ppm>0&&Math.abs(esperado.ppm-provision.ppm)>0)alertas.push(`PPM declarado ${fmtC(esperado.ppm)} ≠ provisionado ${fmtC(provision.ppm)}.`);
+  if(Math.abs(esperado.honorarios-retHonContable)>0)alertas.push(`Retención honorarios F29 ${fmtC(esperado.honorarios)} ≠ contabilidad fuente ${fmtC(retHonContable)}.`);
+  Object.entries(sobrepagos).filter(([k,v])=>k!=='total'&&v>0).forEach(([k,v])=>alertas.push(`Existe sobrepago en ${k}: ${fmtC(v)} sobre lo declarado/base.`));
+  const discrepanciaOrigen=presentado&&(
+    Math.abs(esperado.iva-Math.round(calc.ivaAPagar||0))>0 || Math.abs(esperado.ppm-Math.round(calc.ppm||0))>0 ||
+    Math.abs(esperado.honorarios-retHonContable)>0
+  );
+  let estado='BORRADOR';
+  if(presentado){
+    const errorProvision=(esperado.iva>0&&Math.abs(esperado.iva-provision.iva)>0)||(esperado.ppm>0&&provision.ppm>0&&Math.abs(esperado.ppm-provision.ppm)>0);
+    const sobre=Object.values(sobrepagos).some(v=>v>0);
+    if(sobre||errorProvision||discrepanciaOrigen)estado='REVISAR';
+    else if(saldos.total<=0)estado='CONCILIADO';
+    else if(nucleoPagado>0)estado='PAGO_PARCIAL';
+    else estado='PENDIENTE_PAGO';
+  }
+  return {periodo,calc,decl,presentado,esperado,comps,pagos,provision,pagado,retHonContable,nucleoEsperado,nucleoPagado,saldos,sobrepagos,estado,alertas};
+}
+function renderConciliacionF29(mes){
+  const r=conciliarF29Periodo(mes),ok=r.estado==='CONCILIADO';
+  const fila=(lbl,e,origen,prov,pag,saldo)=>{const dif=Math.round((+pag||0)-(+e||0));return `<tr><td class="tl">${lbl}</td><td>${fmtC(e)}</td><td>${fmtC(origen)}</td><td>${prov==null?'—':fmtC(prov)}</td><td>${fmtC(pag)}</td><td style="font-weight:700;color:${saldo>0?'var(--warn)':'var(--ach)'}">${saldo>0?fmtC(saldo):'—'}</td><td style="color:${dif>0?'var(--err)':'var(--mt)'}">${dif>0?'+'+fmtC(dif):'—'}</td></tr>`};
+  const badge=r.estado==='CONCILIADO'?'bg':r.estado==='PAGO_PARCIAL'?'bi':r.estado==='PENDIENTE_PAGO'?'br':r.estado==='REVISAR'?'br':'bi';
+  const historial=r.pagos.length?`<div style="margin-top:12px"><div style="font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Historial de pagos</div><div class="card-np"><div class="tw"><table><thead><tr><th class="tl">ASIENTO</th><th class="tl">FECHA</th><th>IVA</th><th>PPM</th><th>HONORARIOS</th><th>TOTAL</th></tr></thead><tbody>${r.pagos.slice().sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))).map(a=>{const d=_detallePago(a);return `<tr><td class="tl">N°${a.n||a.folioComp||'—'}</td><td class="tl">${a.fecha||'—'}</td><td>${fmtC(d.iva)}</td><td>${fmtC(d.ppm)}</td><td>${fmtC(d.honorarios)}</td><td>${fmtC(d.total)}</td></tr>`}).join('')}</tbody></table></div></div></div>`:'';
+  return `<div class="card" style="max-width:980px;margin-top:14px">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><div class="card-title">🔎 Conciliación F29 · Mayor · Pagos</div><div style="font-size:11px;color:var(--mt)">Controla declarado, origen contable, provisión, pagos acumulados y saldo pendiente del período.</div></div><span class="badge ${badge}">${r.estado.replaceAll('_',' ')}</span></div>
+    ${r.alertas.length?`<div class="info-tip" style="margin:10px 0;background:rgba(210,153,34,.10);border-color:var(--warn)">${r.alertas.map(x=>'⚠️ '+x).join('<br>')}</div>`:(ok?'<div class="info-tip" style="margin:10px 0">✅ El período está completamente conciliado y sin saldo pendiente.</div>':`<div class="info-tip" style="margin:10px 0">💳 Saldo pendiente controlado: <strong>${fmtC(r.saldos.total)}</strong>. Los pagos parciales son válidos y se acumulan contra el período.</div>`)}
+    <div class="card-np"><div class="tw"><table><thead><tr><th class="tl">CONCEPTO</th><th>DECL./BASE</th><th>CONTAB. ORIGEN</th><th>PROVISIÓN</th><th>PAGADO ACUM.</th><th>SALDO</th><th>SOBREPAGO</th></tr></thead><tbody>
+      ${fila('IVA a pagar · cód. 89',r.esperado.iva,r.calc.ivaAPagar,r.provision.iva,r.pagado.iva,r.saldos.iva)}
+      ${fila('PPM · cód. 62',r.esperado.ppm,r.calc.ppm,r.provision.ppm,r.pagado.ppm,r.saldos.ppm)}
+      ${fila('Retención honorarios · cód. 151',r.esperado.honorarios,r.retHonContable,null,r.pagado.honorarios,r.saldos.honorarios)}
+      ${fila('Total núcleo controlado',r.nucleoEsperado,r.calc.ivaAPagar+r.calc.ppm+r.retHonContable,null,r.nucleoPagado,r.saldos.total)}
+    </tbody></table></div></div>
+    ${historial}
+    <div style="font-size:10px;color:var(--mt);margin-top:8px">Asientos activos: compensación ${r.comps.length} · pagos F29 ${r.pagos.length}. Más de un pago ya no se considera duplicado: representa pagos parciales mientras el acumulado no exceda la deuda del período.</div>
+  </div>`;
+}
+
 function renderF29(){
   if(!F29DECL.loaded||F29DECL.anio!==+S.empresa.anio){cargarDeclaracionesF29().then(()=>renderF29());}
   const sel=document.getElementById('f29-mes');
@@ -271,6 +385,7 @@ function renderF29(){
     <div style="margin-top:12px;font-size:10px;color:var(--mt)">Los códigos corresponden al Formulario 29 del SII. Este es un cálculo referencial basado en tus registros; verifica antes de declarar.</div>
   </div>
   ${panelDeclaracion}
+  ${renderConciliacionF29(mSel)}
   <div id="ivac-content" style="max-width:760px"></div>
   <div id="pagof29-content" style="max-width:900px"></div>`;
   renderCompensacionIVA();
@@ -586,6 +701,7 @@ async function generarAsientoIVA(){
     id:'as_iva_'+Date.now(),n:folio,folioComp:folio,fecha,glosa,
     movs:r.movs.map(m=>({...m})),
     origenAuto:'ivaf29',periodoIVA:periodo,tipo:'tributario',
+    f29Detalle:{version:13,periodo,componentes:{ivaAPagar:Math.round(r.ivaAPagar||0),ppmProvisionado:IVAC.incluirPPM?Math.round(r.d.ppm||0):0,remanenteNuevo:Math.round(r.remanenteNuevo||0)},cuentas:{...IVAC.cuentas},calculado:snapshotF29(r.d),declarado:esF29Presentado(declaracionF29(periodo))?{...(declaracionF29(periodo).declarado||{})}:null},
   });});
   if(!pr.ok){toast('❌ No se pudo guardar la compensación de IVA. La operación NO se contabilizó.','e');return;}
   toast(`✅ Asiento N°${folio} — compensación IVA ${per} · ${resumen}`);
@@ -654,7 +770,7 @@ const CONCEPTOS_F29=[
   {k:'ivaRetenido',lbl:'IVA retenido en facturas de compra (cambio de sujeto)',cod:'',on:false,
    nota:'El motor la acredita en <strong>IVA retenido / otros impuestos por pagar</strong> y la compensación F29 la salda por separado; su efecto ya está incluido en el IVA determinado. Actívala sólo si la llevas en una cuenta separada.'},
   {k:'ppm',lbl:'PPM Primera Categoría',cod:'62',on:true,
-   nota:'Va al activo <strong>Pagos Provisionales Mensuales</strong>: es un anticipo de impuesto a la renta, no un gasto. Si ya lo provisionaste en el asiento de compensación, apunta esta línea a la cuenta de provisión.'},
+   nota:'Es un anticipo de impuesto a la renta, no un gasto. V2.13 selecciona automáticamente la cuenta de provisión si el PPM ya fue provisionado en la compensación; si no, lo reconoce directamente como activo al pagar.'},
   {k:'honorarios',lbl:'Retención boletas de honorarios recibidas',cod:'151',on:true},
   {k:'bte',lbl:'Retención boletas de servicios de terceros (BTE)',cod:'151',on:false,
    nota:'El sistema no registra BTE todavía: ingresa el monto a mano si emitiste boletas por cuenta de terceros.'},
@@ -685,20 +801,20 @@ function iuscEstimado(){
 // Montos sugeridos por concepto para un mes
 function montosSugeridosF29(mes){
   const d=calcularF29Anual()[mes-1];
-  const comp=calcularCompensacionIVA(mes);   // respeta el reajuste configurado arriba
-  const decl=declaracionF29(periodoF29(mes));
-  const presentado=esF29Presentado(decl);
-  return {
-    // Si ya fue presentado, el asiento de pago propone lo declarado al SII,
-    // no un recálculo posterior de documentos históricos.
+  const comp=calcularCompensacionIVA(mes);
+  const periodo=periodoF29(mes),decl=declaracionF29(periodo),presentado=esF29Presentado(decl);
+  const base={
     iva:presentado?codDecl(decl,89,comp.ivaAPagar):comp.ivaAPagar,
     ivaRetenido:presentado?codDecl(decl,39,ivaRetenidoFacturasCompra(mes)):ivaRetenidoFacturasCompra(mes),
     ppm:presentado?codDecl(decl,62,d.ppm):d.ppm,
     honorarios:presentado?codDecl(decl,151,d.retencionHon):d.retencionHon,
-    bte:0,
-    iusc:iuscEstimado(),
-    multas:0,
+    bte:0,iusc:iuscEstimado(),multas:0,
   };
+  const ac=_pagosAcumuladosF29(periodo).componentes;
+  // V2.14: un nuevo asiento propone sólo el saldo no pagado del período.
+  const saldo={}; Object.keys(base).forEach(k=>saldo[k]=k==='multas'?base[k]:Math.max(0,Math.round((+base[k]||0)-(+ac[k]||0))));
+  saldo._base=base; saldo._pagado=ac;
+  return saldo;
 }
 
 // Saldo pendiente (acreedor) de una cuenta a la fecha de pago
@@ -708,9 +824,10 @@ function saldoPendiente(M,cd){
   return -a.saldo;   // pasivo: saldo negativo (debe−haber) ⇒ pendiente positivo
 }
 
-function asientoPagoExistente(periodo){
-  return (S.asientos||[]).find(a=>!a.anulado&&a.origenAuto==='pagof29'&&a.periodoIVA===periodo)||null;
+function asientosPagoF29(periodo){
+  return _asientosF29(periodo,'pagof29').slice().sort((a,b)=>String(a.fecha||'').localeCompare(String(b.fecha||'')));
 }
+function asientoPagoExistente(periodo){return asientosPagoF29(periodo)[0]||null;}
 
 // Fecha legal de pago: día 12 del mes siguiente al período
 function fechaPagoDefault(anio,mes){
@@ -763,8 +880,13 @@ function renderPagoF29(){
   if(!PAGOF29.incluir)PAGOF29.incluir=Object.fromEntries(CONCEPTOS_F29.map(c=>[c.k,c.on]));
   if(PAGOF29.periodo!==periodo){PAGOF29.periodo=periodo;PAGOF29.fecha='';PAGOF29.glosa='';PAGOF29.montos={};}
 
+  const compActiva=asientoIVAExistente(periodo);
+  const compDet=compActiva?_detalleComp(compActiva):{ppm:0};
+  // Si el PPM ya fue provisionado en la compensación, el pago debe cancelar
+  // el pasivo 2105006. Si no, se reconoce directamente como activo PPM al pagar.
+  if(PAGOF29.montos.ppm==null)PAGOF29.cuentas.ppm=compDet.ppm>0?(IVAC.cuentas.ppmPasivo||'2105006'):(PAGOF29_DEFAULT.ppm||'1108001');
   const r=calcularPagoF29(mes);
-  const yaExiste=asientoPagoExistente(periodo);
+  const pagosPrevios=asientosPagoF29(periodo), yaExiste=pagosPrevios[0]||null;
   const fecha=PAGOF29.fecha||fechaPagoDefault(anio,mes);
   const glosa=PAGOF29.glosa||`Pago F29 ${MESES[mes-1]} ${anio}`;
   // Saldos del mayor hasta la fecha de pago, como referencia de lo pendiente
@@ -789,8 +911,9 @@ function renderPagoF29(){
       <td style="width:250px">${inputCuenta({id:'pf29-cd-'+c.k,value:cd||'',onPick:`setPagoF29Cuenta('${c.k}','%CD%')`,placeholder:'Cuenta…',clase:'linea-inp'})}</td>
       <td style="width:130px"><input type="number" value="${monto||0}" onchange="setPagoF29Monto('${c.k}',this.value)" style="text-align:right;font-family:var(--mono)"></td>
       <td style="width:150px;font-size:10px;color:var(--mt);text-align:right">
-        ${editado?`<div><button class="btn btn-g" style="padding:1px 6px;font-size:9px" onclick="usarSugeridoF29('${c.k}')">↺ ${fmtC(r.sug[c.k])}</button></div>`:''}
-        ${pend!==null?`<div title="Saldo acreedor de la cuenta al ${fecha}">Pendiente: ${fmtC(pend)}${compartida?' <span style="color:var(--warn)" title="Otro concepto usa la misma cuenta: el saldo es compartido">⚠</span>':''}</div>`:'<div>—</div>'}
+        ${editado?`<div><button class="btn btn-g" style="padding:1px 6px;font-size:9px" onclick="usarSugeridoF29('${c.k}')">↺ saldo ${fmtC(r.sug[c.k])}</button></div>`:''}
+        ${!c.gasto?`<div>Pagado: ${fmtC(r.sug._pagado?.[c.k]||0)} · Saldo: ${fmtC(r.sug[c.k]||0)}</div>`:''}
+        ${pend!==null?`<div title="Saldo acreedor de la cuenta al ${fecha}">Mayor: ${fmtC(pend)}${compartida?' <span style="color:var(--warn)" title="Otro concepto usa la misma cuenta: el saldo es compartido">⚠</span>':''}</div>`:'<div>—</div>'}
       </td>
     </tr>`;
   }).join('');
@@ -801,7 +924,7 @@ function renderPagoF29(){
         <div style="font-size:15px;font-weight:700">🏦 Asiento de pago del F29</div>
         <div style="font-size:11px;color:var(--mt);margin-top:2px">Cancela los impuestos y retenciones del período ${MESES[mes-1]} ${anio} contra banco o caja</div>
       </div>
-      ${yaExiste?`<span class="badge br">⚠️ Ya generado — Asiento N°${yaExiste.n}</span>`:''}
+      ${pagosPrevios.length?`<span class="badge bi">💳 ${pagosPrevios.length} pago(s) registrado(s)</span>`:''}
     </div>
 
     <div class="info-tip" style="margin:10px 0 14px;font-size:11px;line-height:1.6">
@@ -849,7 +972,7 @@ function renderPagoF29(){
 
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-p" onclick="generarAsientoPagoF29()" ${(!r.movs.length||!r.cuadra)?'disabled style="opacity:.5;cursor:not-allowed"':''}>
-        🏦 ${yaExiste?'Generar de nuevo':'Generar asiento de pago'}
+        🏦 ${pagosPrevios.length?'Registrar otro pago':'Generar asiento de pago'}
       </button>
     </div>
   </div>`;
@@ -866,12 +989,17 @@ async function generarAsientoPagoF29(){
   const faltantes=[...new Set(r.movs.filter(m=>!PDC.some(x=>x.cd===m.cd)).map(m=>m.cd))];
   if(faltantes.length){toast(`⚠️ Estas cuentas no existen en el plan: ${faltantes.join(', ')}`,'e');return;}
 
-  const yaExiste=asientoPagoExistente(periodo);
+  const pagosPrevios=asientosPagoF29(periodo);
   const per=`${MESES[mes-1]} ${anio}`;
+  const excedidos=CONCEPTOS_F29.filter(c=>!c.gasto&&PAGOF29.incluir[c.k]).map(c=>{
+    const actual=Math.round(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:(r.sug[c.k]||0));
+    const saldo=Math.round(r.sug[c.k]||0); return {c,actual,saldo};
+  }).filter(x=>x.actual>x.saldo);
+  if(excedidos.length){toast(`⚠️ El pago excede el saldo pendiente en: ${excedidos.map(x=>x.c.lbl).join(', ')}.`,'e');return;}
   const detalle=r.movs.filter(m=>m.debe>0)
     .map(m=>`  ${m.cd} ${m.nm}: ${fmtC(m.debe)}`).join('\n');
-  const msg=(yaExiste?`⚠️ Ya existe el asiento N°${yaExiste.n} de pago de ${per}.\nSe creará OTRO (anula el anterior si corresponde).\n\n`:'')
-    +`Pago F29 — ${per}\n\n${detalle}\n\nTotal a pagar: ${fmtC(r.total)}\nContra: ${pdcNm(PAGOF29.cuentas.banco)||PAGOF29.cuentas.banco}\n\n¿Generar el asiento?`;
+  const msg=(pagosPrevios.length?`💳 Ya existen ${pagosPrevios.length} pago(s) para ${per}. Este asiento se registrará como pago parcial/adicional.\n\n`:'')
+    +`Pago F29 — ${per}\n\n${detalle}\n\nMonto de este pago: ${fmtC(r.total)}\nContra: ${pdcNm(PAGOF29.cuentas.banco)||PAGOF29.cuentas.banco}\n\n¿Registrar el pago?`;
   if(!confirm(msg))return;
 
   const folio=proxFolioComprobante();
@@ -881,17 +1009,19 @@ async function generarAsientoPagoF29(){
     id:'as_pagof29_'+Date.now(),n:folio,folioComp:folio,fecha,glosa,
     movs:r.movs.map(m=>({...m})),
     origenAuto:'pagof29',periodoIVA:periodo,tipo:'tributario',
+    f29Detalle:{version:14,periodo,pagoNro:pagosPrevios.length+1,componentes:Object.fromEntries(CONCEPTOS_F29.map(c=>[c.k,PAGOF29.incluir[c.k]?Math.round(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:r.sug[c.k]||0):0])),cuentas:{...PAGOF29.cuentas},totalTributos:Math.round(CONCEPTOS_F29.filter(c=>!c.gasto&&PAGOF29.incluir[c.k]).reduce((t,c)=>t+(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:r.sug[c.k]||0),0)),totalPagado:Math.round(r.total||0),declarado:esF29Presentado(declaracionF29(periodo))?{...(declaracionF29(periodo).declarado||{})}:null},
   });});
   if(!pr.ok){toast('❌ No se pudo guardar el pago F29. La operación NO se contabilizó.','e');return;}
   toast(`✅ Asiento N°${folio} — pago F29 ${per} · ${fmtC(r.total)}`);
   logAccion('Generó pago de F29',`${per} · asiento N°${folio} · ${fmtC(r.total)}`);
+  PAGOF29.montos={}; PAGOF29.fecha=''; PAGOF29.glosa='';
   rerender();
   renderF29();
 }
 
-export {calcularF29Anual, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
+export {calcularF29Anual, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,
         setPagoF29Cuenta, setPagoF29Campo, setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29,
-        ivaRetenidoFacturasCompra, asientoPagoExistente};
+        ivaRetenidoFacturasCompra, asientoPagoExistente, asientosPagoF29};

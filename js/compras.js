@@ -1,9 +1,10 @@
 import {tributacionCompra,periodoContableCompra,fechaContabilizacionCompra} from './motor-contable.js';
+import {claveRCV,compararCompraRCV,snapshotCompraRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 // compras.js — Libro de compras + importador SII
 import {toast, fmt, pn, today, MESES, IVA, DTE_COMPRAS, dteC, rutParse, rutFmt, rutDV, pdcNm, CCOLS, CUENTAS_GASTO, CUENTAS_COMPRA, fmtC} from './core.js';
 import {rerender} from './ui.js';
 import {S} from './state.js';
-import {logAccion} from './firebase.js';
+import {logAccion,logCambio} from './firebase.js';
 import {mesOpts, mesRango} from './helpers.js';
 import {todosDocsCompras, abrirAsientoDesde, proxFolioComprobante} from './asientos.js';
 import {ccOpts} from './centroscosto.js';
@@ -11,7 +12,7 @@ import {inputCuenta} from './buscadorcuentas.js';
 import {leerArchivo} from './importadorsii.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import './storage.js';
-import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico} from './contabilidad-v2.js';
+import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
 
 // Estado del formulario de compras (interno del módulo)
 // CF NUNCA debe reasignarse: app.js expone este objeto con Object.assign(window,{CF})
@@ -70,9 +71,21 @@ function migrarCorrelativosCompras(){
 // Un documento tributario es único por RUT emisor + tipo DTE + folio.
 // Si aparece más de una vez (por ejemplo, cargado en el libro y además a través
 // de un asiento manual) se duplica el gasto y el crédito fiscal.
-function claveDocCompra(d){
-  return `${d.rutCodigo}|${+d.tipoDTE}|${String(d.numero||'').trim()}`;
+function claveDocCompra(d){return claveRCV(d);}
+
+function recalcularEstadoImportCompras(){
+  const per=periodoImportSeleccionado();
+  IM.docs.forEach(d=>{
+    const prev=d.dup;
+    if(!prev){d.estadoImport='nuevo';d.cambiosRCV=[];if(d.incluir==null)d.incluir=true;return;}
+    if(prev.origen==='asiento'){d.estadoImport='manual';d.cambiosRCV=[];d.incluir=false;return;}
+    const cmp=compararCompraRCV(d,prev,per);
+    d.cambiosRCV=cmp.cambios;d.rcvFingerprint=cmp.fingerprint;
+    if(prev.estado==='anulado'){d.estadoImport='cambio';d.cambiosRCV=[{campo:'estado',label:'Estado',anterior:'Anulado',nuevo:'Activo'},...d.cambiosRCV];}
+    else d.estadoImport=cmp.igual?'igual':'cambio';
+  });
 }
+
 function gruposDuplicadosCompras(){
   const map=new Map();
   todosDocsCompras().forEach(d=>{
@@ -173,6 +186,8 @@ function toggleCSelAll(marcados){
 }
 function limpiarCSel(){CF_SEL.clear();renderCompras();}
 async function eliminarCSel(){
+  const cerrados=(S.compras||[]).filter(d=>CF_SEL.has(d.id)&&!puedeOperarFecha(fechaContabilizacionCompra(d)));
+  if(cerrados.length){toast(`🔒 ${cerrados.length} compra(s) pertenecen a períodos cerrados. Reabre esos períodos antes de anular.`, 'e');return;}
   if(!CF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de anular compras.','e');return;}
   const n=CF_SEL.size;
@@ -200,7 +215,7 @@ Los documentos y sus asientos se conservarán para trazabilidad.`))return;
 function renderCompras(){
   // Asegurar que todos los documentos del libro tengan correlativo mensual fijo
   if(migrarCorrelativosCompras())
-    window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras)).catch(()=>{});
+    window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras)).then(r=>{if(r&&r.ok===false)console.warn('No se pudo persistir correlativos migrados',r);}).catch(e=>console.warn('No se pudo persistir correlativos migrados',e));
 
   const selMes=document.getElementById('cf-mes');
   if(selMes&&selMes.options.length<=1)selMes.innerHTML=mesOpts(selMes.value);
@@ -718,13 +733,16 @@ function mostrarDocsImportados(res,nombreArchivo){
   // manualmente puede tener el número como Number y el CSV lo trae como String.
   const todos=todosDocsCompras();
   res.docs.forEach(d=>{
-    const dup=todos.find(x=>
+    const dupLibro=(S.compras||[]).find(x=>claveDocCompra(x)===claveDocCompra(d));
+    const dup=dupLibro||todos.find(x=>
       x.rutCodigo===d.rutCodigo &&
       +x.tipoDTE===+d.tipoDTE &&
       String(x.numero).trim()===String(d.numero).trim()
     );
     d.dup=dup||null;
     d.incluir=!dup;
+    d.estadoImport=dup?'igual':'nuevo';
+    d.cambiosRCV=[];
     // Pre-poblar cuenta y CC. Prioridad: la clasificación que ya tiene el
     // documento registrado (si es una recarga del mismo periodo), luego la
     // ficha del proveedor. Así una re-importación no pierde el trabajo hecho.
@@ -744,6 +762,7 @@ function mostrarDocsImportados(res,nombreArchivo){
   IM.periodoMes=+mesTop;
   IM.periodoAnio=+anioTop;
   IM.periodos=periodos;
+  recalcularEstadoImportCompras();
   abrirImportModal();
 }
 
@@ -782,6 +801,9 @@ function abrirImportModal(){
 function cambiarPeriodoImport(){
   IM.periodoMes=+document.getElementById('imp-periodo-mes').value;
   IM.periodoAnio=+document.getElementById('imp-periodo-anio').value;
+  recalcularEstadoImportCompras();
+  // Al cambiar el período, no aplicar cambios SII silenciosamente.
+  IM.docs.forEach(d=>{d.incluir=d.estadoImport==='nuevo'||(IM.modo==='sobrescribir'&&d.estadoImport==='cambio');});
   renderImportModal();
 }
 
@@ -792,8 +814,12 @@ function cambiarPeriodoImport(){
 //                  estaban registrados (mismo RUT + tipo DTE + folio).
 function cambiarModoImport(){
   IM.modo=document.getElementById('imp-modo')?.value||'agregar';
-  // Al sobrescribir, los duplicados SÍ entran (son justamente los que se reemplazan)
-  IM.docs.forEach(d=>{d.incluir=IM.modo==='sobrescribir'?true:!d.dup;});
+  recalcularEstadoImportCompras();
+  // Idempotencia: los documentos idénticos nunca vuelven a escribirse. En
+  // sobrescritura sólo se seleccionan nuevos + cambios reales detectados.
+  IM.docs.forEach(d=>{
+    d.incluir=d.estadoImport==='nuevo'||(IM.modo==='sobrescribir'&&d.estadoImport==='cambio');
+  });
   renderImportModal();
 }
 
@@ -830,6 +856,10 @@ function renderImportModal(){
   const dups=IM.docs.filter(d=>d.dup).length;
   const incl=IM.docs.filter(d=>d.incluir).length;
   const conCuenta=IM.docs.filter(d=>d.incluir&&d.cuenta).length;
+  const nuevos=IM.docs.filter(d=>d.estadoImport==='nuevo').length;
+  const iguales=IM.docs.filter(d=>d.estadoImport==='igual').length;
+  const cambiados=IM.docs.filter(d=>d.estadoImport==='cambio').length;
+  const manuales=IM.docs.filter(d=>d.estadoImport==='manual').length;
 
   // Info del periodo
   const periodoStr=`${MESES[IM.periodoMes-1]} ${IM.periodoAnio}`;
@@ -855,14 +885,14 @@ function renderImportModal(){
   const sobre=modo==='sobrescribir';
   let avisoModo='';
   if(sobre){
-    const enLibro=docsLibroDelPeriodo();
-    const clavesArchivo=new Set(IM.docs.filter(d=>d.incluir).map(claveDocCompra));
+    const enLibro=docsLibroDelPeriodo().filter(d=>d.estado!=='anulado');
+    const clavesArchivo=new Set(IM.docs.map(claveDocCompra));
     const conservan=enLibro.filter(d=>clavesArchivo.has(claveDocCompra(d))).length;
     const sePierden=enLibro.length-conservan;
     avisoModo=`<div style="background:rgba(210,153,34,.10);border:1px solid rgba(210,153,34,.35);border-radius:6px;padding:9px 12px;margin-top:8px;font-size:11px;line-height:1.5">
-      🔁 <strong>Sobrescribir ${periodoStr}</strong> — se eliminan los <strong>${enLibro.length}</strong> documento${enLibro.length===1?'':'s'} que hoy tiene el libro en ese periodo y se cargan los <strong>${incl}</strong> del archivo.
+      🔁 <strong>Sobrescribir ${periodoStr}</strong> — se concilian los <strong>${enLibro.length}</strong> documento${enLibro.length===1?'':'s'} activos del libro contra el archivo. Sólo se escriben documentos nuevos o realmente modificados.
       <strong style="color:var(--ach)">${conservan}</strong> conservan su correlativo actual; los nuevos toman los números libres del mes.
-      ${sePierden?`<br><span style="color:var(--err)">⚠️ ${sePierden} documento${sePierden===1?'':'s'} del libro no viene${sePierden===1?'':'n'} en el archivo y se eliminará${sePierden===1?'':'n'}.</span>`:''}
+      ${sePierden?`<br><span style="color:var(--err)">⚠️ ${sePierden} documento${sePierden===1?'':'s'} del libro no viene${sePierden===1?'':'n'} en el archivo y se anulará${sePierden===1?'':'n'} con trazabilidad.</span>`:''}
       <br><span style="color:var(--mt)">Los documentos registrados vía asientos manuales no se tocan.</span>
     </div>`;
   }
@@ -870,20 +900,24 @@ function renderImportModal(){
   // Summary
   document.getElementById('imp-summary').innerHTML=`📊 <strong>${total}</strong> documentos detectados` +
     (IM.descartados?` · ${IM.descartados} descartados (datos incompletos o DTE no soportado)`:'')+
-    (dups?` · <strong style="color:${sobre?'var(--info)':'var(--err)'}">${dups} ya registrado${dups===1?'':'s'}</strong>${sobre?' (se reemplazan)':' (se omiten)'}`:'')+
+    ` · <strong style="color:var(--ach)">${nuevos} nuevo${nuevos===1?'':'s'}</strong>`+
+    ` · <strong style="color:var(--mt)">${iguales} sin cambios</strong>`+
+    (cambiados?` · <strong style="color:var(--warn)">${cambiados} con cambios SII</strong>`:'')+
+    (manuales?` · <strong style="color:var(--info)">${manuales} ya en asiento manual</strong>`:'')+
     ` · Archivo: <code style="font-family:var(--mono);font-size:11px">${IM.archivo||'-'}</code>`+avisoModo;
   document.getElementById('imp-count').textContent=`${conCuenta}/${incl} con cuenta asignada`;
 
   // Botón OK
   const btnOk=document.getElementById('imp-btn-ok');
+  const ausentes=sobre?docsLibroDelPeriodo().filter(d=>d.estado!=='anulado'&&!new Set(IM.docs.map(claveDocCompra)).has(claveDocCompra(d))).length:0;
   btnOk.textContent=sobre
-    ?`♻️ Reemplazar ${periodoStr} con ${incl} documento${incl===1?'':'s'}`
-    :`💾 Importar ${incl} documento${incl===1?'':'s'} al ${periodoStr}`;
-  btnOk.disabled=incl===0;
+    ?`♻️ Conciliar ${periodoStr}: ${incl} cambio${incl===1?'':'s'}${ausentes?` + ${ausentes} ausencia${ausentes===1?'':'s'}`:''}`
+    :`💾 Aplicar ${incl} documento${incl===1?'':'s'} al ${periodoStr}`;
+  btnOk.disabled=incl===0&&ausentes===0;
 
   // Checkbox "todos"
   const chkAll=document.getElementById('imp-all');
-  const seleccionables=sobre?IM.docs.length:IM.docs.filter(d=>!d.dup).length;
+  const seleccionables=IM.docs.filter(d=>d.estadoImport!=='igual'&&d.estadoImport!=='manual').length;
   chkAll.checked=incl>0&&incl===seleccionables;
 
   // Filas: cada una usa buscador dinámico (compra = gasto + activo)
@@ -894,18 +928,21 @@ function renderImportModal(){
     const fechaShow=fueraP
       ? `<span style="color:var(--err)" title="Fecha documental fuera del período RCV">${d.fechaOriginal}</span><div style="font-size:9px;color:var(--info)">Contab. → ${fechaContabilizacionImport(d)}</div>`
       : d.fechaOriginal;
-    const estado=(d.dup&&!sobre)
-      ?`<span class="dup-badge">DUPLICADO</span>`
-      :(d.dup
-        ?(d.cuenta?`<span class="ok-badge" style="background:rgba(88,166,255,.15);color:var(--info)" title="Ya existe: se reemplaza conservando su correlativo">REEMPLAZA${typeof d.dup.corrMes==='number'?' N°'+String(d.dup.corrMes).padStart(3,'0'):''}</span>`:`<span style="color:var(--mt);font-size:10px">pendiente</span>`)
-        :(d.cuenta?`<span class="ok-badge">LISTO</span>`:`<span style="color:var(--mt);font-size:10px">pendiente</span>`));
+    const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
+    const estado=d.estadoImport==='manual'
+      ?`<span class="dup-badge" style="background:rgba(88,166,255,.12);color:var(--info)" title="Este DTE ya existe dentro de un asiento manual y el importador no lo modificará">YA EN ASIENTO</span>`
+      :d.estadoImport==='igual'
+      ?`<span class="ok-badge" style="background:rgba(139,148,158,.12);color:var(--mt)" title="Huella RCV idéntica: no se volverá a escribir">SIN CAMBIOS</span>`
+      :d.estadoImport==='cambio'
+        ?`<span class="dup-badge" style="background:rgba(210,153,34,.15);color:var(--warn)" title="${cambiosTxt.replace(/"/g,'&quot;')}">CAMBIO SII${typeof d.dup?.corrMes==='number'?' N°'+String(d.dup.corrMes).padStart(3,'0'):''}</span>`
+        :(d.cuenta?`<span class="ok-badge">NUEVO</span>`:`<span style="color:var(--mt);font-size:10px">pendiente</span>`);
     const selHtml=inputCuenta({id:`imp-cd-${i}`,value:d.cuenta||'',
       onPick:`setImportCuenta(${i},'%CD%')`,
       placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'compra'});
     // Selector de centro de costo (opcional)
     const ccHtml=`<select onchange="setImportCC(${i},this.value)" style="width:100%;font-size:11px;padding:3px">${ccOpts(d.cc||'')}</select>`;
     return `<div class="${cls}">
-      <div style="text-align:center"><input type="checkbox" ${d.incluir?'checked':''} ${(d.dup&&!sobre)?'disabled':''} onchange="toggleImportDoc(${i},this.checked)"></div>
+      <div style="text-align:center"><input type="checkbox" ${d.incluir?'checked':''} ${(d.estadoImport==='igual'||d.estadoImport==='manual')?'disabled':''} onchange="toggleImportDoc(${i},this.checked)"></div>
       <div style="font-family:var(--mono);font-size:10px">${fechaShow}</div>
       <div style="font-family:var(--mono);font-size:10px">${d.tipoDTE}</div>
       <div style="font-family:var(--mono);font-size:10px">${d.numero}</div>
@@ -928,7 +965,7 @@ function toggleImportDoc(i,checked){
 }
 function toggleAllImport(checked){
   const sobre=(IM.modo||'agregar')==='sobrescribir';
-  IM.docs.forEach(d=>{if(sobre||!d.dup)d.incluir=checked;});
+  IM.docs.forEach(d=>{if(d.estadoImport!=='igual'&&d.estadoImport!=='manual')d.incluir=checked;});
   renderImportModal();
 }
 function setImportCuenta(i,cuenta){
@@ -968,12 +1005,29 @@ function aplicarCCATodos(){
 }
 
 async function confirmarImportacion(){
+  const perFecha=`${IM.periodoAnio}-${String(IM.periodoMes).padStart(2,'0')}-01`;
+  if(!puedeOperarFecha(perFecha)){toast('🔒 El período RCV seleccionado está cerrado. Reábrelo antes de importar compras.','e');return;}
   const incluidos=IM.docs.filter(d=>d.incluir);
-  if(!incluidos.length){toast('⚠️ No hay documentos para importar','e');return;}
+  const modo=IM.modo||'agregar';
+  const enPeriodoActivos=modo==='sobrescribir'?docsLibroDelPeriodo().filter(d=>d.estado!=='anulado'):[];
+  const clavesFuente=new Set(IM.docs.map(claveDocCompra));
+  const ausentesFuente=modo==='sobrescribir'?enPeriodoActivos.filter(d=>!clavesFuente.has(claveDocCompra(d))):[];
+  if(!incluidos.length&&!ausentesFuente.length){
+    toast(`✅ Importación idempotente: ${IM.docs.filter(d=>d.estadoImport==='igual').length} documento(s) ya estaban idénticos. No se modificó el libro.`);
+    cerrarImportModal();return;
+  }
   const sinCuenta=incluidos.filter(d=>!d.cuenta);
   if(sinCuenta.length){
     toast(`⚠️ ${sinCuenta.length} documento${sinCuenta.length===1?' no tiene':'s no tienen'} cuenta asignada`,'e');
     return;
+  }
+  const cambiosSeleccionados=incluidos.filter(d=>d.estadoImport==='cambio');
+  if(cambiosSeleccionados.length){
+    const detalle=cambiosSeleccionados.slice(0,8).map(d=>{
+      const cs=(d.cambiosRCV||[]).slice(0,4).map(c=>c.label).join(', ');
+      return `• DTE ${d.tipoDTE} N°${d.numero} ${d.razonSocial||''}: ${cs||'reactivación'}`;
+    }).join('\n');
+    if(!confirm(`⚠️ El SII trae ${cambiosSeleccionados.length} documento(s) con información distinta a la ya contabilizada.\n\n${detalle}${cambiosSeleccionados.length>8?'\n• …':''}\n\nSe conservará la versión anterior en el historial RCV. ¿Aplicar estos cambios?`))return;
   }
   // Detectar proveedores nuevos (RUTs que no aparecen en el libro actual)
   const rutsExistentes=new Set(todosDocsCompras().map(x=>x.rutCodigo));
@@ -987,18 +1041,25 @@ async function confirmarImportacion(){
   // Reemplaza el libro del periodo por el contenido del archivo, conservando
   // el correlativo mensual (corrMes), el folio de comprobante y la
   // distribución de gastos de los documentos que ya existían.
-  const modo=IM.modo||'agregar';
   const periodoStrConf=`${MESES[IM.periodoMes-1]} ${IM.periodoAnio}`;
+  // V2.15.4: punto de recuperación antes de una operación masiva RCV.
+  if(window.__snapshotAntesOperacion){
+    const seg=await window.__snapshotAntesOperacion(`Antes de importar RCV compras ${periodoStrConf}`);
+    if(!seg?.ok){
+      const seguir=confirm(`⚠️ No se pudo crear el snapshot previo (${seg?.motivo||'error'}).\n\nLa importación todavía puede continuar, pero no tendrás un punto automático de retorno inmediato.\n\n¿Continuar de todas formas?`);
+      if(!seguir)return;
+    }
+  }
   const snapCompras=JSON.stringify(S.compras||[]);
   const snapAsientos=JSON.stringify(S.asientos||[]);
   const prevPorClave=new Map();   // clave → documento anterior
+  S.compras.forEach(d=>{const k=claveDocCompra(d);if(!prevPorClave.has(k)||prevPorClave.get(k)?.estado==='anulado')prevPorClave.set(k,d);});
   let reemplazados=0,depurados=0;
   if(modo==='sobrescribir'){
-    // Se indexa TODO el libro (no solo el periodo) para poder recuperar el
-    // correlativo aunque el documento cambie de mes al recargarlo.
-    S.compras.forEach(d=>{const k=claveDocCompra(d);if(!prevPorClave.has(k))prevPorClave.set(k,d);});
-    const enPeriodo=docsLibroDelPeriodo();
-    const clavesArchivo=new Set(incluidos.map(claveDocCompra));
+    // Se indexa TODO el libro (no solo el periodo) para recuperar identidad,
+    // correlativo y clasificación sin reescribir documentos idénticos.
+    const enPeriodo=enPeriodoActivos;
+    const clavesArchivo=clavesFuente;
     reemplazados=enPeriodo.filter(d=>clavesArchivo.has(claveDocCompra(d))).length;
     depurados=enPeriodo.length-reemplazados;
     const ok=confirm(
@@ -1045,7 +1106,7 @@ async function confirmarImportacion(){
     // En modo sobrescribir recuperamos lo que ya estaba registrado para este
     // mismo documento: correlativo, folio de comprobante, vencimiento y la
     // distribución de gastos si sigue cuadrando con el nuevo neto.
-    const prev=modo==='sobrescribir'?prevPorClave.get(claveDocCompra(d)):null;
+    const prev=prevPorClave.get(claveDocCompra(d))||null;
     let dist=[{cuenta:d.cuenta,monto:montoDist,cc:d.cc||''}];
     if(prev&&Array.isArray(prev.dist)&&prev.dist.length>1){
       const sumPrev=prev.dist.reduce((s,l)=>s+(l.monto||0),0);
@@ -1083,8 +1144,18 @@ async function confirmarImportacion(){
       total:d.total,
       dist,
       estado:'activo',
-      importadoEn:new Date().toISOString(),
-      ...(prev?{versionAnterior:{fecha:prev.fecha,tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total}}:{})
+      importadoEn:prev?.importadoEn||new Date().toISOString(),
+      ...(prev?{reimportadoEn:new Date().toISOString()}:{}),
+      rcvFingerprint:fingerprintSnapshot(snapshotCompraRCV(d,periodoContable)),
+      rcvVersion:2,
+      ...(prev?{
+        versionAnterior:{fecha:prev.fecha,tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total},
+        rcvHistorial:[...(Array.isArray(prev.rcvHistorial)?prev.rcvHistorial:[]),{
+          fecha:new Date().toISOString(),
+          snapshot:snapshotCompraRCV(prev,prev.periodoContable||''),
+          cambios:(d.cambiosRCV||[]).map(c=>({campo:c.campo,anterior:c.anterior,nuevo:c.nuevo}))
+        }].slice(-20)
+      }: {})
     };
     // Correlativo mensual: se reutiliza el del documento anterior si existía.
     if(prev&&typeof prev.corrMes==='number')doc.corrMes=prev.corrMes;
@@ -1139,6 +1210,16 @@ async function confirmarImportacion(){
     toast('❌ No se pudo completar la importación. Se revirtieron documentos y asientos.','e');return;
   }
 
+  // Auditoría inmutable de cambios RCV. Para altas masivas se registra un
+  // resumen de lote; cuando el SII cambió un documento existente se conserva
+  // además el antes/después individual.
+  incluidos.filter(d=>d.estadoImport==='cambio').forEach(d=>{
+    const prev=d.dup||null;
+    const nuevo=prev?S.compras.find(x=>x.id===prev.id):null;
+    if(nuevo)logCambio('Actualizó compra desde RCV',{entidad:'compra',id:nuevo.id,antes:prev,despues:nuevo,meta:{numeroContable:(S.asientos||[]).find(a=>a.docId===nuevo.id&&a.fuente==='compras')?.numeroContable,tipoDTE:nuevo.tipoDTE,folio:nuevo.numero,periodoContable:nuevo.periodoContable}});
+  });
+  logCambio('Importó lote RCV compras',{entidad:'lote-rcv',id:`compras:${periodoStrConf}:${Date.now()}`,antes:null,despues:null,meta:{periodo:periodoStrConf,archivo:IM.archivo||'',nuevos:incluidos.filter(d=>d.estadoImport==='nuevo').length,cambios:incluidos.filter(d=>d.estadoImport==='cambio').length,sinCambios:IM.docs.filter(d=>d.estadoImport==='igual').length,modo}});
+
   // Guardar cuenta y CC como default en la ficha del proveedor.
   // Reglas:
   //  - Si el proveedor NO tiene ficha, se crea con los datos actuales.
@@ -1191,7 +1272,7 @@ async function confirmarImportacion(){
   const msgFichas=(fichasCreadas||fichasActualizadas)?` · fichas: ${fichasCreadas} nuevas${fichasActualizadas?', '+fichasActualizadas+' completadas':''}`:'';
   if(modo==='sobrescribir'){
     toast(`♻️ ${periodoStr} reemplazado — ${agregados} documento${agregados===1?'':'s'} · ${reemplazados} conservaron su correlativo${depurados?` · ${depurados} anulado${depurados===1?'':'s'}`:''}${msgFichas}`);
-    logAccion('Sobrescribió compras SII',`${periodoStr}: ${agregados} documentos, ${reemplazados} correlativos reutilizados, ${depurados} eliminados`);
+    logAccion('Sobrescribió compras SII',`${periodoStr}: ${agregados} nuevos/cambiados, ${reemplazados} ya presentes, ${depurados} anulados por ausencia en RCV`);
   }else{
     toast(`✅ ${agregados} documento${agregados===1?'':'s'} importado${agregados===1?'':'s'} al periodo ${periodoStr}${fueraPeriodoContable?` (${fueraPeriodoContable} con fecha documental distinta del período RCV, conservada sin cambios)`:''}${msgProv}${msgFichas}`);
     logAccion('Importó compras SII',`${agregados} documentos${msgFichas}`);

@@ -297,3 +297,88 @@ Todavía existen rutas antiguas de persistencia silenciosa, principalmente en ce
 - La retención IVA DTE 45/46 del pago F29 usa `periodoContable` del RCV, no el mes de la fecha documental.
 - Las declaraciones F29 forman parte de las claves sincronizadas al iniciar y del disparador de respaldo.
 - La fecha original del DTE de compras sigue intacta; `periodoContable` gobierna Libro de Compras/F29 y `fechaContabilizacion` gobierna el asiento.
+
+## V2.13 — Conciliación F29 ↔ asientos ↔ pago ↔ Mayor
+
+- Nueva conciliación visible por período entre F29 calculado/declarado y los asientos activos asociados al mismo `periodoIVA`.
+- Control específico de IVA a pagar (cód. 89), PPM (cód. 62), retención de honorarios (cód. 151) y total núcleo (cód. 91).
+- Los asientos nuevos de compensación y pago F29 guardan metadata `f29Detalle` con componentes, cuentas, período y snapshot declarado/calculado.
+- Los asientos históricos siguen siendo conciliables mediante fallback por descripciones y códigos F29.
+- La conciliación avisa por múltiples asientos activos del mismo período y por diferencias entre declaración, provisión y pago.
+- La retención de honorarios se contrasta además contra los asientos maestros de reconocimiento de honorarios.
+- Corrección del PPM: si fue provisionado en el asiento de compensación, el pago cancela automáticamente la provisión; si no fue provisionado, el pago reconoce directamente el activo PPM. Se evita duplicar el activo por una segunda contabilización.
+- Se mantiene la separación V2.11.1 entre fecha original del DTE y `periodoContable` para compras importadas desde RCV.
+
+
+## V2.13.1 — Login obligatorio al reiniciar la app
+
+- Firebase Auth queda forzado a `Persistence.SESSION`; ya no se permite persistencia `LOCAL` desde la interfaz.
+- Una marca en `sessionStorage` distingue un reload de una nueva ejecución.
+- Al iniciar una nueva ejecución se cierra cualquier credencial Firebase que pudiera haberse restaurado desde configuraciones antiguas.
+- Cerrar la app/navegador y volver a abrir obliga a autenticarse nuevamente.
+- Un simple refresco dentro de la misma ejecución conserva la sesión para no interrumpir el trabajo.
+- Se eliminó de Sistema el selector «Mantener sesión / Pedir contraseña» y se reemplazó por un indicador de política obligatoria.
+- Se mantienen `sesionPersistente()` y `setSesionPersistente()` sólo como compatibilidad; ya no pueden activar persistencia local.
+
+## V2.14 — Pagos parciales F29 y saldo pendiente
+
+- Los pagos F29 dejan de considerarse duplicados por existir más de uno en el mismo período: múltiples asientos activos representan pagos parciales válidos.
+- Cada nuevo pago propone sólo el saldo aún no pagado por concepto (IVA cód. 89, PPM cód. 62, retención honorarios cód. 151 y demás líneas configuradas).
+- Se bloquea un nuevo pago cuando el monto ingresado excede el saldo pendiente del concepto.
+- La conciliación mensual incorpora estados `BORRADOR`, `PENDIENTE PAGO`, `PAGO PARCIAL`, `CONCILIADO` y `REVISAR`.
+- La conciliación muestra declarado/base, contabilidad de origen, provisión, pago acumulado, saldo pendiente y eventual sobrepago.
+- Se agrega historial de pagos del período con asiento, fecha y desglose por IVA, PPM, honorarios y total.
+- Los nuevos asientos de pago guardan `f29Detalle.version=14`, `pagoNro`, componentes, `totalTributos` y `totalPagado`.
+- La Auditoría de Integridad ya no marca como duplicado un período por tener varios pagos F29; mantiene el control de compensación única y advierte pagos legacy sin detalle estructurado.
+- Al registrar un pago se limpian los importes temporales para que el siguiente abono vuelva a proponer el saldo real restante.
+
+
+### V2.15 — Hardening Productivo
+Se incorpora cierre contable mensual separado del cierre anual. El bloqueo se aplica por fecha de contabilización: en compras RCV se usa `periodoContable/fechaContabilizacion` y se conserva la fecha documental real. La Auditoría de Integridad incorpora un panel de preparación productiva y una suite automática mínima. El respaldo Excel conserva desde esta versión el objeto completo de los asientos y los cierres mensuales. El semáforo permanece amarillo hasta ejecutar pruebas operacionales reales de concurrencia Firebase en dos equipos y un simulacro de restauración.
+
+
+### V2.15.1 — Certificación operacional
+Se incorpora un protocolo guiado para probar concurrencia real con dos dispositivos contra Firebase sin tocar libros contables. La prueba crea un registro diagnóstico aislado, hace que ambos equipos escriban desde la misma revisión y sólo certifica éxito si las dos marcas sobreviven. También se incorpora un simulacro de restauración que genera y relee el respaldo Excel en memoria, validando hojas, conteos y metadata de asientos sin modificar los datos activos. Los resultados aprobados se guardan por empresa/año y alimentan el semáforo de preparación productiva.
+
+
+## V2.15.2 — RCV idempotente y control de cambios
+
+- Reimportar un archivo RCV idéntico no modifica libros, asientos ni marcas de tiempo.
+- Compras y ventas clasifican cada DTE como **Nuevo**, **Sin cambios**, **Cambio SII** o **Ya en asiento manual**.
+- Los cambios del SII requieren confirmación explícita y conservan un historial RCV con snapshot anterior y campos modificados.
+- La conciliación completa de Compras sólo anula documentos activos ausentes del archivo; repetir la misma conciliación es un no-op.
+- Ventas conserva siempre la fecha documental del DTE y valida cierres mensuales por esa fecha.
+- El respaldo Excel conserva el objeto completo de Compras y Ventas, incluida la metadata RCV.
+- El panel de Preparación Productiva prueba la idempotencia y la detección de cambios económicos.
+
+## V2.15.3 — Correlativo contable definitivo + auditoría estructurada
+
+### Numeración contable
+- Cada registro maestro de `S.asientos` recibe `numeroContable`, único por empresa y ejercicio.
+- La asignación usa una secuencia reservada dentro de una transacción Firestore (`reservarCorrelativos`), por lo que dos equipos no pueden recibir el mismo número.
+- Los números no se reutilizan: si una persistencia falla después de reservar un número, puede quedar un salto, pero jamás se reasigna ese correlativo.
+- Los registros históricos sin `numeroContable` se numeran al iniciar la versión, en orden fecha/creación/id.
+- Si no hay conexión Firebase y existen asientos sin número definitivo, no se inventan correlativos locales; la operación queda bloqueada hasta recuperar conexión.
+- `Auditoría de Integridad` y `Preparación Productiva` marcan como crítico cualquier asiento sin número definitivo o con número duplicado.
+
+### Auditoría de cambios
+- Nuevo `logCambio()` estructurado e inmutable en `audit_log`.
+- Conserva entidad, id, número contable, usuario, fecha/hora, campos modificados, hash del estado anterior/nuevo y snapshots antes/después cuando su tamaño es seguro.
+- Se incorporó en altas/ediciones/anulaciones/eliminaciones de asientos manuales, documentos contabilizados, cierres mensuales, cierre/reapertura anual y cambios RCV sobre documentos existentes.
+- Las importaciones RCV guardan además una traza de lote con período, archivo y conteos de nuevos/cambiados/sin cambios.
+- La vista de Auditoría muestra entidad, número contable y campos modificados.
+- Reglas Firestore endurecidas: un usuario no puede crear una auditoría atribuyéndola a otro correo ni a una empresa ajena; `audit_log` continúa siendo create-only.
+
+## V2.15.4 — Snapshots productivos y recuperación ante desastre
+
+- Nuevo módulo `recovery.js` con puntos de recuperación independientes del respaldo Excel.
+- Se conservan hasta 6 snapshots por empresa/año. Cada snapshot guarda las claves reales como documentos separados para no concentrar toda la base en un único documento Firestore.
+- Cada clave queda registrada en un manifiesto con tamaño y SHA-256; una restauración no comienza si falta un fragmento o si el hash no coincide.
+- Snapshot automático como máximo cada 6 horas de actividad, con debounce posterior a guardados normales.
+- Compras RCV, Ventas RCV y la restauración Excel intentan crear un snapshot previo a la operación masiva.
+- La restauración de emergencia exige rol administrador, doble confirmación y Firebase disponible.
+- Antes de cualquier rollback se crea automáticamente otro snapshot del estado actual, por lo que también existe un camino para deshacer la propia restauración.
+- La restauración refresca las revisiones de destino y utiliza `storage.setMany()` para persistir todas las claves recuperadas de forma coordinada.
+- El panel Preparación Productiva incorpora un control de snapshot vigente y una sección para crear, verificar y restaurar puntos de recuperación.
+- Los snapshots de recuperación no se incluyen dentro de otros snapshots, evitando crecimiento recursivo.
+- La certificación Excel de V2.15.1 se mantiene: snapshot Firestore y backup Excel son capas distintas y complementarias.

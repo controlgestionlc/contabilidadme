@@ -1,9 +1,11 @@
 // contabilidad-v2.js — capa de orquestación contable V2.
 // Mantiene un asiento persistido por documento y protege operaciones críticas.
-import {S} from './state.js';
+import {S,AUTH} from './state.js';
+import {logAccion,logCambio} from './firebase.js';
 import {asientoVenta,asientoCompra,cuadratura,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,periodoContableCompra,fechaContabilizacionCompra} from './motor-contable.js';
 import {validarMovimientosPDC,reglaCuenta} from './pdc-reglas.js';
 import {dteV,dteC} from './core.js';
+import {asegurarNumerosContables} from './correlativo-contable.js';
 
 const n=v=>Number(v)||0;
 const idAsientoDoc=(fuente,docId)=>`auto:${fuente}:${docId}`;
@@ -12,6 +14,13 @@ const idAsientoDoc=(fuente,docId)=>`auto:${fuente}:${docId}`;
 // ofrece transacción multi-documento. El fallback conserva compatibilidad con
 // versiones antiguas del shim, pero la versión actual siempre usa setMany.
 async function persistirClavesCritico(entries){
+  const lista=(entries||[]).map(e=>({...e}));
+  if(lista.some(e=>String(e.key||'')===`asientos-${S.empresa.anio}`)){
+    const nr=await asegurarNumerosContables();
+    if(!nr.ok)throw new Error(nr.motivo||'correlativo-contable');
+    lista.forEach(e=>{if(String(e.key||'')===`asientos-${S.empresa.anio}`)e.value=JSON.stringify(S.asientos||[]);});
+  }
+  entries=lista;
   if(window.storage&&typeof window.storage.setMany==='function'){
     const r=await window.storage.setMany(entries);
     if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia-multiple');
@@ -28,10 +37,47 @@ function ejercicioCerrado(){
   const anio=+S.empresa.anio;
   return (S.asientos||[]).some(a=>!a.anulado&&a.tipo==='cierre'&&(+((a.ejercicio)||String(a.fecha||'').slice(0,4))===anio));
 }
+function periodoDeFecha(fecha){return String(fecha||'').slice(0,7);}
+function periodoCerrado(fechaOPeriodo){
+  const per=String(fechaOPeriodo||'').slice(0,7);
+  if(!/^\d{4}-\d{2}$/.test(per))return false;
+  return (S.cierresContables||[]).some(c=>c.periodo===per&&c.estado==='cerrado');
+}
 function puedeOperarFecha(fecha){
   if(!fecha)return !ejercicioCerrado();
   const anio=+String(fecha).slice(0,4);
-  return anio!==+S.empresa.anio||!ejercicioCerrado();
+  if(anio===+S.empresa.anio&&ejercicioCerrado())return false;
+  return !periodoCerrado(fecha);
+}
+async function cerrarPeriodoContable(periodo,motivo='Cierre mensual de control'){
+  if(!/^\d{4}-\d{2}$/.test(String(periodo||'')))return {ok:false,motivo:'periodo-invalido'};
+  if(+String(periodo).slice(0,4)!==+S.empresa.anio)return {ok:false,motivo:'otro-ejercicio'};
+  if(ejercicioCerrado())return {ok:false,motivo:'ejercicio-cerrado'};
+  if(AUTH.user?.rol!=='admin'&&AUTH.user?.rol!=='contador')return {ok:false,motivo:'sin-permiso'};
+  if(periodoCerrado(periodo))return {ok:true,yaCerrado:true};
+  const aud=auditoriaIntegridad();
+  if((aud.porSeveridad?.critica||0)>0)return {ok:false,motivo:'integridad-critica',criticas:aud.porSeveridad.critica};
+  if(!Array.isArray(S.cierresContables))S.cierresContables=[];
+  const rec={periodo,estado:'cerrado',cerradoEn:new Date().toISOString(),cerradoPor:AUTH.user?.email||'',motivo:String(motivo||'').trim()||'Cierre mensual de control'};
+  S.cierresContables.push(rec);
+  const r=await window.storage.set(`cierresContables-${S.empresa.anio}`,JSON.stringify(S.cierresContables));
+  if(r&&r.ok===false){S.cierresContables=S.cierresContables.filter(x=>x!==rec);return {ok:false,motivo:r.motivo||'persistencia'};}
+  logAccion('Cerró período contable',{periodo,motivo:rec.motivo,estado:'cerrado'});
+  logCambio('Cerró período contable',{entidad:'cierre-mensual',id:periodo,antes:null,despues:rec,meta:{periodo}});
+  return {ok:true,registro:rec};
+}
+async function reabrirPeriodoContable(periodo,motivo){
+  if(AUTH.user?.rol!=='admin')return {ok:false,motivo:'solo-admin'};
+  if(!motivo||String(motivo).trim().length<10)return {ok:false,motivo:'motivo-corto'};
+  const rec=(S.cierresContables||[]).find(c=>c.periodo===periodo&&c.estado==='cerrado');
+  if(!rec)return {ok:false,motivo:'no-cerrado'};
+  const previo={...rec};
+  rec.estado='reabierto';rec.reabiertoEn=new Date().toISOString();rec.reabiertoPor=AUTH.user?.email||'';rec.motivoReapertura=String(motivo).trim();
+  const r=await window.storage.set(`cierresContables-${S.empresa.anio}`,JSON.stringify(S.cierresContables));
+  if(r&&r.ok===false){Object.assign(rec,previo);return {ok:false,motivo:r.motivo||'persistencia'};}
+  logAccion('Reabrió período contable',{periodo,motivo:rec.motivoReapertura,estado:'reabierto'});
+  logCambio('Reabrió período contable',{entidad:'cierre-mensual',id:periodo,antes:previo,despues:rec,meta:{periodo}});
+  return {ok:true};
 }
 
 // Persistencia crítica de asientos con rollback en memoria. Todos los módulos
@@ -41,6 +87,8 @@ async function persistirAsientosCritico(mutacion){
   const snap=JSON.stringify(S.asientos||[]);
   try{
     const resultado=await mutacion();
+    const nr=await asegurarNumerosContables();
+    if(!nr.ok)throw new Error(nr.motivo||'correlativo-contable');
     const r=await window.storage.set(`asientos-${S.empresa.anio}`,JSON.stringify(S.asientos||[]));
     if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia');
     return {ok:true,resultado};
@@ -81,6 +129,9 @@ function upsertAsientoDocumento(fuente,doc){
   if(i>=0){
     // conservar metadatos operativos relevantes
     nuevo.n=S.asientos[i].n||S.asientos[i].folioComp||null;
+    nuevo.numeroContable=S.asientos[i].numeroContable||null;
+    nuevo.numeroContableOrigen=S.asientos[i].numeroContableOrigen||null;
+    nuevo.numeroContableAsignadoEn=S.asientos[i].numeroContableAsignadoEn||null;
     nuevo.creadoEn=S.asientos[i].creadoEn||S.asientos[i].actualizadoEn||new Date().toISOString();
     S.asientos[i]=nuevo;
   }else{
@@ -103,6 +154,7 @@ async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
   const claveAs=`asientos-${S.empresa.anio}`;
   const snapArr=JSON.stringify(arr);
   const snapAs=JSON.stringify(S.asientos||[]);
+  const anterior=esEdicion?JSON.parse(JSON.stringify(arr.find(x=>x.id===doc.id)||null)):null;
   try{
     if(esEdicion){
       const i=arr.findIndex(x=>x.id===doc.id); if(i<0)throw new Error('Documento no encontrado');
@@ -113,6 +165,8 @@ async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
       {key:claveDoc,value:JSON.stringify(arr)},
       {key:claveAs,value:JSON.stringify(S.asientos)},
     ]);
+    const asiento=(S.asientos||[]).find(a=>a.id===idAsientoDoc(fuente,doc.id));
+    logCambio(esEdicion?'Editó documento':'Registró documento',{entidad:fuente==='ventas'?'venta':'compra',id:doc.id,antes:anterior,despues:doc,meta:{asientoId:asiento?.id,numeroContable:asiento?.numeroContable,tipoDTE:doc.tipoDTE,folio:doc.numero}});
     return {ok:true,asiento:idAsientoDoc(fuente,doc.id)};
   }catch(e){
     const arrPrev=JSON.parse(snapArr), asPrev=JSON.parse(snapAs);
@@ -124,6 +178,7 @@ async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
 async function anularDocumentoContabilizado(fuente,doc,arr){
   if(!puedeOperarFecha(fuente==='compras'?fechaContabilizacionCompra(doc):doc.fecha))return {ok:false,motivo:'ejercicio-cerrado'};
   const snapArr=JSON.stringify(arr),snapAs=JSON.stringify(S.asientos||[]);
+  const anterior=JSON.parse(JSON.stringify(doc));
   doc.estado='anulado';doc.anuladoEn=new Date().toISOString();
   anularAsientoDocumento(fuente,doc.id);
   try{
@@ -131,6 +186,8 @@ async function anularDocumentoContabilizado(fuente,doc,arr){
       {key:`${fuente}-${S.empresa.anio}`,value:JSON.stringify(arr)},
       {key:`asientos-${S.empresa.anio}`,value:JSON.stringify(S.asientos)},
     ]);
+    const asiento=(S.asientos||[]).find(a=>a.id===idAsientoDoc(fuente,doc.id));
+    logCambio('Anuló documento',{entidad:fuente==='ventas'?'venta':'compra',id:doc.id,antes:anterior,despues:doc,meta:{asientoId:asiento?.id,numeroContable:asiento?.numeroContable,tipoDTE:doc.tipoDTE,folio:doc.numero}});
     return {ok:true};
   }catch(e){
     arr.splice(0,arr.length,...JSON.parse(snapArr)); S.asientos=JSON.parse(snapAs);
@@ -279,14 +336,21 @@ function auditoriaIntegridad(){
     asAct.filter(a=>a.tipo!=='cierre'&&a.fecha>fc).forEach(a=>agregar('critica','movimiento_post_cierre',`Movimiento ${a.id} posterior al cierre (${a.fecha})`,a.id));
   }
 
-  // 6) IVA/F29: un solo asiento activo por período y tipo de proceso.
-  for(const origen of ['ivaf29','pagof29']){
+  // 6) IVA/F29: la compensación debe ser única por período. Desde V2.14 los
+  //    pagos F29 pueden ser múltiples porque representan abonos/pagos parciales.
+  {
     const porPeriodo=new Map();
-    asAct.filter(a=>a.origenAuto===origen).forEach(a=>{
+    asAct.filter(a=>a.origenAuto==='ivaf29').forEach(a=>{
       const k=a.periodoIVA||'sin-periodo';porPeriodo.set(k,(porPeriodo.get(k)||0)+1);
     });
-    [...porPeriodo].filter(([,c])=>c>1).forEach(([per,c])=>agregar('alta','f29_duplicado',`${c} asientos ${origen==='ivaf29'?'de compensación IVA':'de pago F29'} activos para ${per}`,`${origen}:${per}`));
+    [...porPeriodo].filter(([,c])=>c>1).forEach(([per,c])=>agregar('alta','f29_compensacion_duplicada',`${c} asientos de compensación IVA activos para ${per}`,`ivaf29:${per}`));
   }
+  // Los pagos parciales nuevos deben conservar metadata estructurada para poder
+  // reconstruir el acumulado por concepto sin depender de la glosa.
+  asAct.filter(a=>a.origenAuto==='pagof29').forEach(a=>{
+    if(!a.periodoIVA)agregar('alta','f29_pago_sin_periodo',`Pago F29 ${a.n||a.id} sin período IVA asociado`,a.id);
+    if(!a.f29Detalle?.componentes)agregar('media','f29_pago_legacy',`Pago F29 ${a.n||a.id} no tiene detalle estructurado por concepto; se conciliará por compatibilidad histórica`,a.id);
+  });
 
   // 7) Pagos: cada referencia debe apuntar a un documento existente y activo.
   asAct.filter(a=>a.tipo==='pago').forEach(a=>{
@@ -360,7 +424,27 @@ function auditoriaIntegridad(){
   });
   [...depPorAnio].filter(([,c])=>c>1).forEach(([an,c])=>agregar('critica','depreciacion_duplicada',`${c} asientos de depreciación activos para ${an}`,`depreciacion:${an}`));
 
-  // 12) Persistencia: una clave bloqueada significa que no pudo confirmarse
+  // 12) Cierre mensual: ningún movimiento puede aparecer/modificarse después del cierre
+  // dentro del mismo período sin una reapertura formal.
+  (S.cierresContables||[]).filter(c=>c.estado==='cerrado').forEach(c=>{
+    const tCierre=Date.parse(c.cerradoEn||'')||0;
+    asAct.filter(a=>String(a.fecha||'').slice(0,7)===c.periodo).forEach(a=>{
+      const tMov=Math.max(Date.parse(a.creadoEn||'')||0,Date.parse(a.actualizadoEn||'')||0,Date.parse(a.anuladoEn||'')||0);
+      if(tCierre&&tMov>tCierre+1000)agregar('critica','movimiento_posterior_cierre_mensual',`Asiento ${a.n||a.id} del período ${c.periodo} fue modificado después de su cierre`,a.id);
+    });
+  });
+
+  // 13) Numeración contable definitiva: todo asiento maestro debe conservar
+  // un número único. Los números anulados no se reutilizan.
+  const nums=new Map();
+  (S.asientos||[]).forEach(a=>{
+    const num=Math.trunc(+a.numeroContable||0);
+    if(!num){agregar('critica','asiento_sin_numero_contable',`Asiento ${a.id||'(sin id)'} no tiene número contable definitivo`,a.id);return;}
+    if(!nums.has(num))nums.set(num,[]);nums.get(num).push(a);
+  });
+  [...nums.entries()].filter(([,arr])=>arr.length>1).forEach(([num,arr])=>agregar('critica','numero_contable_duplicado',`Número contable ${num} está asignado a ${arr.length} asientos`,String(num)));
+
+  // 14) Persistencia: una clave bloqueada significa que no pudo confirmarse
   // su lectura remota. Guardar encima de ella podría destruir información.
   try{
     const bloqueos=window.storage?.clavesBloqueadas?.()||[];
@@ -371,4 +455,4 @@ function auditoriaIntegridad(){
   return {ok:hallazgos.length===0,total:hallazgos.length,hallazgos,porSeveridad};
 }
 
-export {idAsientoDoc,ejercicioCerrado,puedeOperarFecha,persistirClavesCritico,persistirAsientosCritico,asientoDesdeDocumento,upsertAsientoDocumento,anularAsientoDocumento,guardarDocumentoContabilizado,anularDocumentoContabilizado,migrarDocumentosAAsientos,auditoriaIntegridad};
+export {idAsientoDoc,ejercicioCerrado,periodoCerrado,puedeOperarFecha,cerrarPeriodoContable,reabrirPeriodoContable,persistirClavesCritico,persistirAsientosCritico,asientoDesdeDocumento,upsertAsientoDocumento,anularAsientoDocumento,guardarDocumentoContabilizado,anularDocumentoContabilizado,migrarDocumentosAAsientos,auditoriaIntegridad};

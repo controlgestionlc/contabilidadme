@@ -5,11 +5,12 @@ import {inputCuenta} from './buscadorcuentas.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import {rerender} from './ui.js';
 import {S} from './state.js';
-import {logAccion} from './firebase.js';
+import {logAccion,logCambio} from './firebase.js';
 import {mesRango, mesOpts, dteVentasOpts, foliosMensuales} from './helpers.js';
 import {todosDocsVentas, abrirAsientoDesde, proxFolioComprobante} from './asientos.js';
 import './storage.js';
-import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico} from './contabilidad-v2.js';
+import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
+import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 
 // Estado del formulario de ventas (interno del módulo)
 // Mismo cuidado que con AF y CF: este objeto se publica en window desde app.js,
@@ -18,6 +19,18 @@ import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerr
 const VF={editId:null};
 const fijarVF=editId=>{VF.editId=editId==null?null:editId;};
 let IMV={docs:[]}; // estado del importador SII de ventas
+
+function recalcularEstadoImportVentas(){
+  IMV.docs.forEach(d=>{
+    const prev=d.dup;
+    if(!prev){d.estadoImport='nuevo';d.cambiosRCV=[];if(d.incluir==null)d.incluir=true;return;}
+    if(prev.origen==='asiento'){d.estadoImport='manual';d.cambiosRCV=[];d.incluir=false;return;}
+    const cmp=compararVentaRCV(d,prev);
+    d.cambiosRCV=cmp.cambios;d.rcvFingerprint=cmp.fingerprint;
+    if(prev.estado==='anulado'){d.estadoImport='cambio';d.cambiosRCV=[{campo:'estado',label:'Estado',anterior:'Anulado',nuevo:'Activo'},...d.cambiosRCV];}
+    else d.estadoImport=cmp.igual?'igual':'cambio';
+  });
+}
 
 // ═══ VENTAS — Documentos individuales ═══
 // Computa folio correlativo por mes: retorna {[docId]: folioNumero}
@@ -53,6 +66,8 @@ function limpiarVSel(){VF_SEL.clear();renderVentas();}
 async function cambiarFPVSel(nuevaFP){
   if(!VF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de modificar ventas.','e');return;}
+  const cerrados=(S.ventas||[]).filter(d=>VF_SEL.has(d.id)&&!puedeOperarFecha(d.fecha));
+  if(cerrados.length){toast(`🔒 ${cerrados.length} venta(s) pertenecen a períodos cerrados.`, 'e');return;}
   const fpLbl=nuevaFP==='clientes'?'a crédito (Cliente)':nuevaFP==='banco'?'al contado (Banco)':nuevaFP;
   const snapV=JSON.stringify(S.ventas||[]),snapA=JSON.stringify(S.asientos||[]);
   let cambiados=0, omitidos=0;
@@ -77,6 +92,8 @@ async function cambiarFPVSel(nuevaFP){
   rerender();
 }
 async function eliminarVSel(){
+  const cerrados=(S.ventas||[]).filter(d=>VF_SEL.has(d.id)&&!puedeOperarFecha(d.fecha));
+  if(cerrados.length){toast(`🔒 ${cerrados.length} documento(s) pertenecen a períodos cerrados. Reabre esos períodos antes de anular.`, 'e');return;}
   if(!VF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de anular ventas.','e');return;}
   const n=VF_SEL.size;
@@ -383,7 +400,7 @@ async function guardarVenta(){
   const esNota=tipoDTE===56||tipoDTE===61;
   const referencia=esNota?{tipoDTE:+document.getElementById('vf-ref-tipo')?.value||33,folio:(document.getElementById('vf-ref-folio')?.value||'').trim(),fecha:document.getElementById('vf-ref-fecha')?.value||'',razon:(document.getElementById('vf-ref-razon')?.value||'').trim()}:null;
   if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de registrar o modificar documentos.','e');return;}
+  if(!puedeOperarFecha(fecha)){toast('🔒 El período contable de esta fecha está cerrado. Reabre el período antes de registrar o modificar documentos.','e');return;}
   const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(referencia?{referencia}:{})};
   const editando=!!VF.editId;
   const rSave=await guardarDocumentoContabilizado('ventas',doc,S.ventas,editando);
@@ -441,16 +458,20 @@ function mostrarVentasImportadas(res,nombreArchivo){
   // Duplicados: comparación como string para tolerar tipos mixtos.
   const todos=todosDocsVentas();
   res.docs.forEach(d=>{
-    const dup=todos.find(x=>
+    const dupLibro=(S.ventas||[]).find(x=>claveRCV(x)===claveRCV(d));
+    const dup=dupLibro||todos.find(x=>
       x.rutCodigo===d.rutCodigo &&
       +x.tipoDTE===+d.tipoDTE &&
       String(x.numero).trim()===String(d.numero).trim()
     );
     d.dup=dup||null;
     d.incluir=!dup;
+    d.estadoImport=dup?'igual':'nuevo';
+    d.cambiosRCV=[];
+    d.fechaOriginal=d.fecha;
     const ficha=fichaAux('cliente',d.rutCodigo);
-    d.cuenta=ficha?.cuentaDefault||'';
-    d.fp='banco';
+    d.cuenta=dup?.cuentaIngreso||ficha?.cuentaDefault||'';
+    d.fp=dup?.formaPago||'clientes';
   });
 
   // Mutar IMV in-place (NO reasignar): window.IMV apunta a este mismo objeto y
@@ -462,6 +483,7 @@ function mostrarVentasImportadas(res,nombreArchivo){
   IMV.archivo=nombreArchivo;
   IMV.periodoMes=+mesTop;
   IMV.periodoAnio=+anioTop;
+  recalcularEstadoImportVentas();
   abrirImportModalVentas();
 }
 
@@ -499,7 +521,7 @@ function cambiarPeriodoImportV(){
 }
 
 function toggleAllImportV(v){
-  IMV.docs.forEach(d=>{if(!d.dup)d.incluir=v;});
+  IMV.docs.forEach(d=>{if(d.estadoImport!=='igual'&&d.estadoImport!=='manual')d.incluir=v;});
   renderImportModalVentas();
 }
 
@@ -517,17 +539,19 @@ function aplicarCuentaATodosV(){
 }
 
 function renderImportModalVentas(){
-  const forzar=document.getElementById('impv-forzar-periodo').checked;
   const box=document.getElementById('impv-rows');
 
 
   const filas=IMV.docs.map((d,i)=>{
-    const fechaMostrar=forzar
-      ? `${IMV.periodoAnio}-${String(IMV.periodoMes).padStart(2,'0')}-${d.fechaOriginal?d.fechaOriginal.slice(8,10):String(d.fecha).slice(8,10)}`
-      : d.fecha;
-    const estado=d.dup
-      ? '<span style="color:var(--warn);font-size:10px">⚠️ duplicado</span>'
-      : (d.incluir?'<span style="color:var(--ach);font-size:10px">✓ nuevo</span>':'<span style="color:var(--mt);font-size:10px">omitido</span>');
+    const fechaMostrar=d.fechaOriginal||d.fecha;
+    const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
+    const estado=d.estadoImport==='manual'
+      ? '<span style="color:var(--info);font-size:10px" title="Este DTE ya existe en un asiento manual; el importador no lo modifica">↔ ya en asiento</span>'
+      :d.estadoImport==='igual'
+      ? '<span style="color:var(--mt);font-size:10px" title="Huella RCV idéntica; no se vuelve a escribir">✓ sin cambios</span>'
+      :d.estadoImport==='cambio'
+        ? `<span style="color:var(--warn);font-size:10px" title="${cambiosTxt.replace(/"/g,'&quot;')}">⚠️ cambio SII</span>`
+        :(d.incluir?'<span style="color:var(--ach);font-size:10px">✓ nuevo</span>':'<span style="color:var(--mt);font-size:10px">omitido</span>');
     // Por defecto todas las ventas van al auxiliar de clientes (cuenta por
     // cobrar). El usuario cambia a "Banco" las que sean realmente al contado.
     if(!d.fp)d.fp='clientes';
@@ -537,7 +561,7 @@ function renderImportModalVentas(){
       <option value="deudores" ${d.fp==='deudores'?'selected':''}>📋 Deudor</option>
     </select>`;
     return `<div class="imp-row" style="display:grid;grid-template-columns:26px 90px 60px 80px 120px 1fr 90px 80px 80px 100px 180px 110px 80px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--bd);font-size:11px;align-items:center">
-      <div style="text-align:center">${d.dup?'':`<input type="checkbox" ${d.incluir?'checked':''} onchange="IMV.docs[${i}].incluir=this.checked;renderImportModalVentas()">`}</div>
+      <div style="text-align:center">${(d.estadoImport==='igual'||d.estadoImport==='manual')?'':`<input type="checkbox" ${d.incluir?'checked':''} onchange="IMV.docs[${i}].incluir=this.checked;renderImportModalVentas()">`}</div>
       <div>${fechaMostrar}</div>
       <div>${d.tipoDTE}</div>
       <div>${d.numero}</div>
@@ -555,13 +579,16 @@ function renderImportModalVentas(){
 
   box.innerHTML=filas;
 
-  const nuevos=IMV.docs.filter(d=>!d.dup).length;
+  const nuevos=IMV.docs.filter(d=>d.estadoImport==='nuevo').length;
+  const iguales=IMV.docs.filter(d=>d.estadoImport==='igual').length;
+  const cambiados=IMV.docs.filter(d=>d.estadoImport==='cambio').length;
+  const manuales=IMV.docs.filter(d=>d.estadoImport==='manual').length;
   const incluidos=IMV.docs.filter(d=>d.incluir).length;
   const conCuenta=IMV.docs.filter(d=>d.incluir&&d.cuenta).length;
 
   const summary=document.getElementById('impv-summary');
   if(summary){
-    summary.innerHTML=`📄 <strong>${IMV.docs.length}</strong> documentos detectados en <em>${IMV.archivo||''}</em> · <strong>${nuevos}</strong> nuevos · <strong>${IMV.docs.length-nuevos}</strong> duplicados${IMV.descartados?' · '+IMV.descartados+' descartados':''}`;
+    summary.innerHTML=`📄 <strong>${IMV.docs.length}</strong> documentos en <em>${IMV.archivo||''}</em> · <strong style="color:var(--ach)">${nuevos}</strong> nuevos · <strong style="color:var(--mt)">${iguales}</strong> sin cambios${cambiados?` · <strong style="color:var(--warn)">${cambiados}</strong> con cambios SII`:''}${manuales?` · <strong style="color:var(--info)">${manuales}</strong> ya en asiento manual`:''}${IMV.descartados?' · '+IMV.descartados+' descartados':''}`;
   }
   const info=document.getElementById('impv-periodo-info');
   if(info)info.textContent=`${incluidos} para importar · ${conCuenta} con cuenta asignada`;
@@ -570,15 +597,33 @@ function renderImportModalVentas(){
 }
 
 async function confirmarImportacionV(){
+  const perFecha=`${IMV.periodoAnio}-${String(IMV.periodoMes).padStart(2,'0')}-01`;
+  if(!puedeOperarFecha(perFecha)){toast('🔒 El período seleccionado está cerrado. Reábrelo antes de importar el RCV de ventas.','e');return;}
   const incluidos=IMV.docs.filter(d=>d.incluir);
-  if(!incluidos.length){toast('⚠️ No hay documentos seleccionados','e');return;}
+  if(!incluidos.length){
+    toast(`✅ Importación idempotente: ${IMV.docs.filter(d=>d.estadoImport==='igual').length} documento(s) ya estaban idénticos. No se modificó el libro.`);
+    cerrarImportModalVentas();return;
+  }
+  const enPeriodoCerrado=incluidos.filter(d=>!puedeOperarFecha(d.fechaOriginal||d.fecha));
+  if(enPeriodoCerrado.length){
+    toast(`🔒 ${enPeriodoCerrado.length} venta(s) tienen fecha documental en un período contable cerrado. Reabre esos períodos antes de importarlas.`,'e');
+    return;
+  }
   const sinCuenta=incluidos.filter(d=>!d.cuenta);
   if(sinCuenta.length){
     if(!confirm(`⚠️ Hay ${sinCuenta.length} documentos sin cuenta de ingreso asignada.\n\nSe importarán igual pero deberás asignarles cuenta después. ¿Continuar?`))return;
   }
 
-  const forzar=document.getElementById('impv-forzar-periodo').checked;
-  const anio=IMV.periodoAnio, mes=String(IMV.periodoMes).padStart(2,'0');
+  const cambiosSeleccionados=incluidos.filter(d=>d.estadoImport==='cambio');
+  if(cambiosSeleccionados.length){
+    const detalle=cambiosSeleccionados.slice(0,8).map(d=>{
+      const cs=(d.cambiosRCV||[]).slice(0,4).map(c=>c.label).join(', ');
+      return `• DTE ${d.tipoDTE} N°${d.numero} ${d.razonSocial||''}: ${cs||'reactivación'}`;
+    }).join('\n');
+    if(!confirm(`⚠️ El RCV trae ${cambiosSeleccionados.length} venta(s) con información distinta a la contabilizada.\n\n${detalle}${cambiosSeleccionados.length>8?'\n• …':''}\n\nSe conservará la versión anterior en el historial RCV. ¿Aplicar?`))return;
+  }
+
+  const anio=IMV.periodoAnio;
 
   // Detectar clientes nuevos
   const rutsExistentes=new Set(todosDocsVentas().map(v=>v.rutCodigo));
@@ -595,6 +640,16 @@ async function confirmarImportacionV(){
     if(!confirm(`El archivo es de ${anio} pero el año activo es ${S.empresa.anio}.\n\nSi importas ahora, los documentos irán al libro de ${S.empresa.anio}. Para importarlos en ${anio}, cambia primero de año con el selector del encabezado.\n\n¿Continuar de todas formas?`))return;
   }
 
+  // V2.15.4: punto de recuperación antes de una importación masiva.
+  if(window.__snapshotAntesOperacion){
+    const periodoTxt=`${String(IMV.periodoMes).padStart(2,'0')}-${IMV.periodoAnio}`;
+    const seg=await window.__snapshotAntesOperacion(`Antes de importar RCV ventas ${periodoTxt}`);
+    if(!seg?.ok){
+      const seguir=confirm(`⚠️ No se pudo crear el snapshot previo (${seg?.motivo||'error'}).\n\nLa importación todavía puede continuar, pero no tendrás un punto automático de retorno inmediato.\n\n¿Continuar de todas formas?`);
+      if(!seguir)return;
+    }
+  }
+
   // S.ventas es un array plano (el año lo define storage). Cada documento
   // importado debe crear también su asiento maestro V2.
   if(!Array.isArray(S.ventas))S.ventas=[];
@@ -605,24 +660,33 @@ async function confirmarImportacionV(){
   // Reservar rango de folios de comprobante para las ventas.
   let folioNext=proxFolioComprobante();
   incluidos.forEach((d,i)=>{
-    let fecha=d.fecha;
-    if(forzar){
-      const dia=String(d.fecha).slice(8,10)||'01';
-      fecha=`${anio}-${mes}-${dia}`;
-    }
+    const prev=d.dup||null;
+    const fecha=d.fechaOriginal||d.fecha; // fecha documental RCV: nunca se fuerza al período
     const doc={
-      id:'v_imp_'+Date.now()+'_'+i,
-      folioComp:folioNext++,   // correlativo único de comprobante contable
+      id:prev?.id||('v_imp_'+Date.now()+'_'+i),
+      folioComp:prev?.folioComp||folioNext++,   // el existente conserva comprobante
       fecha, tipoDTE:d.tipoDTE, numero:d.numero,
-      fechaVencimiento:'',
+      fechaVencimiento:prev?.fechaVencimiento||'',
       rutCodigo:d.rutCodigo, rutDV:d.rutDV, razonSocial:d.razonSocial,
       neto:d.neto, exento:d.exento, iva:d.iva,
       otrosImpuestos:d.otrosImpuestos||0, total:d.total,
-      formaPago:d.fp||'banco',
-      cuentaIngreso:d.cuenta||'',
-      estado:'activo',importadoEn:new Date().toISOString(),
+      formaPago:prev?.formaPago||d.fp||'clientes',
+      cuentaIngreso:prev?.cuentaIngreso||d.cuenta||'',
+      estado:'activo',
+      importadoEn:prev?.importadoEn||new Date().toISOString(),
+      ...(prev?{reimportadoEn:new Date().toISOString()}:{}),
+      rcvFingerprint:fingerprintSnapshot(snapshotVentaRCV(d)),
+      rcvVersion:2,
+      ...(prev?{
+        versionAnterior:{fecha:prev.fecha,tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total},
+        rcvHistorial:[...(Array.isArray(prev.rcvHistorial)?prev.rcvHistorial:[]),{
+          fecha:new Date().toISOString(),snapshot:snapshotVentaRCV(prev),
+          cambios:(d.cambiosRCV||[]).map(c=>({campo:c.campo,anterior:c.anterior,nuevo:c.nuevo}))
+        }].slice(-20)
+      }: {})
     };
-    S.ventas.push(doc);
+    if(prev){const idx=S.ventas.findIndex(x=>x.id===prev.id);if(idx>=0)S.ventas[idx]=doc;else S.ventas.push(doc);}
+    else S.ventas.push(doc);
     upsertAsientoDocumento('ventas',doc);
     importados++;
   });
@@ -636,6 +700,13 @@ async function confirmarImportacionV(){
     S.ventas=JSON.parse(snapVentas);S.asientos=JSON.parse(snapAsientos);
     toast('❌ No se pudo completar la importación. Se revirtieron ventas y asientos.','e');return;
   }
+
+  incluidos.filter(d=>d.estadoImport==='cambio').forEach(d=>{
+    const prev=d.dup||null;
+    const nuevo=prev?S.ventas.find(x=>x.id===prev.id):null;
+    if(nuevo)logCambio('Actualizó venta desde RCV',{entidad:'venta',id:nuevo.id,antes:prev,despues:nuevo,meta:{numeroContable:(S.asientos||[]).find(a=>a.docId===nuevo.id&&a.fuente==='ventas')?.numeroContable,tipoDTE:nuevo.tipoDTE,folio:nuevo.numero}});
+  });
+  logCambio('Importó lote RCV ventas',{entidad:'lote-rcv',id:`ventas:${S.empresa.anio}:${Date.now()}`,antes:null,despues:null,meta:{archivo:IMV.archivo||'',nuevos:incluidos.filter(d=>d.estadoImport==='nuevo').length,cambios:incluidos.filter(d=>d.estadoImport==='cambio').length,sinCambios:IMV.docs.filter(d=>d.estadoImport==='igual').length}});
 
   // Crear/completar la ficha del cliente para TODOS los documentos importados,
   // tenga o no cuenta de ingreso asignada. Si el cliente no existe, se crea la
@@ -677,8 +748,8 @@ async function confirmarImportacionV(){
   cerrarImportModalVentas();
   const msgClientes=clientesNuevos.size?` · ${clientesNuevos.size} clientes nuevos detectados en auxiliares`:'';
   const msgFichas=(fichasCreadas||fichasActualizadas)?` · fichas: ${fichasCreadas} nuevas${fichasActualizadas?', '+fichasActualizadas+' completadas':''}`:'';
-  toast(`✅ ${importados} ventas importadas${msgClientes}${msgFichas}`);
-  logAccion('Importó ventas SII',`${importados} documentos${msgFichas}`);
+  toast(`✅ ${importados} venta${importados===1?'':'s'} nueva${importados===1?'':'s'}/actualizada${importados===1?'':'s'}${msgClientes}${msgFichas}`);
+  logAccion('Conciliación RCV ventas',`${importados} documentos nuevos/actualizados${msgFichas}`);
   rerender();
 }
 

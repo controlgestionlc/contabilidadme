@@ -67,15 +67,15 @@ function construirWorkbookBD(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),'Empresa');
 
   // VENTAS
-  const ventasHdr=['id','fecha','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','otrosImpuestos','total','formaPago','cuentaIngreso','estado','referenciaJSON'];
-  const ventasRows=S.ventas.map(v=>ventasHdr.map(k=>k==='referenciaJSON'?JSON.stringify(v.referencia||null):(v[k]!==undefined?v[k]:'')));
+  const ventasHdr=['id','fecha','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','otrosImpuestos','total','formaPago','cuentaIngreso','estado','referenciaJSON','documentoJSON'];
+  const ventasRows=S.ventas.map(v=>ventasHdr.map(k=>k==='referenciaJSON'?JSON.stringify(v.referencia||null):k==='documentoJSON'?JSON.stringify(v):(v[k]!==undefined?v[k]:'')));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ventasHdr,...ventasRows]),'Ventas');
 
   // COMPRAS (con distribución serializada como JSON)
-  const comprasHdr=['id','fecha','periodoContable','fechaContabilizacion','origenRegistro','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','ivaRecuperable','ivaNoRecuperable','ivaActivoFijo','ivaUsoComun','porcentajeIvaRecuperable','tratamientoIVA','ivaRetenido','totalSII','otrosImpuestos','tratamientoOtrosImpuestos','otrosImpuestosDetalleJSON','total','estado','referenciaJSON','distJSON'];
+  const comprasHdr=['id','fecha','periodoContable','fechaContabilizacion','origenRegistro','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','ivaRecuperable','ivaNoRecuperable','ivaActivoFijo','ivaUsoComun','porcentajeIvaRecuperable','tratamientoIVA','ivaRetenido','totalSII','otrosImpuestos','tratamientoOtrosImpuestos','otrosImpuestosDetalleJSON','total','estado','referenciaJSON','distJSON','documentoJSON'];
   const comprasRows=S.compras.map(c=>[
     c.id,c.fecha,c.periodoContable||'',c.fechaContabilizacion||'',c.origenRegistro||'',c.fechaVencimiento||'',c.tipoDTE,c.numero,c.rutCodigo,c.rutDV,c.razonSocial,
-    c.neto||0,c.exento||0,c.iva||0,c.ivaRecuperable??'',c.ivaNoRecuperable??'',c.ivaActivoFijo??'',c.ivaUsoComun??'',c.porcentajeIvaRecuperable??'',c.tratamientoIVA||'',c.ivaRetenido??'',c.totalSII??'',c.otrosImpuestos||0,c.tratamientoOtrosImpuestos||'costo',JSON.stringify(c.otrosImpuestosDetalle||[]),c.total||0,c.estado||'',JSON.stringify(c.referencia||null),JSON.stringify(c.dist||[])
+    c.neto||0,c.exento||0,c.iva||0,c.ivaRecuperable??'',c.ivaNoRecuperable??'',c.ivaActivoFijo??'',c.ivaUsoComun??'',c.porcentajeIvaRecuperable??'',c.tratamientoIVA||'',c.ivaRetenido??'',c.totalSII??'',c.otrosImpuestos||0,c.tratamientoOtrosImpuestos||'costo',JSON.stringify(c.otrosImpuestosDetalle||[]),c.total||0,c.estado||'',JSON.stringify(c.referencia||null),JSON.stringify(c.dist||[]),JSON.stringify(c)
   ]);
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([comprasHdr,...comprasRows]),'Compras');
 
@@ -85,14 +85,19 @@ function construirWorkbookBD(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([honHdr,...honRows]),'Honorarios');
 
   // ASIENTOS (con movimientos como JSON)
-  const asHdr=['id','n','fecha','glosa','movsJSON'];
-  const asRows=S.asientos.map(a=>[a.id,a.n,a.fecha,a.glosa,JSON.stringify(a.movs||[])]);
+  const asHdr=['id','n','fecha','glosa','movsJSON','asientoJSON'];
+  const asRows=S.asientos.map(a=>[a.id,a.n,a.fecha,a.glosa,JSON.stringify(a.movs||[]),JSON.stringify(a)]);
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([asHdr,...asRows]),'Asientos');
 
   // APERTURA (Balance inicial del año — Asiento N°0)
   const apHdr=['fecha','glosa','movsJSON'];
   const apRows=S.apertura?[[S.apertura.fecha,S.apertura.glosa,JSON.stringify(S.apertura.movs||[])]]:[];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([apHdr,...apRows]),'Apertura');
+
+  // CIERRES CONTABLES MENSUALES (V2.15)
+  const ciHdr=['periodo','estado','cerradoEn','cerradoPor','motivo','reabiertoEn','reabiertoPor','motivoReapertura'];
+  const ciRows=(S.cierresContables||[]).map(c=>ciHdr.map(k=>c[k]!==undefined?c[k]:''));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ciHdr,...ciRows]),'CierresContables');
 
   // ACTIVOS FIJOS (bases contable/tributaria + trazabilidad de compra)
   const afHdr=['id','desc','cat','fecha','valor','residual','vida','metodo','valorContable','residualContable','vidaContable','metodoContable','fechaInicioDepContable','valorTributario','residualTributario','vidaTributaria','metodoTributario','fechaInicioDepTributaria','cuentaActivo','cuentaDeprAcum','cuentaGasto','compraOrigenId','compraOrigenRefJSON'];
@@ -343,11 +348,22 @@ async function importarExcelBD(file){
       `¿Continuar?`;
     if(!confirm(msg))return;
 
+    // V2.15.4: antes de reemplazar el ejercicio completo, crear un punto de retorno.
+    if(window.__snapshotAntesOperacion){
+      const seg=await window.__snapshotAntesOperacion(`Antes de restaurar backup Excel ${file?.name||''}`);
+      if(!seg?.ok){
+        const seguir=confirm(`⚠️ No se pudo crear el snapshot previo (${seg?.motivo||'error'}).\n\nPuedes continuar con la restauración Excel, pero no habrá un punto automático de retorno en Firebase.\n\n¿Continuar?`);
+        if(!seguir)return;
+      }
+    }
+
     // Restaurar estructuras
     S.ventas=vRows.map(r=>{
-      let referencia=null;try{referencia=JSON.parse(r.referenciaJSON||'null');}catch(e){}
+      let referencia=null,docCompleto={};try{referencia=JSON.parse(r.referenciaJSON||'null');}catch(e){}
+      try{docCompleto=JSON.parse(r.documentoJSON||'{}')||{};}catch(e){}
       return {
-        id:r.id||'v_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+        ...docCompleto,
+        id:r.id||docCompleto.id||'v_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
         fecha:r.fecha||'',
         ...(r.periodoContable?{periodoContable:String(r.periodoContable),fechaContabilizacion:r.fechaContabilizacion||'',origenRegistro:r.origenRegistro||'RCV'}:{}),
         fechaVencimiento:r.fechaVencimiento||'',
@@ -359,13 +375,15 @@ async function importarExcelBD(file){
       };
     });
     S.compras=cRows.map(r=>{
-      let dist=[],otrosImpuestosDetalle=[],referencia=null;
+      let dist=[],otrosImpuestosDetalle=[],referencia=null,docCompleto={};
       try{dist=JSON.parse(r.distJSON||'[]');}catch(e){}
       try{otrosImpuestosDetalle=JSON.parse(r.otrosImpuestosDetalleJSON||'[]');}catch(e){}
       try{referencia=JSON.parse(r.referenciaJSON||'null');}catch(e){}
-      if(!Array.isArray(dist)||!dist.length)dist=[{cuenta:'',monto:+r.neto||0}];
+      try{docCompleto=JSON.parse(r.documentoJSON||'{}')||{};}catch(e){}
+      if(!Array.isArray(dist)||!dist.length)dist=Array.isArray(docCompleto.dist)&&docCompleto.dist.length?docCompleto.dist:[{cuenta:'',monto:+r.neto||0}];
       return {
-        id:r.id||'c_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+        ...docCompleto,
+        id:r.id||docCompleto.id||'c_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
         fecha:r.fecha||'',
         ...(r.periodoContable?{periodoContable:String(r.periodoContable),fechaContabilizacion:r.fechaContabilizacion||'',origenRegistro:r.origenRegistro||'RCV'}:{}),
         fechaVencimiento:r.fechaVencimiento||'',
@@ -385,9 +403,12 @@ async function importarExcelBD(file){
       };
     });
     S.asientos=aRows.map(r=>{
+      if(r.asientoJSON){
+        try{const a=JSON.parse(r.asientoJSON);if(a&&typeof a==='object'&&Array.isArray(a.movs))return a;}catch(e){}
+      }
       let movs=[];
       try{movs=JSON.parse(r.movsJSON||'[]');}catch(e){}
-      return {id:r.id||'as_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),n:+r.n||0,fecha:r.fecha||'',glosa:r.glosa||'',movs};
+      return {id:r.id||'as_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),n:+r.n||0,folioComp:+r.n||0,fecha:r.fecha||'',glosa:r.glosa||'',movs,tipo:'manual'};
     });
     S.honorarios=hRows.map(r=>({...r,mes:+r.mes||0,bruto:+r.bruto||0,retencion:+r.retencion||0,liquido:+r.liquido||0}));
 
@@ -449,6 +470,16 @@ async function importarExcelBD(file){
       }));
     }
 
+    // Restaurar cierres contables mensuales
+    S.cierresContables=[];
+    if(hojas.includes('CierresContables')){
+      const ciRows=XLSX.utils.sheet_to_json(wb.Sheets['CierresContables']);
+      S.cierresContables=ciRows.filter(r=>r.periodo).map(r=>({
+        periodo:String(r.periodo),estado:r.estado||'cerrado',cerradoEn:r.cerradoEn||'',cerradoPor:r.cerradoPor||'',motivo:r.motivo||'',
+        reabiertoEn:r.reabiertoEn||'',reabiertoPor:r.reabiertoPor||'',motivoReapertura:r.motivoReapertura||''
+      }));
+    }
+
     // Restaurar empresa si viene
     if(hojas.includes('Empresa')){
       const emp=XLSX.utils.sheet_to_json(wb.Sheets['Empresa'],{header:1});
@@ -465,6 +496,7 @@ async function importarExcelBD(file){
     await window.storage.set('compras-'+anio,JSON.stringify(S.compras));
     await window.storage.set('asientos-'+anio,JSON.stringify(S.asientos));
     await window.storage.set('honorarios-'+anio,JSON.stringify(S.honorarios));
+    await window.storage.set('cierresContables-'+anio,JSON.stringify(S.cierresContables||[]));
     if(S.apertura)await window.storage.set('apertura-'+anio,JSON.stringify(S.apertura));
     else try{await window.storage.delete('apertura-'+anio);}catch(e){}
     if(S.activos&&S.activos.length)await window.storage.set('activos',JSON.stringify(S.activos));
@@ -480,6 +512,46 @@ async function importarExcelBD(file){
     toast('❌ Error al importar: '+e.message,'e');
     console.error(e);
   }
+}
+
+
+// V2.15.1 — simulacro seguro de restauración. Genera el mismo workbook de
+// respaldo, lo serializa y lo vuelve a leer EN MEMORIA. No modifica S ni
+// Firestore: sólo verifica que el archivo sea reconstruible y que las hojas
+// críticas conserven la cantidad de registros esperada.
+function simularRestauracionBackup(){
+  if(typeof XLSX==='undefined')return {ok:false,motivo:'Biblioteca Excel no cargada'};
+  try{
+    const wb=construirWorkbookBD();
+    const bytes=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const copia=XLSX.read(bytes,{type:'array'});
+    const requeridas=['Empresa','Ventas','Compras','Honorarios','Asientos','CierresContables'];
+    const faltan=requeridas.filter(n=>!copia.SheetNames.includes(n));
+    if(faltan.length)return {ok:false,motivo:'Faltan hojas: '+faltan.join(', ')};
+    const contar=(hoja)=>{
+      const ws=copia.Sheets[hoja];
+      if(!ws)return 0;
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      return rows.length;
+    };
+    const esperado={
+      Ventas:(S.ventas||[]).length,Compras:(S.compras||[]).length,Honorarios:(S.honorarios||[]).length,
+      Asientos:(S.asientos||[]).length,CierresContables:(S.cierresContables||[]).length
+    };
+    const leido=Object.fromEntries(Object.keys(esperado).map(k=>[k,contar(k)]));
+    const diferencias=Object.keys(esperado).filter(k=>esperado[k]!==leido[k]).map(k=>`${k}: ${leido[k]}/${esperado[k]}`);
+    if(diferencias.length)return {ok:false,motivo:'Conteos distintos: '+diferencias.join(' · '),esperado,leido};
+
+    // Los asientos son especialmente sensibles: comprobar que el JSON completo
+    // pueda reconstruirse y conserve id/movimientos.
+    const filasAs=XLSX.utils.sheet_to_json(copia.Sheets['Asientos'],{defval:''});
+    for(const row of filasAs){
+      if(!row.asientoJSON)continue;
+      const a=JSON.parse(String(row.asientoJSON));
+      if(!a||!a.id||!Array.isArray(a.movs))throw new Error('Asiento sin metadata completa: '+(row.id||'?'));
+    }
+    return {ok:true,bytes:bytes.byteLength||bytes.length||0,esperado,leido,hojas:copia.SheetNames.length};
+  }catch(e){return {ok:false,motivo:e.message||String(e)};}
 }
 
 function initBDImportListener(){
@@ -500,7 +572,7 @@ function initBDImportListener(){
   window.storage.set=async function(k,v){
     const r=await origSet(k,v);
     // Solo agendar si la clave es relevante a la BD
-    if(/^(ventas|compras|asientos|honorarios|f29-declaraciones|empresa|apertura|pdc)/.test(k))bdScheduleSave();
+    if(/^(ventas|compras|asientos|honorarios|f29-declaraciones|cierresContables|empresa|apertura|pdc)/.test(k))bdScheduleSave();
     return r;
   };
   window.storage._bdPatched=true;
@@ -509,4 +581,4 @@ function initBDImportListener(){
 // init() se llama desde app.js (orquestador)
 
 
-export {BD, BD_FILENAME, bdStatusSet, construirWorkbookBD, exportarExcelManual, conectarBD, bdOpenDB, bdSaveHandle, bdLoadHandle, fsBackupToCloud, fsRestoreFromCloud, guardarBDAhora, bdScheduleSave, bdRestaurarHandle, importarExcelBD, initBDImportListener};
+export {BD, BD_FILENAME, bdStatusSet, construirWorkbookBD, simularRestauracionBackup, exportarExcelManual, conectarBD, bdOpenDB, bdSaveHandle, bdLoadHandle, fsBackupToCloud, fsRestoreFromCloud, guardarBDAhora, bdScheduleSave, bdRestaurarHandle, importarExcelBD, initBDImportListener};

@@ -4,14 +4,14 @@ import {updateHdr} from './empresa.js';
 import {nav, rerender} from './ui.js';
 import {cuentasGastoOpts, dteComprasOpts} from './compras.js';
 import {S} from './state.js';
-import {logAccion} from './firebase.js';
+import {logAccion,logCambio} from './firebase.js';
 import {foliosMensuales, dteVentasOpts} from './helpers.js';
 import {retencionHonorarios} from './indicadores.js';
 import {ccOpts} from './centroscosto.js';
 import {inputCuenta, inputCC, inputAux} from './buscadorcuentas.js';
 import {fichaAux} from './importadoraux.js';
 import './storage.js';
-import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
+import {ejercicioCerrado,puedeOperarFecha,persistirAsientosCritico} from './contabilidad-v2.js';
 import {reglaCuenta,validarMovimientosPDC} from './pdc-reglas.js';
 
 // Estado del formulario de asientos (interno del módulo; se reasigna al abrir/editar)
@@ -74,7 +74,7 @@ function renderAsientos(){
     const anul=!!a.anulado;
     h+=`<div class="asiento-item" style="${anul?'opacity:.5;filter:grayscale(.6)':''}">
       <div class="asiento-hdr" onclick="toggleAs('ab${a.id}')">
-        <span class="as-num">N°${a.n||idx+1}</span>
+        <span class="as-num">N°${a.numeroContable||a.n||idx+1}</span>
         <span class="as-fecha">${a.fecha}</span>
         <span class="as-glosa" style="${anul?'text-decoration:line-through':''}">${a.glosa||'(sin glosa)'}</span>
         ${anul?'<span class="badge br">🚫 ANULADO</span>':`<span class="badge ${ok?'bg':'br'}">${ok?'✓ Cuadrado':'⚠ Descuadre'}</span>`}
@@ -815,7 +815,7 @@ function editarAsiento(id){
   fijarAF(id,a.movs.map(m=>({...m})));
   const f=document.getElementById('as-form');f.style.display='block';f.classList.add('editing');
   document.getElementById('af-title').textContent='Editando Asiento';
-  document.getElementById('af-folio-badge').textContent='N° '+(a.n||'?');
+  document.getElementById('af-folio-badge').textContent='N° '+(a.numeroContable||a.n||'?');
   document.getElementById('af-fecha').value=a.fecha;
   document.getElementById('af-glosa').value=a.glosa;
   document.getElementById('af-last-saved').textContent='';
@@ -866,11 +866,14 @@ async function anularAsiento(id){
   }else{
     if(!confirm(`¿Anular asiento N°${a.n||''} — "${a.glosa}"?\n\nNo borra el número de correlativo, pero excluye sus efectos de Libro Mayor, Balance, Estado de Resultados y auxiliares.\n\nPodrás reactivarlo después.`))return;
   }
-  const r=await persistirAsientosCritico(()=>{a.anulado=!reactivar;});
+  const anterior=JSON.parse(JSON.stringify(a));
+  const r=await persistirAsientosCritico(()=>{a.anulado=!reactivar;a.actualizadoEn=new Date().toISOString();});
   if(!r.ok){toast('❌ No se pudo guardar el cambio. El asiento conserva su estado anterior.','e');return;}
   rerender();
-  if(reactivar){toast('↩️ Asiento N°'+(a.n||'')+' reactivado');logAccion('Reactivó asiento',`N°${a.n} — ${a.glosa}`);}
-  else{toast('🚫 Asiento N°'+(a.n||'')+' anulado');logAccion('Anuló asiento',`N°${a.n} — ${a.glosa}`);}
+  const num=a.numeroContable||a.n||'';
+  if(reactivar){toast('↩️ Asiento N°'+num+' reactivado');logAccion('Reactivó asiento',`N°${num} — ${a.glosa}`);}
+  else{toast('🚫 Asiento N°'+num+' anulado');logAccion('Anuló asiento',`N°${num} — ${a.glosa}`);}
+  logCambio(reactivar?'Reactivó asiento':'Anuló asiento',{entidad:'asiento',id:a.id,antes:anterior,despues:a,meta:{numeroContable:a.numeroContable,tipo:a.tipo}});
 }
 
 // Navegar desde libro al asiento manual que contiene el DTE.
@@ -931,7 +934,7 @@ function limpiarFormAsiento(folioGuardado){
 
 async function guardarAsiento(){
   const fecha=document.getElementById('af-fecha').value;
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de modificar asientos.','e');return;}
+  if(!puedeOperarFecha(fecha)){toast('🔒 El período de este asiento está cerrado. Reábrelo antes de modificar asientos.','e');return;}
   const glosa=document.getElementById('af-glosa').value.trim();
   if(!fecha){toast('⚠️ Ingresa una fecha','e');return;}
   if(!glosa){toast('⚠️ Ingresa una descripción / glosa','e');return;}
@@ -998,22 +1001,31 @@ async function guardarAsiento(){
   let folioGuardado;
   if(AF.editId){
     const idx=S.asientos.findIndex(x=>x.id===AF.editId);
-    if(idx>=0){S.asientos[idx]={...S.asientos[idx],fecha,glosa,movs:movsClean};folioGuardado=S.asientos[idx].n;}
-    const r=await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos));
-    if(r&&r.ok===false){toast('❌ No se pudo guardar el asiento. La operación NO se considera contabilizada.','e');return;}
+    if(idx<0){toast('❌ Asiento no encontrado','e');return;}
+    const anterior=JSON.parse(JSON.stringify(S.asientos[idx]));
+    const r=await persistirAsientosCritico(()=>{
+      S.asientos[idx]={...S.asientos[idx],fecha,glosa,movs:movsClean,actualizadoEn:new Date().toISOString()};
+    });
+    if(!r.ok){toast('❌ No se pudo guardar el asiento. La operación NO se considera contabilizada.','e');return;}
+    const actualizado=S.asientos.find(x=>x.id===AF.editId);
+    folioGuardado=actualizado?.numeroContable||actualizado?.n||'?';
     toast('✅ Asiento N°'+folioGuardado+' actualizado');
     logAccion('Editó asiento',`N°${folioGuardado} — ${glosa}`);
+    logCambio('Editó asiento',{entidad:'asiento',id:AF.editId,antes:anterior,despues:actualizado,meta:{numeroContable:actualizado?.numeroContable,tipo:actualizado?.tipo}});
     cerrarForm();rerender();
     return;
   }
 
-  // Asiento nuevo
-  folioGuardado=proxFolioComprobante();
+  // Asiento nuevo. El número contable definitivo se asigna dentro de la
+  // persistencia crítica mediante una secuencia atómica de Firebase.
   const nuevoId='as_'+Date.now();
-  S.asientos.push({id:nuevoId,n:folioGuardado,folioComp:folioGuardado,fecha,glosa,movs:movsClean,tipo:'manual'});
-  const r=await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos));
-  if(r&&r.ok===false){S.asientos=S.asientos.filter(x=>x.id!==nuevoId);toast('❌ No se pudo guardar el asiento. La operación NO se considera contabilizada.','e');return;}
+  const creado={id:nuevoId,fecha,glosa,movs:movsClean,tipo:'manual',creadoEn:new Date().toISOString()};
+  const r=await persistirAsientosCritico(()=>{S.asientos.push(creado);});
+  if(!r.ok){toast(r.motivo==='sin-nube-correlativo'?'☁️ Se requiere conexión para asignar el número contable definitivo.':'❌ No se pudo guardar el asiento. La operación NO se considera contabilizada.','e');return;}
+  const nuevo=S.asientos.find(x=>x.id===nuevoId);
+  folioGuardado=nuevo?.numeroContable||nuevo?.n||'?';
   logAccion('Creó asiento',`N°${folioGuardado} — ${glosa}`);
+  logCambio('Creó asiento',{entidad:'asiento',id:nuevoId,antes:null,despues:nuevo,meta:{numeroContable:nuevo?.numeroContable,tipo:'manual'}});
   toast('✅ Asiento N°'+folioGuardado+' registrado');
 
   // Limpiar form y dejarlo listo para el siguiente asiento
@@ -1031,9 +1043,12 @@ async function eliminarAsiento(id){
     toast('⚠️ Este asiento tiene origen controlado y no puede eliminarse físicamente. Anúlalo desde su operación de origen.','e');return;
   }
   if(!confirm(`¿Eliminar asiento N°${a.n||''} — "${a.glosa}"?\nEsta acción no se puede deshacer.`))return;
+  const anterior=JSON.parse(JSON.stringify(a));
   const r=await persistirAsientosCritico(()=>{S.asientos=S.asientos.filter(x=>x.id!==id);});
   if(!r.ok){toast('❌ No se pudo eliminar el asiento. No se realizaron cambios.','e');return;}
-  renderAsientos();toast('🗑 Asiento eliminado');logAccion('Eliminó asiento',`N°${a.n} — ${a.glosa}`);
+  const num=a.numeroContable||a.n||'';
+  renderAsientos();toast('🗑 Asiento eliminado');logAccion('Eliminó asiento',`N°${num} — ${a.glosa}`);
+  logCambio('Eliminó asiento',{entidad:'asiento',id:a.id,antes:anterior,despues:null,meta:{numeroContable:a.numeroContable,tipo:a.tipo}});
 }
 
 

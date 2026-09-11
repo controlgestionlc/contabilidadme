@@ -53,6 +53,10 @@ export function marcarGuardado(){
   _sucio=false;
   _ultimoGuardado=new Date();
   actualizarIndicador();
+  // V2.15.4: cada guardado normal puede programar un snapshot automático.
+  // recovery.js aplica debounce y un mínimo de 6 horas, así que esto no crea
+  // una copia por cada edición ni bloquea la operación que acaba de guardarse.
+  try{window.__programarSnapshotRecuperacion&&window.__programarSnapshotRecuperacion();}catch(e){}
 }
 
 export const haySinGuardar=()=>_sucio;

@@ -123,14 +123,63 @@ function logAccion(accion,detalle){
   try{
     const email=(AUTH.user&&AUTH.user.email)||'desconocido';
     const nombre=(AUTH.user&&AUTH.user.nombre)||email;
+    const detalleSeguro=(detalle&&typeof detalle==='object')?JSON.stringify(detalle):String(detalle||'');
     FS.db.collection('audit_log').add({
-      accion,detalle:detalle||'',
+      accion,detalle:detalleSeguro,
       usuario:email,nombre,
+      empresa:(window.storage&&window.storage.getPrefijo?window.storage.getPrefijo():'')||'',
       anio:S.empresa.anio,
       ts:firebase.firestore.FieldValue.serverTimestamp(),
       tsLocal:new Date().toISOString()
-    }).catch(()=>{});
-  }catch(e){}
+    }).catch(e=>console.warn('No se pudo registrar auditoría:',accion,e));
+  }catch(e){console.warn('Error preparando auditoría:',accion,e);}
 }
 
-export {FS, fsStatusSet, initFirestore, FIREBASE_CONFIG, FIREBASE_ENV, logAccion, seAudita, ACCIONES_AUDITADAS};
+function _jsonSeguro(v){
+  try{return JSON.parse(JSON.stringify(v??null));}catch(e){return null;}
+}
+function _hashTexto(txt){
+  let h=2166136261;for(let i=0;i<txt.length;i++){h^=txt.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16).padStart(8,'0');
+}
+function _snapshotAuditoria(v){
+  const limpio=_jsonSeguro(v);const txt=JSON.stringify(limpio);
+  if(txt.length<=180000)return limpio;
+  return {snapshotOmitido:true,bytes:txt.length,hash:_hashTexto(txt)};
+}
+function _cambiosTop(antes,despues){
+  const a=antes&&typeof antes==='object'?antes:{};const d=despues&&typeof despues==='object'?despues:{};
+  const ks=new Set([...Object.keys(a),...Object.keys(d)]);const out=[];
+  for(const k of ks){
+    if(['actualizadoEn','reimportadoEn','rcvHistorial','versionAnterior'].includes(k))continue;
+    let av,dv;try{av=JSON.stringify(a[k]??null);dv=JSON.stringify(d[k]??null);}catch(e){continue;}
+    if(av!==dv)out.push(k);
+  }
+  return out.slice(0,80);
+}
+
+// V2.15.3 — bitácora estructurada e inmutable de cambios de entidades contables.
+// A diferencia de logAccion, esta función conserva estado anterior/nuevo y los
+// campos modificados para poder reconstruir qué cambió exactamente.
+function logCambio(accion,{entidad='',id='',antes=null,despues=null,meta={}}={}){
+  if(!FS.enabled||!FS.db)return;
+  try{
+    const email=(AUTH.user&&AUTH.user.email)||'desconocido';
+    const nombre=(AUTH.user&&AUTH.user.nombre)||email;
+    const a=_jsonSeguro(antes),d=_jsonSeguro(despues);
+    const ta=JSON.stringify(a),td=JSON.stringify(d);
+    FS.db.collection('audit_log').add({
+      accion:String(accion||'Cambio contable'),tipoRegistro:'cambio-estructurado',
+      entidad:String(entidad||''),entidadId:String(id||''),
+      correlativo:+((meta&&meta.numeroContable)||0)||null,
+      camposModificados:_cambiosTop(a,d),
+      antes:_snapshotAuditoria(a),despues:_snapshotAuditoria(d),
+      hashAntes:_hashTexto(ta),hashDespues:_hashTexto(td),metadata:_jsonSeguro(meta)||{},
+      detalle:String((meta&&meta.detalle)||''),usuario:email,nombre,
+      empresa:(window.storage&&window.storage.getPrefijo?window.storage.getPrefijo():'')||'',
+      anio:S.empresa.anio,
+      ts:firebase.firestore.FieldValue.serverTimestamp(),tsLocal:new Date().toISOString()
+    }).catch(e=>console.warn('No se pudo registrar cambio estructurado:',accion,e));
+  }catch(e){console.warn('Error preparando cambio estructurado:',accion,e);}
+}
+
+export {FS, fsStatusSet, initFirestore, FIREBASE_CONFIG, FIREBASE_ENV, logAccion, logCambio, seAudita, ACCIONES_AUDITADAS};

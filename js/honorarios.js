@@ -5,7 +5,7 @@ import {S} from './state.js';
 import {ccOpts} from './centroscosto.js';
 import {asientoHonorario,asientoPagoHonorario} from './motor-contable.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
-import {ejercicioCerrado,persistirClavesCritico} from './contabilidad-v2.js';
+import {ejercicioCerrado,puedeOperarFecha,persistirClavesCritico} from './contabilidad-v2.js';
 import './storage.js';
 
 const uid=()=>`hon_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
@@ -88,6 +88,8 @@ async function delHon(i){
   }catch(e){S.honorarios=JSON.parse(snapH);S.asientos=JSON.parse(snapA);toast('❌ No se pudo anular. No se aplicaron cambios.','e');}
 }
 async function saveHon(){
+  const bloqueado=(S.honorarios||[]).some(h=>h.estado!=='anulado'&&!puedeOperarFecha(h.fecha));
+  if(bloqueado){toast('🔒 Hay honorarios del formulario en un período cerrado. Reabre el período antes de guardar.','e');return;}
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. No se pueden modificar honorarios.','e');return;}
   const snapH=JSON.stringify(S.honorarios||[]),snapA=JSON.stringify(S.asientos||[]);
   try{

@@ -7,7 +7,7 @@ import {proxFolioAsiento} from './asientos.js';
 import {IND} from './indicadores.js';
 import {rerender} from './ui.js';
 import {esAdmin} from './auth.js';
-import {logAccion} from './firebase.js';
+import {logAccion,logCambio} from './firebase.js';
 import {ejercicioCerrado,persistirAsientosCritico,auditoriaIntegridad} from './contabilidad-v2.js';
 import {empresaActiva, marcoInfo} from './empresas.js';
 import './storage.js';
@@ -77,12 +77,12 @@ async function generarAsientoCierre(){
   }else{
     movs.push({cd:CUENTA_RESULTADOS_ACUM,nm:pdcNm(CUENTA_RESULTADOS_ACUM),debe:-resultado,haber:0,desc:'Pérdida del ejercicio '+anio});
   }
-  const folio=proxFolioAsiento();
   const cierreId='as_cierre_'+Date.now();
-  S.asientos.push({id:cierreId,n:folio,fecha:anio+'-12-31',glosa:'Cierre del ejercicio '+anio,movs,tipo:'cierre',estado:'cerrado',ejercicio:+anio,cerradoEn:new Date().toISOString()});
-  const r=await window.storage.set('asientos-'+anio,JSON.stringify(S.asientos));
-  if(r&&r.ok===false){S.asientos=S.asientos.filter(a=>a.id!==cierreId);toast('❌ No se pudo persistir el cierre. El ejercicio permanece abierto.','e');return;}
+  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:cierreId,fecha:anio+'-12-31',glosa:'Cierre del ejercicio '+anio,movs,tipo:'cierre',estado:'cerrado',ejercicio:+anio,cerradoEn:new Date().toISOString()});});
+  if(!r.ok){toast('❌ No se pudo persistir el cierre. El ejercicio permanece abierto.','e');return;}
+  const cierreNuevo=S.asientos.find(a=>a.id===cierreId);const folio=cierreNuevo?.numeroContable||cierreNuevo?.n||'?';
   logAccion('Cerró ejercicio',`Ejercicio ${anio} · asiento N°${folio} · resultado ${fmtC(resultado)}`);
+  logCambio('Cerró ejercicio',{entidad:'asiento',id:cierreId,antes:null,despues:cierreNuevo,meta:{numeroContable:cierreNuevo?.numeroContable,tipo:'cierre',ejercicio:+anio}});
   toast('✅ Asiento N°'+folio+' de cierre generado ('+fmtC(resultado)+')');
   renderCierre();updateHdr();
 }
@@ -95,6 +95,7 @@ async function reabrirEjercicio(){
   if(!esAdmin()){toast('🚫 Sólo un administrador puede reabrir un ejercicio','e');return;}
   const cierre=(S.asientos||[]).find(a=>!a.anulado&&a.tipo==='cierre'&&(+((a.ejercicio)||String(a.fecha||'').slice(0,4))===+anio));
   if(!cierre){toast(`El ejercicio ${anio} ya está abierto`);return;}
+  const anteriorCierre=JSON.parse(JSON.stringify(cierre));
   const motivo=(prompt(`Motivo de reapertura del ejercicio ${anio}:\n\nEste dato quedará en la auditoría.`)||'').trim();
   if(motivo.length<10){toast('⚠️ Ingresa un motivo de al menos 10 caracteres','e');return;}
   if(!confirm(`¿Reabrir el ejercicio ${anio}?\n\nSe anulará contablemente el asiento de cierre N°${cierre.n}, pero se conservará su trazabilidad.\n\nMotivo: ${motivo}`))return;
@@ -110,7 +111,9 @@ async function reabrirEjercicio(){
     S.asientos=JSON.parse(snap);
     toast('❌ No se pudo persistir la reapertura. El ejercicio continúa cerrado.','e');return;
   }
-  logAccion('Reabrió ejercicio',`Ejercicio ${anio} · cierre N°${cierre.n} · motivo: ${motivo}`);
+  const numCierre=cierre.numeroContable||cierre.n;
+  logAccion('Reabrió ejercicio',`Ejercicio ${anio} · cierre N°${numCierre} · motivo: ${motivo}`);
+  logCambio('Reabrió ejercicio',{entidad:'asiento',id:cierre.id,antes:anteriorCierre,despues:cierre,meta:{numeroContable:cierre.numeroContable,tipo:'cierre',ejercicio:+anio,motivo}});
   toast(`🔓 Ejercicio ${anio} reabierto`);
   renderCierre();updateHdr();rerender();
 }

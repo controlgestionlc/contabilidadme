@@ -13,11 +13,12 @@
 import {toast, fmtC, MESES, pdcNm, PDC, today, dteV, dteC, rutFmt} from './core.js';
 import {S} from './state.js';
 import {proxFolioAsiento, CUENTAS_AUX} from './asientos.js';
-import {logAccion} from './firebase.js';
+import {logAccion,logCambio} from './firebase.js';
 import {rerender} from './ui.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {pagosDocumento} from './motor-contable.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
+import {ejercicioCerrado,puedeOperarFecha,persistirAsientosCritico} from './contabilidad-v2.js';
 
 // Estado del módulo — persiste solo mientras estás en la vista
 let PAG={
@@ -451,7 +452,7 @@ function setPagMontoParcial(docId,valor){
 
 // ═══ EJECUTAR PAGO ═══
 async function ejecutarPago(){
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. No se pueden registrar pagos o cobros.','e');return;}
+  if(!puedeOperarFecha(PAG.fecha)){toast('🔒 El período de la fecha de pago está cerrado. Reábrelo antes de registrar pagos o cobros.','e');return;}
   if(!PAG.cuentaPago){toast('⚠️ Selecciona la cuenta de origen (caja o banco)','e');return;}
   if(!PAG.seleccionados.size){toast('⚠️ Selecciona al menos un documento','e');return;}
   if(!PAG.fecha){toast('⚠️ Ingresa la fecha del pago','e');return;}
@@ -521,29 +522,18 @@ async function ejecutarPago(){
 
   // Crear asiento contable
   if(!S.asientos)S.asientos=[];
-  const n=proxFolioAsiento();
   const glosaFinal=PAG.glosa||`${PAG.tipo==='proveedor'?'Pago a proveedores':'Cobro a clientes'} — ${pagosPorDoc.length} documento${pagosPorDoc.length===1?'':'s'}`;
-  S.asientos.push({
-    id:asientoId, n,
-    fecha:PAG.fecha,
-    glosa:glosaFinal,
-    movs,
-    tipo:'pago',   // registro maestro del pago
-    cuentaPago:PAG.cuentaPago,
-    esPagoAgrupado:true,
-    documentos:pagosPorDoc.map(x=>({docId:x.docId,monto:x.monto,tipo:PAG.tipo})),
-  });
-
-  // V2: NO duplicamos el pago dentro del documento. El saldo se deriva del
-  // asiento anterior. `pagos[]` sólo se lee como fallback para datos históricos.
-  const guardado=await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos));
-  if(guardado&&guardado.ok===false){
-    S.asientos=S.asientos.filter(a=>a.id!==asientoId);
-    toast('❌ No se pudo guardar el asiento de pago. La operación NO fue contabilizada.','e');
+  const guardado=await persistirAsientosCritico(()=>{S.asientos.push({
+    id:asientoId,fecha:PAG.fecha,glosa:glosaFinal,movs,tipo:'pago',cuentaPago:PAG.cuentaPago,
+    esPagoAgrupado:true,documentos:pagosPorDoc.map(x=>({docId:x.docId,monto:x.monto,tipo:PAG.tipo})),creadoEn:new Date().toISOString()
+  });});
+  if(!guardado.ok){
+    toast(guardado.motivo==='sin-nube-correlativo'?'☁️ Se requiere conexión para asignar el número contable definitivo.':'❌ No se pudo guardar el asiento de pago. La operación NO fue contabilizada.','e');
     return;
   }
-
+  const asientoNuevo=S.asientos.find(a=>a.id===asientoId);const n=asientoNuevo?.numeroContable||asientoNuevo?.n||'?';
   logAccion(`${PAG.tipo==='proveedor'?'Pagó':'Cobró'} ${pagosPorDoc.length} documento(s)`,`Total ${fmtC(totalPago)} · Asiento N°${n}`);
+  logCambio(PAG.tipo==='proveedor'?'Registró pago':'Registró cobro',{entidad:'asiento',id:asientoId,antes:null,despues:asientoNuevo,meta:{numeroContable:asientoNuevo?.numeroContable,tipo:'pago',documentos:pagosPorDoc.length,total:totalPago}});
   toast(`✅ ${PAG.tipo==='proveedor'?'Pago registrado':'Cobro registrado'}: ${pagosPorDoc.length} doc · ${fmtC(totalPago)} · Asiento N°${n}`);
 
   // Limpiar selección y refrescar

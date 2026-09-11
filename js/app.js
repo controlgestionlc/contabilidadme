@@ -20,13 +20,13 @@ import {renderEmpresas, abrirFormEmpresa, cerrarFormEmpresa, editarEmpresaCat,
 // Sistema
 import {initAuth, puedeVer, puedeEditar, esAdmin, ROLES, SECCIONES, permisosDeRol,
         toggleLoginMode, submitLogin, recuperarPassword, mostrarLogin, logout,
-        aplicarPermisosUI, setOnAuthReady,
-        sesionPersistente, setSesionPersistente} from './auth.js';
+        aplicarPermisosUI, setOnAuthReady} from './auth.js';
 import {cargarUsuarios, renderUsuarios, abrirInvitarUsuario, editarUsuario,
         renderPermisosForm, cerrarUsuarioForm, guardarUsuario, aprobarUsuario,
         desactivarUsuario, US} from './usuarios.js';
 import {renderAuditLog} from './audit.js';
-import {renderIntegridad,migrarAsientosV2} from './integridad.js';
+import {renderIntegridad,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI} from './integridad.js';
+import {initRecovery} from './recovery.js';
 
 // Configuración y datos
 import {fillEmpresaForm, saveEmpresa, updateHdr, aplicarRegimenEmpresa,
@@ -101,6 +101,7 @@ import {renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento,
         dtmCheckDup, dtmAddDist, dtmDelDist, dtmRenderDist, dtmUpdDistCheck, dtmRemover,
         quitarDte, folioPreviewDte, abrirAsientoDesde, cuentasOpts, lAuxElegido,
         proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, AF} from './asientos.js';
+import {asegurarNumerosContables} from './correlativo-contable.js';
 import {renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF,
         editarAF, eliminarAF, generarAsientoDepreciacion, AFB} from './activofijo.js';
 import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
@@ -162,12 +163,15 @@ async function saveAll({silencioso=false}={}){
   let ok=false;
   try{
     const y=S.empresa.anio;
+    const nr=await asegurarNumerosContables();
+    if(!nr.ok)throw new Error(nr.motivo||'correlativo-contable');
     const entradas=[
       {key:'empresa',value:JSON.stringify(S.empresa)},
       {key:'ventas-'+y,value:JSON.stringify(S.ventas)},
       {key:'compras-'+y,value:JSON.stringify(S.compras)},
       {key:'honorarios-'+y,value:JSON.stringify(S.honorarios)},
       {key:'asientos-'+y,value:JSON.stringify(S.asientos)},
+      {key:'cierresContables-'+y,value:JSON.stringify(S.cierresContables||[])},
     ];
     if(S.activos&&S.activos.length)entradas.push({key:'activos',value:JSON.stringify(S.activos)});
     if(S.trabajadores&&S.trabajadores.length)entradas.push({key:'trabajadores',value:JSON.stringify(S.trabajadores)});
@@ -248,7 +252,7 @@ function renombrarEsteDispositivo(){
 }
 
 async function loadYear(y){
-  S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];S.apertura=null;S.activos=[];S.trabajadores=[];
+  S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];S.apertura=null;S.activos=[];S.trabajadores=[];S.cierresContables=[];S.hardeningCert=null;
   S.cargaFallida=[];
   resetRenta(); // los ajustes del F22 son por empresa+año: se recargan al entrar a la sección
   resetDJ();    // ídem el catálogo y el control de declaraciones juradas
@@ -280,6 +284,8 @@ async function loadYear(y){
     });
   }
   await leer('apertura-'+y,p=>{S.apertura=p;});
+  await leer('cierresContables-'+y,p=>{if(Array.isArray(p))S.cierresContables=p;});
+  await leer('hardening-certificacion-'+y,p=>{if(p&&typeof p==='object')S.hardeningCert=p;});
   // Activos fijos y trabajadores: claves GLOBALES de la empresa (persisten entre años)
   await leer('activos',p=>{if(Array.isArray(p))S.activos=p;});
   await leer('trabajadores',p=>{if(Array.isArray(p))S.trabajadores=p;});
@@ -375,6 +381,20 @@ async function initApp(){
       }
     }catch(e){console.warn('Error persistiendo migración de folios:',e);toast('⚠️ No se pudo persistir la migración de folios. Revisa la conexión antes de continuar.','e');}
   }
+  // V2.15.3: cada asiento maestro obtiene un número contable definitivo.
+  // La secuencia se reserva en Firebase; si no hay conexión, no inventamos
+  // números locales que pudieran chocar con otro equipo.
+  try{
+    const nr=await asegurarNumerosContables();
+    if(nr.ok&&nr.asignados){
+      const r=await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos));
+      if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia-numeracion');
+      console.log(`Numeración contable: ${nr.asignados} asiento(s) numerados`);
+    }else if(!nr.ok){
+      toast('☁️ Numeración contable pendiente: conecta Firebase antes de crear nuevos asientos.','e');
+    }
+  }catch(e){console.warn('Numeración contable:',e);toast('⚠️ No se pudo completar la numeración contable definitiva.','e');}
+
   fillEmpresaForm();updateHdr();renderInicio();
   initImportListener();
   initImportListenerV();
@@ -384,6 +404,8 @@ async function initApp(){
   initBalanceImportListener();
   bdStatusSet('offline');
   if(BD.supported)await bdRestaurarHandle();
+  // V2.15.4: cargar índice de snapshots y activar respaldo automático periódico.
+  try{await initRecovery();}catch(e){console.warn('Recovery init:',e);}
   // Aplicar permisos por si el usuario no puede ver la sección actual
   aplicarPermisosUI();
   retomarUltimaSeccion();
@@ -551,7 +573,6 @@ Object.assign(window,{
   nav, rerender, renderSec, toggleNav, cerrarNavMovil, changeYear, saveAll, init, initApp,
   // auth / usuarios
   toggleLoginMode, submitLogin, recuperarPassword, mostrarLogin, logout,
-  sesionPersistente, setSesionPersistente,
   olvidarNav,
   renderUsuarios, abrirInvitarUsuario, editarUsuario, renderPermisosForm,
   cerrarUsuarioForm, guardarUsuario, aprobarUsuario, desactivarUsuario, renderAuditLog, renderIntegridad, migrarAsientosV2,
@@ -628,6 +649,7 @@ Object.assign(window,{
   renderDiario, setDiarioQ, renderMayor, renderBalance, onCmpYear, renderResultados,
   onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
   onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel,
+  renderIntegridad,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI,
   renderCargaDatos, descargarPlantillaDatos, abrirCargaDatos, renderSistema,
   diagnosticarSeguridad, prepararAislamiento, repararAccesos, repararDocumentos,
   renombrarEsteDispositivo,

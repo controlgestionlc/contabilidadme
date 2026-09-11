@@ -225,7 +225,12 @@ service cloud.firestore {
     // ═══ audit_log — sólo agregar, nadie borra su rastro ════════════════════
     match /audit_log/{id} {
       allow read: if esAdmin();
-      allow create: if activo();
+      // El actor no puede atribuir la acción a otro usuario. Además, la empresa
+      // declarada debe ser una empresa a la que pertenece (o _global para admin).
+      allow create: if activo()
+        && request.resource.data.usuario == correo()
+        && request.resource.data.empresa is string
+        && (request.resource.data.empresa == '_global' ? esAdmin() : miembro(request.resource.data.empresa));
       allow update, delete: if false;
     }
 

@@ -77,7 +77,7 @@ function genDiario(){
 
   // Asientos persistidos: pagos, remuneraciones, depreciaciones, manuales, etc.
   [...S.asientos].filter(a=>!a.anulado).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(a=>{
-    entries.push({n:a.folioComp||a.n||n++,fecha:a.fecha,glosa:a.glosa,movs:a.movs,origen:'asiento',ref:a.n,tipo:a.tipo||'manual',asientoId:a.id});
+    entries.push({n:a.numeroContable||a.folioComp||a.n||n++,fecha:a.fecha,glosa:a.glosa,movs:a.movs,origen:'asiento',ref:a.n,tipo:a.tipo||'manual',asientoId:a.id,numeroContable:a.numeroContable||null});
   });
   return entries.sort((a,b)=>{
     if(a.origen==='apertura')return -1;if(b.origen==='apertura')return 1;
@@ -364,7 +364,7 @@ function destinoEdicion(e){
 // El destino es 'comprobantes', que es donde vive el formulario de asientos
 // manuales; 's-asientos' ya no existe como sección.
 function editarAsientoRef(n){
-  const a=S.asientos.find(x=>x.n===n);
+  const a=S.asientos.find(x=>+x.numeroContable===+n)||S.asientos.find(x=>x.n===n);
   if(!a){toast('⚠️ No se encontró el asiento N°'+n,'e');return;}
   nav('comprobantes');
   setTimeout(()=>{try{window.editarAsiento&&window.editarAsiento(a.id);}catch(e){}},50);

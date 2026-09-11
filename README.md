@@ -35,7 +35,7 @@ Sube `index.html`, la carpeta `js/` y la carpeta `css/` a la **raíz** del repos
 Libro Diario · Libro Mayor · Balance General (con comparativo entre años) · Estado de Resultados estructurado · Flujo de Caja (realizado y proyectado) · Conciliación Bancaria (manual o cargando cartola)
 
 ### Tributario SII
-- **Formulario 29** — IVA mensual con desglose por códigos SII, notas de crédito/débito, arrastre de remanente, PPM y retenciones
+- **Formulario 29** — IVA mensual con desglose por códigos SII, notas de crédito/débito, arrastre de remanente, declaración histórica y conciliación F29 ↔ provisión ↔ pago ↔ Mayor
 - **PPM** — pago provisional mensual
 - **Exportar XML SII** — libros de compra/venta en formato IECV (esquema LibroCV_v10)
 
@@ -436,3 +436,49 @@ Las compras importadas desde el Registro de Compras y Ventas separan desde esta 
 
 ### V2.12
 El F29 mensual distingue entre el cálculo actual del sistema y la declaración efectivamente presentada. Una declaración marcada como presentada conserva su remanente histórico para el arrastre a meses posteriores y muestra diferencias si los libros cambian después. Las compras importadas siguen conservando la fecha original del DTE y se imputan tributaria/contablemente mediante `periodoContable`.
+
+
+## V2.13 — Conciliación tributaria operacional
+
+El módulo F29 incorpora una conciliación mensual entre los valores calculados/declarados y los asientos de compensación y pago. Los asientos nuevos conservan metadata estructurada `f29Detalle`, mientras los históricos utilizan compatibilidad por glosa/código. El PPM distingue entre reconocimiento directo al pagar y cancelación de una provisión previa, evitando duplicar el activo.
+
+
+### Seguridad de sesión (V2.13.1)
+La aplicación exige un nuevo login después de cerrar la app o el navegador y volver a iniciarlos. Firebase Auth usa persistencia de sesión, no persistencia local permanente. Un refresco de la misma ejecución puede conservar la autenticación.
+
+### V2.14 — F29 con pagos parciales
+
+El control tributario mensual permite registrar uno o varios pagos para el mismo F29. Cada asiento de pago queda asociado al período y la interfaz calcula el acumulado y el saldo pendiente por concepto. La existencia de más de un pago ya no se interpreta como duplicación automática; sólo se alerta cuando existe sobrepago o una diferencia entre declaración, provisión, contabilidad fuente y pago. Los nuevos pagos no pueden exceder el saldo pendiente controlado.
+
+
+### V2.15 — Hardening Productivo
+Se incorpora cierre contable mensual separado del cierre anual. El bloqueo se aplica por fecha de contabilización: en compras RCV se usa `periodoContable/fechaContabilizacion` y se conserva la fecha documental real. La Auditoría de Integridad incorpora un panel de preparación productiva y una suite automática mínima. El respaldo Excel conserva desde esta versión el objeto completo de los asientos y los cierres mensuales. El semáforo permanece amarillo hasta ejecutar pruebas operacionales reales de concurrencia Firebase en dos equipos y un simulacro de restauración.
+
+
+### V2.15.1 — Certificación operacional
+Se incorpora un protocolo guiado para probar concurrencia real con dos dispositivos contra Firebase sin tocar libros contables. La prueba crea un registro diagnóstico aislado, hace que ambos equipos escriban desde la misma revisión y sólo certifica éxito si las dos marcas sobreviven. También se incorpora un simulacro de restauración que genera y relee el respaldo Excel en memoria, validando hojas, conteos y metadata de asientos sin modificar los datos activos. Los resultados aprobados se guardan por empresa/año y alimentan el semáforo de preparación productiva.
+
+
+## V2.15.2 — RCV idempotente y control de cambios
+
+- Reimportar un archivo RCV idéntico no modifica libros, asientos ni marcas de tiempo.
+- Compras y ventas clasifican cada DTE como **Nuevo**, **Sin cambios**, **Cambio SII** o **Ya en asiento manual**.
+- Los cambios del SII requieren confirmación explícita y conservan un historial RCV con snapshot anterior y campos modificados.
+- La conciliación completa de Compras sólo anula documentos activos ausentes del archivo; repetir la misma conciliación es un no-op.
+- Ventas conserva siempre la fecha documental del DTE y valida cierres mensuales por esa fecha.
+- El respaldo Excel conserva el objeto completo de Compras y Ventas, incluida la metadata RCV.
+- El panel de Preparación Productiva prueba la idempotencia y la detección de cambios económicos.
+
+### V2.15.3 — correlativo definitivo y trazabilidad
+
+Antes del piloto productivo se agregó una segunda identidad para los asientos: `numeroContable`. A diferencia del antiguo `n/folioComp`, este número se reserva en una transacción Firebase por empresa/año y no se vuelve a utilizar. La Auditoría de Integridad exige que todos los asientos tengan número y que no existan duplicados.
+
+También se incorporó auditoría estructurada de cambios. Para las operaciones contables críticas se conserva el estado anterior y posterior, los campos modificados, usuario, fecha, entidad y correlativo. Las reglas de Firestore mantienen el registro como sólo-agregar y validan que el actor sea el usuario autenticado.
+
+### V2.15.4 — Recuperación ante desastre
+
+La aplicación incorpora snapshots productivos por empresa y ejercicio además del respaldo Excel. Se conservan hasta seis puntos de recuperación, cada uno con manifiesto y SHA-256 por clave. La aplicación programa un snapshot automático periódico cuando existe actividad y crea un punto previo a importaciones RCV o restauraciones masivas cuando Firebase está disponible.
+
+Desde **Auditoría de Integridad → Preparación Productiva** un administrador puede crear un snapshot manual, verificar su integridad y ejecutar una restauración de emergencia. Antes de restaurar, la aplicación genera un punto de retorno del estado actual y exige una confirmación explícita `RESTAURAR`. La restauración se aplica mediante persistencia multi-clave y la aplicación se recarga al finalizar.
+
+Los snapshots no reemplazan el backup Excel: el Excel sigue siendo la copia portable/externa y los snapshots permiten un rollback rápido dentro de Firebase. Para operación productiva se recomienda mantener ambas capas.

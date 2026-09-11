@@ -57,6 +57,7 @@ const SECCIONES=[
   {id:'conciliacion',lbl:'Conciliación Bancaria'},
   {id:'comprobantes',lbl:'Comprobantes'},
   {id:'auditlog',lbl:'Registro de Actividad'},
+  {id:'integridad',lbl:'Auditoría de Integridad / Productivo'},
   {id:'f29',lbl:'Formulario 29'},
   {id:'ppm',lbl:'PPM'},
   {id:'renta',lbl:'Declaración de Renta'},
@@ -103,24 +104,28 @@ async function initAuth(){
   }
   AUTH.auth=firebase.auth();
 
-  // ── Persistencia de sesión ──
+  // ── V2.13.1 · Login obligatorio al volver a abrir la app ──
   //
-  // Con SESSION el token vive sólo mientras la pestaña siga abierta. En un
-  // computador eso es razonable, pero instalada como app en el teléfono es un
-  // problema real: Android descarta el proceso apenas cambias de aplicación un
-  // rato, y al volver la app arranca de cero y pide la contraseña otra vez. Se
-  // siente como si la app "se cerrara sola".
+  // La autenticación queda limitada a la sesión actual del navegador/app.
+  // Además usamos una marca en sessionStorage para distinguir un simple reload
+  // de una ejecución nueva. Si la app fue cerrada y luego vuelve a abrirse,
+  // sessionStorage parte vacío y eliminamos cualquier credencial que Firebase
+  // pudiera haber restaurado desde una persistencia antigua LOCAL.
   //
-  // Por eso el valor por defecto ahora es LOCAL —la sesión sigue abierta en
-  // este equipo— y queda un interruptor en Sistema para volver a SESSION en un
-  // computador compartido, donde sí conviene que cerrar el navegador cierre la
-  // sesión. La preferencia vive en localStorage, no en Firestore: hay que
-  // leerla antes de que exista sesión, y además es de este dispositivo.
+  // Resultado: recargar la página no molesta al usuario, pero cerrar la app o
+  // el navegador y abrirlos nuevamente obliga a ingresar la contraseña.
+  const inicioNuevo=marcarNuevaEjecucion();
   try{
     const P=firebase.auth.Auth.Persistence;
-    await AUTH.auth.setPersistence(sesionPersistente()?P.LOCAL:P.SESSION);
+    await AUTH.auth.setPersistence(P.SESSION);
+    if(inicioNuevo){
+      try{await AUTH.auth.signOut();}catch(e){console.warn('No se pudo limpiar la sesión anterior:',e);}
+    }
   }catch(e){
-    console.warn('No se pudo fijar la persistencia de sesión:',e);
+    console.warn('No se pudo fijar la persistencia SESSION:',e);
+    // Aun si setPersistence falla, en una ejecución nueva intentamos cerrar la
+    // credencial restaurada para no saltarnos el login solicitado.
+    if(inicioNuevo){try{await AUTH.auth.signOut();}catch(_){}}
   }
 
   // Listener de cambios de sesión
@@ -137,17 +142,12 @@ async function initAuth(){
 
 // ── Perfil recordado de este dispositivo ──
 //
-// Firebase restaura la sesión al reabrir la app, pero verificarUsuarioAutorizado
-// no dejaba entrar hasta completar DOS lecturas a Firestore. En el teléfono eso
-// es fatal: Android descarta el proceso, al volver la app arranca de cero y se
-// queda en la pantalla de login mirando "Verificando permisos…" mientras la red
-// móvil despierta —o mostrando un error si no hay señal—. Se ve exactamente
-// como si la sesión se hubiera cerrado, aunque estuviera perfectamente viva.
-//
-// Ahora el perfil autorizado se guarda en este dispositivo. Si Firebase devuelve
-// una sesión y hay perfil recordado para ese mismo correo, se entra de
-// inmediato y la verificación se hace DETRÁS; si resulta que la cuenta fue
-// desactivada o revocada, ahí se cierra sesión y se avisa.
+// El perfil autorizado se mantiene como caché local para acelerar la verificación
+// DESPUÉS de que el usuario se autentica con sus credenciales. Desde V2.13.1 ya
+// no se utiliza para saltarse el login al reabrir la app: una ejecución nueva
+// limpia primero cualquier sesión Firebase anterior. Una vez autenticado, si el
+// perfil recordado corresponde al mismo correo, la interfaz puede entrar rápido
+// mientras Firestore revalida permisos detrás.
 //
 // Esto no debilita la seguridad: el perfil recordado sólo decide qué se ve en
 // pantalla. Quién puede leer o escribir datos de verdad lo siguen decidiendo
@@ -170,26 +170,31 @@ function recordarPerfil(u){
 }
 function olvidarPerfil(){try{localStorage.removeItem(CLAVE_PERFIL);}catch(e){}}
 
-// ── Preferencia de sesión de este dispositivo ──
-const CLAVE_SESION='cv:sesion-persistente';
-function sesionPersistente(){
+// ── Sesión forzada por ejecución (V2.13.1) ──
+// sessionStorage sobrevive a un reload, pero normalmente desaparece al cerrar
+// la pestaña/ventana o la PWA. Es exactamente la frontera que necesitamos.
+const CLAVE_EJECUCION='cv:ejecucion-autenticada-v1';
+function marcarNuevaEjecucion(){
   try{
-    const v=localStorage.getItem(CLAVE_SESION);
-    return v===null?true:v==='1';   // por defecto: mantener la sesión
-  }catch(e){return true;}
+    if(sessionStorage.getItem(CLAVE_EJECUCION)==='1')return false;
+    sessionStorage.setItem(CLAVE_EJECUCION,'1');
+    return true;
+  }catch(e){
+    // Si el navegador bloquea sessionStorage preferimos el lado seguro:
+    // considerar cada carga como una ejecución nueva y exigir login.
+    return true;
+  }
 }
-// Cambiarla sólo afecta al PRÓXIMO inicio de sesión: Firebase fija la
-// persistencia al autenticar, no después. Se dice en la propia pantalla.
-function setSesionPersistente(v){
-  try{localStorage.setItem(CLAVE_SESION,v?'1':'0');}catch(e){}
+
+// Se conservan estas dos funciones por compatibilidad con módulos/versiones
+// antiguas, pero la persistencia LOCAL ya no se puede habilitar desde la UI.
+function sesionPersistente(){return false;}
+function setSesionPersistente(){
   try{
     const P=firebase.auth.Auth.Persistence;
-    if(AUTH.auth)AUTH.auth.setPersistence(v?P.LOCAL:P.SESSION).catch(()=>{});
+    if(AUTH.auth)AUTH.auth.setPersistence(P.SESSION).catch(()=>{});
   }catch(e){}
-  try{window.toast&&window.toast(v
-    ?'🔓 La sesión quedará abierta en este equipo'
-    :'🔒 Se pedirá la contraseña al cerrar el navegador');}catch(e){}
-  try{window.renderSistema&&window.renderSistema();}catch(e){}
+  try{window.toast&&window.toast('🔒 El inicio de sesión obligatorio está activado');}catch(e){}
 }
 
 // Modo del formulario: 'login' (inicio de sesión) o 'register' (registro nuevo usuario)

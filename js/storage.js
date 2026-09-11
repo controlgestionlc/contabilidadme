@@ -302,7 +302,7 @@ initDispositivo();
   function clavesDeLaEmpresa(anio){
     const fijas=['empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC',
                  'comprobantesTipo','fichasAux','indicadores','previsional','libroRem'];
-    const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-','f29-declaraciones-'].map(p=>p+anio);
+    const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-','f29-declaraciones-','cierresContables-','hardening-certificacion-'].map(p=>p+anio);
     const set=new Set([...fijas,...delAnio]);
     try{
       const pref=prefix+empresaId+':';
@@ -491,6 +491,41 @@ initDispositivo();
         .map(([k,motivo])=>({clave:k.slice(pref.length),motivo}));
     },
     hayBloqueos(){return this.clavesBloqueadas().length>0;},
+
+    // V2.15.3 — reserva atómica de correlativos contables definitivos.
+    // El contador vive en un documento separado por empresa/año y se incrementa
+    // dentro de una transacción Firestore. Así dos equipos no pueden recibir el
+    // mismo número. Para proteger la secuencia, NO se asignan correlativos nuevos
+    // sin conexión a la nube; las ediciones de asientos ya numerados sí pueden
+    // seguir usando el mecanismo normal de persistencia.
+    async reservarCorrelativos(clave,cantidad=1,minimo=0){
+      cantidad=Math.max(0,Math.trunc(+cantidad||0));
+      minimo=Math.max(0,Math.trunc(+minimo||0));
+      if(!cantidad)return {ok:true,inicio:minimo+1,fin:minimo};
+      if(!FS.enabled||!FS.db)return {ok:false,motivo:'sin-nube-correlativo'};
+      const seqKey=K('_seq_'+String(clave||'asientos'));
+      const ref=FS.db.collection(COLL).doc(seqKey);
+      try{
+        let inicio=0,fin=0;
+        await FS.db.runTransaction(async t=>{
+          const snap=await t.get(ref);
+          let ultimo=0;
+          if(snap.exists){
+            const d=snap.data()||{};
+            try{ultimo=Math.max(0,+((JSON.parse(d.value||'{}')||{}).ultimo)||0);}catch(_e){ultimo=0;}
+          }
+          ultimo=Math.max(ultimo,minimo);
+          inicio=ultimo+1;fin=ultimo+cantidad;
+          t.set(ref,{value:JSON.stringify({ultimo:fin}),empresa:empresaDeClave(seqKey),rev:(snap.exists?(+(snap.data()?.rev||0)):0)+1,
+            dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
+            ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+        });
+        return {ok:true,inicio,fin};
+      }catch(e){
+        console.warn('Reserva correlativo contable',e);
+        return {ok:false,motivo:e.message||String(e)};
+      }
+    },
 
     // ── API sin prefijo (catálogo de empresas, config global) ──
     // Lectura global que DISTINGUE "no existe" de "no se pudo leer".

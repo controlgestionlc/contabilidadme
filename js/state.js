@@ -16,6 +16,8 @@ export const S={
   centros:[],       // centros de costo (predios y cuarteles)
   comprobantesTipo:[], // plantillas de asientos recurrentes
   cierresCC:[],     // cierres mensuales de costos ya ejecutados
+  cierresContables:[], // V2.15 cierres contables mensuales (YYYY-MM)
+  hardeningCert:null, // V2.15.1 certificación operacional (concurrencia/restore)
   apertura:null
 };
 
