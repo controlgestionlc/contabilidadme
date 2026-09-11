@@ -1,2 +1,0 @@
-# contabilidadme
-Contabilidad Multiempresa
