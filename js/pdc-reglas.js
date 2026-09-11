@@ -31,6 +31,7 @@ function inferirReglasCuenta(c){
     requiereAuxiliar:c.requiereAuxiliar!=null?!!c.requiereAuxiliar:!!tipoAux,
     tipoAuxiliar:tipoAux,
     aceptaCentroCosto:c.aceptaCentroCosto!=null?!!c.aceptaCentroCosto:(tp==='C'||tp==='I'),
+    requiereCentroCosto:c.requiereCentroCosto!=null?!!c.requiereCentroCosto:false,
     tipoIVA:c.tipoIVA||IVA_POR_DEFECTO[c.cd]||'',
     esCuentaTributaria:c.esCuentaTributaria!=null?!!c.esCuentaTributaria:!!IVA_POR_DEFECTO[c.cd],
     permiteAsientoManual:c.permiteAsientoManual!=null?!!c.permiteAsientoManual:movimiento,
@@ -76,6 +77,7 @@ function validarMovimientoPDC(m,{manual=false,apertura=false,cierre=false}={}){
   if(apertura&&!r.permiteApertura)errs.push(`La cuenta ${m.cd} no permite apertura`);
   if(cierre&&!r.permiteCierre)errs.push(`La cuenta ${m.cd} no permite cierre`);
   if(r.requiereAuxiliar&&!m.rutCodigo)errs.push(`La cuenta ${m.cd} requiere auxiliar (${r.tipoAuxiliar||'identificación'})`);
+  if(r.requiereCentroCosto&&!m.cc)errs.push(`La cuenta ${m.cd} exige centro de costo`);
   if(m.cc&&!r.aceptaCentroCosto)errs.push(`La cuenta ${m.cd} no admite centro de costo`);
   return errs;
 }

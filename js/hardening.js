@@ -1,12 +1,13 @@
 // hardening.js — V2.15.1 · controles de preparación productiva y pruebas operacionales.
 import {S,AUTH} from './state.js';
 import {asientoVenta,asientoCompra,cuadratura,fechaContabilizacionCompra} from './motor-contable.js';
-import {auditoriaIntegridad} from './contabilidad-v2.js';
+import {auditoriaIntegridad,validarAsientoCentral} from './contabilidad-v2.js';
 import {DISPOSITIVO} from './dispositivo.js';
 import {simularRestauracionBackup} from './backup.js';
 import {compararCompraRCV,compararVentaRCV} from './rcv-control.js';
 import {diagnosticoNumeracion} from './correlativo-contable.js';
 import {estadoRecuperacion} from './recovery.js';
+import {ejecutarRegresionContableCompleta} from './regresion-contable.js';
 
 function prueba(nombre,fn){
   try{
@@ -49,6 +50,17 @@ function ejecutarPruebasProductivas(){
     const cmp=compararCompraRCV(entrada,guardado,'2026-09');
     if(!cmp.igual||cmp.cambios.length)throw new Error('Una reimportación idéntica aparece modificada');
     return 'Misma huella → 0 escrituras';
+  }));
+  pruebas.push(prueba('Puerta central rechaza asiento inválido',()=>{
+    const valido={id:'test_val',fecha:'2026-09-10',tipo:'manual',movs:[
+      {cd:'1101101',debe:1000,haber:0},{cd:'1101201',debe:0,haber:1000}
+    ]};
+    const ok=validarAsientoCentral(valido,{validarReferencias:false});
+    if(!ok.ok)throw new Error('Rechazó asiento balanceado válido: '+ok.errores[0]);
+    const malo={...valido,id:'test_bad',movs:[{cd:'9999999',debe:1000,haber:0},{cd:'1101201',debe:0,haber:900}]};
+    const bad=validarAsientoCentral(malo,{validarReferencias:false});
+    if(bad.ok)throw new Error('Aceptó cuenta inexistente/asiento descuadrado');
+    return 'PDC + cuadratura bloquean persistencia inválida';
   }));
   pruebas.push(prueba('RCV detecta cambio económico',()=>{
     const guardado={fecha:'2026-09-10',tipoDTE:33,numero:'9',rutCodigo:'11111111',rutDV:'1',razonSocial:'CLIENTE TEST',neto:100000,exento:0,iva:19000,otrosImpuestos:0,total:119000};
@@ -161,6 +173,7 @@ async function ejecutarSimulacroRestauracion(){
 function estadoPreparacionProductiva(){
   const integ=auditoriaIntegridad();
   const tests=ejecutarPruebasProductivas();
+  const regresion=ejecutarRegresionContableCompleta();
   const folios=revisarFolios();
   const numeracion=diagnosticoNumeracion();
   const bloqueos=window.storage?.clavesBloqueadas?.()||[];
@@ -171,6 +184,8 @@ function estadoPreparacionProductiva(){
   const criterios=[
     {id:'integridad',nombre:'Integridad contable sin hallazgos críticos',ok:!(integ.porSeveridad?.critica>0),detalle:`Críticas: ${integ.porSeveridad?.critica||0}`},
     {id:'tests',nombre:'Pruebas automáticas del motor y RCV',ok:tests.ok,detalle:`${tests.aprobadas}/${tests.total}`},
+    {id:'regresion',nombre:'Regresión contable integral V2.15.6',ok:regresion.ok,detalle:`${regresion.aprobadas}/${regresion.total} · Ventas, Compras, IVA, Honorarios, F29, AF, Remuneraciones, Auxiliares y Libros`},
+    {id:'puertaContable',nombre:'Puerta central obligatoria de asientos',ok:tests.pruebas.some(x=>x.nombre==='Puerta central rechaza asiento inválido'&&x.ok),detalle:'Cuadratura, PDC, cierres, CC y referencias se validan antes de persistir'},
     {id:'rcv',nombre:'Importadores RCV con control idempotente',ok:tests.pruebas.filter(x=>x.nombre.startsWith('RCV ')).every(x=>x.ok),detalle:'Reimportación idéntica no escribe; cambios económicos se detectan'},
     {id:'folios',nombre:'Folios de comprobante sin duplicados',ok:folios.ok,detalle:folios.ok?`${folios.total} comprobantes revisados`:`${folios.duplicados.length} folio(s) duplicado(s)`},
     {id:'numeroContable',nombre:'Numeración contable definitiva única',ok:numeracion.ok,detalle:numeracion.ok?`${numeracion.total} asiento(s) con número irrevocable`:`Faltantes: ${numeracion.faltantes.length} · duplicados: ${numeracion.duplicados.length}`},
@@ -183,9 +198,9 @@ function estadoPreparacionProductiva(){
   ];
   const bloqueantes=criterios.filter(c=>!c.ok&&!c.pendiente);
   const pendientes=criterios.filter(c=>c.pendiente);
-  return {listo:bloqueantes.length===0&&pendientes.length===0,criterios,bloqueantes,pendientes,tests,folios,numeracion,integ,cert};
+  return {listo:bloqueantes.length===0&&pendientes.length===0,criterios,bloqueantes,pendientes,tests,regresion,folios,numeracion,integ,cert};
 }
 
-export {ejecutarPruebasProductivas,revisarFolios,estadoPreparacionProductiva,
+export {ejecutarPruebasProductivas,ejecutarRegresionContableCompleta,revisarFolios,estadoPreparacionProductiva,
   iniciarPruebaConcurrencia,prepararPruebaConcurrencia,escribirPruebaConcurrencia,verificarPruebaConcurrencia,
   ejecutarSimulacroRestauracion};

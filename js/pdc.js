@@ -322,6 +322,7 @@ function abrirPdcForm(){
   ['pdc-cd','pdc-nm'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('pdc-tp').value='A';
   document.getElementById('pdc-nat').value='D';
+  document.getElementById('pdc-cc-oblig').checked=false;
   f.scrollIntoView({behavior:'smooth',block:'start'});
   setTimeout(()=>document.getElementById('pdc-cd').focus(),120);
 }
@@ -335,6 +336,7 @@ function editarCuenta(cd){
   document.getElementById('pdc-nm').value=c.nm;
   document.getElementById('pdc-tp').value=c.tp;
   document.getElementById('pdc-nat').value=c.nat||'';
+  document.getElementById('pdc-cc-oblig').checked=!!inferirReglasCuenta(c).requiereCentroCosto;
   f.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -345,6 +347,7 @@ async function guardarCuenta(){
   const nm=document.getElementById('pdc-nm').value.trim();
   const tp=document.getElementById('pdc-tp').value;
   let nat=document.getElementById('pdc-nat').value;
+  const requiereCentroCosto=!!document.getElementById('pdc-cc-oblig')?.checked;
 
   if(!cd){toast('⚠️ Ingresa el código','e');return;}
   if(!nm){toast('⚠️ Ingresa el nombre','e');return;}
@@ -370,10 +373,10 @@ async function guardarCuenta(){
       }
     }
     const idx=PDC.findIndex(x=>x.cd===PF.editCd);
-    if(idx>=0)PDC[idx]=normalizarCuenta({...PDC[idx],cd,nm,tp,nat});
+    if(idx>=0)PDC[idx]=normalizarCuenta({...PDC[idx],cd,nm,tp,nat,requiereCentroCosto,aceptaCentroCosto:requiereCentroCosto?true:PDC[idx].aceptaCentroCosto});
     toast('✅ Cuenta actualizada');
   }else{
-    PDC.push(normalizarCuenta({cd,nm,tp,nat}));
+    PDC.push(normalizarCuenta({cd,nm,tp,nat,requiereCentroCosto,aceptaCentroCosto:requiereCentroCosto?true:undefined}));
     toast('✅ Cuenta '+cd+' agregada');
   }
   await savePDC();
@@ -432,7 +435,7 @@ function renderPDC(){
     const uso=contarUsoCuenta(c.cd);
     const usoHtml=uso>0?`<span style="color:var(--info);font-family:var(--mono);font-size:11px">${uso}</span>`:`<span style="color:var(--mt);font-size:10px">—</span>`;
     const rg=inferirReglasCuenta(c);
-    const reglas=[!rg.aceptaMovimientos?'AGRUPADORA':'',rg.requiereAuxiliar?'AUX '+String(rg.tipoAuxiliar||'').toUpperCase():'',rg.aceptaCentroCosto?'CC':'',rg.esCuentaTributaria?'TRIBUTARIA':'',!rg.permiteAsientoManual?'NO MANUAL':''].filter(Boolean);
+    const reglas=[!rg.aceptaMovimientos?'AGRUPADORA':'',rg.requiereAuxiliar?'AUX '+String(rg.tipoAuxiliar||'').toUpperCase():'',rg.requiereCentroCosto?'CC OBLIG.':rg.aceptaCentroCosto?'CC':'',rg.esCuentaTributaria?'TRIBUTARIA':'',!rg.permiteAsientoManual?'NO MANUAL':''].filter(Boolean);
     const reglasHtml=reglas.length?reglas.map(x=>`<span class="badge" style="margin:1px;font-size:9px">${x}</span>`).join(''):'<span style="color:var(--mt);font-size:10px">OPERATIVA</span>';
     h+=`<tr>
       <td class="tl" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${c.cd}</td>

@@ -1,8 +1,9 @@
 import {auditoriaIntegridad,migrarDocumentosAAsientos,ejercicioCerrado,periodoCerrado,cerrarPeriodoContable,reabrirPeriodoContable} from './contabilidad-v2.js';
-import {estadoPreparacionProductiva,ejecutarPruebasProductivas,iniciarPruebaConcurrencia,prepararPruebaConcurrencia,escribirPruebaConcurrencia,verificarPruebaConcurrencia,ejecutarSimulacroRestauracion} from './hardening.js';
+import {estadoPreparacionProductiva,ejecutarPruebasProductivas,ejecutarRegresionContableCompleta,iniciarPruebaConcurrencia,prepararPruebaConcurrencia,escribirPruebaConcurrencia,verificarPruebaConcurrencia,ejecutarSimulacroRestauracion} from './hardening.js';
 import {toast,MESES} from './core.js';
 import {S,AUTH} from './state.js';
 import {RECOVERY,estadoRecuperacion,crearSnapshotRecuperacion,verificarSnapshotRecuperacion,restaurarSnapshotRecuperacion} from './recovery.js';
+import {estadoPreproduccion,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba} from './preproduccion.js';
 
 function periodoActualUI(){
   const sel=document.getElementById('hard-periodo');
@@ -28,8 +29,10 @@ function renderIntegridad(){
   const sev=r.porSeveridad||{};
   const checks=prod.criterios.map(c=>`<tr><td class="tl" style="width:70px"><b>${c.ok?'🟢':c.pendiente?'🟡':'🔴'}</b></td><td class="tl"><b>${c.nombre}</b></td><td class="tl">${c.detalle}</td></tr>`).join('');
   const tests=prod.tests.pruebas.map(t=>`<tr><td class="tl">${t.ok?'✅':'❌'}</td><td class="tl">${t.nombre}</td><td class="tl">${t.detalle}</td></tr>`).join('');
+  const regresion=prod.regresion.pruebas.map(t=>`<tr><td class="tl">${t.ok?'✅':'❌'}</td><td class="tl">${t.categoria}</td><td class="tl">${t.nombre}</td><td class="tl">${t.detalle}</td></tr>`).join('');
   const per=periodoActualUI();
   const rec=estadoRecuperacion();
+  const pre=estadoPreproduccion();
   const ult=rec.ultimo;
   const ultTxt=ult?`${new Date(ult.creadoEn).toLocaleString('es-CL')} · ${ult.tipo} · ${ult.totalClaves||0} claves · ${((ult.totalBytes||0)/1024).toFixed(1)} KB`:'Aún no hay snapshots';
   el.innerHTML=`
@@ -39,6 +42,24 @@ function renderIntegridad(){
       Este semáforo no se declara verde sólo por compilar. Los controles técnicos se verifican aquí y las pruebas que requieren <strong>Firebase real / dos equipos / restauración</strong> quedan amarillas hasta ejecutarlas operacionalmente.
     </div>
     <div class="tw"><table><thead><tr><th></th><th class="tl">CONTROL</th><th class="tl">RESULTADO</th></tr></thead><tbody>${checks}</tbody></table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;border-left:4px solid ${pre.modo==='produccion'?'var(--ok)':'var(--warn)'}">
+    <div class="card-title">${pre.modo==='produccion'?'🟢 ENTORNO PRODUCTIVO':'🧪 PILOTO / PREPRODUCCIÓN'}</div>
+    <div class="info-tip" style="margin-bottom:10px;line-height:1.55">
+      <strong>PRUEBA</strong> bloquea por defecto las escrituras de negocio al abrir una nueva sesión. Para probar modificaciones debes habilitarlas explícitamente; al cerrar la app vuelven a bloquearse. <strong>PRODUCCIÓN</strong> sólo puede activarse con todos los controles técnicos verdes y las seis confirmaciones de puesta en marcha.
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <span class="badge ${pre.modo==='produccion'?'bg':'br'}">${pre.modo.toUpperCase()}</span>
+      ${pre.modo==='prueba'?`<span class="badge ${pre.escrituraPrueba?'bg':'br'}">${pre.escrituraPrueba?'ESCRITURA DE PRUEBA HABILITADA':'ESCRITURA BLOQUEADA'}</span>`:''}
+      ${pre.modo==='prueba'&&!pre.escrituraPrueba?'<button class="btn btn-g" onclick="habilitarEscriturasPrueba().then(()=>renderIntegridad())">🧪 Habilitar escrituras esta sesión</button>':''}
+      ${pre.modo==='prueba'&&pre.escrituraPrueba?'<button class="btn btn-s" onclick="bloquearEscriturasPrueba();renderIntegridad()">🔒 Bloquear escrituras</button>':''}
+      ${pre.modo==='prueba'?'<button class="btn btn-i" onclick="activarProduccion().then(()=>renderIntegridad())">🚀 Activar PRODUCCIÓN</button>':'<button class="btn btn-s" onclick="volverAPrueba().then(()=>renderIntegridad())">↩ Volver a PRUEBA</button>'}
+    </div>
+    <div class="tw"><table><thead><tr><th></th><th class="tl">CHECKLIST DE PUESTA EN MARCHA</th></tr></thead><tbody>
+      ${Object.entries(pre.checks).map(([id,nm])=>`<tr><td style="width:48px"><input type="checkbox" ${pre.checklist[id]?'checked':''} ${AUTH.user?.rol!=='admin'?'disabled':''} onchange="setChecklistPreprod('${id}',this.checked).then(()=>renderIntegridad())"></td><td class="tl">${nm}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${pre.modo==='produccion'?`<div style="margin-top:10px;font-size:11px;color:var(--mt)">Activado: <strong>${pre.activadoEn?new Date(pre.activadoEn).toLocaleString('es-CL'):'—'}</strong> · ${pre.activadoPor||'—'}</div>`:''}
   </div>
 
   <div class="card" style="margin-bottom:14px">
@@ -87,7 +108,14 @@ function renderIntegridad(){
   </div>
 
   <div class="card" style="margin-bottom:14px">
-    <div class="card-title">🧪 Suite automática mínima</div>
+    <div class="card-title">🧪 Regresión contable integral · V2.15.6</div>
+    <div class="info-tip" style="margin-bottom:10px;line-height:1.55">Ejecuta escenarios aislados en memoria y restaura el estado real al terminar. Comprueba documentos, signos de NC/ND, IVA recuperable/no recuperable, DTE 45/46, honorarios, pagos parciales, arrastre F29, depreciación, remuneraciones y la igualdad <strong>Diario = Mayor = Balance</strong>.</div>
+    <div class="tw" style="max-height:430px;overflow:auto"><table><thead><tr><th></th><th class="tl">ÁREA</th><th class="tl">PRUEBA</th><th class="tl">DETALLE</th></tr></thead><tbody>${regresion}</tbody></table></div>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center"><button class="btn btn-g" onclick="ejecutarRegresionContableUI()">▶ Ejecutar regresión</button><span class="badge ${prod.regresion.ok?'bg':'br'}">${prod.regresion.aprobadas}/${prod.regresion.total} aprobadas</span></div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">🧪 Suite rápida de hardening</div>
     <div class="tw"><table><thead><tr><th></th><th class="tl">PRUEBA</th><th class="tl">DETALLE</th></tr></thead><tbody>${tests}</tbody></table></div>
     <div style="margin-top:10px"><button class="btn btn-g" onclick="ejecutarPruebasProductivasUI()">▶ Ejecutar nuevamente</button></div>
   </div>
@@ -125,6 +153,9 @@ async function reabrirMesContableUI(){
   const r=await reabrirPeriodoContable(per,motivo||'');
   if(!r.ok){toast(r.motivo==='solo-admin'?'🔒 Sólo un administrador puede reabrir períodos':r.motivo==='motivo-corto'?'⚠️ Indica un motivo de al menos 10 caracteres':`❌ No se pudo reabrir ${per}`,'e');return;}
   toast(`🔓 Período ${per} reabierto`);renderIntegridad();
+}
+function ejecutarRegresionContableUI(){
+  const r=ejecutarRegresionContableCompleta();toast(r.ok?`✅ Regresión contable: ${r.aprobadas}/${r.total} pruebas aprobadas`:`❌ Regresión contable: ${r.aprobadas}/${r.total} aprobadas · ${r.fallidas} fallida(s)`,r.ok?undefined:'e');renderIntegridad();
 }
 function ejecutarPruebasProductivasUI(){
   const r=ejecutarPruebasProductivas();toast(r.ok?`✅ ${r.aprobadas}/${r.total} pruebas aprobadas`:`❌ ${r.aprobadas}/${r.total} pruebas aprobadas` ,r.ok?undefined:'e');renderIntegridad();
@@ -192,4 +223,4 @@ async function migrarAsientosV2(){
   if(!r.ok){toast(r.motivo==='ejercicio-cerrado'?'🔒 No se puede migrar con el ejercicio cerrado':'❌ No se pudo completar la migración','e');return;}
   toast(`✅ Migración V2: ${r.creados} asientos creados, ${r.actualizados} actualizados`);renderIntegridad();
 }
-export {renderIntegridad,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI};
+export {renderIntegridad,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI};

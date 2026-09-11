@@ -6,9 +6,26 @@ import {asientoVenta,asientoCompra,cuadratura,tributacionCompra,clasificacionIVA
 import {validarMovimientosPDC,reglaCuenta} from './pdc-reglas.js';
 import {dteV,dteC} from './core.js';
 import {asegurarNumerosContables} from './correlativo-contable.js';
+import {validarAsientoCentral,validarMutacionAsientos,leerAsientosPersistidosLocal} from './asiento-validacion.js';
 
 const n=v=>Number(v)||0;
 const idAsientoDoc=(fuente,docId)=>`auto:${fuente}:${docId}`;
+
+// Guardia de último nivel para storage.js. Aunque un módulo antiguo escriba
+// `asientos-AAAA` directamente, la escritura se rechaza si la mutación no pasa
+// las mismas reglas centrales. `prevRaw` permite validar también el resultado
+// fusionado dentro de una transacción Firebase.
+if(typeof window!=='undefined')window.__validarEscrituraAsientos=(key,value,prevRaw=null)=>{
+  if(window.__bypassValidacionAsientos===true)return {ok:true,bypass:true};
+  if(!/^asientos-\d{4}$/.test(String(key||'')))return {ok:true};
+  let nuevos,previos;
+  try{nuevos=JSON.parse(String(value||'[]'));}catch(e){return {ok:false,motivo:'asientos-json-invalido'};}
+  if(!Array.isArray(nuevos))return {ok:false,motivo:'asientos-no-es-lista'};
+  if(prevRaw!=null){try{previos=JSON.parse(String(prevRaw||'[]'));}catch(e){previos=[];}}
+  else previos=leerAsientosPersistidosLocal(String(key).slice(-4));
+  const r=validarMutacionAsientos(Array.isArray(previos)?previos:[],nuevos);
+  return r.ok?{ok:true,cambiados:r.cambiados}:{ok:false,motivo:'validacion-contable',errores:r.errores};
+};
 
 // Persiste varias claves relacionadas como una sola unidad cuando storage V2.10
 // ofrece transacción multi-documento. El fallback conserva compatibilidad con
@@ -16,8 +33,15 @@ const idAsientoDoc=(fuente,docId)=>`auto:${fuente}:${docId}`;
 async function persistirClavesCritico(entries){
   const lista=(entries||[]).map(e=>({...e}));
   if(lista.some(e=>String(e.key||'')===`asientos-${S.empresa.anio}`)){
+    const previo=leerAsientosPersistidosLocal();
+    const val=validarMutacionAsientos(previo,S.asientos||[]);
+    if(!val.ok)throw new Error('validacion-contable: '+val.errores[0]);
     const nr=await asegurarNumerosContables();
     if(!nr.ok)throw new Error(nr.motivo||'correlativo-contable');
+    // La numeración también es parte del asiento definitivo: se valida otra vez
+    // después de asignarla para impedir que un cambio inesperado llegue a nube.
+    const val2=validarMutacionAsientos(previo,S.asientos||[]);
+    if(!val2.ok)throw new Error('validacion-contable: '+val2.errores[0]);
     lista.forEach(e=>{if(String(e.key||'')===`asientos-${S.empresa.anio}`)e.value=JSON.stringify(S.asientos||[]);});
   }
   entries=lista;
@@ -87,8 +111,13 @@ async function persistirAsientosCritico(mutacion){
   const snap=JSON.stringify(S.asientos||[]);
   try{
     const resultado=await mutacion();
+    const previo=JSON.parse(snap);
+    const val=validarMutacionAsientos(previo,S.asientos||[]);
+    if(!val.ok)throw new Error('validacion-contable: '+val.errores[0]);
     const nr=await asegurarNumerosContables();
     if(!nr.ok)throw new Error(nr.motivo||'correlativo-contable');
+    const val2=validarMutacionAsientos(previo,S.asientos||[]);
+    if(!val2.ok)throw new Error('validacion-contable: '+val2.errores[0]);
     const r=await window.storage.set(`asientos-${S.empresa.anio}`,JSON.stringify(S.asientos||[]));
     if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia');
     return {ok:true,resultado};
@@ -204,6 +233,10 @@ async function migrarDocumentosAAsientos(){
       upsertAsientoDocumento(fuente,d); if(existe)actualizados++;else creados++;
     }
   }
+  const val=validarMutacionAsientos([],S.asientos||[]);
+  if(!val.ok)return {ok:false,creados,actualizados,motivo:'validacion-contable: '+val.errores[0]};
+  const nr=await asegurarNumerosContables();
+  if(!nr.ok)return {ok:false,creados,actualizados,motivo:nr.motivo||'correlativo-contable'};
   const r=await window.storage.set(`asientos-${S.empresa.anio}`,JSON.stringify(S.asientos||[]));
   return {ok:!(r&&r.ok===false),creados,actualizados,motivo:r?.motivo};
 }
@@ -378,8 +411,10 @@ function auditoriaIntegridad(){
       else{
         if(!r.activa)agregar('alta','cuenta_inactiva',`Asiento ${a.n||a.id}: usa cuenta inactiva ${m.cd}`,a.id);
         if(!r.aceptaMovimientos)agregar('critica','movimiento_en_agrupadora',`Asiento ${a.n||a.id}: movimiento directo en cuenta agrupadora ${m.cd}`,a.id);
-        if(r.requiereAuxiliar&&!m.rutCodigo)agregar('critica','cuenta_requiere_auxiliar',`Asiento ${a.n||a.id}: ${m.cd} requiere auxiliar`,a.id);
-        if(m.cc&&!r.aceptaCentroCosto)agregar('alta','cc_no_permitido',`Asiento ${a.n||a.id}: ${m.cd} no admite centro de costo`,a.id);
+        if(r.requiereAuxiliar&&!m.rutCodigo)agregar('critica','cuenta_requiere_auxiliar',`Asiento ${a.numeroContable||a.n||a.id}: ${m.cd} requiere auxiliar`,a.id);
+        if(r.requiereCentroCosto&&!m.cc)agregar('critica','cc_obligatorio_faltante',`Asiento ${a.numeroContable||a.n||a.id}: ${m.cd} exige centro de costo`,a.id);
+        if(m.cc&&!r.aceptaCentroCosto)agregar('alta','cc_no_permitido',`Asiento ${a.numeroContable||a.n||a.id}: ${m.cd} no admite centro de costo`,a.id);
+        if(m.cc&&!(S.centros||[]).some(c=>String(c.id)===String(m.cc)||String(c.codigo||'')===String(m.cc)))agregar('critica','cc_inexistente',`Asiento ${a.numeroContable||a.n||a.id}: centro de costo ${m.cc} inexistente`,a.id);
       }
     });
   }
@@ -455,4 +490,4 @@ function auditoriaIntegridad(){
   return {ok:hallazgos.length===0,total:hallazgos.length,hallazgos,porSeveridad};
 }
 
-export {idAsientoDoc,ejercicioCerrado,periodoCerrado,puedeOperarFecha,cerrarPeriodoContable,reabrirPeriodoContable,persistirClavesCritico,persistirAsientosCritico,asientoDesdeDocumento,upsertAsientoDocumento,anularAsientoDocumento,guardarDocumentoContabilizado,anularDocumentoContabilizado,migrarDocumentosAAsientos,auditoriaIntegridad};
+export {validarAsientoCentral,validarMutacionAsientos,idAsientoDoc,ejercicioCerrado,periodoCerrado,puedeOperarFecha,cerrarPeriodoContable,reabrirPeriodoContable,persistirClavesCritico,persistirAsientosCritico,asientoDesdeDocumento,upsertAsientoDocumento,anularAsientoDocumento,guardarDocumentoContabilizado,anularDocumentoContabilizado,migrarDocumentosAAsientos,auditoriaIntegridad};

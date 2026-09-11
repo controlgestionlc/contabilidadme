@@ -249,6 +249,12 @@ initDispositivo();
         (resucitados.get(k)||new Set()).forEach(id=>{delete lapidas[id];});
         tumbas.set(k,lapidas);
 
+        const claveLogica=String(k).slice(String(empresaId+':').length);
+        const vgFinal=validarAsientosAntesDeEscribir(claveLogica,aGuardar,actual&&actual.value!==undefined?actual.value:null);
+        if(vgFinal.ok===false){
+          salida={ok:false,motivo:'validacion-contable',errores:vgFinal.errores||[],detalle:vgFinal.errores?.[0]||vgFinal.motivo};
+          throw new Error('__VALIDACION_CONTABLE__');
+        }
         const nuevaRev=revNube+1;
         t.set(ref,{value:aGuardar,empresa:empresaDeClave(k),rev:nuevaRev,
           borrados:lapidas,
@@ -265,6 +271,10 @@ initDispositivo();
       FS.pendingWrites--;
       if(e&&e.message==='__CONFLICTO__'){
         fsStatusSet('error','conflicto entre equipos');
+        return salida;
+      }
+      if(e&&e.message==='__VALIDACION_CONTABLE__'){
+        fsStatusSet('error','validación contable');
         return salida;
       }
       fsStatusSet('error',e.code||e.message);
@@ -302,7 +312,7 @@ initDispositivo();
   function clavesDeLaEmpresa(anio){
     const fijas=['empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC',
                  'comprobantesTipo','fichasAux','indicadores','previsional','libroRem'];
-    const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-','f29-declaraciones-','cierresContables-','hardening-certificacion-'].map(p=>p+anio);
+    const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-','f29-declaraciones-','cierresContables-','hardening-certificacion-','preproduccion-'].map(p=>p+anio);
     const set=new Set([...fijas,...delAnio]);
     try{
       const pref=prefix+empresaId+':';
@@ -312,6 +322,15 @@ initDispositivo();
       }
     }catch(e){}
     return [...set];
+  }
+
+  function validarAsientosAntesDeEscribir(key,value,prevRaw=null){
+    if(!/^asientos-\d{4}$/.test(String(key||'')))return {ok:true};
+    try{
+      if(typeof window.__validarEscrituraAsientos!=='function')return {ok:true};
+      const r=window.__validarEscrituraAsientos(key,value,prevRaw);
+      return r&&typeof r==='object'?r:{ok:!!r};
+    }catch(e){return {ok:false,motivo:e.message||String(e)};}
   }
 
   window.storage={
@@ -331,6 +350,14 @@ initDispositivo();
     },
     async set(key,value){
       const k=K(key);
+      const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(key):{ok:true};
+      if(ge&&ge.ok===false)return {key,ok:false,bloqueada:true,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};
+      const vg=validarAsientosAntesDeEscribir(key,value);
+      if(vg.ok===false){
+        const motivo=vg.errores?.[0]||vg.motivo||'validacion-contable';
+        console.error('Escritura de asientos RECHAZADA:',motivo);
+        return {key,value,ok:false,bloqueada:true,motivo:'validacion-contable',detalle:motivo,errores:vg.errores||[]};
+      }
       if(bloqueadas.has(k)){
         const motivo=bloqueadas.get(k);
         console.error('Escritura BLOQUEADA en',k,'—',motivo);
@@ -374,6 +401,11 @@ initDispositivo();
     async setMany(entries){
       const lista=(entries||[]).filter(x=>x&&x.key!=null).map(x=>({key:String(x.key),value:String(x.value??'')}));
       if(!lista.length)return {ok:true};
+      for(const e of lista){const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(e.key):{ok:true};if(ge&&ge.ok===false)return {ok:false,bloqueada:true,clave:e.key,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};}
+      for(const e of lista){
+        const vg=validarAsientosAntesDeEscribir(e.key,e.value);
+        if(vg.ok===false)return {ok:false,bloqueada:true,clave:e.key,motivo:'validacion-contable',detalle:vg.errores?.[0]||vg.motivo,errores:vg.errores||[]};
+      }
       for(const e of lista){
         const k=K(e.key);
         if(bloqueadas.has(k))return {ok:false,bloqueada:true,clave:e.key,motivo:bloqueadas.get(k)};
@@ -405,6 +437,8 @@ initDispositivo();
               prev.forEach(id=>{if(!ahora.has(id)&&!lapidas[id])lapidas[id]=new Date().toISOString();});
               ahora.forEach(id=>{if(lapidas[id])delete lapidas[id];});
             }
+            const vgFinal=validarAsientosAntesDeEscribir(e.key,e.value,actual&&actual.value!==undefined?actual.value:null);
+            if(vgFinal.ok===false)throw new Error('__VALIDACION_MULTI__:'+e.key+':'+(vgFinal.errores?.[0]||vgFinal.motivo||'validación contable'));
             const nuevaRev=revNube+1;
             t.set(ref,{value:e.value,empresa:empresaDeClave(k),rev:nuevaRev,borrados:lapidas,
               dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
@@ -424,6 +458,11 @@ initDispositivo();
           try{window.__avisarConflicto&&window.__avisarConflicto(clave,'otro dispositivo');}catch(_e){}
           return {ok:false,conflicto:true,clave,motivo:'conflicto'};
         }
+        if(msg.startsWith('__VALIDACION_MULTI__')){
+          const partes=msg.split(':');const clave=partes[1]||'asientos';const detalle=partes.slice(2).join(':');
+          fsStatusSet('error','validación contable');
+          return {ok:false,clave,motivo:'validacion-contable',detalle};
+        }
         if(msg.startsWith('__SIN_BASELINE__')){
           const clave=msg.split(':').slice(1).join(':');fsStatusSet('error','clave no sincronizada');
           return {ok:false,clave,motivo:'clave-no-sincronizada'};
@@ -434,6 +473,8 @@ initDispositivo();
     },
     async delete(key){
       const k=K(key);
+      const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(key):{ok:true};
+      if(ge&&ge.ok===false)return {key,ok:false,bloqueada:true,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};
       const r=await delRemoteVersionado(k);
       if(!r.ok){
         try{window.__avisarConflicto&&r.motivo==='conflicto'&&window.__avisarConflicto(key,'otro dispositivo');}catch(e){}

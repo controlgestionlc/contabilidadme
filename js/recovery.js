@@ -189,7 +189,14 @@ async function restaurarSnapshotRecuperacion(id){
     if(actual.fuente==='error')return {ok:false,motivo:'destino-inaccesible',clave:f.clave};
     entradas.push({key:f.clave,value:item.value});
   }
-  const wr=await window.storage.setMany(entradas);
+  let wr;
+  // La restauración de emergencia es la única excepción controlada a la puerta
+  // de mutación contable: ya fue verificada por hash, exige admin y crea antes
+  // un snapshot de retorno. Sin este bypass, un período cerrado impediría
+  // restaurar precisamente el estado histórico que se quiere recuperar.
+  window.__bypassValidacionAsientos=true;
+  try{wr=await window.storage.setMany(entradas);}
+  finally{window.__bypassValidacionAsientos=false;}
   if(!wr?.ok)return {ok:false,motivo:wr?.motivo||'restauracion-fallida',clave:wr?.clave||''};
   logAccion('Restauración de emergencia',`Restaurado snapshot ${id} · ${entradas.length} claves · punto de retorno ${seguridad.snapshot.id}`);
   return {ok:true,snapshot:ver.snapshot,seguridad:seguridad.snapshot,claves:entradas.length};
