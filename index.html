@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Contabilidad – Sistema Contable</title>
+
+<!-- ═══ APLICACIÓN INSTALABLE (PWA) ═══
+     Con el manifiesto y el service worker, el navegador ofrece «Instalar» y la
+     aplicación queda con icono propio en el escritorio o en el teléfono, sin
+     barra de direcciones. Antes sólo se podía crear un acceso directo, que
+     tomaba un icono genérico. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d1117">
+<meta name="description" content="Sistema contable multi empresa: libros de ventas y compras, auxiliares, balance y declaraciones al SII.">
+<link rel="icon" href="icons/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+<!-- iOS ignora el manifiesto: necesita sus propias etiquetas -->
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Contabilidad">
+<meta name="mobile-web-app-capable" content="yes">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+
+<!-- OVERLAY DE LOGIN — bloquea el acceso hasta autenticarse -->
+<div id="login-overlay" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:400px;width:100%">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:48px;margin-bottom:12px">📊</div>
+      <div style="font-size:24px;font-weight:700;margin-bottom:6px">Contabilidad</div>
+      <div style="color:var(--mt);font-size:13px" id="login-mode-sub">Inicia sesión para acceder al sistema</div>
+    </div>
+
+    <!-- FORM LOGIN -->
+    <div id="login-form-box" style="background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:22px">
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Email</label>
+        <input type="email" id="login-email" placeholder="tu@correo.com" autocomplete="email" style="width:100%;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:14px;box-sizing:border-box" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+      </div>
+      <div style="margin-bottom:6px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Contraseña</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" style="width:100%;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:14px;box-sizing:border-box" onkeydown="if(event.key==='Enter')submitLogin()">
+      </div>
+      <div id="login-password-hint" style="font-size:10px;color:var(--mt);margin-bottom:14px;display:none">Mínimo 6 caracteres</div>
+      <div id="login-name-wrap" style="margin-bottom:14px;display:none">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Nombre completo</label>
+        <input type="text" id="login-name" placeholder="Tu nombre" style="width:100%;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:14px;box-sizing:border-box">
+      </div>
+      <button id="btn-submit-login" onclick="submitLogin()" style="width:100%;padding:11px 16px;background:var(--ach);color:#0d1117;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px" id="btn-login-submit">
+        🔐 Iniciar Sesión
+      </button>
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:10px">
+        <button onclick="toggleLoginMode()" id="toggle-mode-btn" style="background:none;border:none;color:var(--info);cursor:pointer;padding:2px 4px;text-decoration:underline;font-size:11px">¿Primer usuario? Regístrate</button>
+        <button onclick="recuperarPassword()" style="background:none;border:none;color:var(--mt);cursor:pointer;padding:2px 4px;text-decoration:underline;font-size:11px">¿Olvidaste tu contraseña?</button>
+      </div>
+
+      <div id="login-error" style="color:var(--err);font-size:12px;margin-top:14px;display:none;padding:8px 12px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:6px"></div>
+      <div id="login-loading" style="color:var(--mt);font-size:12px;margin-top:14px;display:none;text-align:center">⏳ Verificando...</div>
+      <div id="login-success" style="color:var(--ach);font-size:12px;margin-top:14px;display:none;padding:8px 12px;background:rgba(46,160,67,.08);border:1px solid rgba(46,160,67,.25);border-radius:6px"></div>
+    </div>
+
+    <div style="margin-top:20px;padding:12px 14px;background:var(--sf);border:1px solid var(--bd);border-radius:8px;font-size:11px;color:var(--mt);text-align:left">
+      🔒 <strong>Acceso restringido.</strong> Solo usuarios autorizados. El primer usuario que se registre queda automáticamente como <strong>Administrador</strong>; los siguientes deben ser aprobados o invitados por un admin.
+    </div>
+  </div>
+</div>
+
+<header>
+  <button id="nav-toggle" onclick="toggleNav()" title="Menú" style="display:none;background:none;border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-size:18px;cursor:pointer;padding:4px 10px;line-height:1">☰</button>
+  <div class="logo"><div class="logo-icon">📊</div><span>Contabilidad</span><span style="font-size:9px;color:var(--mt);margin-left:6px;font-weight:400" title="Versión desplegada">v2026.09.11-v2.2</span></div>
+  <span id="save-indicator" style="font-size:10px;color:var(--mt);white-space:nowrap;margin-left:auto"></span>
+  <button class="btn-save-all" id="btn-guardar-todo" onclick="guardarTodoAhora()" title="Guardar todo">💾 Guardar</button>
+  <!-- Los indicadores de sincronización viven ahora en Configuración → Sistema,
+       pero se mantienen en el DOM porque varios módulos escriben en ellos. -->
+  <div id="db-status" style="display:none">
+    <span id="fs-indicator" title="Estado de sincronización con Firestore"></span>
+    <span id="db-indicator" title="Estado de sincronización con Excel"></span>
+  </div>
+  <input type="file" id="imp-bd-file" accept=".xlsx,.xls" style="display:none">
+  <div id="user-badge" style="display:none;align-items:center;gap:8px;margin-left:12px;padding:5px 10px;background:var(--sf);border:1px solid var(--bd);border-radius:100px;font-size:11px">
+    <img id="user-avatar" src="" style="width:22px;height:22px;border-radius:50%;display:none">
+    <div style="display:flex;flex-direction:column;line-height:1.15">
+      <span id="user-name" style="font-weight:600"></span>
+      <span id="user-role" style="color:var(--mt);font-size:9px;text-transform:uppercase;letter-spacing:.04em"></span>
+    </div>
+    <button onclick="logout()" style="background:var(--sf2,rgba(248,81,73,.12));border:1px solid var(--bd);color:var(--err,#f85149);cursor:pointer;padding:4px 10px;font-size:11px;border-radius:100px;font-weight:600;margin-left:4px;display:flex;align-items:center;gap:4px" title="Cerrar sesión">🚪 Salir</button>
+  </div>
+</header>
+<div class="layout">
+<div id="nav-overlay" onclick="toggleNav()" style="display:none"></div>
+<nav>
+  <!-- Contexto activo: qué empresa y qué ejercicio se está mirando -->
+  <div class="nav-contexto">
+    <div class="nav-ctx-lbl">Empresa activa</div>
+    <div class="nav-ctx-nombre" id="ctx-empresa-nombre">—</div>
+    <select id="empresa-sel" onchange="onCambiarEmpresa()" title="Cambiar de empresa"></select>
+    <div class="nav-ctx-anio">
+      <span class="nav-ctx-lbl" style="margin:0">Ejercicio</span>
+      <select class="year-sel" id="year-sel" onchange="changeYear(+this.value)"></select>
+    </div>
+  </div>
+  <div class="nav-item" onclick="nav('inicio')" data-s="inicio"><span class="nav-icon">🏠</span>Inicio</div>
+  <div class="nav-label">Registros</div>
+  <div class="nav-item" onclick="nav('ventas')" data-s="ventas"><span class="nav-icon">🛒</span>Libro de Ventas</div>
+  <div class="nav-item" onclick="nav('compras')" data-s="compras"><span class="nav-icon">🧾</span>Libro de Compras</div>
+  <div class="nav-item" onclick="nav('honorarios')" data-s="honorarios"><span class="nav-icon">📝</span>Honorarios</div>
+  <div class="nav-item" onclick="nav('remuneraciones')" data-s="remuneraciones"><span class="nav-icon">👷</span>Remuneraciones</div>
+  <div class="nav-item" onclick="nav('pagos')" data-s="pagos"><span class="nav-icon">💳</span>Pagos y Cobros</div>
+  <div class="nav-item" onclick="nav('auxiliares')" data-s="auxiliares"><span class="nav-icon">📒</span>Auxiliares</div>
+  <div class="nav-label">Reportes</div>
+  <div class="nav-item" onclick="nav('diario')" data-s="diario"><span class="nav-icon">📖</span>Libro Diario</div>
+  <div class="nav-item" onclick="nav('mayor')" data-s="mayor"><span class="nav-icon">📊</span>Libro Mayor</div>
+  <div class="nav-item" onclick="nav('balance')" data-s="balance"><span class="nav-icon">⚖️</span>Balance General</div>
+  <div class="nav-item" onclick="nav('resultados')" data-s="resultados"><span class="nav-icon">📈</span>Resultados</div>
+  <div class="nav-item" onclick="nav('flujocaja')" data-s="flujocaja"><span class="nav-icon">💵</span>Flujo de Caja</div>
+  <div class="nav-item" onclick="nav('conciliacion')" data-s="conciliacion"><span class="nav-icon">🏦</span>Conciliación Bancaria</div>
+  <div class="nav-item" onclick="nav('comprobantes')" data-s="comprobantes"><span class="nav-icon">📔</span>Comprobantes</div>
+  <div class="nav-label">Tributario SII</div>
+  <div class="nav-item" onclick="nav('f29')" data-s="f29"><span class="nav-icon">📄</span>Formulario 29</div>
+  <div class="nav-item" onclick="nav('ppm')" data-s="ppm"><span class="nav-icon">💰</span>PPM</div>
+  <div class="nav-item" onclick="nav('renta')" data-s="renta"><span class="nav-icon">🧾</span>Declaración de Renta</div>
+  <div class="nav-item" onclick="nav('dj')" data-s="dj"><span class="nav-icon">📋</span>Declaraciones Juradas</div>
+  <div class="nav-label">Activo Fijo</div>
+  <div class="nav-item" onclick="nav('activofijo')" data-s="activofijo"><span class="nav-icon">🏗️</span>Activos Fijos</div>
+  <div class="nav-label">Cierre de Ejercicio</div>
+  <div class="nav-item" onclick="nav('provisiones')" data-s="provisiones"><span class="nav-icon">📋</span>Provisiones</div>
+  <div class="nav-item" onclick="nav('correccion')" data-s="correccion"><span class="nav-icon">📊</span>Corrección Monetaria</div>
+  <div class="nav-item" onclick="nav('cierre')" data-s="cierre"><span class="nav-icon">🔒</span>Cierre del Ejercicio</div>
+  <div class="nav-item" onclick="nav('integridad')" data-s="integridad"><span class="nav-icon">🩺</span>Auditoría de Integridad</div>
+  <div class="nav-label">Configuración</div>
+  <div class="nav-item" onclick="nav('empresas')" data-s="empresas"><span class="nav-icon">🏢</span>Empresas</div>
+  <div class="nav-item active" onclick="nav('empresa')" data-s="empresa"><span class="nav-icon">🏢</span>Empresa</div>
+  <div class="nav-item" onclick="nav('centroscosto')" data-s="centroscosto"><span class="nav-icon">📊</span>Centros de Costo</div>
+  <div class="nav-item" onclick="nav('asigcc')" data-s="asigcc"><span class="nav-icon">🎯</span>Asignar Centros de Costo</div>
+  <div class="nav-item" onclick="nav('pdc')" data-s="pdc"><span class="nav-icon">📋</span>Plan de Cuentas</div>
+  <div class="nav-item" onclick="nav('cargadatos')" data-s="cargadatos"><span class="nav-icon">📥</span>Carga desde Excel</div>
+  <div class="nav-item" onclick="nav('sistema')" data-s="sistema"><span class="nav-icon">⚙️</span>Sistema y Respaldos</div>
+  <div class="nav-item" onclick="nav('indicadores')" data-s="indicadores"><span class="nav-icon">📐</span>Indicadores</div>
+  <div class="nav-item" onclick="nav('apertura')" data-s="apertura"><span class="nav-icon">🔰</span>Balance de Apertura</div>
+  <div class="nav-item" onclick="nav('usuarios')" data-s="usuarios" id="nav-usuarios" style="display:none"><span class="nav-icon">👥</span>Usuarios</div>
+  <div class="nav-item" onclick="nav('auditlog')" data-s="auditlog" id="nav-auditlog" style="display:none"><span class="nav-icon">📜</span>Registro de Actividad</div>
+  <!-- Acciones de utilidad (solo en móvil; en escritorio están en el header) -->
+  <div class="nav-mobile-only" style="display:none;margin-top:16px;padding:12px 14px;border-top:1px solid var(--bd)">
+    <div class="nav-label" style="padding:0 0 8px 0">Acciones</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-p" onclick="saveAll();cerrarNavMovil()" style="justify-content:flex-start">💾 Guardar Todo</button>
+      <button class="btn btn-i" onclick="nav('sistema');cerrarNavMovil()" style="justify-content:flex-start">⚙️ Sistema y Respaldos</button>
+    </div>
+  </div>
+  <!-- Usuario y cerrar sesión: SIEMPRE visible al final del menú -->
+  <div id="nav-user-block-m" style="margin-top:16px;padding:12px 14px;border-top:1px solid var(--bd)">
+    <div style="font-size:12px;font-weight:600" id="nav-user-name-m"></div>
+    <div style="font-size:9px;color:var(--mt);text-transform:uppercase;margin-bottom:8px" id="nav-user-role-m"></div>
+    <button onclick="logout()" style="width:100%;background:rgba(248,81,73,.12);border:1px solid var(--err);color:var(--err);cursor:pointer;padding:10px;font-size:13px;border-radius:8px;font-weight:600">🚪 Cerrar sesión</button>
+  </div>
+</nav>
+<main>
+<div id="print-header" style="margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #000">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div>
+      <div id="ph-empresa" style="font-size:16px;font-weight:700">—</div>
+      <div id="ph-rut" style="font-size:12px;color:#333"></div>
+      <div id="ph-giro" style="font-size:11px;color:#555"></div>
+    </div>
+    <div style="text-align:right">
+      <div id="ph-titulo" style="font-size:14px;font-weight:600">—</div>
+      <div id="ph-periodo" style="font-size:11px;color:#333"></div>
+      <div id="ph-fecha" style="font-size:10px;color:#777"></div>
+    </div>
+  </div>
+</div>
+
+<!-- EMPRESA -->
+<!-- CENTROS DE COSTO -->
+<section class="section" id="s-centroscosto">
+  <div class="sec-hdr"><div><div class="sec-title">📊 Centros de Costo</div><div class="sec-sub">Dos niveles · acumulación de gastos por área y capitalización de inversiones</div></div>
+    <button class="btn btn-g" onclick="window.print()">🖨️</button>
+  </div>
+  <div id="cc-content"></div>
+</section>
+
+<!-- GESTIÓN DE EMPRESAS -->
+<section class="section" id="s-empresas">
+  <div class="sec-hdr"><div><div class="sec-title">🏢 Empresas</div><div class="sec-sub">Gestiona múltiples empresas con datos separados</div></div></div>
+  <div id="empresas-content"></div>
+</section>
+
+<!-- INICIO: portada con las empresas del usuario -->
+<section class="section active" id="s-inicio">
+  <div id="inicio-content"></div>
+</section>
+
+<section class="section" id="s-empresa">
+  <div class="sec-hdr"><div><div class="sec-title">Datos de Empresa</div><div class="sec-sub">Información del contribuyente SII</div></div></div>
+  <div class="card">
+    <div class="card-title">Identificación</div>
+    <div class="fg">
+      <div class="grp full"><label>Nombre / Razón Social</label><input type="text" id="e-nombre" placeholder="Ej: Vivero La Cabaña Ltda."></div>
+      <div class="grp"><label>RUT Empresa</label><input type="text" id="e-rut" placeholder="12.345.678-9"></div>
+      <div class="grp"><label>Año Contable</label><input type="number" id="e-anio" min="2010" max="2040"></div>
+      <div class="grp full"><label>Domicilio</label><input type="text" id="e-domicilio"></div>
+      <div class="grp"><label>Giro Comercial</label><input type="text" id="e-giro"></div>
+      <div class="grp"><label>Código de Giro SII</label><input type="text" id="e-codigo"></div>
+      <div class="grp"><label>Ciudad</label><input type="text" id="e-ciudad"></div>
+      <div class="grp"><label>Comuna</label><input type="text" id="e-comuna"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Representante Legal</div>
+    <div class="fg">
+      <div class="grp"><label>Nombre Completo</label><input type="text" id="e-rep"></div>
+      <div class="grp"><label>RUT Representante</label><input type="text" id="e-rutrep"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Configuración Tributaria</div>
+    <div class="fg">
+      <div class="grp full"><label>Régimen tributario</label><select id="e-regimen" onchange="onRegimenEmpresaChange()"></select></div>
+      <div class="grp"><label>Tasa Impuesto Renta (%)</label><input type="number" id="e-tasarenta" step="0.1" min="0" max="100" placeholder="25"></div>
+      <div class="grp"><label>Tasa PPM (%)</label><input type="number" id="e-tasappm" step="0.01" min="0" max="100" placeholder="0.25"></div>
+    </div>
+    <div class="info-tip" id="e-regimen-desc" style="margin-top:10px;font-size:11px;line-height:1.6"></div>
+    <div class="info-tip" style="margin-top:10px;font-size:11px">💡 Al cambiar el régimen se proponen sus tasas legales; puedes ajustarlas a mano si tu caso difiere. La tasa PPM del régimen general es variable: revisa tu F22 del año anterior.</div>
+  </div>
+  <div class="save-row"><button class="btn btn-p" onclick="saveEmpresa()">💾 Guardar Empresa</button></div>
+</section>
+
+<!-- INDICADORES -->
+<section class="section" id="s-indicadores">
+  <div class="sec-hdr"><div><div class="sec-title">📐 Indicadores</div><div class="sec-sub">Valores económicos y previsionales del período</div></div>
+    <button class="btn btn-g" onclick="restaurarIndicadoresDefault()" title="Restaurar valores oficiales de referencia">↺ Valores 2026</button>
+  </div>
+  <div id="ind-content"></div>
+  <div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--bd)">
+    <div class="sec-title" style="font-size:16px;margin-bottom:4px">🏥 Previsional</div>
+    <div class="sec-sub" style="margin-bottom:14px">Comisiones AFP, aporte del empleador e instituciones</div>
+    <div id="previsional-content"></div>
+  </div>
+</section>
+
+<!-- PDC -->
+<section class="section" id="s-pdc">
+  <div class="sec-hdr">
+    <div><div class="sec-title">Plan de Cuentas</div><div class="sec-sub" id="pdc-sub">Cuentas contables del sistema</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-g" onclick="window.print()">🖨️</button>
+      <button class="btn btn-i" onclick="resetPDC()" title="Restaurar plan de cuentas estándar">↺ Reset</button>
+      <button class="btn btn-p" onclick="abrirPdcForm()">+ Agregar Cuenta</button>
+    </div>
+  </div>
+
+  <!-- FORM CUENTA -->
+  <div class="doc-form" id="pdc-form" style="display:none">
+    <div class="doc-form-title">
+      <span id="pdc-form-title">Nueva Cuenta</span>
+      <button class="btn btn-g" style="padding:4px 10px;font-size:11px" onclick="cerrarPdcForm()">✕ Cancelar</button>
+    </div>
+    <div class="doc-grid" style="grid-template-columns:140px 1fr 130px 130px">
+      <div class="grp"><label>Código</label><input type="text" id="pdc-cd" placeholder="01.01.05" maxlength="10" style="font-family:var(--mono)"></div>
+      <div class="grp"><label>Nombre</label><input type="text" id="pdc-nm" placeholder="Ej: CUENTA CORRIENTE BCI" maxlength="60"></div>
+      <div class="grp"><label>Tipo</label>
+        <select id="pdc-tp">
+          <option value="A">A — Activo</option>
+          <option value="P">P — Pasivo</option>
+          <option value="C">C — Costo/Gasto</option>
+          <option value="I">I — Ingreso</option>
+          <option value="S">S — Subtítulo (agrupador)</option>
+          <option value="T">T — Título (encabezado)</option>
+        </select>
+      </div>
+      <div class="grp"><label>Naturaleza</label>
+        <select id="pdc-nat">
+          <option value="">— según tipo —</option>
+          <option value="D">D — Débito (aumenta con Debe)</option>
+          <option value="C">C — Crédito (aumenta con Haber)</option>
+        </select>
+      </div>
+    </div>
+    <div class="info-tip" style="margin-bottom:12px">
+      💡 <strong>Código</strong>: formato <code>XX.XX.XX</code> · <strong>Naturaleza</strong>: Débito para Activos y Costos; Crédito para Pasivos e Ingresos. Subtítulos y Títulos no requieren naturaleza.
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-g" onclick="cerrarPdcForm()">Cancelar</button>
+      <button class="btn btn-p" onclick="guardarCuenta()">💾 Guardar Cuenta</button>
+    </div>
+  </div>
+
+  <div id="pdc-content"></div>
+</section>
+
+<!-- SISTEMA Y RESPALDOS -->
+<section class="section" id="s-sistema">
+  <div class="sec-hdr">
+    <div>
+      <div class="sec-title">⚙️ Sistema y Respaldos</div>
+      <div class="sec-sub">Sincronización, copias de seguridad y preferencias de la aplicación</div>
+    </div>
+  </div>
+  <div id="sistema-content"></div>
+</section>
+
+<!-- CARGA DE DATOS DESDE EXCEL -->
+<section class="section" id="s-cargadatos">
+  <div class="sec-hdr">
+    <div>
+      <div class="sec-title">📥 Carga desde Excel</div>
+      <div class="sec-sub">Poblar los datos maestros del sistema desde una planilla</div>
+    </div>
+  </div>
+  <div id="cd-content"></div>
+  <input type="file" id="cd-file" accept=".xlsx,.xls,.csv" style="display:none">
+</section>
+
+<!-- USUARIOS -->
+<section class="section" id="s-usuarios">
+  <div class="sec-hdr">
+    <div>
+      <div class="sec-title">👥 Gestión de Usuarios</div>
+      <div class="sec-sub" id="us-sub">Administra el acceso al sistema</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="abrirInvitarUsuario()">+ Invitar Usuario</button>
+    </div>
+  </div>
+
+  <div class="info-tip" style="margin-bottom:14px">
+    💡 Los usuarios inician sesión con su cuenta de Google. Como administrador, puedes <strong>invitar</strong> a usuarios (agregándolos por email antes de que se conecten), <strong>aprobar</strong> a los que ya intentaron entrar, cambiar su <strong>rol</strong>, o <strong>desactivar</strong> el acceso.
+  </div>
+
+  <!-- FORM INVITAR -->
+  <div class="doc-form" id="us-form" style="display:none">
+    <div class="doc-form-title">
+      <span id="us-form-title">Invitar nuevo usuario</span>
+      <button class="btn btn-g" style="padding:4px 10px;font-size:11px" onclick="cerrarUsuarioForm()">✕ Cancelar</button>
+    </div>
+    <div class="doc-grid" style="grid-template-columns:1fr 1fr 180px">
+      <div class="grp"><label>Email</label><input type="email" id="us-email" placeholder="usuario@correo.com"></div>
+      <div class="grp"><label>Nombre (opcional)</label><input type="text" id="us-nombre" placeholder="Nombre para identificarlo"></div>
+      <div class="grp"><label>Rol</label>
+        <select id="us-rol">
+          <option value="consulta">👁 Consulta (solo lectura)</option>
+          <option value="contador" selected>📝 Contador (edición total)</option>
+          <option value="admin">👑 Administrador (edición + usuarios)</option>
+        </select>
+      </div>
+    </div>
+    <div style="background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.25);color:var(--info);padding:9px 12px;border-radius:6px;font-size:11px;margin-bottom:14px">
+      💡 <strong>Cómo funciona:</strong> Al invitar un usuario, se pre-autoriza su email. Luego el usuario debe <strong>registrarse en la pantalla de login</strong> con "¿Primer usuario? Regístrate", usando el mismo email y creando su propia contraseña. Al hacerlo, entrará directamente con el rol asignado (sin quedar pendiente).
+    </div>
+    <div style="font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Permisos por Sección (opcional — sobrescriben el rol)</div>
+    <div id="us-perms" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;margin-bottom:14px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-g" onclick="cerrarUsuarioForm()">Cancelar</button>
+      <button class="btn btn-p" onclick="guardarUsuario()">💾 Guardar Usuario</button>
+    </div>
+  </div>
+
+  <div id="us-content"></div>
+</section>
+
+<!-- AUDITORÍA DE INTEGRIDAD -->
+<section class="section" id="s-integridad">
+  <div class="sec-hdr"><div><div class="sec-title">🩺 Auditoría de Integridad</div><div class="sec-sub">Cuadratura, trazabilidad y consistencia del núcleo contable V2</div></div></div>
+  <div id="integridad-content"></div>
+</section>
+
+<!-- REGISTRO DE ACTIVIDAD (AUDIT LOG) -->
+<section class="section" id="s-auditlog">
+  <div class="sec-hdr">
+    <div><div class="sec-title">📜 Registro de Actividad</div><div class="sec-sub">Ediciones y eliminaciones de comprobantes</div></div>
+    <button class="btn btn-g" onclick="renderAuditLog()">🔄 Actualizar</button>
+  </div>
+  <div id="audit-content"></div>
+</section>
+
+<!-- BALANCE DE APERTURA -->
+<section class="section" id="s-apertura">
+  <div class="sec-hdr">
+    <div>
+      <div class="sec-title">🔰 Balance de Apertura</div>
+      <div class="sec-sub" id="ap-sub">Asiento N°0 — Saldos iniciales del año</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-g" onclick="window.print()">🖨️</button>
+      <button class="btn btn-g" onclick="descargarPlantillaBalance()" title="Descargar la plantilla Excel con el formato que espera el importador">📄 Plantilla</button>
+      <button class="btn btn-i" onclick="document.getElementById('imp-balance-file').click()" title="Importar desde un Balance General al 31-12 (formato Excel de 2 columnas)">📥 Importar desde Balance</button>
+      <input type="file" id="imp-balance-file" accept=".xlsx,.xls" style="display:none">
+      <button class="btn btn-i" onclick="eliminarApertura()" id="btn-eliminar-ap" style="display:none">🗑 Eliminar</button>
+      <button class="btn btn-p" onclick="abrirApertura()" id="btn-abrir-ap">+ Configurar Apertura</button>
+    </div>
+  </div>
+
+  <div class="info-tip" style="margin-bottom:14px">
+    💡 El <strong>Asiento de Apertura</strong> (N° 0) refleja el <strong>Balance General al 31 de diciembre del año anterior</strong>.
+    Carga los saldos iniciales de cada cuenta: <strong>Activos al DEBE</strong>, <strong>Pasivos y Patrimonio al HABER</strong>.
+    Este asiento aparecerá como primera entrada del Libro Diario y alimenta el Libro Mayor, Balance y Estado de Resultados.
+  </div>
+
+  <!-- FORM APERTURA -->
+  <div class="as-form" id="ap-form" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:14px;font-weight:700" id="ap-form-title">Balance de Apertura</div>
+        <span style="background:linear-gradient(135deg,rgba(46,160,67,.2),rgba(88,166,255,.12));border:1px solid rgba(46,160,67,.35);color:var(--ach);padding:3px 10px;border-radius:100px;font-family:var(--mono);font-size:11px;font-weight:700">ASIENTO N° 0</span>
+      </div>
+      <button class="btn btn-g" style="padding:4px 10px;font-size:11px" onclick="cerrarApertura()">✕ Cerrar</button>
+    </div>
+    <div class="as-meta">
+      <div class="grp"><label>Fecha (último día del año anterior)</label><input type="date" id="ap-fecha"></div>
+      <div class="grp"><label>Glosa</label><input type="text" id="ap-glosa" placeholder="Balance de apertura al 01-01-YYYY"></div>
+    </div>
+
+    <div style="font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Saldos Iniciales por Cuenta</div>
+    <div class="lineas-scroll">
+    <div class="lineas-hdr lineas-hdr-6">
+      <div style="text-align:center">#</div>
+      <div>Cuenta Contable</div>
+      <div>Observación (opcional)</div>
+      <div style="text-align:right">DEBE (Activos)</div>
+      <div style="text-align:right">HABER (Pasivos/Patr.)</div>
+      <div></div>
+    </div>
+    <div class="lineas-box" id="ap-lineas"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-s" style="font-size:11px" onclick="apAddLinea()">+ Agregar línea</button>
+      <button class="btn btn-i" style="font-size:11px" onclick="apPrellenar()" title="Crea líneas vacías para las cuentas principales">📋 Pre-llenar con cuentas principales</button>
+    </div>
+
+    <div class="as-cuadre err" id="ap-cuadre">
+      <span id="ap-cuadre-ico">⚠️</span>
+      <span id="ap-cuadre-msg">Ingresa saldos iniciales</span>
+      <div class="cuadre-det" id="ap-cuadre-det"></div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-g" onclick="cerrarApertura()">Cancelar</button>
+      <button class="btn btn-p" onclick="guardarApertura()">💾 Guardar Balance de Apertura</button>
+    </div>
+  </div>
+
+  <div id="ap-content"></div>
+</section>
+
+<!-- VENTAS -->
+<section class="section" id="s-ventas">
+  <div class="sec-hdr">
+    <div><div class="sec-title">Libro de Ventas</div><div class="sec-sub" id="ventas-sub">Registro por documento</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-g" onclick="window.print()">🖨️</button>
+      <button class="btn btn-i" onclick="abrirImportSIIVentas()">📥 Importar SII</button>
+      <button class="btn btn-p" onclick="abrirVF()">+ Nuevo Documento</button>
+    </div>
+  </div>
+
+  <!-- FORM VENTA -->
+  <div class="doc-form" id="vf-form" style="display:none">
+    <div class="doc-form-title">
+      <span id="vf-title">Nuevo Documento de Venta</span>
+      <button class="btn btn-g" style="padding:4px 10px;font-size:11px" onclick="cerrarVF()">✕ Cancelar</button>
+    </div>
+    <div class="doc-grid">
+      <div class="grp"><label>Fecha Emisión</label><input type="date" id="vf-fecha" onchange="vfCheckDup()"></div>
+      <div class="grp"><label>Fecha Vencimiento</label><input type="date" id="vf-vence"></div>
+      <div class="grp"><label>Tipo Documento SII</label><select id="vf-dte" onchange="vfAutoCalc();vfCheckDup()"></select></div>
+      <div class="grp"><label>N° Documento</label><input type="text" id="vf-num" placeholder="Ej: 1234" inputmode="numeric" oninput="vfCheckDup()"></div>
+    </div>
+    <div class="doc-grid-rut">
+      <div class="grp rut-wrap"><label>RUT Cliente</label><input type="text" id="vf-rut" placeholder="Sin puntos ni guión" oninput="vfRutInput(this.value);vfCheckDup()"><span class="rut-dv" id="vf-dv"></span></div>
+      <div class="grp"><label>Razón Social</label><input type="text" id="vf-rs" placeholder="Nombre del cliente"></div>
+    </div>
+    <div id="vf-dup-warn" style="display:none"></div>
+    <div class="doc-grid-totals">
+      <div class="grp"><label>Neto</label><input type="number" id="vf-neto" min="0" placeholder="0" oninput="vfCalcTotals('neto')"></div>
+      <div class="grp"><label>Exento</label><input type="number" id="vf-exento" min="0" placeholder="0" oninput="vfCalcTotals('exento')"></div>
+      <div class="grp"><label>IVA 19%</label><input type="number" id="vf-iva" min="0" placeholder="0" oninput="vfCalcTotals('iva')"></div>
+      <div class="grp"><label>Otros Imp.</label><input type="number" id="vf-otros" min="0" placeholder="0" oninput="vfCalcTotals('otros')"></div>
+      <div class="grp"><label>Total</label><input type="number" id="vf-total" min="0" placeholder="0" oninput="vfCalcTotals('total')"></div>
+    </div>
+    <div class="doc-grid doc-grid-2">
+      <div class="grp">
+        <label>Forma de Pago / Destino</label>
+        <select id="vf-fp">
+          <option value="banco">💵 Contado — Banco</option>
+          <option value="clientes">📇 Crédito — Cliente (genera auxiliar)</option>
+          <option value="deudores">📋 Deudores Varios</option>
+        </select>
+      </div>
+      <div class="grp">
+        <label>Cuenta de Ingreso</label>
+        <div id="vf-cuenta-wrap"></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+      <button class="btn btn-g" onclick="cerrarVF()">Cancelar</button>
+      <button class="btn btn-p" onclick="guardarVenta()">💾 Guardar Documento</button>
+    </div>
+  </div>
+
+  <div class="filter-row">
+    <span class="f-lbl">Filtrar:</span>
+    <select id="vf-mes" onchange="onMesChangeV()"><option value="">Todos los meses</option></select>
+    <input type="date" id="vf-desde" onchange="renderVentas()" title="Desde">
+    <input type="date" id="vf-hasta" onchange="renderVentas()" title="Hasta">
+    <select id="vf-dte-flt" onchange="renderVentas()"><option value="">Todos los DTE</option></select>
+    <input type="text" id="vf-search" placeholder="Buscar por RUT, razón social o N°" oninput="renderVentas()" style="min-width:220px">
+    <button class="btn btn-g" onclick="limpiarFiltrosV()">Limpiar</button>
+    <span class="doc-count" id="vf-count"></span>
+  </div>
+
+  <div id="v-bulk-bar" style="display:none;align-items:center;gap:10px;padding:10px 14px;background:rgba(46,160,67,.08);border:1px solid rgba(46,160,67,.3);border-radius:8px;margin-bottom:10px;font-size:12px"></div>
+
+  <div class="card-np"><div class="tw"><table>
+    <thead><tr><th style="width:26px;text-align:center"><input type="checkbox" onchange="toggleVSelAll(this.checked)" title="Seleccionar todos los visibles"></th><th class="tl" style="width:55px">FOLIO</th><th class="tl" style="width:90px">F. EMIS.</th><th class="tl" style="width:90px">F. VENC.</th><th class="tl" style="width:60px">DTE</th><th class="tl" style="width:80px">N°</th><th class="tl" style="width:120px">RUT</th><th class="tl">RAZÓN SOCIAL</th><th>NETO</th><th>EXENTO</th><th>IVA</th><th>OTROS</th><th>TOTAL</th><th class="tl" style="width:110px">FORMA PAGO</th><th style="width:80px"></th></tr></thead>
+    <tbody id="v-tbody"></tbody><tfoot id="v-tfoot"></tfoot>
+  </table></div></div>
+
+  <div id="v-resumen" style="margin-top:14px"></div>
+</section>
+
+<!-- COMPRAS -->
+<section class="section" id="s-compras">
+  <div class="sec-hdr">
+    <div><div class="sec-title">Libro de Compras</div><div class="sec-sub" id="compras-sub">Registro por documento</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-g" onclick="window.print()">🖨️</button>
+      <button class="btn btn-i" onclick="abrirImportSII()">📥 Importar SII</button>
+      <button class="btn btn-p" onclick="abrirCF()">+ Nuevo Documento</button>
+    </div>
+  </div>
+
+  <!-- FORM COMPRA -->
+  <div class="doc-form" id="cf-form" style="display:none">
+    <div class="doc-form-title">
+      <span id="cf-title">Nuevo Documento de Compra</span>
+      <button class="btn btn-g" style="padding:4px 10px;font-size:11px" onclick="cerrarCF()">✕ Cancelar</button>
+    </div>
+    <div class="doc-grid">
+      <div class="grp"><label>Fecha Emisión</label><input type="date" id="cf-fecha" onchange="cfCheckDup()"></div>
+      <div class="grp"><label>Fecha Vencimiento</label><input type="date" id="cf-vence"></div>
+      <div class="grp"><label>Tipo Documento SII</label><select id="cf-dte" onchange="cfCheckDup()"></select></div>
+      <div class="grp"><label>N° Documento</label><input type="text" id="cf-num" placeholder="Ej: 5678" inputmode="numeric" oninput="cfCheckDup()"></div>
+    </div>
+    <div class="doc-grid-rut">
+      <div class="grp rut-wrap"><label>RUT Proveedor</label><input type="text" id="cf-rut" placeholder="Sin puntos ni guión" oninput="cfRutInput(this.value);cfCheckDup()"><span class="rut-dv" id="cf-dv"></span></div>
+      <div class="grp"><label>Razón Social</label><input type="text" id="cf-rs" placeholder="Nombre del proveedor"></div>
+    </div>
+    <div id="cf-dup-warn" style="display:none"></div>
+    <div class="doc-grid-totals">
+      <div class="grp"><label>Neto</label><input type="number" id="cf-neto" min="0" placeholder="0" oninput="cfCalcTotals('neto')"></div>
+      <div class="grp"><label>Exento</label><input type="number" id="cf-exento" min="0" placeholder="0" oninput="cfCalcTotals('exento')"></div>
+      <div class="grp"><label>IVA 19%</label><input type="number" id="cf-iva" min="0" placeholder="0" oninput="cfCalcTotals('iva')"></div>
+      <div class="grp"><label>Otros Imp.</label><input type="number" id="cf-otros" min="0" placeholder="0" oninput="cfCalcTotals('otros')"></div>
+      <div class="grp"><label>Total</label><input type="number" id="cf-total" min="0" placeholder="0" oninput="cfCalcTotals('total')"></div>
+    </div>
+
+    <div style="font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin:8px 0 6px">Distribución del Gasto por Cuenta</div>
+    <div class="dist-hdr cc"><div style="text-align:center">#</div><div>Cuenta de Costo / Gasto</div><div style="text-align:right">Monto</div><div>Centro de Costo</div><div></div></div>
+    <div class="dist-box cc" id="cf-dist"></div>
+    <button class="btn btn-s" style="font-size:11px;margin-bottom:12px" onclick="addDist()">+ Agregar línea</button>
+
+    <div class="dist-check err" id="cf-check">
+      <span id="cf-check-ico">⚠️</span>
+      <span id="cf-check-msg">Distribuye el neto entre cuentas de gasto</span>
+      <div class="dist-check-det" id="cf-check-det"></div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-g" onclick="cerrarCF()">Cancelar</button>
+      <button class="btn btn-p" onclick="guardarCompra()">💾 Guardar Documento</button>
+    </div>
+  </div>
+
+  <div class="filter-row">
+    <span class="f-lbl">Filtrar:</span>
+    <select id="cf-mes" onchange="onMesChangeC()"><option value="">Todos los meses</option></select>
+    <input type="date" id="cf-desde" onchange="renderCompras()" title="Desde">
+    <input type="date" id="cf-hasta" onchange="renderCompras()" title="Hasta">
+    <select id="cf-dte-flt" onchange="renderCompras()"><option value="">Todos los DTE</option></select>
+    <input type="text" id="cf-search" placeholder="Buscar por RUT, razón social o N°" oninput="renderCompras()" style="min-width:220px">
+    <button class="btn btn-g" onclick="limpiarFiltrosC()">Limpiar</button>
+    <span class="doc-count" id="cf-count"></span>
+  </div>
+
+  <div id="c-dup-alert" style="display:none"></div>
+
+  <div id="c-bulk-bar" style="display:none;align-items:center;gap:10px;padding:10px 14px;background:rgba(46,160,67,.08);border:1px solid rgba(46,160,67,.3);border-radius:8px;margin-bottom:10px;font-size:12px"></div>
+
+  <div class="card-np"><div class="tw"><table>
+    <thead><tr><th style="width:26px;text-align:center"><input type="checkbox" onchange="toggleCSelAll(this.checked)" title="Seleccionar todos los visibles"></th><th class="tl" style="width:55px" title="Correlativo mensual del libro de compras — reinicia en 1 cada mes">CORR.</th><th class="tl" style="width:90px">F. EMIS.</th><th class="tl" style="width:90px">F. VENC.</th><th class="tl" style="width:60px">DTE</th><th class="tl" style="width:80px">N°</th><th class="tl" style="width:120px">RUT</th><th class="tl">RAZÓN SOCIAL</th><th>NETO</th><th>EXENTO</th><th>IVA</th><th>OTROS</th><th>TOTAL</th><th style="width:80px"></th></tr></thead>
+    <tbody id="c-tbody"></tbody><tfoot id="c-tfoot"></tfoot>
+  </table></div></div>
+
+  <div id="c-resumen" style="margin-top:14px"></div>
+</section>
+
+<!-- HONORARIOS -->
+<section class="section" id="s-honorarios">
+  <div class="sec-hdr"><div><div class="sec-title">Honorarios</div><div class="sec-sub" id="hon-sub">Retención según año</div></div><button class="btn btn-p" onclick="addHon()">+ Agregar</button></div>
+  <div class="card-np"><div class="tw"><table>
+    <thead><tr><th class="tl">MES</th><th class="tl">NOMBRE</th><th class="tl">RUT</th><th>BRUTO</th><th>RETENCIÓN</th><th>NETO</th><th class="tl">CENTRO DE COSTO</th><th></th></tr></thead>
+    <tbody id="h-tbody"></tbody><tfoot id="h-tfoot"></tfoot>
+  </table></div></div>
+  <div class="save-row"><button class="btn btn-p" onclick="saveHon()">💾 Guardar</button></div>
+</section>
+
+<!-- REMUNERACIONES -->
+<section class="section" id="s-remuneraciones">
+  <div class="sec-hdr"><div><div class="sec-title">Remuneraciones</div><div class="sec-sub">Libro de sueldos y liquidaciones</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="abrirFormTrabajador()">+ Trabajador</button>
+      <button class="btn btn-g" onclick="window.print()">🖨️</button>
+    </div>
+  </div>
+  <!-- Parámetros previsionales -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">⚙️ Parámetros del mes</div>
+    <div class="fg">
+      <div class="grp"><label>Mes de liquidación</label><select id="rem-mes" onchange="renderRemuneraciones()"></select></div>
+      <div class="grp"><label>Valor UF</label><input type="number" id="rem-uf" step="0.01" oninput="onParamRem()"></div>
+      <div class="grp"><label>Valor UTM</label><input type="number" id="rem-utm" step="1" oninput="onParamRem()"></div>
+    </div>
+    <div style="font-size:11px;color:var(--mt)">Topes 2026: AFP/salud 90 UF · cesantía 135,2 UF · IUSC exento hasta 13,5 UTM. Actualiza UF/UTM del mes (previred.com / sii.cl).</div>
+  </div>
+  <!-- Formulario trabajador -->
+  <div class="card" id="rem-form" style="display:none;margin-bottom:14px">
+    <div class="card-title" id="remf-title">Nuevo Trabajador</div>
+    <div class="fg">
+      <div class="grp full"><label>Nombre completo</label><input type="text" id="remf-nombre" placeholder="Ej: Juan Pérez González"></div>
+      <div class="grp"><label>RUT</label><input type="text" id="remf-rut" placeholder="12.345.678-9"></div>
+      <div class="grp"><label>Cargo</label><input type="text" id="remf-cargo" placeholder="Ej: Operario"></div>
+      <div class="grp"><label>Sueldo base mensual</label><input type="number" id="remf-base" placeholder="0" oninput="previewLiq()"></div>
+      <div class="grp"><label>Gratificación legal</label>
+        <select id="remf-gratmodo" onchange="onGratModoChange()">
+          <option value="pct">% de la remuneración imponible (Art. 50)</option>
+          <option value="monto">Monto fijo mensual</option>
+        </select>
+        <div style="font-size:10px;color:var(--mt);margin-top:2px" id="remf-grat-hint"></div>
+      </div>
+      <div class="grp" id="remf-gratpct-wrap"><label>Porcentaje de gratificación</label>
+        <input type="number" id="remf-gratpct" step="0.5" placeholder="25" value="25" oninput="previewLiq()">
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">Legal: 25% sobre sueldo base + otros imponibles, con tope de 4,75 IMM al año prorrateado</div>
+      </div>
+      <div class="grp" id="remf-gratmonto-wrap" style="display:none"><label>Gratificación (monto fijo)</label>
+        <input type="number" id="remf-grat" placeholder="0" value="0" oninput="previewLiq()">
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">Monto pactado. No se le aplica el tope legal.</div>
+      </div>
+      <div class="grp"><label>Otros haberes imponibles</label><input type="number" id="remf-otros" placeholder="0" value="0" oninput="previewLiq()"></div>
+      <div class="grp"><label>Colación (no imponible)</label><input type="number" id="remf-colacion" placeholder="0" value="0" oninput="previewLiq()"></div>
+      <div class="grp"><label>Movilización (no imponible)</label><input type="number" id="remf-movilizacion" placeholder="0" value="0" oninput="previewLiq()"></div>
+      <div class="grp"><label>AFP</label><select id="remf-afp" onchange="previewLiq()"></select></div>
+      <div class="grp"><label>Institución de salud</label><select id="remf-salud" onchange="onSaludChange()"></select></div>
+      <div class="grp" id="remf-plan-wrap" style="display:none"><label>Plan pactado (UF)</label><input type="number" id="remf-plan" step="0.001" placeholder="0" oninput="previewLiq()"><div style="font-size:10px;color:var(--mt);margin-top:2px">Valor en UF según el FUN vigente del trabajador. Se cotiza el mayor entre este plan y el 7% legal.</div></div>
+      <div class="grp"><label>Contrato</label><select id="remf-contrato" onchange="previewLiq()"><option value="indefinido">Indefinido (cesantía 0,6%)</option><option value="plazo">Plazo fijo (sin aporte trab.)</option></select></div>
+    </div>
+    <div id="remf-preview" style="margin:12px 0"></div>
+    <div class="save-row" style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="guardarTrabajador()">💾 Guardar</button>
+      <button class="btn btn-g" onclick="cerrarFormTrabajador()">Cancelar</button>
+    </div>
+  </div>
+  <div id="rem-content"></div>
+</section>
+
+<!-- ASIENTOS MANUALES -->
+
+<!-- PAGOS Y COBROS MASIVOS -->
+<section class="section" id="s-pagos">
+  <div class="sec-hdr">
+    <div>
+      <div class="sec-title">💳 Pagos y Cobros</div>
+      <div class="sec-sub">Aplica pagos masivos a proveedores o cobros de clientes con generación automática de asiento</div>
+    </div>
+  </div>
+  <div class="info-tip" style="margin-bottom:14px">
+    💡 Selecciona documentos pendientes, elige caja o banco y el sistema genera <strong>un solo asiento contable</strong> con línea por proveedor/cliente (para trazabilidad en auxiliares) y una única salida consolidada de banco/caja. Los pagos parciales se soportan editando el monto por documento.
+  </div>
+  <div id="pagos-content"></div>
+</section>
+
+<!-- AUXILIARES -->
+<section class="section" id="s-auxiliares">
+  <div class="sec-hdr">
+    <div><div class="sec-title">Auxiliares</div><div class="sec-sub">Sub-libros por cliente y proveedor</div></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="aux-tabs" style="margin:0">
+        <div class="aux-tab active" id="aux-view-detalle" onclick="setAuxView('detalle')">📋 Detalle</div>
+        <div class="aux-tab" id="aux-view-aging" onclick="setAuxView('aging')">📊 Aging</div>
+      </div>
+      <button class="btn btn-p btn-icon-mobile" onclick="abrirFichaAuxNueva()" title="Crear cliente o proveedor manualmente">＋ <span class="btn-lbl">Nuevo</span></button>
+      <button class="btn btn-i btn-icon-mobile" onclick="descargarPlantillaAuxActual()" title="Descargar plantilla Excel para carga masiva">📄 <span class="btn-lbl">Plantilla</span></button>
+      <button class="btn btn-i btn-icon-mobile" onclick="abrirImportFichasActual()" title="Importar fichas desde Excel">📥 <span class="btn-lbl">Importar fichas</span></button>
+      <input type="file" id="imp-fichas-file" accept=".xlsx,.xls" style="display:none">
+      <button class="btn btn-g btn-icon-mobile" onclick="window.print()" title="Imprimir">🖨️ <span class="btn-lbl">Imprimir</span></button>
+    </div>
+  </div>
+  <div class="aux-tabs">
+    <div class="aux-tab active" id="aux-tab-c" onclick="setAuxTab('c')">📇 Clientes<span class="ct" id="aux-ct-c">0</span></div>
+    <div class="aux-tab" id="aux-tab-p" onclick="setAuxTab('p')">🏭 Proveedores<span class="ct" id="aux-ct-p">0</span></div>
+  </div>
+  <div id="aux-content"></div>
+</section>
+
+<!-- DIARIO -->
+<section class="section" id="s-diario">
+  <div class="sec-hdr"><div><div class="sec-title">Libro Diario</div><div class="sec-sub">Asientos automáticos + manuales ordenados por fecha</div></div><button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button></div>
+  <div id="diario-content"></div>
+</section>
+
+<!-- MAYOR -->
+<section class="section" id="s-mayor">
+  <div class="sec-hdr"><div><div class="sec-title">Libro Mayor</div><div class="sec-sub">Saldos por cuenta</div></div><button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button></div>
+  <div id="mayor-content"></div>
+</section>
+
+<!-- BALANCE -->
+<section class="section" id="s-balance">
+  <div class="sec-hdr"><div><div class="sec-title">Balance General</div><div class="sec-sub">Situación financiera</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="font-size:11px;color:var(--mt)">Comparar con:</label>
+      <select id="cmp-year-bal" onchange="onCmpYear(this.value)" style="min-width:120px"><option value="">— sin comparar —</option></select>
+      <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+  </div>
+  <div id="balance-content"></div>
+</section>
+
+<!-- RESULTADOS -->
+<section class="section" id="s-resultados">
+  <div class="sec-hdr"><div><div class="sec-title">Estado de Resultados</div><div class="sec-sub">Pérdidas y Ganancias</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="font-size:11px;color:var(--mt)">Comparar con:</label>
+      <select id="cmp-year-res" onchange="onCmpYear(this.value)" style="min-width:120px"><option value="">— sin comparar —</option></select>
+      <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+  </div>
+  <div id="resultados-content"></div>
+</section>
+
+<!-- FLUJO DE CAJA -->
+<section class="section" id="s-flujocaja">
+  <div class="sec-hdr"><div><div class="sec-title">Flujo de Caja</div><div class="sec-sub">Movimiento de efectivo realizado y proyectado</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div class="aux-tabs" style="margin:0">
+        <div class="aux-tab active" id="fc-tab-real" onclick="setFCView('realizado')">📊 Realizado</div>
+        <div class="aux-tab" id="fc-tab-proy" onclick="setFCView('proyectado')">🔮 Proyectado</div>
+      </div>
+      <button class="btn btn-g" onclick="window.print()">🖨️</button>
+    </div>
+  </div>
+  <div id="fc-content"></div>
+</section>
+
+<!-- CONCILIACIÓN BANCARIA -->
+<section class="section" id="s-conciliacion">
+  <div class="sec-hdr"><div><div class="sec-title">Conciliación Bancaria</div><div class="sec-sub">Cuadra tus registros contra la cartola del banco</div></div>
+    <button class="btn btn-g" onclick="window.print()">🖨️</button>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="fg">
+      <div class="grp"><label>Cuenta bancaria</label><select id="conc-cuenta" onchange="renderConciliacion()"></select></div>
+      <div class="grp"><label>Saldo según cartola del banco</label><input type="number" id="conc-saldo-banco" placeholder="0" oninput="onSaldoBancoChange()"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px">
+      <button class="btn btn-i" onclick="document.getElementById('conc-cartola-file').click()">📤 Cargar cartola (Excel/CSV)</button>
+      <input type="file" id="conc-cartola-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="cargarCartola(event)">
+      <span style="font-size:11px;color:var(--mt)">O marca manualmente cada movimiento como conciliado ✓</span>
+    </div>
+  </div>
+  <div id="conc-content"></div>
+</section>
+
+<!-- FORMULARIO 29 -->
+<section class="section" id="s-f29">
+  <div class="sec-hdr"><div><div class="sec-title">Formulario 29</div><div class="sec-sub">Declaración mensual de IVA y PPM</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="f29-mes" onchange="renderF29()" style="min-width:130px"></select>
+      <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+  </div>
+  <div id="f29-content"></div>
+</section>
+
+<!-- PPM -->
+<section class="section" id="s-ppm">
+  <div class="sec-hdr"><div><div class="sec-title">Pago Provisional Mensual</div><div class="sec-sub">PPM obligatorio sobre ingresos brutos</div></div>
+    <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button>
+  </div>
+  <div id="ppm-content"></div>
+</section>
+
+<!-- DECLARACIÓN DE RENTA (F22) -->
+<section class="section" id="s-renta">
+  <div class="sec-hdr"><div><div class="sec-title">🧾 Declaración de Renta</div><div class="sec-sub">Formulario 22 — Renta Líquida Imponible e Impuesto de Primera Categoría</div></div>
+    <button class="btn btn-g" onclick="exportRentaXLSX()">📊 Exportar</button>
+  </div>
+  <div id="renta-content"></div>
+</section>
+
+<!-- ASIGNACIÓN DE CENTROS DE COSTO -->
+<section class="section" id="s-asigcc">
+  <div class="sec-hdr"><div><div class="sec-title">🎯 Asignar Centros de Costo</div><div class="sec-sub">Gastos que quedaron sin centro al capturar los libros</div></div></div>
+  <div id="asigcc-content"></div>
+</section>
+
+<!-- DECLARACIONES JURADAS DE RENTA -->
+<section class="section" id="s-dj">
+  <div class="sec-hdr"><div><div class="sec-title">📋 Declaraciones Juradas</div><div class="sec-sub">Control por régimen tributario · Operación Renta</div></div>
+    <button class="btn btn-g" onclick="exportarDJExcel()">📊 Exportar</button>
+  </div>
+  <div id="dj-content"></div>
+</section>
+
+<!-- COMPROBANTES -->
+<section class="section" id="s-comprobantes">
+  <div class="sec-hdr">
+    <div>
+      <div class="sec-title">📔 Comprobantes</div>
+      <div class="sec-sub">Todos los asientos del libro diario — apertura, automáticos y manuales</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="btn btn-p" id="btn-nuevo-as" onclick="abrirForm()">+ Nuevo Asiento</button>
+    </div>
+  </div>
+
+  <!-- FORM ASIENTO -->
+  <div class="as-form" id="as-form" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:14px;font-weight:700" id="af-title">Nuevo Asiento Contable</div>
+        <span id="af-folio-badge" style="background:linear-gradient(135deg,rgba(46,160,67,.2),rgba(88,166,255,.12));border:1px solid rgba(46,160,67,.35);color:var(--ach);padding:3px 10px;border-radius:100px;font-family:var(--mono);font-size:11px;font-weight:700"></span>
+      </div>
+      <button class="btn btn-g" style="padding:4px 10px;font-size:11px" onclick="cerrarForm()">✕ Cerrar</button>
+    </div>
+
+    <!-- Comprobantes tipo (plantillas de asientos) -->
+    <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap">
+      <div class="ac-wrap" style="position:relative;flex:1;min-width:220px">
+        <input type="text" id="ct-search" class="linea-inp" autocomplete="off"
+          placeholder="📋 Buscar comprobante tipo… (opcional)"
+          oninput="buscarCT()" onfocus="buscarCT()" onkeydown="navCT(event)" onblur="cerrarBuscarCT()">
+        <div id="ct-results" class="ac-lista" style="display:none"></div>
+      </div>
+      <button class="btn btn-i" onclick="abrirCTModal()" title="Crear o editar plantillas de asientos">+ Comprobante tipo</button>
+    </div>
+
+    <div class="as-meta">
+      <div class="grp"><label>Fecha del Asiento</label><input type="date" id="af-fecha"></div>
+      <div class="grp"><label>Glosa / Descripción</label><input type="text" id="af-glosa" placeholder="Ej: Pago arriendo bodega enero, Ajuste cuentas por cobrar..."></div>
+    </div>
+
+    <div style="font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Líneas del Asiento</div>
+    <div class="lineas-scroll">
+    <div class="lineas-hdr">
+      <div style="text-align:center">#</div>
+      <div>Cuenta Contable</div>
+      <div>Centro de Costo</div>
+      <div style="text-align:right">DEBE</div>
+      <div style="text-align:right">HABER</div>
+      <div>Descripción libre (opcional)</div>
+      <div></div>
+    </div>
+    <div class="lineas-box" id="af-lineas"></div>
+    </div>
+    <button class="btn btn-s" style="font-size:11px;margin-bottom:14px" onclick="addLinea()">+ Agregar línea</button>
+
+    <div class="as-cuadre err" id="af-cuadre">
+      <span id="af-cuadre-ico">⚠️</span>
+      <span id="af-cuadre-msg">Ingresa montos para verificar el cuadre</span>
+      <div class="cuadre-det" id="af-cuadre-det"></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div id="af-last-saved" style="font-size:11px;color:var(--ach);font-weight:600"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g" onclick="cerrarForm()">Cancelar</button>
+        <button class="btn btn-p" onclick="guardarAsiento()">💾 Guardar Asiento</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-tip" style="margin-bottom:14px">
+    💡 Acá está <strong>todo el libro diario</strong>: apertura, comprobantes automáticos y manuales.
+    Los <strong>automáticos</strong> se generan desde los libros de ventas, compras y honorarios — para
+    modificarlos, edita el documento origen. Los <strong>manuales</strong> se crean con
+    <strong>"+ Nuevo Asiento"</strong> y se editan directamente desde su comprobante.
+  </div>
+  <div id="comprobantes-content"></div>
+</section>
+
+<!-- ACTIVO FIJO -->
+<section class="section" id="s-activofijo">
+  <div class="sec-hdr"><div><div class="sec-title">Activos Fijos</div><div class="sec-sub">Registro de bienes y depreciación</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="abrirFormAF()">+ Nuevo Activo</button>
+      <button class="btn btn-g" onclick="window.print()">🖨️</button>
+    </div>
+  </div>
+  <!-- Formulario alta de activo -->
+  <div class="card" id="af-form-bien" style="display:none;margin-bottom:16px">
+    <div class="card-title" id="afb-title">Nuevo Activo Fijo</div>
+    <div class="fg">
+      <div class="grp full"><label>Descripción del bien</label><input type="text" id="afb-desc" placeholder="Ej: Camión Hyundai HD65 2023"></div>
+      <div class="grp"><label>Categoría</label><select id="afb-cat" onchange="onCatAF()"></select></div>
+      <div class="grp"><label>Fecha de compra</label><input type="date" id="afb-fecha"></div>
+      <div class="grp"><label>Valor de adquisición (neto)</label><input type="number" id="afb-valor" placeholder="0" oninput="previewAF()"></div>
+      <div class="grp"><label>Valor residual</label><input type="number" id="afb-residual" placeholder="0" value="0" oninput="previewAF()"></div>
+      <div class="grp"><label>Vida útil contable (años)</label><input type="number" id="afb-vida-contable" min="1" oninput="previewAF()"></div>
+      <div class="grp"><label>Método contable</label><select id="afb-metodo-contable" onchange="previewAF()"><option value="lineal">Lineal</option><option value="acelerada">Acelerada / política interna</option></select></div>
+      <div class="grp"><label>Vida útil tributaria (años)</label><input type="number" id="afb-vida-tributaria" min="1" oninput="previewAF()"></div>
+      <div class="grp"><label>Método tributario</label><select id="afb-metodo-tributario" onchange="previewAF()"><option value="lineal">Normal</option><option value="acelerada">Acelerada (1/3 vida)</option></select></div>
+    </div>
+    <div id="afb-preview" style="margin:10px 0"></div>
+    <div class="save-row" style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="guardarAF()">💾 Guardar</button>
+      <button class="btn btn-g" onclick="cerrarFormAF()">Cancelar</button>
+    </div>
+  </div>
+  <div id="af-content"></div>
+</section>
+
+<!-- PROVISIONES -->
+<section class="section" id="s-provisiones">
+  <div class="sec-hdr"><div><div class="sec-title">Provisiones</div><div class="sec-sub">Estimaciones de cierre (incobrables, feriado legal)</div></div></div>
+  <div id="prov-content"></div>
+</section>
+
+<!-- CORRECCIÓN MONETARIA -->
+<section class="section" id="s-correccion">
+  <div class="sec-hdr"><div><div class="sec-title">Corrección Monetaria</div><div class="sec-sub">Reajuste Art. 41 LIR</div></div></div>
+  <div id="cm-content"></div>
+</section>
+
+<!-- CIERRE DEL EJERCICIO -->
+<section class="section" id="s-cierre">
+  <div class="sec-hdr"><div><div class="sec-title">Cierre del Ejercicio</div><div class="sec-sub">Traspaso de resultado a Resultados Acumulados</div></div></div>
+  <div id="cierre-content"></div>
+</section>
+
+</main>
+</div>
+
+<!-- BÚSQUEDA GLOBAL (Ctrl+K) -->
+<!-- Detalle de auxiliares del balance de apertura -->
+<div class="modal-bkd" id="apx-modal">
+  <div class="modal-box" style="max-width:1100px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📒 Documentos históricos del auxiliar</div>
+        <div class="modal-sub">Detalle que compone el saldo de apertura de esta cuenta</div>
+      </div>
+      <button class="modal-close" onclick="cerrarAperturaAux()">✕</button>
+    </div>
+    <div id="apx-body"></div>
+    <input type="file" id="apx-file" accept=".xlsx,.xls" style="display:none">
+  </div>
+</div>
+
+<div id="search-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;padding-top:10vh" onclick="if(event.target===this)cerrarBusqueda()">
+  <div style="max-width:640px;margin:0 auto;background:var(--sf);border:1px solid var(--bd);border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,.5);overflow:hidden">
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--bd)">
+      <span style="font-size:16px">🔍</span>
+      <input id="search-input" type="text" placeholder="Buscar documentos, asientos, cuentas, personas..." oninput="ejecutarBusqueda()" onkeydown="navBusqueda(event)" style="flex:1;background:none;border:none;color:var(--tx);font-size:15px;outline:none">
+      <span style="font-size:10px;color:var(--mt);border:1px solid var(--bd);border-radius:5px;padding:2px 6px">ESC</span>
+    </div>
+    <div id="search-results" style="max-height:60vh;overflow-y:auto;padding:6px"></div>
+  </div>
+</div>
+
+<!-- MODAL COMPROBANTES TIPO -->
+<div class="modal-bkd" id="ct-modal">
+  <div class="modal-box" style="max-width:820px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📋 Comprobantes tipo</div>
+        <div class="modal-sub">Plantillas de asientos recurrentes. Guarda la estructura de cuentas y, si quieres, también los montos.</div>
+      </div>
+      <button class="modal-close" onclick="cerrarCTModal()">✕</button>
+    </div>
+    <div id="ct-modal-body" style="padding:16px"></div>
+  </div>
+</div>
+
+<!-- MODAL DTE (para asientos manuales de proveedores/clientes) -->
+<div class="modal-bkd" id="dte-modal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div><div class="modal-title" id="dte-modal-title">Datos del Documento</div><div class="modal-sub" id="dte-modal-sub">Completa los campos del DTE. El folio se asignará automáticamente.</div></div>
+      <button class="modal-close" onclick="cerrarDteModal()">✕</button>
+    </div>
+
+    <div class="modal-folio" id="dte-modal-folio">
+      <span class="mf-lbl">Folio Libro</span>
+      <span class="mf-val" id="dte-modal-folio-val">—</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--mt)" id="dte-modal-folio-info">Se asignará al guardar</span>
+    </div>
+
+    <div class="doc-grid">
+      <div class="grp"><label>Fecha Emisión</label><input type="date" id="dtm-fecha" onchange="dtmRefresh()"></div>
+      <div class="grp"><label>Fecha Vencimiento</label><input type="date" id="dtm-vence"></div>
+      <div class="grp"><label>Tipo Documento SII</label><select id="dtm-dte" onchange="dtmRefresh()"></select></div>
+      <div class="grp"><label>N° Documento</label><input type="text" id="dtm-num" placeholder="Ej: 5678" inputmode="numeric" oninput="dtmCheckDup()"></div>
+    </div>
+    <div class="doc-grid-rut">
+      <div class="grp rut-wrap"><label>RUT</label><input type="text" id="dtm-rut" placeholder="Sin puntos ni guión" oninput="dtmRutInput(this.value);dtmCheckDup()"><span class="rut-dv" id="dtm-dv"></span></div>
+      <div class="grp"><label>Razón Social</label><input type="text" id="dtm-rs" placeholder="Nombre"></div>
+    </div>
+    <div id="dtm-dup-warn" style="display:none"></div>
+    <div class="doc-grid-totals">
+      <div class="grp full"><label>Descripción / detalle</label><input type="text" id="dtm-desc" placeholder="Ej: 500 plantas de arándano variedad Duke"></div>
+      <div class="grp"><label id="dtm-lbl-neto">Neto</label><input type="number" id="dtm-neto" min="0" placeholder="0" oninput="dtmCalcTotals('neto')"></div>
+      <div class="grp" id="dtm-exento-wrap"><label>Exento</label><input type="number" id="dtm-exento" min="0" placeholder="0" oninput="dtmCalcTotals('exento')"></div>
+      <div class="grp" id="dtm-iva-wrap"><label id="dtm-lbl-iva">IVA 19%</label><input type="number" id="dtm-iva" min="0" placeholder="0" oninput="dtmCalcTotals('iva')"></div>
+      <div class="grp" id="dtm-ret-wrap" style="display:none"><label id="dtm-lbl-ret">Retención</label><input type="number" id="dtm-ret" min="0" placeholder="0" oninput="dtmCalcTotals('ret')"></div>
+      <div class="grp" id="dtm-otros-wrap"><label>Otros Imp.</label><input type="number" id="dtm-otros" min="0" placeholder="0" oninput="dtmCalcTotals('otros')"></div>
+      <div class="grp"><label>Total</label><input type="number" id="dtm-total" min="0" placeholder="0" oninput="dtmCalcTotals('total')"></div>
+    </div>
+
+    <!-- Distribución (solo para compras) -->
+    <div id="dtm-dist-wrap" style="display:none">
+      <div style="font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px">Distribución del Gasto por Cuenta</div>
+      <div class="dist-hdr"><div style="text-align:center">#</div><div>Cuenta de Costo / Gasto</div><div style="text-align:right">Monto</div><div></div></div>
+      <div class="dist-box" id="dtm-dist"></div>
+      <button class="btn btn-s" style="font-size:11px;margin-bottom:8px" onclick="dtmAddDist()">+ Agregar línea</button>
+      <div class="dist-check err" id="dtm-dist-check" style="margin-bottom:0">
+        <span id="dtm-dist-ico">⚠️</span>
+        <span id="dtm-dist-msg">Distribuye el neto entre cuentas</span>
+        <div class="dist-check-det" id="dtm-dist-det"></div>
+      </div>
+    </div>
+
+    <div class="info-tip" style="margin-top:12px">💡 El asiento contable ya lo definiste en la línea del asiento. Estos datos solo alimentan el <strong>libro de compras/ventas</strong> y el <strong>auxiliar</strong> — sin duplicar el efecto en el Diario.</div>
+
+    <div class="modal-footer">
+      <button class="btn btn-d" onclick="dtmRemover()" id="dtm-btn-remover" style="display:none">🗑 Quitar DTE</button>
+      <button class="btn btn-g" onclick="cerrarDteModal()">Cancelar</button>
+      <button class="btn btn-p" onclick="dtmGuardar()">💾 Asociar Documento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR SII -->
+<div class="modal-bkd" id="imp-modal">
+  <div class="modal-box" style="max-width:1280px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📥 Importar Compras desde SII</div>
+        <div class="modal-sub" id="imp-modal-sub">Revisa los documentos detectados y asigna una cuenta de gasto a cada uno.</div>
+      </div>
+      <button class="modal-close" onclick="cerrarImportModal()">✕</button>
+    </div>
+
+    <div id="imp-periodo-box" style="background:linear-gradient(135deg,rgba(46,160,67,.1),rgba(88,166,255,.08));border:1px solid rgba(46,160,67,.3);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:3px">📅 Periodo del Archivo</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="imp-periodo-mes" onchange="cambiarPeriodoImport()" style="background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:5px 10px;border-radius:6px;font-size:13px;font-weight:600"></select>
+          <select id="imp-periodo-anio" onchange="cambiarPeriodoImport()" style="background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:5px 10px;border-radius:6px;font-size:13px;font-weight:600"></select>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:3px">🔁 Modo de carga</div>
+        <select id="imp-modo" onchange="cambiarModoImport()" style="background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:5px 10px;border-radius:6px;font-size:13px;font-weight:600;max-width:320px">
+          <option value="agregar">➕ Agregar solo los documentos nuevos</option>
+          <option value="sobrescribir">♻️ Sobrescribir el periodo (reutiliza correlativos)</option>
+        </select>
+      </div>
+      <div style="font-size:11px;color:var(--mt);flex:1" id="imp-periodo-info"></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="imp-forzar-periodo" checked onchange="renderImportModal()">
+        <span>Forzar todas las fechas al periodo seleccionado</span>
+      </label>
+    </div>
+
+    <div id="imp-summary" class="info-tip" style="margin-bottom:12px"></div>
+
+    <div class="filter-row" style="padding:10px 12px;background:var(--sf);border:1px solid var(--bd);border-radius:6px;margin-bottom:10px">
+      <span class="f-lbl">Asignar cuenta a TODOS:</span>
+      <div id="imp-bulk-wrap" style="min-width:340px;flex:1;max-width:520px"></div>
+      <button class="btn btn-s" style="font-size:11px" onclick="aplicarCuentaATodos()">Aplicar</button>
+    </div>
+    <div class="filter-row" style="padding:10px 12px;background:var(--sf);border:1px solid var(--bd);border-radius:6px;margin-bottom:10px">
+      <span class="f-lbl">Asignar centro de costo a TODOS:</span>
+      <select id="imp-bulk-cc" style="min-width:240px;flex:1;max-width:400px"></select>
+      <button class="btn btn-s" style="font-size:11px" onclick="aplicarCCATodos()">Aplicar</button>
+      <span class="doc-count" id="imp-count"></span>
+    </div>
+
+    <div class="card-np" style="max-height:480px;overflow-y:auto;margin-bottom:12px">
+      <div class="imp-row-hdr">
+        <div style="text-align:center"><input type="checkbox" id="imp-all" onchange="toggleAllImport(this.checked)"></div>
+        <div>FECHA</div>
+        <div>DTE</div>
+        <div>N° DOC</div>
+        <div>RUT</div>
+        <div>RAZÓN SOCIAL</div>
+        <div style="text-align:right">NETO</div>
+        <div style="text-align:right">IVA</div>
+        <div style="text-align:right">OTROS</div>
+        <div style="text-align:right">TOTAL</div>
+        <div>CUENTA</div>
+        <div>CENTRO DE COSTO</div>
+        <div>ESTADO</div>
+      </div>
+      <div id="imp-rows"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-d" onclick="cerrarImportModal()">Cancelar</button>
+      <button class="btn btn-p" onclick="confirmarImportacion()" id="imp-btn-ok">💾 Importar documentos</button>
+    </div>
+  </div>
+</div>
+
+<!-- File input oculto para importar -->
+<input type="file" id="imp-file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
+<input type="file" id="imp-ventas-file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
+
+<!-- MODAL IMPORTAR BALANCE -->
+<div class="modal-bkd" id="impbal-modal">
+  <div class="modal-box" style="max-width:1100px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📥 Importar Balance de Apertura</div>
+        <div class="modal-sub">Revisa las cuentas detectadas y sus saldos antes de cargar al Asiento N°0</div>
+      </div>
+      <button class="modal-close" onclick="cerrarImpBalModal()">✕</button>
+    </div>
+    <div id="impbal-summary" class="info-tip" style="margin-bottom:12px"></div>
+    <div class="card-np" style="max-height:500px;overflow-y:auto;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:26px 90px 1fr 110px 110px;gap:8px;padding:8px 10px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5">
+        <div style="text-align:center"><input type="checkbox" id="impbal-all" onchange="toggleAllBal(this.checked)" checked></div>
+        <div>CÓDIGO</div>
+        <div>CUENTA</div>
+        <div style="text-align:right">DEBE</div>
+        <div style="text-align:right">HABER</div>
+      </div>
+      <div id="impbal-rows"></div>
+      <div id="impbal-total" style="display:grid;grid-template-columns:26px 90px 1fr 110px 110px;gap:8px;padding:10px;font-weight:700;border-top:2px solid var(--bd);background:var(--sf)"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-d" onclick="cerrarImpBalModal()">Cancelar</button>
+      <button class="btn btn-p" onclick="confirmarImportBalance()" id="impbal-btn-ok">💾 Cargar como Asiento de Apertura</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL IMPORTAR SII VENTAS -->
+<div class="modal-bkd" id="impv-modal">
+  <div class="modal-box" style="max-width:1280px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📥 Importar Ventas desde SII</div>
+        <div class="modal-sub">Revisa los documentos detectados y asigna una cuenta de ingreso a cada uno.</div>
+      </div>
+      <button class="modal-close" onclick="cerrarImportModalVentas()">✕</button>
+    </div>
+
+    <div style="background:linear-gradient(135deg,rgba(46,160,67,.1),rgba(88,166,255,.08));border:1px solid rgba(46,160,67,.3);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:3px">📅 Periodo del Archivo</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="impv-periodo-mes" onchange="cambiarPeriodoImportV()" style="background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:5px 10px;border-radius:6px;font-size:13px;font-weight:600"></select>
+          <select id="impv-periodo-anio" onchange="cambiarPeriodoImportV()" style="background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:5px 10px;border-radius:6px;font-size:13px;font-weight:600"></select>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--mt);flex:1" id="impv-periodo-info"></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="impv-forzar-periodo" checked onchange="renderImportModalVentas()">
+        <span>Forzar todas las fechas al periodo seleccionado</span>
+      </label>
+    </div>
+
+    <div id="impv-summary" class="info-tip" style="margin-bottom:12px"></div>
+
+    <div class="filter-row" style="padding:10px 12px;background:var(--sf);border:1px solid var(--bd);border-radius:6px;margin-bottom:10px">
+      <span class="f-lbl">Asignar cuenta a TODOS:</span>
+      <div id="impv-bulk-wrap" style="min-width:340px;flex:1;max-width:520px"></div>
+      <button class="btn btn-s" style="font-size:11px" onclick="aplicarCuentaATodosV()">Aplicar a todos los incluidos</button>
+      <span class="doc-count" id="impv-count"></span>
+    </div>
+
+    <div class="card-np" style="max-height:480px;overflow-y:auto;margin-bottom:12px">
+      <div class="imp-row-hdr" style="display:grid;grid-template-columns:26px 90px 60px 80px 120px 1fr 90px 80px 80px 100px 180px 110px 80px;gap:6px;padding:8px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5">
+        <div style="text-align:center"><input type="checkbox" id="impv-all" onchange="toggleAllImportV(this.checked)"></div>
+        <div>FECHA</div><div>DTE</div><div>N° DOC</div><div>RUT</div><div>RAZÓN SOCIAL</div>
+        <div style="text-align:right">NETO</div><div style="text-align:right">IVA</div><div style="text-align:right">OTROS</div><div style="text-align:right">TOTAL</div>
+        <div>CUENTA DE INGRESO</div><div>FORMA PAGO</div><div>ESTADO</div>
+      </div>
+      <div id="impv-rows"></div>
+    </div>
+
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:12px 0">
+      <button class="btn btn-d" onclick="cerrarImportModalVentas()">Cancelar</button>
+      <button class="btn btn-p" onclick="confirmarImportacionV()" id="impv-btn-ok">💾 Importar documentos</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL EDITOR FICHA AUXILIAR -->
+<div class="modal-bkd" id="ficha-modal">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">✏️ Editar ficha</div>
+        <div class="modal-sub">Datos del cliente o proveedor y valores por defecto</div>
+      </div>
+      <button class="modal-close" onclick="cerrarFichaAux()">✕</button>
+    </div>
+    <div id="ficha-modal-body"></div>
+  </div>
+</div>
+
+<!-- MODAL VER / EDITAR COMPROBANTE -->
+<div class="modal-bkd" id="cmp-modal">
+  <div class="modal-box" style="max-width:900px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📔 Comprobante</div>
+        <div class="modal-sub">Vista del asiento contable y edición con validación de partida doble</div>
+      </div>
+      <button class="modal-close" onclick="cerrarCmpModal()">✕</button>
+    </div>
+    <div id="cmp-modal-body"></div>
+  </div>
+</div>
+
+<!-- MODAL DATOS DTE (dentro del editor de comprobantes) -->
+<div class="modal-bkd" id="cmp-dte-modal" style="z-index:1100">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📄 Datos del documento</div>
+        <div class="modal-sub">Editar todos los campos del DTE asociado a esta cuenta auxiliar</div>
+      </div>
+      <button class="modal-close" onclick="cerrarCmpEdDte()">✕</button>
+    </div>
+    <div id="cmp-dte-modal-body"></div>
+  </div>
+</div>
+
+<!-- MODAL ASOCIAR NC/ND A FACTURA -->
+<!-- ESTADO DE CUENTA DE UN AUXILIAR -->
+<!-- EDITOR DEL CATÁLOGO DE DECLARACIONES JURADAS -->
+<div class="modal-bkd" id="dj-modal">
+  <div class="modal-box" style="max-width:720px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📋 Declaración jurada</div>
+        <div class="modal-sub">Ajusta el catálogo cuando cambie la normativa del SII</div>
+      </div>
+      <button class="modal-close" onclick="cerrarEditorDJ()">✕</button>
+    </div>
+    <div id="dj-modal-body"></div>
+  </div>
+</div>
+
+<div class="modal-bkd" id="aux-rep-modal">
+  <div class="modal-box" style="max-width:940px">
+    <div class="modal-hdr no-print">
+      <div><div class="modal-title">📄 Estado de cuenta</div></div>
+      <button class="modal-close" onclick="cerrarReporteAux()">✕</button>
+    </div>
+    <div id="aux-rep-body"></div>
+  </div>
+</div>
+
+<div class="modal-bkd" id="asoc-nota-modal">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">🔗 Asociar Nota a Factura</div>
+        <div class="modal-sub">La nota se aplicará al saldo de la factura seleccionada</div>
+      </div>
+      <button class="modal-close" onclick="cerrarAsociarNota()">✕</button>
+    </div>
+    <div id="asoc-nota-modal-body"></div>
+  </div>
+</div>
+
+<!-- Cache-busting: sin esto el navegador sirve los módulos viejos aunque
+     app.js sea nuevo. Lo genera _release.py en cada publicación. -->
+<script type="importmap">
+{
+  "imports": {
+    "./js/acl.js": "./js/acl.js?v=1789141896",
+    "./js/activofijo.js": "./js/activofijo.js?v=1789141896",
+    "./js/apertura.js": "./js/apertura.js?v=1789141896",
+    "./js/aperturaaux.js": "./js/aperturaaux.js?v=1789141896",
+    "./js/app.js": "./js/app.js?v=1789141896",
+    "./js/asientos.js": "./js/asientos.js?v=1789141896",
+    "./js/asigcc.js": "./js/asigcc.js?v=1789141896",
+    "./js/audit.js": "./js/audit.js?v=1789141896",
+    "./js/auth.js": "./js/auth.js?v=1789141896",
+    "./js/autoguardado.js": "./js/autoguardado.js?v=1789141896",
+    "./js/auxdocs.js": "./js/auxdocs.js?v=1789141896",
+    "./js/auxiliares.js": "./js/auxiliares.js?v=1789141896",
+    "./js/auxreporte.js": "./js/auxreporte.js?v=1789141896",
+    "./js/ayuda.js": "./js/ayuda.js?v=1789141896",
+    "./js/backup.js": "./js/backup.js?v=1789141896",
+    "./js/buscadorcuentas.js": "./js/buscadorcuentas.js?v=1789141896",
+    "./js/busqueda.js": "./js/busqueda.js?v=1789141896",
+    "./js/cargadatos.js": "./js/cargadatos.js?v=1789141896",
+    "./js/centroscosto-ui.js": "./js/centroscosto-ui.js?v=1789141896",
+    "./js/centroscosto.js": "./js/centroscosto.js?v=1789141896",
+    "./js/changelog-ui.js": "./js/changelog-ui.js?v=1789141896",
+    "./js/changelog.js": "./js/changelog.js?v=1789141896",
+    "./js/cierre.js": "./js/cierre.js?v=1789141896",
+    "./js/compras.js": "./js/compras.js?v=1789141896",
+    "./js/comprobantes.js": "./js/comprobantes.js?v=1789141896",
+    "./js/comprobantestipo-ui.js": "./js/comprobantestipo-ui.js?v=1789141896",
+    "./js/comprobantestipo.js": "./js/comprobantestipo.js?v=1789141896",
+    "./js/conciliacion.js": "./js/conciliacion.js?v=1789141896",
+    "./js/contabilidad-v2.js": "./js/contabilidad-v2.js?v=1789141896",
+    "./js/core.js": "./js/core.js?v=1789141896",
+    "./js/dispositivo.js": "./js/dispositivo.js?v=1789141896",
+    "./js/djcatalogo.js": "./js/djcatalogo.js?v=1789141896",
+    "./js/djrenta.js": "./js/djrenta.js?v=1789141896",
+    "./js/empresa.js": "./js/empresa.js?v=1789141896",
+    "./js/empresas-ui.js": "./js/empresas-ui.js?v=1789141896",
+    "./js/empresas.js": "./js/empresas.js?v=1789141896",
+    "./js/firebase-config.js": "./js/firebase-config.js?v=1789141896",
+    "./js/firebase.js": "./js/firebase.js?v=1789141896",
+    "./js/flujocaja.js": "./js/flujocaja.js?v=1789141896",
+    "./js/helpers.js": "./js/helpers.js?v=1789141896",
+    "./js/honorarios.js": "./js/honorarios.js?v=1789141896",
+    "./js/importadoraux.js": "./js/importadoraux.js?v=1789141896",
+    "./js/importadorsii.js": "./js/importadorsii.js?v=1789141896",
+    "./js/impresion.js": "./js/impresion.js?v=1789141896",
+    "./js/indicadores.js": "./js/indicadores.js?v=1789141896",
+    "./js/inicio.js": "./js/inicio.js?v=1789141896",
+    "./js/integridad.js": "./js/integridad.js?v=1789141896",
+    "./js/libroremuneraciones.js": "./js/libroremuneraciones.js?v=1789141896",
+    "./js/motor-contable.js": "./js/motor-contable.js?v=1789141896",
+    "./js/pagos.js": "./js/pagos.js?v=1789141896",
+    "./js/pdc-reglas.js": "./js/pdc-reglas.js?v=1789141896",
+    "./js/pdc.js": "./js/pdc.js?v=1789141896",
+    "./js/previsional-ui.js": "./js/previsional-ui.js?v=1789141896",
+    "./js/previsional.js": "./js/previsional.js?v=1789141896",
+    "./js/regimenes.js": "./js/regimenes.js?v=1789141896",
+    "./js/remuneraciones.js": "./js/remuneraciones.js?v=1789141896",
+    "./js/renta.js": "./js/renta.js?v=1789141896",
+    "./js/reportes.js": "./js/reportes.js?v=1789141896",
+    "./js/salida.js": "./js/salida.js?v=1789141896",
+    "./js/seguridad.js": "./js/seguridad.js?v=1789141896",
+    "./js/sistema.js": "./js/sistema.js?v=1789141896",
+    "./js/state.js": "./js/state.js?v=1789141896",
+    "./js/storage.js": "./js/storage.js?v=1789141896",
+    "./js/tema.js": "./js/tema.js?v=1789141896",
+    "./js/tributario.js": "./js/tributario.js?v=1789141896",
+    "./js/ui.js": "./js/ui.js?v=1789141896",
+    "./js/usuarios.js": "./js/usuarios.js?v=1789141896",
+    "./js/ventas.js": "./js/ventas.js?v=1789141896",
+    "./js/xmlsii.js": "./js/xmlsii.js?v=1789141896"
+  }
+}
+</script>
+<script type="module" src="js/app.js?v=1789141896"></script>
+
+<!-- Registro del service worker. Va después de app.js para no competir con la
+     carga de los módulos. Si falla —file://, navegador antiguo, sin HTTPS— la
+     aplicación funciona igual: el service worker sólo añade instalación y
+     arranque sin red, no es parte del funcionamiento normal. -->
+<script>
+(function(){
+  if(!('serviceWorker' in navigator))return;
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      // Si mientras la pestaña está abierta se publica una versión nueva, se
+      // avisa en vez de cambiarla debajo de los pies: podría haber un formulario
+      // a medio llenar.
+      reg.addEventListener('updatefound',function(){
+        var nuevo=reg.installing;
+        if(!nuevo)return;
+        nuevo.addEventListener('statechange',function(){
+          if(nuevo.state==='installed'&&navigator.serviceWorker.controller){
+            try{
+              if(window.toast)window.toast('🔄 Hay una versión nueva — recarga para aplicarla');
+              else console.info('Hay una versión nueva de la aplicación');
+            }catch(e){}
+          }
+        });
+      });
+    }).catch(function(e){console.warn('Service worker no registrado:',e);});
+  });
+})();
+</script>
+</body>
+</html>
