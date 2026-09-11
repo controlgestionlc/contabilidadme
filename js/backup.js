@@ -67,15 +67,15 @@ function construirWorkbookBD(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),'Empresa');
 
   // VENTAS
-  const ventasHdr=['id','fecha','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','otrosImpuestos','total','formaPago'];
-  const ventasRows=S.ventas.map(v=>ventasHdr.map(k=>v[k]!==undefined?v[k]:''));
+  const ventasHdr=['id','fecha','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','otrosImpuestos','total','formaPago','cuentaIngreso','estado','referenciaJSON'];
+  const ventasRows=S.ventas.map(v=>ventasHdr.map(k=>k==='referenciaJSON'?JSON.stringify(v.referencia||null):(v[k]!==undefined?v[k]:'')));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ventasHdr,...ventasRows]),'Ventas');
 
   // COMPRAS (con distribución serializada como JSON)
-  const comprasHdr=['id','fecha','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','otrosImpuestos','tratamientoOtrosImpuestos','otrosImpuestosDetalleJSON','total','distJSON'];
+  const comprasHdr=['id','fecha','periodoContable','fechaContabilizacion','origenRegistro','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','ivaRecuperable','ivaNoRecuperable','ivaActivoFijo','ivaUsoComun','porcentajeIvaRecuperable','tratamientoIVA','ivaRetenido','totalSII','otrosImpuestos','tratamientoOtrosImpuestos','otrosImpuestosDetalleJSON','total','estado','referenciaJSON','distJSON'];
   const comprasRows=S.compras.map(c=>[
-    c.id,c.fecha,c.fechaVencimiento||'',c.tipoDTE,c.numero,c.rutCodigo,c.rutDV,c.razonSocial,
-    c.neto||0,c.exento||0,c.iva||0,c.otrosImpuestos||0,c.tratamientoOtrosImpuestos||'costo',JSON.stringify(c.otrosImpuestosDetalle||[]),c.total||0,JSON.stringify(c.dist||[])
+    c.id,c.fecha,c.periodoContable||'',c.fechaContabilizacion||'',c.origenRegistro||'',c.fechaVencimiento||'',c.tipoDTE,c.numero,c.rutCodigo,c.rutDV,c.razonSocial,
+    c.neto||0,c.exento||0,c.iva||0,c.ivaRecuperable??'',c.ivaNoRecuperable??'',c.ivaActivoFijo??'',c.ivaUsoComun??'',c.porcentajeIvaRecuperable??'',c.tratamientoIVA||'',c.ivaRetenido??'',c.totalSII??'',c.otrosImpuestos||0,c.tratamientoOtrosImpuestos||'costo',JSON.stringify(c.otrosImpuestosDetalle||[]),c.total||0,c.estado||'',JSON.stringify(c.referencia||null),JSON.stringify(c.dist||[])
   ]);
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([comprasHdr,...comprasRows]),'Compras');
 
@@ -344,29 +344,44 @@ async function importarExcelBD(file){
     if(!confirm(msg))return;
 
     // Restaurar estructuras
-    S.ventas=vRows.map(r=>({
-      id:r.id||'v_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
-      fecha:r.fecha||'',fechaVencimiento:r.fechaVencimiento||'',
-      tipoDTE:+r.tipoDTE||0,numero:String(r.numero||'').trim(),
-      rutCodigo:String(r.rutCodigo||''),rutDV:String(r.rutDV||''),
-      razonSocial:r.razonSocial||'',
-      neto:+r.neto||0,exento:+r.exento||0,iva:+r.iva||0,otrosImpuestos:+r.otrosImpuestos||0,total:+r.total||0,
-      formaPago:r.formaPago||'banco'
-    }));
-    S.compras=cRows.map(r=>{
-      let dist=[],otrosImpuestosDetalle=[];
-      try{dist=JSON.parse(r.distJSON||'[]');}catch(e){}
-      try{otrosImpuestosDetalle=JSON.parse(r.otrosImpuestosDetalleJSON||'[]');}catch(e){}
-      if(!Array.isArray(dist)||!dist.length)dist=[{cuenta:'',monto:+r.neto||0}];
+    S.ventas=vRows.map(r=>{
+      let referencia=null;try{referencia=JSON.parse(r.referenciaJSON||'null');}catch(e){}
       return {
-        id:r.id||'c_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
-        fecha:r.fecha||'',fechaVencimiento:r.fechaVencimiento||'',
+        id:r.id||'v_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+        fecha:r.fecha||'',
+        ...(r.periodoContable?{periodoContable:String(r.periodoContable),fechaContabilizacion:r.fechaContabilizacion||'',origenRegistro:r.origenRegistro||'RCV'}:{}),
+        fechaVencimiento:r.fechaVencimiento||'',
         tipoDTE:+r.tipoDTE||0,numero:String(r.numero||'').trim(),
         rutCodigo:String(r.rutCodigo||''),rutDV:String(r.rutDV||''),
         razonSocial:r.razonSocial||'',
-        neto:+r.neto||0,exento:+r.exento||0,iva:+r.iva||0,otrosImpuestos:+r.otrosImpuestos||0,
-        tratamientoOtrosImpuestos:r.tratamientoOtrosImpuestos||'costo',otrosImpuestosDetalle,total:+r.total||0,
-        dist
+        neto:+r.neto||0,exento:+r.exento||0,iva:+r.iva||0,otrosImpuestos:+r.otrosImpuestos||0,total:+r.total||0,
+        formaPago:r.formaPago||'banco',cuentaIngreso:r.cuentaIngreso||'',estado:r.estado||'',...(referencia?{referencia}:{})
+      };
+    });
+    S.compras=cRows.map(r=>{
+      let dist=[],otrosImpuestosDetalle=[],referencia=null;
+      try{dist=JSON.parse(r.distJSON||'[]');}catch(e){}
+      try{otrosImpuestosDetalle=JSON.parse(r.otrosImpuestosDetalleJSON||'[]');}catch(e){}
+      try{referencia=JSON.parse(r.referenciaJSON||'null');}catch(e){}
+      if(!Array.isArray(dist)||!dist.length)dist=[{cuenta:'',monto:+r.neto||0}];
+      return {
+        id:r.id||'c_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+        fecha:r.fecha||'',
+        ...(r.periodoContable?{periodoContable:String(r.periodoContable),fechaContabilizacion:r.fechaContabilizacion||'',origenRegistro:r.origenRegistro||'RCV'}:{}),
+        fechaVencimiento:r.fechaVencimiento||'',
+        tipoDTE:+r.tipoDTE||0,numero:String(r.numero||'').trim(),
+        rutCodigo:String(r.rutCodigo||''),rutDV:String(r.rutDV||''),
+        razonSocial:r.razonSocial||'',
+        neto:+r.neto||0,exento:+r.exento||0,iva:+r.iva||0,
+        ...(r.ivaRecuperable!==undefined&&r.ivaRecuperable!==''?{ivaRecuperable:+r.ivaRecuperable||0}:{}),
+        ...(r.ivaNoRecuperable!==undefined&&r.ivaNoRecuperable!==''?{ivaNoRecuperable:+r.ivaNoRecuperable||0}:{}),
+        ...(r.ivaActivoFijo!==undefined&&r.ivaActivoFijo!==''?{ivaActivoFijo:+r.ivaActivoFijo||0}:{}),
+        ...(r.ivaUsoComun!==undefined&&r.ivaUsoComun!==''?{ivaUsoComun:+r.ivaUsoComun||0}:{}),
+        ...(r.porcentajeIvaRecuperable!==undefined&&r.porcentajeIvaRecuperable!==''?{porcentajeIvaRecuperable:+r.porcentajeIvaRecuperable||0}:{}),
+        tratamientoIVA:r.tratamientoIVA||'',...(r.ivaRetenido!==undefined&&r.ivaRetenido!==''?{ivaRetenido:+r.ivaRetenido||0}:{}),
+        ...(r.totalSII!==undefined&&r.totalSII!==''?{totalSII:+r.totalSII||0}:{}),otrosImpuestos:+r.otrosImpuestos||0,
+        tratamientoOtrosImpuestos:r.tratamientoOtrosImpuestos||'costo',otrosImpuestosDetalle,total:+r.total||0,estado:r.estado||'',
+        ...(referencia?{referencia}:{}),dist
       };
     });
     S.asientos=aRows.map(r=>{
@@ -485,7 +500,7 @@ function initBDImportListener(){
   window.storage.set=async function(k,v){
     const r=await origSet(k,v);
     // Solo agendar si la clave es relevante a la BD
-    if(/^(ventas|compras|asientos|honorarios|empresa|apertura|pdc)/.test(k))bdScheduleSave();
+    if(/^(ventas|compras|asientos|honorarios|f29-declaraciones|empresa|apertura|pdc)/.test(k))bdScheduleSave();
     return r;
   };
   window.storage._bdPatched=true;

@@ -1,8 +1,9 @@
 // contabilidad-v2.js — capa de orquestación contable V2.
 // Mantiene un asiento persistido por documento y protege operaciones críticas.
 import {S} from './state.js';
-import {asientoVenta,asientoCompra,cuadratura,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra} from './motor-contable.js';
+import {asientoVenta,asientoCompra,cuadratura,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,periodoContableCompra,fechaContabilizacionCompra} from './motor-contable.js';
 import {validarMovimientosPDC,reglaCuenta} from './pdc-reglas.js';
+import {dteV,dteC} from './core.js';
 
 const n=v=>Number(v)||0;
 const idAsientoDoc=(fuente,docId)=>`auto:${fuente}:${docId}`;
@@ -97,7 +98,7 @@ function anularAsientoDocumento(fuente,docId,motivo='documento anulado'){
 // Guarda documento + asiento como una unidad lógica. Si una de las dos
 // persistencias falla, restaura el estado en memoria y reintenta restaurar nube.
 async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
-  if(!puedeOperarFecha(doc.fecha))return {ok:false,motivo:'ejercicio-cerrado'};
+  if(!puedeOperarFecha(fuente==='compras'?fechaContabilizacionCompra(doc):doc.fecha))return {ok:false,motivo:'ejercicio-cerrado'};
   const claveDoc=`${fuente}-${S.empresa.anio}`;
   const claveAs=`asientos-${S.empresa.anio}`;
   const snapArr=JSON.stringify(arr);
@@ -121,7 +122,7 @@ async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
 }
 
 async function anularDocumentoContabilizado(fuente,doc,arr){
-  if(!puedeOperarFecha(doc.fecha))return {ok:false,motivo:'ejercicio-cerrado'};
+  if(!puedeOperarFecha(fuente==='compras'?fechaContabilizacionCompra(doc):doc.fecha))return {ok:false,motivo:'ejercicio-cerrado'};
   const snapArr=JSON.stringify(arr),snapAs=JSON.stringify(S.asientos||[]);
   doc.estado='anulado';doc.anuladoEn=new Date().toISOString();
   anularAsientoDocumento(fuente,doc.id);
@@ -218,6 +219,16 @@ function auditoriaIntegridad(){
   for(const d of (S.compras||[]).filter(x=>x.estado!=='anulado'&&!x.excluidoAuto)){
     const a=asAct.find(x=>x.tipo==='documento'&&x.fuente==='compras'&&x.docId===d.id); if(!a)continue;
     const ci=clasificacionIVACompra(d);
+    // V2.11.1: la fecha documental puede pertenecer a otro mes, pero el asiento
+    // debe quedar obligatoriamente dentro del periodo RCV/contable informado.
+    const perC=periodoContableCompra(d);
+    const fechaC=fechaContabilizacionCompra(d);
+    if(d.origenRegistro==='RCV'&&!/^\d{4}-\d{2}$/.test(String(d.periodoContable||'')))
+      agregar('critica','rcv_sin_periodo_contable',`Compra DTE ${d.tipoDTE} N°${d.numero}: importada desde RCV sin período contable`,d.id);
+    if(perC&&String(a.fecha||'').slice(0,7)!==perC)
+      agregar('critica','asiento_fuera_periodo_rcv',`Compra DTE ${d.tipoDTE} N°${d.numero}: período contable ${perC} pero asiento fechado ${a.fecha||'sin fecha'}`,d.id);
+    if(d.fechaContabilizacion&&a.fecha!==fechaC)
+      agregar('alta','fecha_contabilizacion_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: fecha contable esperada ${fechaC} ≠ asiento ${a.fecha||'sin fecha'}`,d.id);
     const recGeneral=Math.abs((a.movs||[]).filter(m=>m.cd==='1108002').reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
     const recAF=Math.abs((a.movs||[]).filter(m=>m.cd==='1108008').reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
     if(Math.abs(recGeneral-(ci.recuperable-ci.activoFijo))>1)agregar('critica','iva_credito_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: crédito general esperado ${Math.round(ci.recuperable-ci.activoFijo)} ≠ asiento ${Math.round(recGeneral)}`,d.id);
@@ -248,6 +259,16 @@ function auditoriaIntegridad(){
     if(Math.abs(retAs-tc.ivaRetenido)>1)agregar('critica','iva_retenido_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: retención esperada ${Math.round(tc.ivaRetenido)} ≠ asiento ${Math.round(retAs)}`,d.id);
     if(Math.abs(provAs-tc.totalProveedor)>1)agregar('critica','proveedor_factura_compra_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: proveedor esperado ${Math.round(tc.totalProveedor)} ≠ asiento ${Math.round(provAs)}`,d.id);
     if(tc.diferenciaTotal>1)agregar('alta','total_factura_compra_ambiguo',`Compra DTE ${d.tipoDTE} N°${d.numero}: total informado ${Math.round(tc.totalInformado)} no coincide con total documento ${Math.round(tc.totalDocumento)} ni total proveedor ${Math.round(tc.totalProveedor)}`,d.id);
+  }
+
+  // 4c) Notas de crédito/débito: desde V2.11 deben conservar el documento
+  //     referenciado. En datos históricos la ausencia se reporta como alta,
+  //     no crítica, para no bloquear cierres sólo por migración documental.
+  for(const [fuente,arr] of [['ventas',S.ventas||[]],['compras',S.compras||[]]]){
+    for(const d of arr.filter(x=>x.estado!=='anulado'&&(+x.tipoDTE===56||+x.tipoDTE===61))){
+      if(!d.referencia?.folio)agregar('alta','nota_sin_referencia',`${fuente} DTE ${d.tipoDTE} N°${d.numero}: falta folio del documento referenciado`,d.id);
+      if(d.referencia?.fecha&&d.fecha&&d.referencia.fecha>d.fecha)agregar('alta','nota_referencia_fecha_posterior',`${fuente} DTE ${d.tipoDTE} N°${d.numero}: la fecha del documento referenciado es posterior a la nota`,d.id);
+    }
   }
 
   // 5) Cierre y secuencia temporal
@@ -302,15 +323,15 @@ function auditoriaIntegridad(){
   // 10) Control mensual IVA: documento vs asiento maestro por período.
   for(const fuente of ['ventas','compras']){
     const arr=fuente==='ventas'?(S.ventas||[]):(S.compras||[]);
-    const periodos=new Set(arr.filter(d=>d.estado!=='anulado').map(d=>String(d.fecha||'').slice(0,7)).filter(Boolean));
+    const periodos=new Set(arr.filter(d=>d.estado!=='anulado').map(d=>fuente==='compras'?periodoContableCompra(d):String(d.fecha||'').slice(0,7)).filter(Boolean));
     for(const per of periodos){
       let ivaDocs=0,ivaAs=0;
       if(fuente==='ventas'){
-        ivaDocs=arr.filter(d=>d.estado!=='anulado'&&String(d.fecha||'').startsWith(per)).reduce((t,d)=>t+Math.abs(n(d.iva)),0);
-        ivaAs=asAct.filter(a=>a.tipo==='documento'&&a.fuente===fuente&&String(a.fecha||'').startsWith(per)).reduce((t,a)=>t+Math.abs((a.movs||[]).filter(m=>m.cd==='2103003').reduce((s,m)=>s+n(m.haber)-n(m.debe),0)),0);
+        ivaDocs=arr.filter(d=>d.estado!=='anulado'&&String(d.fecha||'').startsWith(per)).reduce((t,d)=>t+n(d.iva)*((dteV(d.tipoDTE)?.signo)||1),0);
+        ivaAs=asAct.filter(a=>a.tipo==='documento'&&a.fuente===fuente&&String(a.fecha||'').startsWith(per)).reduce((t,a)=>t+(a.movs||[]).filter(m=>m.cd==='2103003').reduce((s,m)=>s+n(m.haber)-n(m.debe),0),0);
       }else{
-        ivaDocs=arr.filter(d=>d.estado!=='anulado'&&String(d.fecha||'').startsWith(per)).reduce((t,d)=>t+clasificacionIVACompra(d).recuperable,0);
-        ivaAs=asAct.filter(a=>a.tipo==='documento'&&a.fuente===fuente&&String(a.fecha||'').startsWith(per)).reduce((t,a)=>t+Math.abs((a.movs||[]).filter(m=>m.cd==='1108002'||m.cd==='1108008').reduce((s,m)=>s+n(m.debe)-n(m.haber),0)),0);
+        ivaDocs=arr.filter(d=>d.estado!=='anulado'&&periodoContableCompra(d)===per).reduce((t,d)=>t+clasificacionIVACompra(d).recuperable*((dteC(d.tipoDTE)?.signo)||1),0);
+        ivaAs=asAct.filter(a=>a.tipo==='documento'&&a.fuente===fuente&&String(a.fecha||'').startsWith(per)).reduce((t,a)=>t+(a.movs||[]).filter(m=>m.cd==='1108002'||m.cd==='1108008').reduce((s,m)=>s+n(m.debe)-n(m.haber),0),0);
       }
       if(Math.abs(ivaDocs-ivaAs)>1)agregar('critica','iva_periodo_difiere',`${fuente} ${per}: IVA recuperable documentos ${Math.round(ivaDocs)} ≠ IVA asientos ${Math.round(ivaAs)}`,`${fuente}:${per}`);
     }

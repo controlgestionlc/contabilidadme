@@ -7,6 +7,31 @@ import {pdcNm, dteV, dteC} from './core.js';
 const n=v=>Number(v)||0;
 const mov=(cd,debe,haber,extra={})=>({cd,nm:pdcNm(cd),debe:n(debe),haber:n(haber),...extra});
 
+// V2.11.1 — fecha tributaria del documento y periodo contable son conceptos distintos.
+// En compras importadas desde el RCV, `fecha` conserva siempre la fecha original del DTE.
+// `periodoContable` determina el mes en que el documento se reconoce contablemente y en F29.
+// `fechaContabilizacion` es la fecha del asiento dentro de ese periodo; por defecto, el último
+// día del mes para documentos cuya fecha documental pertenece a otro periodo.
+function periodoContableCompra(d){
+  const pc=String(d?.periodoContable||'').trim();
+  if(/^\d{4}-\d{2}$/.test(pc))return pc;
+  return String(d?.fecha||'').slice(0,7);
+}
+function ultimoDiaPeriodo(periodo){
+  if(!/^\d{4}-\d{2}$/.test(String(periodo||'')))return '';
+  const [y,m]=periodo.split('-').map(Number);
+  const dia=new Date(y,m,0).getDate();
+  return `${y}-${String(m).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+}
+function fechaContabilizacionCompra(d){
+  const per=periodoContableCompra(d);
+  const fc=String(d?.fechaContabilizacion||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(fc)&&fc.slice(0,7)===per)return fc;
+  const fd=String(d?.fecha||'').trim();
+  if(fd.slice(0,7)===per)return fd;
+  return ultimoDiaPeriodo(per)||fd;
+}
+
 function cuadratura(movs){
   const debe=movs.reduce((s,m)=>s+n(m.debe),0);
   const haber=movs.reduce((s,m)=>s+n(m.haber),0);
@@ -191,7 +216,7 @@ function asientoCompra(d){
     if(ret>0)movs.push(mov('2103005',0,ret,{desc:'IVA retenido factura de compra',docId:d.id,tributo:'iva_retenido'}));
     else movs.push(mov('2103005',-ret,0,{desc:'IVA retenido factura de compra',docId:d.id,tributo:'iva_retenido'}));
   }
-  return {fecha:d.fecha,glosa,movs,fuente:'compras',docId:d.id,tipoDTE:d.tipoDTE,folio:d.numero,rutCodigo:d.rutCodigo,tributacion:trib,ivaClasificacion:ivaClas,otrosImpuestosClasificacion:otrosClas,cuadre:cuadratura(movs)};
+  return {fecha:fechaContabilizacionCompra(d),glosa,movs,fuente:'compras',docId:d.id,tipoDTE:d.tipoDTE,folio:d.numero,rutCodigo:d.rutCodigo,tributacion:trib,ivaClasificacion:ivaClas,otrosImpuestosClasificacion:otrosClas,cuadre:cuadratura(movs)};
 }
 
 
@@ -256,4 +281,4 @@ function pagosDocumento(doc,tipo,asientos){
   return actuales.length?actuales:(doc.pagos||[]); // compatibilidad histórica
 }
 
-export {asientoVenta,asientoCompra,asientoHonorario,asientoPagoHonorario,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,cuadratura,pagosDesdeAsientos,pagosDocumento};
+export {asientoVenta,asientoCompra,asientoHonorario,asientoPagoHonorario,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,periodoContableCompra,fechaContabilizacionCompra,cuadratura,pagosDesdeAsientos,pagosDocumento};

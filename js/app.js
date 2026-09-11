@@ -79,14 +79,14 @@ import {abrirAperturaAux, cerrarAperturaAux, renderAperturaAux, apxAddDoc, apxDe
         apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
         descargarPlantillaAperturaAux, initAperturaAuxListener, APX} from './aperturaaux.js';
 import {onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerrarVF,
-        vfRutInput, vfCheckDup, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
+        vfRutInput, vfCheckDup, vfDteChanged, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
         eliminarVenta, VF, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas,
         initImportListenerV, setBulkCuentaImpV,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, IMV} from './ventas.js';
 import {onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
-        cfRutInput, cfCheckDup, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
+        cfRutInput, cfCheckDup, cfDteChanged, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
         guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal,
         cambiarPeriodoImport, cerrarImportModal, toggleImportDoc, toggleAllImport,
         setImportCuenta, aplicarCuentaATodos, confirmarImportacion,
@@ -132,7 +132,8 @@ import {setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux,
 import {renderF29, renderPPM, IVAC, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente,
         PAGOF29, renderPagoF29, generarAsientoPagoF29, setPagoF29Cuenta, setPagoF29Campo,
-        setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29} from './tributario.js';
+        setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29, cargarDeclaracionesF29,
+        setF29Declarado, setF29DeclCampo, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29} from './tributario.js';
 import {DJ, renderDJ, cargarDJ, resetDJ, setDJVerTodas, setDJEstado, editarDJ, nuevaDJ,
         cerrarEditorDJ, guardarDJ, borrarDJ, restaurarCatalogoDJ, exportarDJExcel} from './djrenta.js';
 import {renderRenta, setRentaTab, setRentaParam, restaurarTasaLegal, toggleRechazada,
@@ -289,7 +290,7 @@ async function loadYear(y){
   try{actualizarBotonGuardar();}catch(e){}
   return S.cargaFallida;
 }
-async function changeYear(y){S.empresa.anio=y;await loadYear(y);rerender();}
+async function changeYear(y){S.empresa.anio=y;await loadYear(y);await cargarDeclaracionesF29(true);rerender();}
 async function init(){
   // Firestore y Auth arrancan EN PARALELO.
   // Antes se esperaba a que Firestore terminara de conectar para recién empezar
@@ -354,6 +355,7 @@ async function initApp(){
   try{if(asegurarCuentasSistema(PDC))await window.storage.set('pdc',JSON.stringify(PDC));}catch(e){console.warn('No se pudo persistir cuentas de sistema:',e);}
   ys.value=S.empresa.anio;
   await loadYear(S.empresa.anio);
+  await cargarDeclaracionesF29(true);
   await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
   // Migración de folios de comprobante para datos preexistentes:
   // asigna folioComp a asientos manuales, compras, ventas y apertura que no
@@ -523,6 +525,7 @@ async function recargarEmpresaActiva(){
   }catch(e){}
   try{if(asegurarCuentasSistema(PDC))await window.storage.set('pdc',JSON.stringify(PDC));}catch(e){console.warn('No se pudo persistir cuentas de sistema:',e);}
   await loadYear(S.empresa.anio);
+  await cargarDeclaracionesF29(true);
   await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
   fillEmpresaForm();updateHdr();renderSelectorEmpresa();renderInicio();
   try{aplicarPermisosUI();}catch(e){}
@@ -593,10 +596,10 @@ Object.assign(window,{
   descargarPlantillaAperturaAux, APX,
   // ventas
   onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerrarVF,
-  vfRutInput, vfCheckDup, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
+  vfRutInput, vfCheckDup, vfDteChanged, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
   // compras
   onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
-  cfRutInput, cfCheckDup, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
+  cfRutInput, cfCheckDup, cfDteChanged, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
   guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal, cambiarPeriodoImport,
   cerrarImportModal, toggleImportDoc, toggleAllImport, setImportCuenta,
   aplicarCuentaATodos, confirmarImportacion, renderImportModal, pn,
@@ -634,7 +637,7 @@ Object.assign(window,{
   setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux, renderAuxiliares, toggleAgingDetalle,
   auxPorRut, abrirReporteAuxDe, abrirReporteAux, cerrarReporteAux, setReporteAuxVista,
   renderReporteAux, imprimirReporteAux, exportarReporteAuxExcel,
-  renderF29, renderPPM, setFCView, renderFlujoCaja,
+  renderF29, renderPPM, setF29Declarado, setF29DeclCampo, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29, setFCView, renderFlujoCaja,
   // asignación manual de centros de costo
   renderAsigCC, resetAsigCC, setAsigCC, limpiarFiltrosCC, setCCMov, toggleSelCC, selTodosCC,
   limpiarSelCC, setBulkCC, asignarSelCC, exportarAsigCCExcel, pendientesCC,

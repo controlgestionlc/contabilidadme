@@ -10,19 +10,139 @@ import {rerender} from './ui.js';
 import {savePDC} from './pdc.js';
 import {S} from './state.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
-import {tributacionCompra,clasificacionIVACompra} from './motor-contable.js';
+import {tributacionCompra,clasificacionIVACompra,periodoContableCompra} from './motor-contable.js';
 import './storage.js';
+
+
+
+// ═══ V2.12 — DECLARACIÓN F29 PRESENTADA / HISTÓRICA ═══
+// El cálculo del sistema es dinámico; la declaración presentada al SII es un hecho
+// histórico. Se guardan por separado para que una edición posterior de documentos
+// no reescriba silenciosamente el remanente ya declarado.
+const F29DECL={anio:null,items:{},loaded:false,cargando:false};
+const F29_CODIGOS_DECL=[538,39,537,504,77,89,563,62,151,91];
+const claveF29Decl=anio=>`f29-declaraciones-${anio}`;
+const periodoF29=mes=>`${S.empresa.anio}-${String(mes).padStart(2,'0')}`;
+function declaracionF29(periodo){return F29DECL.items?.[periodo]||null;}
+function esF29Presentado(d){return !!(d&&['presentado','cerrado'].includes(d.estado));}
+function codDecl(d,cod,def=0){const v=d?.declarado?.[String(cod)];return v==null?def:+v||0;}
+async function cargarDeclaracionesF29(force=false){
+  const anio=+S.empresa.anio;
+  if(!force&&F29DECL.loaded&&F29DECL.anio===anio)return F29DECL.items;
+  if(F29DECL.cargando)return F29DECL.items;
+  F29DECL.cargando=true;
+  try{
+    const r=await window.storage.get(claveF29Decl(anio));
+    F29DECL.items=r?JSON.parse(r.value||'{}'):{};
+    if(!F29DECL.items||Array.isArray(F29DECL.items)||typeof F29DECL.items!=='object')F29DECL.items={};
+    F29DECL.anio=anio;F29DECL.loaded=true;
+  }catch(e){console.warn('No se pudieron cargar declaraciones F29:',e);F29DECL.items={};F29DECL.anio=anio;F29DECL.loaded=true;}
+  finally{F29DECL.cargando=false;}
+  return F29DECL.items;
+}
+async function guardarDeclaracionesF29(){
+  const r=await window.storage.set(claveF29Decl(S.empresa.anio),JSON.stringify(F29DECL.items||{}));
+  return !!(r&&r.ok!==false);
+}
+function snapshotF29(d){
+  const c={};F29_CODIGOS_DECL.forEach(k=>c[String(k)]=Math.round(+d.codigos?.[k]||0));
+  return c;
+}
+function diferenciasF29(calc,decl){
+  if(!decl)return [];
+  return F29_CODIGOS_DECL.map(c=>({cod:c,calc:Math.round(+calc.codigos?.[c]||0),decl:codDecl(decl,c,0)}))
+    .filter(x=>x.calc!==x.decl);
+}
+function setF29Declarado(cod,val){
+  const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes);
+  const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador',declarado:{}});
+  if(esF29Presentado(d))return;
+  d.declarado=d.declarado||{};d.declarado[String(cod)]=Math.max(0,Math.round(+val||0));
+}
+function setF29DeclCampo(k,val){
+  const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes);
+  const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador',declarado:{}});
+  if(esF29Presentado(d))return; d[k]=val;
+}
+function copiarCalculadoAF29(){
+  const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes), calc=calcularF29Anual()[mes-1];
+  const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador'});
+  if(esF29Presentado(d))return;
+  d.declarado=snapshotF29(calc); renderF29();
+}
+async function guardarBorradorF29(){
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de editar el control F29.','e');return;}
+  const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes), calc=calcularF29Anual()[mes-1];
+  const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador',declarado:snapshotF29(calc)});
+  if(esF29Presentado(d)){toast('🔒 El F29 ya está marcado como presentado. Reábrelo para modificarlo.','e');return;}
+  d.estado='borrador';d.actualizadoEn=new Date().toISOString();d.calculadoAlGuardar=snapshotF29(calc);
+  if(!await guardarDeclaracionesF29()){toast('❌ No se pudo guardar el borrador F29.','e');return;}
+  toast(`✅ Borrador F29 ${per} guardado`);renderF29();
+}
+async function presentarF29(){
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de registrar una declaración F29.','e');return;}
+  const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes), calc=calcularF29Anual()[mes-1];
+  const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador',declarado:snapshotF29(calc)});
+  if(esF29Presentado(d)){toast('ℹ️ Este F29 ya está presentado','i');return;}
+  if(!d.declarado||!Object.keys(d.declarado).length)d.declarado=snapshotF29(calc);
+  if(!confirm(`¿Marcar el F29 ${per} como PRESENTADO AL SII?\n\nDesde ese momento sus valores declarados y su remanente quedarán congelados para el arrastre histórico.`))return;
+  d.estado='presentado';d.presentadoEn=new Date().toISOString();d.calculadoAlPresentar=snapshotF29(calc);
+  if(!d.fechaPresentacion)d.fechaPresentacion=new Date().toISOString().slice(0,10);
+  if(!await guardarDeclaracionesF29()){d.estado='borrador';toast('❌ No se pudo registrar la presentación del F29.','e');return;}
+  logAccion('Marcó F29 como presentado',`${per} · total declarado ${fmtC(codDecl(d,91,0))}`);
+  toast(`✅ F29 ${per} registrado como presentado`);renderF29();
+}
+async function reabrirF29(){
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de reabrir un F29.','e');return;}
+  const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes), d=F29DECL.items[per];
+  if(!esF29Presentado(d))return;
+  const motivo=prompt(`Motivo de reapertura del F29 ${per} (mínimo 10 caracteres):`,'');
+  if(!motivo||motivo.trim().length<10){toast('⚠️ Debes indicar un motivo de al menos 10 caracteres','e');return;}
+  d.estado='borrador';d.reabiertoEn=new Date().toISOString();d.motivoReapertura=motivo.trim();
+  if(!await guardarDeclaracionesF29()){d.estado='presentado';toast('❌ No se pudo reabrir el F29.','e');return;}
+  logAccion('Reabrió F29',`${per} · ${motivo.trim()}`);toast(`🔓 F29 ${per} reabierto`);renderF29();
+}
 
 // ═══ FORMULARIO 29 (IVA mensual + PPM + retenciones) ═══
 // Devuelve los datos mensuales de F29 para un año, con arrastre de remanente de crédito fiscal.
+function _f29VentaDetalle(vs){
+  const r={facturas:{n:0,iva:0},boletas:{n:0,iva:0},nd:{n:0,iva:0},nc:{n:0,iva:0},exentas:{n:0,monto:0}};
+  vs.forEach(d=>{
+    const t=+d.tipoDTE, iva=Math.abs(+d.iva||0), ex=Math.abs(+d.exento||0);
+    if(t===33){r.facturas.n++;r.facturas.iva+=iva;}
+    else if(t===39){r.boletas.n++;r.boletas.iva+=iva;}
+    else if(t===56){r.nd.n++;r.nd.iva+=iva;}
+    else if(t===61){r.nc.n++;r.nc.iva+=iva;}
+    else if(t===34||t===41){r.exentas.n++;r.exentas.monto+=ex||Math.abs(+d.total||0);}
+  });
+  return r;
+}
+function _f29CompraDetalle(cs){
+  const r={facturas:{n:0,credito:0},activoFijo:{n:0,credito:0},nd:{n:0,credito:0},nc:{n:0,credito:0},sinDerecho:{n:0,neto:0},exentas:{n:0,monto:0}};
+  cs.forEach(d=>{
+    const t=+d.tipoDTE, ci=clasificacionIVACompra(d), rec=ci.recuperable;
+    if(t===61){r.nc.n++;r.nc.credito+=rec;return;}
+    if(t===56){r.nd.n++;r.nd.credito+=rec;return;}
+    if(t===32||t===34){r.exentas.n++;r.exentas.monto+=Math.abs(+d.exento||+d.total||0);return;}
+    if(ci.activoFijo>0){r.activoFijo.n++;r.activoFijo.credito+=ci.activoFijo;}
+    const creditoGiro=Math.max(0,rec-ci.activoFijo);
+    if(creditoGiro>0){r.facturas.n++;r.facturas.credito+=creditoGiro;}
+    if(ci.noRecuperable>0){r.sinDerecho.n++;r.sinDerecho.neto+=Math.abs(+d.neto||0);}
+  });
+  return r;
+}
+
+// V2.11: devuelve además el desglose de códigos que explican el F29. El cálculo
+// económico usa los signos de los DTE; el desglose conserva NC/ND en sus líneas
+// propias para poder conciliar la propuesta del SII sin esconder compensaciones.
 function calcularF29Anual(){
   const anio=S.empresa.anio;
   const meses=[];
-  let remanenteAnt=0; // remanente de crédito fiscal del mes anterior (código 504→077)
+  let remanenteAnt=0;
   const tasaPPM=(S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0)/100;
   for(let m=1;m<=12;m++){
-    // Ventas del mes (débito fiscal)
     const vs=todosDocsVentas().filter(d=>+d.fecha.slice(5,7)===m);
+    const vdet=_f29VentaDetalle(vs);
     let ventasNetas=0,ventasExentas=0,debito=0;
     vs.forEach(d=>{
       const signo=(dteV(d.tipoDTE)?.signo)||1;
@@ -30,8 +150,10 @@ function calcularF29Anual(){
       ventasExentas+=(d.exento||0)*signo;
       debito+=(d.iva||0)*signo;
     });
-    // Compras del mes (crédito fiscal)
-    const cs=todosDocsCompras().filter(d=>+d.fecha.slice(5,7)===m);
+
+    const per=`${anio}-${String(m).padStart(2,'0')}`;
+    const cs=todosDocsCompras().filter(d=>periodoContableCompra(d)===per);
+    const cdet=_f29CompraDetalle(cs);
     let comprasNetas=0,credito=0,creditoActivoFijo=0,ivaNoRecuperable=0,ivaRetenido=0;
     cs.forEach(d=>{
       const signo=(dteC(d.tipoDTE)?.signo)||1;
@@ -40,34 +162,47 @@ function calcularF29Anual(){
       credito+=(ci.recuperable-ci.activoFijo)*signo;
       creditoActivoFijo+=ci.activoFijo*signo;
       ivaNoRecuperable+=ci.noRecuperable*signo;
-      // DTE 45/46 (factura de compra): el receptor retiene IVA. La fuente
-      // única de esa semántica es el motor contable, no una excepción local.
       const tc=tributacionCompra(d);
       if(tc.facturaCompra)ivaRetenido+=tc.ivaRetenido*signo;
     });
     const creditoMes=credito+creditoActivoFijo;
-    // Honorarios del mes → retención del año (código 151)
     const honM=(S.honorarios||[]).filter(h=>h.estado!=='anulado'&&h.mes===m);
-    const retencionHon=Math.round(honM.reduce((s,h)=>s+ +(h.bruto||0),0)*retencionHonorarios(S.empresa.anio));
-    // IVA: crédito total = crédito del mes + remanente anterior
-    // Débito total = débito de las ventas + IVA retenido en facturas de compra
+    const retencionHon=Math.round(honM.reduce((s,h)=>s+(h.retencion!=null?Math.abs(+h.retencion||0):Math.round(Math.abs(+h.bruto||0)*(h.tasaRetencion!=null?+h.tasaRetencion:retencionHonorarios(S.empresa.anio)))),0));
     const creditoTotal=creditoMes+remanenteAnt;
     const debitoTotal=debito+ivaRetenido;
     const ivaDeterminado=debitoTotal-creditoTotal;
-    let ivaAPagar=0,remanente=0;
-    if(ivaDeterminado>0){ivaAPagar=ivaDeterminado;remanente=0;}
-    else{ivaAPagar=0;remanente=-ivaDeterminado;}
-    // PPM sobre ingresos brutos (netos + exentos de explotación)
+    const ivaAPagar=ivaDeterminado>0?ivaDeterminado:0;
+    const remanente=ivaDeterminado<0?-ivaDeterminado:0;
     const basePPM=ventasNetas+ventasExentas;
     const ppm=Math.round(basePPM*tasaPPM);
-    // Total a pagar en el F29
     const totalPagar=ivaAPagar+ppm+retencionHon;
-    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,ppm,retencionHon,totalPagar,nDocsV:vs.length,nDocsC:cs.length});
-    remanenteAnt=remanente;
+    const codigos={
+      503:vdet.facturas.n,502:vdet.facturas.iva,
+      110:vdet.boletas.n,111:vdet.boletas.iva,
+      512:vdet.nd.n,513:vdet.nd.iva,
+      509:vdet.nc.n,510:vdet.nc.iva,
+      586:vdet.exentas.n,142:vdet.exentas.monto,
+      538:debito,
+      519:cdet.facturas.n,520:cdet.facturas.credito,
+      524:cdet.activoFijo.n,525:cdet.activoFijo.credito,
+      527:cdet.nc.n,528:cdet.nc.credito,
+      531:cdet.nd.n,532:cdet.nd.credito,
+      564:cdet.sinDerecho.n,521:cdet.sinDerecho.neto,
+      584:cdet.exentas.n,562:cdet.exentas.monto,
+      504:remanenteAnt,537:creditoTotal,77:remanente,89:ivaAPagar,
+      563:basePPM,62:ppm,151:retencionHon,91:totalPagar,
+      39:ivaRetenido
+    };
+    const decl=declaracionF29(per);
+    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,ppm,retencionHon,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
+    // Si el período fue presentado, el arrastre legal al mes siguiente es el
+    // remanente DECLARADO, no el que hoy resulte de recalcular documentos viejos.
+    remanenteAnt=esF29Presentado(decl)?codDecl(decl,77,remanente):remanente;
   }
   return meses;
 }
 function renderF29(){
+  if(!F29DECL.loaded||F29DECL.anio!==+S.empresa.anio){cargarDeclaracionesF29().then(()=>renderF29());}
   const sel=document.getElementById('f29-mes');
   if(sel&&sel.options.length===0){
     sel.innerHTML=MESES.map((nm,i)=>`<option value="${i+1}">${nm} ${S.empresa.anio}</option>`).join('');
@@ -79,6 +214,17 @@ function renderF29(){
   const data=calcularF29Anual();
   const d=data[mSel-1];
   const el=document.getElementById('f29-content');
+  const per=periodoF29(mSel), decl=declaracionF29(per), presentado=esF29Presentado(decl), difs=diferenciasF29(d,decl);
+  const declVal=cod=>decl?.declarado?.[String(cod)]!=null?decl.declarado[String(cod)]:(d.codigos?.[cod]||0);
+  const panelDeclaracion=`<div class="card" style="max-width:760px;margin-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div><div class="card-title">📌 Declaración F29 presentada</div><div style="font-size:11px;color:var(--mt)">Separa el cálculo dinámico del sistema de lo efectivamente declarado al SII.</div></div><span class="badge ${presentado?'bg':'bi'}">${presentado?'PRESENTADO':'BORRADOR'}</span></div>
+    ${presentado&&difs.length?`<div class="info-tip" style="margin:10px 0;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ El cálculo actual difiere de la declaración presentada en <strong>${difs.length}</strong> código(s). La historia declarada no fue modificada; revisa la conciliación antes de rectificar.</div>`:''}
+    <div class="fg" style="margin:10px 0"><div class="grp"><label>Fecha presentación</label><input type="date" value="${decl?.fechaPresentacion||''}" onchange="setF29DeclCampo('fechaPresentacion',this.value)" ${presentado?'disabled':''}></div><div class="grp"><label>Folio / N° declaración</label><input type="text" value="${String(decl?.folio||'').replace(/"/g,'&quot;')}" onchange="setF29DeclCampo('folio',this.value)" ${presentado?'disabled':''}></div></div>
+    <div class="card-np"><div class="tw"><table><thead><tr><th class="tl">CÓDIGO</th><th class="tl">CONCEPTO</th><th>CALCULADO</th><th>DECLARADO</th><th>DIF.</th></tr></thead><tbody>
+    ${[[538,'Total débitos'],[39,'IVA retenido'],[504,'Remanente anterior'],[537,'Total créditos'],[77,'Remanente siguiente'],[89,'IVA a pagar'],[62,'PPM'],[151,'Ret. honorarios'],[91,'Total a pagar']].map(([c,l])=>{const cv=Math.round(+d.codigos?.[c]||0),dv=Math.round(+declVal(c)||0),df=dv-cv;return `<tr><td class="tl" style="font-family:var(--mono)">${c}</td><td class="tl">${l}</td><td>${fmtC(cv)}</td><td><input type="number" min="0" value="${dv}" onchange="setF29Declarado(${c},this.value)" ${presentado?'disabled':''} style="text-align:right;font-family:var(--mono);max-width:130px"></td><td style="font-family:var(--mono);color:${df?'var(--warn)':'var(--ach)'}">${df?fmtC(df):'—'}</td></tr>`}).join('')}
+    </tbody></table></div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px">${presentado?`<button class="btn btn-g" onclick="reabrirF29()">🔓 Reabrir declaración</button>`:`<button class="btn btn-g" onclick="copiarCalculadoAF29()">↙ Copiar calculado</button><button class="btn btn-s" onclick="guardarBorradorF29()">💾 Guardar borrador</button><button class="btn btn-p" onclick="presentarF29()">✅ Marcar presentado</button>`}</div>
+  </div>`;
   const linea=(cod,lbl,val,opts={})=>`<tr${opts.hl?' style="background:'+(opts.pos?'rgba(46,160,67,.10)':'rgba(88,166,255,.08)')+'"':''}>
     <td style="font-family:var(--mono);font-size:11px;color:var(--mt);width:60px">${cod||''}</td>
     <td class="tl" style="font-size:12px;${opts.bold?'font-weight:700':''}">${lbl}</td>
@@ -92,17 +238,23 @@ function renderF29(){
     </div>
     <table><tbody>
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">DÉBITO FISCAL (Ventas)</td></tr>
-      ${linea('502','Ventas netas afectas',d.ventasNetas)}
-      ${linea('142','Ventas exentas',d.ventasExentas)}
-      ${linea('538','Débito fiscal IVA (19%)',d.debito,{bold:!d.ivaRetenido})}
-      ${d.ivaRetenido?linea('39','IVA retenido facturas de compra (cambio de sujeto)',d.ivaRetenido,{color:'var(--info)'})+linea('','Débito fiscal total',d.debitoTotal,{bold:true}):''}
+      ${d.codigos[502]?linea('502',`IVA Facturas emitidas (${d.codigos[503]} docs)`,d.codigos[502]):''}
+      ${d.codigos[111]?linea('111',`IVA Boletas emitidas (${d.codigos[110]} docs)`,d.codigos[111]):''}
+      ${d.codigos[513]?linea('513',`IVA Notas de Débito emitidas (${d.codigos[512]} docs)`,d.codigos[513],{color:'var(--warn)'}):''}
+      ${d.codigos[510]?linea('510',`IVA Notas de Crédito emitidas (${d.codigos[509]} docs)`,d.codigos[510],{color:'var(--info)'}):''}
+      ${d.codigos[142]?linea('142',`Ventas exentas/no gravadas (${d.codigos[586]} docs)`,d.codigos[142]):''}
+      ${linea('538','TOTAL DÉBITOS IVA',d.debito,{bold:true})}
+      ${d.ivaRetenido?linea('39','IVA retenido a terceros / cambio de sujeto',d.ivaRetenido,{color:'var(--info)'})+linea('','Débitos + retenciones del período',d.debitoTotal,{bold:true}):''}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">CRÉDITO FISCAL (Compras)</td></tr>
-      ${linea('520','Compras netas',d.comprasNetas)}
-      ${linea('524','Crédito fiscal compras',d.credito)}
-      ${d.creditoActivoFijo?linea('','Crédito fiscal activo fijo',d.creditoActivoFijo,{color:'var(--info)'}):''}
+      ${d.codigos[520]?linea('520',`Crédito facturas del giro (${d.codigos[519]} docs)`,d.codigos[520]):''}
+      ${d.codigos[525]?linea('525',`Crédito activo fijo (${d.codigos[524]} docs)`,d.codigos[525],{color:'var(--info)'}):''}
+      ${d.codigos[532]?linea('532',`Crédito Notas de Débito recibidas (${d.codigos[531]} docs)`,d.codigos[532],{color:'var(--warn)'}):''}
+      ${d.codigos[528]?linea('528',`Crédito Notas de Crédito recibidas (${d.codigos[527]} docs)`,d.codigos[528],{color:'var(--info)'}):''}
+      ${d.codigos[521]?linea('521',`Compras afectas sin derecho a crédito (${d.codigos[564]} docs)`,d.codigos[521],{color:'var(--warn)'}):''}
+      ${d.codigos[562]?linea('562',`Compras exentas/no gravadas (${d.codigos[584]} docs)`,d.codigos[562]):''}
       ${d.ivaNoRecuperable?linea('','IVA no recuperable incorporado al costo',d.ivaNoRecuperable,{color:'var(--warn)'}):''}
       ${d.remanenteAnt>0?linea('504','Remanente crédito mes anterior',d.remanenteAnt,{color:'var(--info)'}):''}
-      ${linea('537','Crédito fiscal total',d.creditoTotal,{bold:true})}
+      ${linea('537','TOTAL CRÉDITOS',d.creditoTotal,{bold:true})}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">DETERMINACIÓN IVA</td></tr>
       ${d.ivaAPagar>0?linea('89','IVA a pagar',d.ivaAPagar,{bold:true,hl:true,color:'var(--err)'}):linea('77','Remanente crédito fiscal (mes siguiente)',d.remanente,{bold:true,hl:true,color:'var(--info)'})}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">PPM Y RETENCIONES</td></tr>
@@ -118,6 +270,7 @@ function renderF29(){
     ${d.tasaPPM===0&&(S.empresa.tasaPPM==null||+S.empresa.tasaPPM===0)?'<div class="info-tip" style="margin-top:12px;font-size:11px">⚠️ La tasa de PPM está en 0%. Configúrala en Empresa → Configuración Tributaria para que se calcule el PPM.</div>':''}
     <div style="margin-top:12px;font-size:10px;color:var(--mt)">Los códigos corresponden al Formulario 29 del SII. Este es un cálculo referencial basado en tus registros; verifica antes de declarar.</div>
   </div>
+  ${panelDeclaracion}
   <div id="ivac-content" style="max-width:760px"></div>
   <div id="pagof29-content" style="max-width:900px"></div>`;
   renderCompensacionIVA();
@@ -513,8 +666,9 @@ const CONCEPTOS_F29=[
 
 // IVA retenido en facturas de compra (DTE 45/46) del período
 function ivaRetenidoFacturasCompra(mes){
+  const per=`${S.empresa.anio}-${String(mes).padStart(2,'0')}`;
   return Math.round(todosDocsCompras()
-    .filter(d=>+((d.fecha||'').slice(5,7))===mes)
+    .filter(d=>periodoContableCompra(d)===per)
     .reduce((s,d)=>{
       const tc=tributacionCompra(d);
       return s+(tc.facturaCompra?tc.ivaRetenido*((dteC(d.tipoDTE)?.signo)||1):0);
@@ -532,11 +686,15 @@ function iuscEstimado(){
 function montosSugeridosF29(mes){
   const d=calcularF29Anual()[mes-1];
   const comp=calcularCompensacionIVA(mes);   // respeta el reajuste configurado arriba
+  const decl=declaracionF29(periodoF29(mes));
+  const presentado=esF29Presentado(decl);
   return {
-    iva:comp.ivaAPagar,
-    ivaRetenido:ivaRetenidoFacturasCompra(mes),
-    ppm:d.ppm,
-    honorarios:d.retencionHon,
+    // Si ya fue presentado, el asiento de pago propone lo declarado al SII,
+    // no un recálculo posterior de documentos históricos.
+    iva:presentado?codDecl(decl,89,comp.ivaAPagar):comp.ivaAPagar,
+    ivaRetenido:presentado?codDecl(decl,39,ivaRetenidoFacturasCompra(mes)):ivaRetenidoFacturasCompra(mes),
+    ppm:presentado?codDecl(decl,62,d.ppm):d.ppm,
+    honorarios:presentado?codDecl(decl,151,d.retencionHon):d.retencionHon,
     bte:0,
     iusc:iuscEstimado(),
     multas:0,
@@ -731,7 +889,7 @@ async function generarAsientoPagoF29(){
   renderF29();
 }
 
-export {calcularF29Anual, renderF29, renderPPM,
+export {calcularF29Anual, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,

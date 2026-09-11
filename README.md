@@ -2,7 +2,7 @@
 
 Aplicación web de contabilidad para empresas chilenas, con soporte multiempresa, orientación agrícola/forestal y cumplimiento tributario SII.
 
-**Stack:** HTML + 39 módulos ES nativos + CSS. Sin build, sin npm, sin frameworks. Firebase (Auth + Firestore) para autenticación y sincronización.
+**Stack:** HTML + módulos ES nativos + CSS. Sin build, sin npm, sin frameworks. Firebase (Auth + Firestore) para autenticación y sincronización.
 
 ---
 
@@ -35,7 +35,7 @@ Sube `index.html`, la carpeta `js/` y la carpeta `css/` a la **raíz** del repos
 Libro Diario · Libro Mayor · Balance General (con comparativo entre años) · Estado de Resultados estructurado · Flujo de Caja (realizado y proyectado) · Conciliación Bancaria (manual o cargando cartola)
 
 ### Tributario SII
-- **Formulario 29** — IVA mensual con arrastre de remanente, PPM y retenciones
+- **Formulario 29** — IVA mensual con desglose por códigos SII, notas de crédito/débito, arrastre de remanente, PPM y retenciones
 - **PPM** — pago provisional mensual
 - **Exportar XML SII** — libros de compra/venta en formato IECV (esquema LibroCV_v10)
 
@@ -430,3 +430,9 @@ El módulo de Activo Fijo mantiene bases contable y tributaria separadas, permit
 
 ### V2.10 — Persistencia y cierre seguro
 Los hechos económicos que modifican más de una colección lógica (por ejemplo, documento + asiento maestro) se guardan mediante transacción multi-clave. Cuando Firestore está activo, una falla remota no deja el valor nuevo adelantado en localStorage. El cierre del ejercicio exige además una Auditoría de Integridad sin hallazgos críticos.
+
+### V2.11.1 — Compras RCV: fecha documental intacta
+Las compras importadas desde el Registro de Compras y Ventas separan desde esta versión la fecha de emisión del DTE del período en que corresponde contabilizarlo. `fecha` conserva el dato original del SII; `periodoContable` gobierna Libro de Compras/F29 y `fechaContabilizacion` gobierna el asiento automático.
+
+### V2.12
+El F29 mensual distingue entre el cálculo actual del sistema y la declaración efectivamente presentada. Una declaración marcada como presentada conserva su remanente histórico para el arrastre a meses posteriores y muestra diferencias si los libros cambian después. Las compras importadas siguen conservando la fecha original del DTE y se imputan tributaria/contablemente mediante `periodoContable`.

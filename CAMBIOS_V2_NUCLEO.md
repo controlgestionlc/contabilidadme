@@ -256,3 +256,44 @@ Todavía existen rutas antiguas de persistencia silenciosa, principalmente en ce
 - El cierre anual ejecuta Auditoría de Integridad y se niega a cerrar si existen hallazgos críticos.
 - Auditoría de Integridad incluye claves bloqueadas por fallas de lectura remota.
 - Persistencias de conciliación, previsional, indicadores y parámetros de remuneraciones dejan de fallar silenciosamente.
+
+## V2.11 — F29 conciliable, NC/ND y arrastre de crédito
+
+- Se corrigió la presentación del F29 para respetar la estructura real de códigos del formulario: facturas emitidas 503/502, boletas 110/111, notas de débito 512/513, notas de crédito 509/510 y total débitos 538.
+- Compras separa facturas del giro 519/520, activo fijo 524/525, notas de crédito 527/528, notas de débito 531/532, compras afectas sin derecho a crédito 564/521 y total créditos 537.
+- El código 504 arrastra el remanente del período anterior y el 77 deja el remanente para el período siguiente.
+- La determinación mantiene separada la retención por cambio de sujeto (código 39) respecto del IVA débito ordinario.
+- `calcularF29Anual()` conserva un mapa `codigos` y detalle por tipo de DTE, permitiendo explicar el total en lugar de mostrar sólo agregados netos.
+- Notas de Crédito y Débito creadas manualmente exigen folio del documento referenciado y pueden conservar tipo DTE, fecha y razón de referencia.
+- Auditoría detecta notas históricas sin referencia y referencias con fecha posterior a la nota.
+- Se corrigió el control mensual IVA documento↔asiento: ya no usa valores absolutos; respeta el signo de NC/ND para evitar falsos descuadres.
+- Retenciones de honorarios en F29 usan la retención guardada en cada boleta cuando existe, evitando recalcular documentos históricos con una tasa distinta.
+- Backup Excel conserva referencias de NC/ND y los campos de clasificación de IVA de compras incorporados en V2.7.
+
+## V2.11.1 — Fecha documental vs período contable RCV
+
+- El importador de Compras SII nunca modifica la fecha de emisión del DTE.
+- Se agregan `periodoContable`, `fechaContabilizacion` y `origenRegistro:'RCV'` a compras importadas.
+- Si la fecha del DTE pertenece al mismo mes del RCV, el asiento usa la fecha original.
+- Si la fecha del DTE pertenece a otro mes, el asiento se fecha al último día del período RCV seleccionado.
+- El F29 de compras usa `periodoContable`, no el mes de la fecha documental.
+- La sobrescritura del RCV concilia documentos por período contable; no por fecha de emisión.
+- Los correlativos mensuales del Libro de Compras usan el período contable/RCV.
+- El resumen mensual y el selector mensual del Libro de Compras usan el período contable; Desde/Hasta siguen filtrando la fecha documental.
+- La exportación tributaria mensual de compras usa el período contable.
+- La auditoría verifica que el asiento maestro de una compra RCV esté dentro de su período contable.
+- Al reimportar un documento que antes había sido normalizado al cierre de mes, la fecha original del RCV vuelve a quedar almacenada en `fecha`.
+- Backup Excel incorpora los nuevos campos de período/fecha contable.
+
+## V2.12 — F29 histórico: calculado vs declarado
+
+- Se agrega persistencia anual `f29-declaraciones-AAAA` por empresa.
+- Cada período conserva por separado el cálculo dinámico y los valores efectivamente declarados al SII.
+- Estados `borrador` y `presentado`; al presentar, los valores declarados quedan bloqueados.
+- Reapertura formal con motivo mínimo de 10 caracteres y registro en audit log.
+- Conciliación visual código a código entre calculado y declarado para 538, 39, 504, 537, 77, 89, 62, 151 y 91.
+- El remanente del período siguiente usa el código 77 de la declaración presentada, no un recálculo posterior de documentos históricos.
+- El asiento de pago F29 propone códigos 89, 62, 151 y 39 desde la declaración presentada cuando existe.
+- La retención IVA DTE 45/46 del pago F29 usa `periodoContable` del RCV, no el mes de la fecha documental.
+- Las declaraciones F29 forman parte de las claves sincronizadas al iniciar y del disparador de respaldo.
+- La fecha original del DTE de compras sigue intacta; `periodoContable` gobierna Libro de Compras/F29 y `fechaContabilizacion` gobierna el asiento.

@@ -236,6 +236,12 @@ function renderVResumen(){
 }
 
 // — Form Ventas —
+// V2.11 — referencias tributarias de Notas de Crédito/Débito
+function vfDteChanged(){
+  const t=+document.getElementById('vf-dte')?.value||0;
+  const row=document.getElementById('vf-ref-row');if(row)row.style.display=(t===56||t===61)?'grid':'none';
+}
+
 function abrirVF(){
   fijarVF(null);
   const f=document.getElementById('vf-form');f.style.display='block';f.classList.remove('editing');
@@ -243,7 +249,8 @@ function abrirVF(){
   document.getElementById('vf-fecha').value=today();
   document.getElementById('vf-vence').value='';
   document.getElementById('vf-dte').innerHTML=dteVentasOpts('');
-  ['vf-num','vf-rut','vf-rs','vf-neto','vf-exento','vf-iva','vf-otros','vf-total'].forEach(id=>document.getElementById(id).value='');
+  ['vf-num','vf-rut','vf-rs','vf-neto','vf-exento','vf-iva','vf-otros','vf-total','vf-ref-folio','vf-ref-fecha','vf-ref-razon'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  vfDteChanged();
   document.getElementById('vf-fp').value='banco';
   document.getElementById('vf-dv').textContent='';
   document.getElementById('vf-dup-warn').style.display='none';
@@ -260,6 +267,11 @@ function editarVenta(id){
   document.getElementById('vf-fecha').value=d.fecha;
   document.getElementById('vf-vence').value=d.fechaVencimiento||'';
   document.getElementById('vf-dte').innerHTML=dteVentasOpts(d.tipoDTE);
+  vfDteChanged();
+  if(document.getElementById('vf-ref-tipo'))document.getElementById('vf-ref-tipo').value=d.referencia?.tipoDTE||33;
+  if(document.getElementById('vf-ref-folio'))document.getElementById('vf-ref-folio').value=d.referencia?.folio||'';
+  if(document.getElementById('vf-ref-fecha'))document.getElementById('vf-ref-fecha').value=d.referencia?.fecha||'';
+  if(document.getElementById('vf-ref-razon'))document.getElementById('vf-ref-razon').value=d.referencia?.razon||'';
   document.getElementById('vf-num').value=d.numero||'';
   document.getElementById('vf-rut').value=(d.rutCodigo||'')+(d.rutDV||'');
   document.getElementById('vf-rs').value=d.razonSocial||'';
@@ -368,8 +380,11 @@ async function guardarVenta(){
   }
 
   const cuentaIngreso=_vfCuentaSel||(document.getElementById('vf-cuenta')?.dataset.cd)||'';
+  const esNota=tipoDTE===56||tipoDTE===61;
+  const referencia=esNota?{tipoDTE:+document.getElementById('vf-ref-tipo')?.value||33,folio:(document.getElementById('vf-ref-folio')?.value||'').trim(),fecha:document.getElementById('vf-ref-fecha')?.value||'',razon:(document.getElementById('vf-ref-razon')?.value||'').trim()}:null;
+  if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de registrar o modificar documentos.','e');return;}
-  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso};
+  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(referencia?{referencia}:{})};
   const editando=!!VF.editId;
   const rSave=await guardarDocumentoContabilizado('ventas',doc,S.ventas,editando);
   if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
@@ -671,5 +686,5 @@ async function confirmarImportacionV(){
 export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV,
-        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
+        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, VF};
