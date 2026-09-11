@@ -894,7 +894,7 @@ function aplicarCCATodos(){
     : `✅ Centro de costo quitado de ${n} documento${n===1?'':'s'}`);
 }
 
-function confirmarImportacion(){
+async function confirmarImportacion(){
   const incluidos=IM.docs.filter(d=>d.incluir);
   if(!incluidos.length){toast('⚠️ No hay documentos para importar','e');return;}
   const sinCuenta=incluidos.filter(d=>!d.cuenta);
