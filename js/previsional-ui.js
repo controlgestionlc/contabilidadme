@@ -92,7 +92,7 @@ export function renderPrevisional(){
   </div>`;
 }
 
-export function guardarPrevisional(){
+export async function guardarPrevisional(){
   const num=id=>{const e=document.getElementById(id);return e?(+e.value||0):0;};
   const P=getPrevisional();
   const afps=P.afps.map((a,i)=>({...a,comision:num('afp-com-'+i)}));
@@ -107,19 +107,21 @@ export function guardarPrevisional(){
     cajaInstitucion:document.getElementById('pat-caja-inst').value,
   };
   S.empresa.previsional={afps,isapres:P.isapres,mutuales:P.mutuales,cajas:P.cajas,patronal};
-  window.storage.set('empresa',JSON.stringify(S.empresa)).catch(()=>toast('❌ Error al guardar','e'));
+  const r=await window.storage.set('empresa',JSON.stringify(S.empresa));
+  if(!r||r.ok===false){toast('❌ Error al guardar la configuración previsional','e');return;}
   toast('✅ Configuración previsional guardada');
   logAccion('Actualizó tasas previsionales',`SIS ${patronal.sis}% · Mutual ${(patronal.mutualBase+patronal.mutualAdicional).toFixed(2)}%`);
   renderPrevisional();
 }
 
-export function restaurarPrevisional(){
+export async function restaurarPrevisional(){
   if(!confirm('¿Restaurar las tasas oficiales de referencia 2026?\n\nSe sobrescriben las comisiones AFP y el aporte patronal que hayas configurado.'))return;
   S.empresa.previsional={
     afps:AFP_DEFAULT,isapres:ISAPRES_DEFAULT,mutuales:MUTUALES_DEFAULT,
     cajas:CAJAS_DEFAULT,patronal:{...PATRONAL_DEFAULT}
   };
-  window.storage.set('empresa',JSON.stringify(S.empresa)).catch(()=>{});
+  const r=await window.storage.set('empresa',JSON.stringify(S.empresa));
+  if(!r||r.ok===false){toast('❌ No se pudieron restaurar las tasas','e');return;}
   renderPrevisional();
   toast('↺ Tasas oficiales 2026 restauradas');
 }

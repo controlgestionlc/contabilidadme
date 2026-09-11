@@ -17,6 +17,7 @@ import {logAccion} from './firebase.js';
 import {rerender} from './ui.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {pagosDocumento} from './motor-contable.js';
+import {validarMovimientosPDC} from './pdc-reglas.js';
 
 // Estado del módulo — persiste solo mientras estás en la vista
 let PAG={
@@ -513,6 +514,10 @@ async function ejecutarPago(){
   }else{
     movs.push({cd:PAG.cuentaPago, nm:nomPago, desc:`${PAG.seleccionados.size} cobros a clientes`, debe:totalPago, haber:0});
   }
+
+  // Validar el asiento contra las reglas del Plan de Cuentas antes de persistir.
+  const vp=validarMovimientosPDC(movs);
+  if(!vp.ok){toast('❌ '+vp.errores[0],'e');return;}
 
   // Crear asiento contable
   if(!S.asientos)S.asientos=[];

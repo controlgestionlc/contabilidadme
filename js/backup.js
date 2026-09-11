@@ -72,15 +72,15 @@ function construirWorkbookBD(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ventasHdr,...ventasRows]),'Ventas');
 
   // COMPRAS (con distribución serializada como JSON)
-  const comprasHdr=['id','fecha','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','otrosImpuestos','total','distJSON'];
+  const comprasHdr=['id','fecha','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','otrosImpuestos','tratamientoOtrosImpuestos','otrosImpuestosDetalleJSON','total','distJSON'];
   const comprasRows=S.compras.map(c=>[
     c.id,c.fecha,c.fechaVencimiento||'',c.tipoDTE,c.numero,c.rutCodigo,c.rutDV,c.razonSocial,
-    c.neto||0,c.exento||0,c.iva||0,c.otrosImpuestos||0,c.total||0,JSON.stringify(c.dist||[])
+    c.neto||0,c.exento||0,c.iva||0,c.otrosImpuestos||0,c.tratamientoOtrosImpuestos||'costo',JSON.stringify(c.otrosImpuestosDetalle||[]),c.total||0,JSON.stringify(c.dist||[])
   ]);
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([comprasHdr,...comprasRows]),'Compras');
 
   // HONORARIOS
-  const honHdr=['mes','fecha','profesional','rut','bruto','retencion','liquido','estado'];
+  const honHdr=['id','mes','fecha','nombre','rut','bruto','cc','modalidad','cuentaPago','fechaPago','tasaRetencion','estado','anuladoEn'];
   const honRows=S.honorarios.map(h=>honHdr.map(k=>h[k]!==undefined?h[k]:''));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([honHdr,...honRows]),'Honorarios');
 
@@ -94,9 +94,9 @@ function construirWorkbookBD(){
   const apRows=S.apertura?[[S.apertura.fecha,S.apertura.glosa,JSON.stringify(S.apertura.movs||[])]]:[];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([apHdr,...apRows]),'Apertura');
 
-  // ACTIVOS FIJOS (bienes para depreciación)
-  const afHdr=['id','desc','cat','fecha','valor','residual','vida','metodo','cuentaActivo','cuentaDeprAcum','cuentaGasto'];
-  const afRows=(S.activos||[]).map(a=>afHdr.map(k=>a[k]!==undefined?a[k]:''));
+  // ACTIVOS FIJOS (bases contable/tributaria + trazabilidad de compra)
+  const afHdr=['id','desc','cat','fecha','valor','residual','vida','metodo','valorContable','residualContable','vidaContable','metodoContable','fechaInicioDepContable','valorTributario','residualTributario','vidaTributaria','metodoTributario','fechaInicioDepTributaria','cuentaActivo','cuentaDeprAcum','cuentaGasto','compraOrigenId','compraOrigenRefJSON'];
+  const afRows=(S.activos||[]).map(a=>afHdr.map(k=>k==='compraOrigenRefJSON'?JSON.stringify(a.compraOrigenRef||null):(a[k]!==undefined?a[k]:'')));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([afHdr,...afRows]),'ActivosFijos');
 
   // TRABAJADORES (remuneraciones)
@@ -354,8 +354,9 @@ async function importarExcelBD(file){
       formaPago:r.formaPago||'banco'
     }));
     S.compras=cRows.map(r=>{
-      let dist=[];
+      let dist=[],otrosImpuestosDetalle=[];
       try{dist=JSON.parse(r.distJSON||'[]');}catch(e){}
+      try{otrosImpuestosDetalle=JSON.parse(r.otrosImpuestosDetalleJSON||'[]');}catch(e){}
       if(!Array.isArray(dist)||!dist.length)dist=[{cuenta:'',monto:+r.neto||0}];
       return {
         id:r.id||'c_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
@@ -363,7 +364,8 @@ async function importarExcelBD(file){
         tipoDTE:+r.tipoDTE||0,numero:String(r.numero||'').trim(),
         rutCodigo:String(r.rutCodigo||''),rutDV:String(r.rutDV||''),
         razonSocial:r.razonSocial||'',
-        neto:+r.neto||0,exento:+r.exento||0,iva:+r.iva||0,otrosImpuestos:+r.otrosImpuestos||0,total:+r.total||0,
+        neto:+r.neto||0,exento:+r.exento||0,iva:+r.iva||0,otrosImpuestos:+r.otrosImpuestos||0,
+        tratamientoOtrosImpuestos:r.tratamientoOtrosImpuestos||'costo',otrosImpuestosDetalle,total:+r.total||0,
         dist
       };
     });
@@ -391,12 +393,23 @@ async function importarExcelBD(file){
     // Restaurar activos fijos (clave global)
     if(hojas.includes('ActivosFijos')){
       const afRows=XLSX.utils.sheet_to_json(wb.Sheets['ActivosFijos']);
-      S.activos=afRows.map(r=>({
-        id:r.id||'af_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
-        desc:r.desc||'',cat:r.cat||'maquinarias',fecha:r.fecha||'',
-        valor:+r.valor||0,residual:+r.residual||0,vida:+r.vida||0,metodo:r.metodo||'lineal',
-        cuentaActivo:r.cuentaActivo||'',cuentaDeprAcum:r.cuentaDeprAcum||'',cuentaGasto:r.cuentaGasto||''
-      }));
+      S.activos=afRows.map(r=>{
+        let compraOrigenRef=null;try{compraOrigenRef=r.compraOrigenRefJSON?JSON.parse(r.compraOrigenRefJSON):null;}catch(e){}
+        const valor=+r.valor||+r.valorContable||0,residual=+r.residual||+r.residualContable||0,vida=+r.vida||+r.vidaTributaria||0,metodo=r.metodo||r.metodoTributario||'lineal';
+        return {
+          id:r.id||'af_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+          desc:r.desc||'',cat:r.cat||'maquinarias',fecha:r.fecha||'',
+          valor,residual,vida,metodo,
+          valorContable:r.valorContable!==undefined?+r.valorContable:valor,
+          residualContable:r.residualContable!==undefined?+r.residualContable:residual,
+          vidaContable:+r.vidaContable||vida,metodoContable:r.metodoContable||'lineal',fechaInicioDepContable:r.fechaInicioDepContable||'',
+          valorTributario:r.valorTributario!==undefined?+r.valorTributario:valor,
+          residualTributario:r.residualTributario!==undefined?+r.residualTributario:0,
+          vidaTributaria:+r.vidaTributaria||vida,metodoTributario:r.metodoTributario||metodo,fechaInicioDepTributaria:r.fechaInicioDepTributaria||'',
+          cuentaActivo:r.cuentaActivo||'',cuentaDeprAcum:r.cuentaDeprAcum||'',cuentaGasto:r.cuentaGasto||'',
+          compraOrigenId:r.compraOrigenId||null,compraOrigenRef
+        };
+      });
     }
 
     // Restaurar centros de costo

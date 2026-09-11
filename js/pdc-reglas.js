@@ -10,7 +10,10 @@ const AUX_POR_DEFECTO={
 };
 const IVA_POR_DEFECTO={
   '1108002':'iva_credito',
-  '2103003':'iva_debito_retencion',
+  '1108008':'iva_credito_activo_fijo',
+  '1108006':'impuesto_adicional_recuperable',
+  '2103003':'iva_debito',
+  '2103005':'iva_retenido',
 };
 
 function inferirReglasCuenta(c){
@@ -44,6 +47,21 @@ function normalizarPDC(arr=PDC){
   for(let i=0;i<arr.length;i++)arr[i]=normalizarCuenta(arr[i]);
   return arr;
 }
+
+function asegurarCuentasSistema(arr=PDC){
+  let cambios=0;
+  const requeridas=[
+    {cd:'1108008',nm:'IVA CRÉDITO FISCAL ACTIVO FIJO',tp:'A',nat:'D',tipoIVA:'iva_credito_activo_fijo',esCuentaTributaria:true},
+    {cd:'1108006',nm:'OTROS IMPUESTOS POR RECUPERAR',tp:'A',nat:'D',tipoIVA:'impuesto_adicional_recuperable',esCuentaTributaria:true},
+    {cd:'2103005',nm:'IVA RETENIDO FACTURAS DE COMPRA',tp:'P',nat:'C',tipoIVA:'iva_retenido',esCuentaTributaria:true},
+  ];
+  for(const c of requeridas){
+    if(!arr.some(x=>x.cd===c.cd)){arr.push(normalizarCuenta(c));cambios++;}
+  }
+  if(cambios)arr.sort((a,b)=>String(a.cd).localeCompare(String(b.cd),'es',{numeric:true}));
+  return cambios;
+}
+
 function reglaCuenta(cd){
   const c=PDC.find(x=>x.cd===String(cd||''));
   return c?inferirReglasCuenta(c):null;
@@ -67,4 +85,4 @@ function validarMovimientosPDC(movs,opts={}){
   return {ok:errores.length===0,errores};
 }
 
-export {AUX_POR_DEFECTO,IVA_POR_DEFECTO,inferirReglasCuenta,normalizarCuenta,normalizarPDC,reglaCuenta,validarMovimientoPDC,validarMovimientosPDC};
+export {AUX_POR_DEFECTO,IVA_POR_DEFECTO,inferirReglasCuenta,normalizarCuenta,normalizarPDC,asegurarCuentasSistema,reglaCuenta,validarMovimientoPDC,validarMovimientosPDC};

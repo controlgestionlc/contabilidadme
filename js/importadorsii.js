@@ -156,16 +156,14 @@ function parseFilas(rows,tipo){
 
     if(!numero||total===0){descartados++;continue;}
 
-    // ── DTE 46 (Factura de compra) ──
-    // En este documento el receptor RETIENE el IVA (no lo paga al proveedor).
-    // El campo "Otro Impuesto" (código 331) es la retención de IVA, que es el
-    // MISMO monto del IVA recuperable — duplicado por diseño.
-    // Total del documento = neto (sin IVA, porque el proveedor no lo recibe).
-    // Para que el asiento cuadre, NO sumamos "otros" a otrosImpuestos.
+    // ── DTE 45/46 (Factura de compra) ──
+    // En el RCV la retención puede venir reflejada como "Otro Impuesto" y el
+    // total puede representar el monto pagadero al proveedor. No se mezcla esa
+    // retención con otros impuestos económicos: el motor V2.6 la modela como
+    // `ivaRetenido` y deriva totalDocumento/totalProveedor en forma canónica.
     let otrosFinal=otrosImpuestos;
-    if(tipoDTE===46){
-      otrosFinal=0;
-    }
+    const facturaCompra=tipoDTE===45||tipoDTE===46;
+    if(facturaCompra)otrosFinal=0;
 
     // ── Dedup dentro del archivo ──
     // Clave: RUT + tipoDTE + número. El SII a veces trae la misma factura
@@ -179,6 +177,7 @@ function parseFilas(rows,tipo){
       rutCodigo:rutInfo.codigo, rutDV:rutInfo.dv,
       razonSocial:String(r[cRazon]||'').trim(),
       neto, exento, iva, otrosImpuestos:otrosFinal, total,
+      ...(facturaCompra?{ivaRetenido:iva,totalSII:total}:{}),
       netoAF,   // porción de neto que es activo fijo (guía para asignar cuenta)
     });
   }

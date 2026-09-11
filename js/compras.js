@@ -1,3 +1,4 @@
+import {tributacionCompra} from './motor-contable.js';
 // compras.js — Libro de compras + importador SII
 import {toast, fmt, pn, today, MESES, IVA, DTE_COMPRAS, dteC, rutParse, rutFmt, rutDV, pdcNm, CCOLS, CUENTAS_GASTO, CUENTAS_COMPRA, fmtC} from './core.js';
 import {rerender} from './ui.js';
@@ -10,7 +11,7 @@ import {inputCuenta} from './buscadorcuentas.js';
 import {leerArchivo} from './importadorsii.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import './storage.js';
-import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento} from './contabilidad-v2.js';
+import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico} from './contabilidad-v2.js';
 
 // Estado del formulario de compras (interno del módulo)
 // CF NUNCA debe reasignarse: app.js expone este objeto con Object.assign(window,{CF})
@@ -173,13 +174,24 @@ function toggleCSelAll(marcados){
 function limpiarCSel(){CF_SEL.clear();renderCompras();}
 async function eliminarCSel(){
   if(!CF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de anular compras.','e');return;}
   const n=CF_SEL.size;
-  if(!confirm(`¿Eliminar ${n} documento${n===1?'':'s'} de compra seleccionado${n===1?'':'s'}?\n\nEsta acción no se puede deshacer.`))return;
+  if(!confirm(`¿Anular ${n} documento${n===1?'':'s'} de compra seleccionado${n===1?'':'s'}?
+
+Los documentos y sus asientos se conservarán para trazabilidad.`))return;
+  const snapC=JSON.stringify(S.compras||[]),snapA=JSON.stringify(S.asientos||[]);
   let borrados=0;
-  S.compras.forEach(d=>{if(CF_SEL.has(d.id)&&d.estado!=='anulado'){d.estado='anulado';d.anuladoEn=new Date().toISOString();borrados++;}});
+  try{
+    S.compras.forEach(d=>{if(CF_SEL.has(d.id)&&d.estado!=='anulado'){d.estado='anulado';d.anuladoEn=new Date().toISOString();anularAsientoDocumento('compras',d.id,'anulación masiva');borrados++;}});
+    await persistirClavesCritico([
+      {key:'compras-'+S.empresa.anio,value:JSON.stringify(S.compras)},
+      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
+    ]);
+  }catch(e){
+    S.compras=JSON.parse(snapC);S.asientos=JSON.parse(snapA);
+    toast('❌ No se pudo guardar la anulación. No se aplicaron cambios.','e');return;
+  }
   CF_SEL.clear();
-  const r=await window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras));
-  if(r&&r.ok===false){toast('❌ No se pudo guardar la anulación','e');return;}
   toast(`🚫 ${borrados} documento${borrados===1?'':'s'} anulado${borrados===1?'':'s'}`);
   logAccion('Anuló compras masivamente',`${borrados} documentos`);
   rerender();
@@ -353,6 +365,8 @@ function abrirCF(){
   document.getElementById('cf-vence').value='';
   document.getElementById('cf-dte').innerHTML=dteComprasOpts('');
   ['cf-num','cf-rut','cf-rs','cf-neto','cf-exento','cf-iva','cf-otros','cf-total'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cf-iva-tipo').value='recuperable';document.getElementById('cf-iva-pct').value='100';cfTratamientoIVAUI();
+  const ot=document.getElementById('cf-otros-trat');if(ot)ot.value='costo';
   document.getElementById('cf-dv').textContent='';
   document.getElementById('cf-dup-warn').style.display='none';
   renderDist();
@@ -373,7 +387,12 @@ function editarCompra(id){
   document.getElementById('cf-neto').value=d.neto||'';
   document.getElementById('cf-exento').value=d.exento||'';
   document.getElementById('cf-iva').value=d.iva||'';
+  const ivaTot=Math.abs(+d.iva||0), ivaRec=d.ivaRecuperable!=null?Math.abs(+d.ivaRecuperable||0):ivaTot;
+  const tipoIVA=d.tratamientoIVA||(d.ivaActivoFijo>0?'activo_fijo':d.ivaNoRecuperable>=ivaTot&&ivaTot>0?'no_recuperable':d.ivaNoRecuperable>0?'proporcional':'recuperable');
+  document.getElementById('cf-iva-tipo').value=tipoIVA;
+  document.getElementById('cf-iva-pct').value=ivaTot?Math.round((ivaRec/ivaTot)*10000)/100:100;cfTratamientoIVAUI();
   document.getElementById('cf-otros').value=d.otrosImpuestos||'';
+  const ot=document.getElementById('cf-otros-trat');if(ot)ot.value=d.tratamientoOtrosImpuestos||(d.otrosImpuestosDetalle?.some(x=>x.tratamiento==='recuperable')?'recuperable':'costo');
   document.getElementById('cf-total').value=d.total||'';
   document.getElementById('cf-dup-warn').style.display='none';
   cfRutInput(document.getElementById('cf-rut').value);
@@ -410,6 +429,15 @@ function cfCheckDup(){
   }else{warn.style.display='none';}
 }
 
+function cfTratamientoIVAUI(){
+  const tipo=document.getElementById('cf-iva-tipo')?.value||'recuperable';
+  const pct=document.getElementById('cf-iva-pct');if(!pct)return;
+  pct.disabled=tipo!=='proporcional';
+  if(tipo==='recuperable'||tipo==='activo_fijo')pct.value='100';
+  if(tipo==='no_recuperable')pct.value='0';
+  if(tipo==='proporcional'&&(!pct.value||+pct.value<0||+pct.value>100))pct.value='50';
+}
+
 function cfCalcTotals(changed){
   const neto=pn(document.getElementById('cf-neto').value);
   const exento=pn(document.getElementById('cf-exento').value);
@@ -444,15 +472,15 @@ function renderDist(){
   // qué es cada cosa para colocarla y ponerle su etiqueta.
   box.innerHTML=CF.dist.map((l,i)=>`<div class="dist-row">
     <div class="dist-num">${i+1}</div>
-    <div class="dist-cd">${inputCuenta({id:`dist-cd-${i}`,value:l.cuenta,onPick:`CF.dist[${i}].cuenta='%CD%';updCfCheck()`,placeholder:'Cuenta de gasto…',clase:'dist-inp'})}</div>
+    <div class="dist-cd">${inputCuenta({id:`dist-cd-${i}`,value:l.cuenta,onPick:`CF.dist[${i}].cuenta='%CD%';updCfCheck()`,placeholder:'Cuenta de gasto…',clase:'dist-inp'})}<select class="dist-inp" style="margin-top:4px;font-size:10px" title="Tratamiento tributario" onchange="CF.dist[${i}].tratamientoTributario=this.value"><option value="aceptado" ${(l.tratamientoTributario||'aceptado')==='aceptado'?'selected':''}>Tributario: gasto aceptado</option><option value="rechazado" ${l.tratamientoTributario==='rechazado'?'selected':''}>Tributario: gasto rechazado</option></select></div>
     <div class="dist-mt"><input type="number" class="dist-num-inp" min="0" placeholder="0" value="${l.monto||''}" oninput="CF.dist[${i}].monto=pn(this.value);updCfCheck()"></div>
     <div class="dist-ccc"><select class="dist-inp" title="Centro de costo" onchange="CF.dist[${i}].cc=this.value">${ccOpts(l.cc||'')}</select></div>
     <div class="dist-del"><button class="btn btn-d" onclick="delDist(${i})" title="Quitar esta línea">✕</button></div>
   </div>`).join('');
   updCfCheck();
 }
-function addDist(){CF.dist.push({cuenta:'',monto:0});renderDist();}
-function delDist(i){if(CF.dist.length>1)CF.dist.splice(i,1);else CF.dist[0]={cuenta:'',monto:0};renderDist();}
+function addDist(){CF.dist.push({cuenta:'',monto:0,cc:'',tratamientoTributario:'aceptado'});renderDist();}
+function delDist(i){if(CF.dist.length>1)CF.dist.splice(i,1);else CF.dist[0]={cuenta:'',monto:0,cc:'',tratamientoTributario:'aceptado'};renderDist();}
 function updCfCheck(){
   const neto=pn(document.getElementById('cf-neto').value);
   const exento=pn(document.getElementById('cf-exento').value);
@@ -479,7 +507,17 @@ async function guardarCompra(){
   const neto=pn(document.getElementById('cf-neto').value);
   const exento=pn(document.getElementById('cf-exento').value);
   const iva=pn(document.getElementById('cf-iva').value);
+  const tratamientoIVA=document.getElementById('cf-iva-tipo')?.value||'recuperable';
+  let porcentajeIvaRecuperable=pn(document.getElementById('cf-iva-pct')?.value||100);
+  porcentajeIvaRecuperable=Math.max(0,Math.min(100,porcentajeIvaRecuperable));
+  if(tratamientoIVA==='recuperable'||tratamientoIVA==='activo_fijo')porcentajeIvaRecuperable=100;
+  if(tratamientoIVA==='no_recuperable')porcentajeIvaRecuperable=0;
+  const ivaRecuperable=Math.round(iva*porcentajeIvaRecuperable/100);
+  const ivaNoRecuperable=iva-ivaRecuperable;
+  const ivaActivoFijo=tratamientoIVA==='activo_fijo'?ivaRecuperable:0;
   const otrosImpuestos=pn(document.getElementById('cf-otros').value);
+  const tratamientoOtrosImpuestos=document.getElementById('cf-otros-trat')?.value||'costo';
+  const otrosImpuestosDetalle=otrosImpuestos?[{tipo:'otro',nombre:'Otros impuestos',monto:otrosImpuestos,tratamiento:tratamientoOtrosImpuestos}]:[];
   const total=pn(document.getElementById('cf-total').value);
 
   if(!fecha){toast('⚠️ Ingresa la fecha de emisión','e');return;}
@@ -491,7 +529,14 @@ async function guardarCompra(){
   if(!r.valido){toast('⚠️ RUT inválido — dígito verificador no coincide','e');return;}
   if(!razonSocial){toast('⚠️ Ingresa la razón social','e');return;}
   if(total<=0){toast('⚠️ El total debe ser mayor a cero','e');return;}
-  if(Math.abs((neto+exento+iva+otrosImpuestos)-total)>1){toast('⚠️ Neto + Exento + IVA + Otros no coincide con el Total','e');return;}
+  const esFacturaCompra=tipoDTE===45||tipoDTE===46;
+  if(!esFacturaCompra&&Math.abs((neto+exento+iva+otrosImpuestos)-total)>1){toast('⚠️ Neto + Exento + IVA + Otros no coincide con el Total','e');return;}
+  if(esFacturaCompra){
+    const tc=tributacionCompra({tipoDTE,neto,exento,iva,otrosImpuestos,total,ivaRetenido:iva});
+    if(tc.diferenciaTotal>1){
+      toast(`⚠️ En DTE ${tipoDTE}, el Total debe corresponder al total del documento (${fmtC(tc.totalDocumento)}) o al monto pagadero al proveedor (${fmtC(tc.totalProveedor)}).`,'e');return;
+    }
+  }
 
   const dist=CF.dist.filter(l=>l.cuenta&&l.monto>0);
   if(!dist.length){toast('⚠️ Agrega al menos una cuenta de gasto','e');return;}
@@ -506,7 +551,7 @@ async function guardarCompra(){
   }
 
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de registrar o modificar documentos.','e');return;}
-  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,dist};
+  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(esFacturaCompra?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{})};
   const editando=!!CF.editId;
   if(editando){
     const i=S.compras.findIndex(x=>x.id===CF.editId); const prev=i>=0?S.compras[i]:null;
@@ -579,6 +624,8 @@ function parseSIICompras(text){
   const cNeto=getCol('monto neto','neto');
   const cIvaRec=getCol('iva recuperable','monto iva recuperable');
   const cIvaNoRec=getCol('iva no recuperable','monto iva no recuperable');
+  const cIvaUsoComun=getCol('iva uso común','iva uso comun','iva uso comun');
+  const cIvaActivoFijo=getCol('iva activo fijo','iva activo');
   const cIvaPlano=getCol('monto iva','iva');
   const cTotal=getCol('monto total','total');
   const cOtroImp=getCol('valor otro impuesto','otro impuesto');
@@ -599,16 +646,18 @@ function parseSIICompras(text){
     if(!fecha){descartados++;continue;}
     const neto=Math.abs(parseNumSII(r[cNeto]||'0'));
     const exento=Math.abs(parseNumSII(r[cExento]||'0'));
-    let iva=0;
-    if(cIvaRec>=0)iva+=Math.abs(parseNumSII(r[cIvaRec]||'0'));
-    if(cIvaNoRec>=0)iva+=Math.abs(parseNumSII(r[cIvaNoRec]||'0'));
+    const ivaRecuperable=cIvaRec>=0?Math.abs(parseNumSII(r[cIvaRec]||'0')):null;
+    const ivaNoRecuperable=cIvaNoRec>=0?Math.abs(parseNumSII(r[cIvaNoRec]||'0')):null;
+    const ivaUsoComun=cIvaUsoComun>=0?Math.abs(parseNumSII(r[cIvaUsoComun]||'0')):0;
+    const ivaActivoFijo=cIvaActivoFijo>=0?Math.abs(parseNumSII(r[cIvaActivoFijo]||'0')):0;
+    let iva=(ivaRecuperable||0)+(ivaNoRecuperable||0);
     if(!iva&&cIvaPlano>=0)iva=Math.abs(parseNumSII(r[cIvaPlano]||'0'));
     const total=Math.abs(parseNumSII(r[cTotal]||'0'));
     const otrosImpuestos=cOtroImp>=0?Math.abs(parseNumSII(r[cOtroImp]||'0')):0;
     const numero=String(r[cNro]||'').trim();
     if(!numero||total===0){descartados++;continue;}
 
-    docs.push({fecha,tipoDTE,numero,rutCodigo:rutInfo.codigo,rutDV:rutInfo.dv,razonSocial:(r[cRazon]||'').trim(),neto,exento,iva,otrosImpuestos,total});
+    docs.push({fecha,tipoDTE,numero,rutCodigo:rutInfo.codigo,rutDV:rutInfo.dv,razonSocial:(r[cRazon]||'').trim(),neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaUsoComun,ivaActivoFijo,tratamientoIVA:ivaActivoFijo>0?'activo_fijo':(ivaNoRecuperable>0?'sii':'recuperable'),otrosImpuestos,tratamientoOtrosImpuestos:'costo',otrosImpuestosDetalle:otrosImpuestos?[{tipo:'otro',nombre:'Otros impuestos RCV',monto:otrosImpuestos,tratamiento:'costo'}]:[],total});
   }
   return {docs,descartados};
 }
@@ -961,13 +1010,11 @@ async function confirmarImportacion(){
   incluidos.forEach((d,i)=>{
     const fechaFinal=fechaEfectivaImport(d);
     if(fechaFinal!==d.fechaOriginal)normalizados++;
-    // Calculamos el gasto como (total - IVA recuperable). Es lo que
-    // efectivamente le cuesta a la empresa. Con esta fórmula:
-    //   - El asiento SIEMPRE cuadra: DEBE(gasto) + DEBE(IVA) = HABER(prov)
-    //   - Absorbe inconsistencias del CSV (cuando neto+iva+otros ≠ total)
-    //   - Los "otros impuestos" quedan implícitamente incluidos en el gasto
-    // DTE 46 (factura de compra): el IVA lo retiene el receptor, así que el
-    // proveedor solo recibe `total` (= neto). El gasto es igual al total.
+    // La distribución importada representa la base económica (neto + exento).
+    // El motor V2.8 clasifica otros impuestos e IVA no recuperable antes de llevarlos al costo y
+    // separa el crédito fiscal recuperable (general / activo fijo).
+    // DTE 45/46 (factura de compra): el IVA retenido se modela por separado.
+    // La distribución contiene sólo la base económica; el motor deriva proveedor y retención.
     const montoDist=d.neto+d.exento; // V2: la distribución representa la base económica; IVA/otros se tratan en el motor
     // En modo sobrescribir recuperamos lo que ya estaba registrado para este
     // mismo documento: correlativo, folio de comprobante, vencimiento y la
@@ -991,11 +1038,19 @@ async function confirmarImportacion(){
       neto:d.neto,
       exento:d.exento,
       iva:d.iva,
+      ...(d.ivaRecuperable!=null?{ivaRecuperable:d.ivaRecuperable}:{}),
+      ...(d.ivaNoRecuperable!=null?{ivaNoRecuperable:d.ivaNoRecuperable}:{}),
+      ...(d.ivaUsoComun?{ivaUsoComun:d.ivaUsoComun}:{}),
+      ...(d.ivaActivoFijo?{ivaActivoFijo:d.ivaActivoFijo}:{}),
+      ...(d.tratamientoIVA?{tratamientoIVA:d.tratamientoIVA}:{}),
       otrosImpuestos:d.otrosImpuestos||0,
+      tratamientoOtrosImpuestos:d.tratamientoOtrosImpuestos||'costo',
+      otrosImpuestosDetalle:d.otrosImpuestosDetalle||((d.otrosImpuestos||0)?[{tipo:'otro',nombre:'Otros impuestos RCV',monto:d.otrosImpuestos||0,tratamiento:'costo'}]:[]),
       // DTE 45/46 importados desde RCV históricamente pueden informar el total
       // pagadero al proveedor sin sumar el IVA retenido. El motor usa esta marca
       // para no depender de una excepción dentro de reportes.js.
       totalIncluyeRetencion:(+d.tipoDTE===45||+d.tipoDTE===46)?false:undefined,
+      ...((+d.tipoDTE===45||+d.tipoDTE===46)?{ivaRetenido:d.ivaRetenido!=null?d.ivaRetenido:d.iva,totalSII:d.totalSII!=null?d.totalSII:d.total}:{}),
       total:d.total,
       dist,
       estado:'activo',
@@ -1046,14 +1101,12 @@ async function confirmarImportacion(){
   }
 
   try{
-    const r1=await window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras));
-    if(r1&&r1.ok===false)throw new Error(r1.motivo||'fallo-compras');
-    const r2=await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos||[]));
-    if(r2&&r2.ok===false)throw new Error(r2.motivo||'fallo-asientos');
+    await persistirClavesCritico([
+      {key:'compras-'+S.empresa.anio,value:JSON.stringify(S.compras)},
+      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
+    ]);
   }catch(err){
     S.compras=JSON.parse(snapCompras);S.asientos=JSON.parse(snapAsientos);
-    try{await window.storage.set('compras-'+S.empresa.anio,snapCompras);}catch(_e){}
-    try{await window.storage.set('asientos-'+S.empresa.anio,snapAsientos);}catch(_e){}
     toast('❌ No se pudo completar la importación. Se revirtieron documentos y asientos.','e');return;
   }
 
@@ -1100,7 +1153,7 @@ async function confirmarImportacion(){
     }
   });
   if(fichasCreadas||fichasActualizadas){
-    guardarFichasAux().catch(()=>{});
+    guardarFichasAux().catch(e=>console.warn('No se pudo guardar ficha auxiliar:',e));
   }
 
   cerrarImportModal();
@@ -1128,5 +1181,5 @@ function initImportListener(){
 
 
 export {onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
-        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfCalcTotals, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setBulkCuentaImp, confirmarImportacion, initImportListener,
+        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setBulkCuentaImp, confirmarImportacion, initImportListener,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF};

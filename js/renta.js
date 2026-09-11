@@ -29,6 +29,7 @@ import {logAccion} from './firebase.js';
 // El catálogo de regímenes y sus parámetros vive en regimenes.js, que es la
 // única fuente de verdad compartida con empresas.js y la ficha de empresa.
 import {REGIMENES, regimenInfo, tasaIDPC, notaTasa, REGIMEN_DEFAULT} from './regimenes.js';
+import {conciliacionDepreciacionAF} from './activofijo.js';
 import './storage.js';
 
 const regInfo=regimenInfo;
@@ -121,18 +122,17 @@ function cuentasGasto(M){
   }));
 }
 
-// Depreciación tributaria del ejercicio.
-// Pro Pyme (14 D): depreciación instantánea — el activo fijo adquirido en el año
-// se deduce íntegro. Régimen general: cuota según vida útil (ya contabilizada).
-function depreciacionTributaria(anio,regimen){
+// Conciliación de depreciación financiera / tributaria del ejercicio.
+// La ficha de activo fijo es la fuente de verdad de ambas bases. Para Pro Pyme
+// la tributaria puede ser instantánea; para régimen general se utiliza la cuota
+// tributaria configurada en cada bien.
+function conciliacionDepreciacionRenta(anio,regimen){
   const r=regInfo(regimen);
-  if(!r.deprInstantanea)return {total:0, bienes:[], instantanea:false};
-  const bienes=(S.activos||[]).filter(b=>+(b.fecha||'').slice(0,4)===anio)
-    .map(b=>({nm:b.desc||b.nombre||'Activo', fecha:b.fecha, valor:+(b.valor||0)}));
-  return {total:bienes.reduce((s,b)=>s+b.valor,0), bienes, instantanea:true};
+  return conciliacionDepreciacionAF(anio,{deprInstantanea:!!r.deprInstantanea});
 }
 
-// Depreciación financiera cargada a resultado en el ejercicio (grupo 3301xxx)
+// Depreciación financiera efectivamente cargada a resultado según el Mayor.
+// Se mantiene como control contra las fichas de activo fijo.
 function depreciacionFinanciera(M){
   return cuentasCon(M,'3301').reduce((s,k)=>s+saldoPres(k,M[k].saldo),0);
 }
@@ -181,12 +181,29 @@ function calcularRenta(){
     ag.push({cod:'', lbl:'Gasto rechazado: '+(M[cd].nm||pdcNm(cd)), monto, auto:true, cuenta:cd,
              nota:motivoRechazo(cd,M[cd].nm)||'Marcado como no deducible (Art. 21 / Art. 31 LIR).'});
   });
-  // 3. Depreciación financiera, cuando el régimen usa depreciación instantánea
-  const depTrib=depreciacionTributaria(anio,RENTA.regimen);
+  // 2b. Gastos rechazados marcados directamente en documentos V2.8.
+  // Se agregan por movimiento y no por cuenta completa, evitando obligar a
+  // tratar toda una cuenta como rechazada. Si la cuenta ya fue marcada arriba,
+  // no se duplica el agregado.
+  const rechazoDoc=new Map();
+  (S.asientos||[]).filter(a=>!a.anulado).forEach(a=>(a.movs||[]).forEach(m=>{
+    if(m.tributario!=='gasto_rechazado'||RENTA.rechazadas.includes(m.cd))return;
+    const monto=(+m.debe||0)-(+m.haber||0);if(Math.abs(monto)<0.5)return;
+    const k=m.cd||'sin-cuenta';const x=rechazoDoc.get(k)||{monto:0,n:0};x.monto+=monto;x.n++;rechazoDoc.set(k,x);
+  }));
+  rechazoDoc.forEach((x,cd)=>{
+    if(Math.abs(x.monto)<0.5)return;
+    ag.push({cod:'',lbl:`Gasto rechazado documentado: ${pdcNm(cd)} (${x.n} movimiento${x.n===1?'':'s'})`,monto:x.monto,auto:true,cuenta:cd,
+      nota:'Marcado a nivel de documento como gasto rechazado. Se agrega a la RLI sin reclasificar el asiento financiero.'});
+  });
+
+  // 3. Depreciación financiera / tributaria. Siempre se concilian ambas bases
+  //    cuando difieren, no sólo en depreciación instantánea.
+  const depConc=conciliacionDepreciacionRenta(anio,RENTA.regimen);
   const depFin=depreciacionFinanciera(M);
-  if(reg.deprInstantanea&&Math.abs(depFin)>=0.5)
-    ag.push({cod:'982', lbl:'Depreciación financiera del ejercicio (se reversa)', monto:depFin, auto:true,
-             nota:'En el régimen Pro Pyme la depreciación es instantánea: se reversa la cuota financiera y se deduce el 100% del activo adquirido en el año.'});
+  if(Math.abs(depFin)>=0.5&&Math.abs(depFin-depConc.tributaria)>0.5)
+    ag.push({cod:'982', lbl:'Depreciación financiera del ejercicio (reversa tributaria)', monto:depFin, auto:true,
+             nota:reg.deprInstantanea?'Se reversa la depreciación financiera porque el régimen aplica depreciación tributaria instantánea.':'Se reversa la depreciación financiera para sustituirla por la depreciación tributaria determinada según la ficha de activo fijo.'});
   // 4. Corrección monetaria: las Pymes 14 D están liberadas de aplicarla
   if(!reg.correccionMonetaria&&Math.abs(correccMon)>=0.5)
     ag.push({cod:'1146', lbl:'Corrección monetaria contabilizada (se reversa)', monto:correccMon, auto:true,
@@ -199,10 +216,11 @@ function calcularRenta(){
 
   // ── Deducciones ──
   const de=[];
-  // 1. Depreciación tributaria (instantánea en Pro Pyme)
-  if(depTrib.total>=0.5)
-    de.push({cod:'1391', lbl:'Depreciación instantánea del activo fijo adquirido en '+anio, monto:depTrib.total, auto:true,
-             nota:depTrib.bienes.length+' bien(es) del activo fijo adquiridos en el ejercicio, deducidos al 100%.'});
+  // 1. Depreciación tributaria: instantánea en Pro Pyme o cuota tributaria
+  //    según ficha en los regímenes que no usan depreciación instantánea.
+  if(depConc.tributaria>=0.5&&Math.abs(depFin-depConc.tributaria)>0.5)
+    de.push({cod:'1391', lbl:reg.deprInstantanea?'Depreciación tributaria instantánea del activo fijo adquirido en '+anio:'Depreciación tributaria del activo fijo '+anio, monto:depConc.tributaria, auto:true,
+             nota:reg.deprInstantanea?depConc.detalle.filter(x=>x.tributaria>0).length+' bien(es) adquiridos en el ejercicio, usando su valor tributario.':depConc.detalle.filter(x=>x.tributaria>0).length+' bien(es) con cuota tributaria en el ejercicio según sus fichas de activo fijo.'});
   // 2. Deducciones manuales
   RENTA.deducciones.forEach((d,i)=>{
     if(Math.abs(+d.monto||0)<0.5)return;
@@ -274,7 +292,7 @@ function calcularRenta(){
     baseImponible, idpc, creditos, totalCreditos, idpcNeto, presunta,
     ppmF29, ppmBase, ppmReajustado, reaj,
     saldo, aPagar, devolucion,
-    depTrib, depFin, cpt, activos, pasivoExigible
+    depConc, depFin, cpt, activos, pasivoExigible
   };
 }
 
@@ -445,6 +463,7 @@ function bloqueRLI(R){
         {cod:R.reg.cod.base,fuerte:true,bg:R.rli>=0?'rgba(46,160,67,.12)':'rgba(248,81,73,.12)',color:R.rli>=0?'var(--ach)':'var(--err)'})}
     </tbody></table></div>
     ${R.perdidaRemanente>0?`<div class="info-tip" style="margin-top:12px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Queda una <strong>pérdida tributaria de arrastre de ${fmtC(R.perdidaRemanente)}</strong> para imputar en ejercicios siguientes. Anótala en el campo "Pérdida de arrastre" de la declaración del año ${R.anio+1}.</div>`:''}
+    ${R.depConc?`<div class="info-tip" style="margin-top:12px">🏗️ <strong>Conciliación de activo fijo:</strong> depreciación financiera según fichas ${fmtC(R.depConc.contable)} · depreciación tributaria ${fmtC(R.depConc.tributaria)} · diferencia del ejercicio <strong>${fmtC(R.depConc.diferencia)}</strong>. ${R.reg.deprInstantanea?'La base tributaria usa el valor tributario de las adquisiciones del año.':'La base tributaria usa la vida y método tributario de cada ficha.'}</div>`:''}
     <div class="info-tip" style="margin-top:12px">🧮 <strong>Capital Propio Tributario referencial:</strong> ${fmtC(R.cpt)} &nbsp;·&nbsp; activos ${fmtC(R.activos)} − pasivo exigible ${fmtC(R.pasivoExigible)}. Es una aproximación contable: el CPT tributario puede diferir si hay activos o pasivos con valorización tributaria distinta.</div>
   </div>`;
 }

@@ -57,24 +57,22 @@ function genDiario(){
     });
   });
 
-  // Honorarios se mantiene temporalmente como flujo legado hasta que el módulo
-  // tenga reconocimiento/pago separados. Queda explícitamente marcado para no
-  // confundirlo con el nuevo motor documental.
-  MESES.forEach((mesNm,i)=>{
-    const m=i+1,fecha=`${anio}-${String(m).padStart(2,'0')}-28`;
-    const honM=S.honorarios.filter(h=>h.mes===m);
-    if(honM.length){
-      const tBruto=honM.reduce((s,h)=>s+ +(h.bruto||0),0),tRet=Math.round(tBruto*retencionHonorarios(S.empresa.anio));
-      const porCC={};
-      honM.forEach(h=>{const k=h.cc||'';porCC[k]=(porCC[k]||0)+ +(h.bruto||0);});
-      const lineasGasto=Object.keys(porCC).filter(k=>porCC[k]).sort((a,b)=>porCC[b]-porCC[a])
-        .map(k=>({cd:'3202019',nm:'HONORARIOS',debe:porCC[k],haber:0,cc:k||undefined}));
-      entries.push({n:n++,fecha,glosa:`Honorarios ${mesNm} ${anio}`,movs:[
-        ...(lineasGasto.length?lineasGasto:[{cd:'3202019',nm:'HONORARIOS',debe:tBruto,haber:0}]),
-        {cd:'2103002',nm:pdcNm('2103002'),debe:0,haber:tRet,desc:`Retención ${(retencionHonorarios(S.empresa.anio)*100).toFixed(2)}% boletas de honorarios`},
-        {cd:'1101201',nm:pdcNm('1101201'),debe:0,haber:tBruto-tRet},
-      ],origen:'legado',fuente:'honorarios',mes:m,anio});
-    }
+  // Honorarios V2: los asientos persistidos son el maestro. Para registros
+  // históricos aún no migrados, mantenemos un fallback individual (no mensual)
+  // que reconoce Honorarios por pagar; nunca presume pago inmediato al Banco.
+  const tieneAsientoHon=id=>(S.asientos||[]).some(a=>!a.anulado&&a.fuente==='honorarios'&&a.docId===id&&a.subtipo==='honorario');
+  (S.honorarios||[]).filter(h=>h.estado!=='anulado'&&!tieneAsientoHon(h.id)).forEach(h=>{
+    const bruto=+(h.bruto||0); if(!bruto)return;
+    const tasa=retencionHonorarios(S.empresa.anio),ret=Math.round(bruto*tasa),liq=bruto-ret;
+    const limpio=String(h.rut||'').replace(/[^0-9kK]/g,'').toUpperCase();
+    const rutCodigo=limpio.length>1?limpio.slice(0,-1):'',rutDV=limpio.length>1?limpio.slice(-1):'';
+    const fecha=h.fecha||`${anio}-${String(h.mes||1).padStart(2,'0')}-28`;
+    const aux={rutCodigo,rutDV,docId:h.id,tipoAux:'honorario',desc:h.nombre||'Honorario'};
+    entries.push({n:n++,fecha,glosa:`Honorario — ${h.nombre||'prestador'}`,origen:'legado-auto',fuente:'honorarios',docId:h.id,movs:[
+      {cd:'3202019',nm:pdcNm('3202019'),debe:bruto,haber:0,...aux,cc:h.cc||undefined},
+      {cd:'2103002',nm:pdcNm('2103002'),debe:0,haber:ret,docId:h.id,tributo:'retencion_honorarios'},
+      {cd:'2102006',nm:pdcNm('2102006'),debe:0,haber:liq,...aux},
+    ]});
   });
 
   // Asientos persistidos: pagos, remuneraciones, depreciaciones, manuales, etc.

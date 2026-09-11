@@ -3,7 +3,7 @@
 // y expone al scope global las funciones usadas por los onclick del HTML.
 
 import {toast, fmtC, MESES, PDC, recalcDerivadasPDC, pn} from './core.js';
-import {normalizarPDC} from './pdc-reglas.js';
+import {normalizarPDC,asegurarCuentasSistema} from './pdc-reglas.js';
 import {S, AUTH, getCurSec, setCurSec} from './state.js';
 import {FS, initFirestore, logAccion} from './firebase.js';
 import './storage.js';
@@ -93,7 +93,7 @@ import {onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cer
         initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos,
         cambiarModoImport, verDuplicadoC, renderCDupAlert,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF, IM} from './compras.js';
-import {renderHon, uhon, addHon, delHon, saveHon} from './honorarios.js';
+import {renderHon, setHonCampo, uhon, addHon, delHon, saveHon} from './honorarios.js';
 import {renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento,
         anularAsiento, eliminarAsiento, guardarAsiento, addLinea, delLinea, renderLineas,
         lCd, lVal, lValFmt, lValFmtBlur, lRut, toggleAs, updCuadre, limpiarFormAsiento, sigAsiento,
@@ -101,7 +101,7 @@ import {renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento,
         dtmCheckDup, dtmAddDist, dtmDelDist, dtmRenderDist, dtmUpdDistCheck, dtmRemover,
         quitarDte, folioPreviewDte, abrirAsientoDesde, cuentasOpts, lAuxElegido,
         proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, AF} from './asientos.js';
-import {renderActivoFijo, abrirFormAF, onCatAF, cerrarFormAF, previewAF, guardarAF,
+import {renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF,
         editarAF, eliminarAF, generarAsientoDepreciacion, AFB} from './activofijo.js';
 import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
         previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador,
@@ -161,17 +161,24 @@ async function saveAll({silencioso=false}={}){
   let ok=false;
   try{
     const y=S.empresa.anio;
-    await window.storage.set('empresa',JSON.stringify(S.empresa));
-    await window.storage.set('ventas-'+y,JSON.stringify(S.ventas));
-    await window.storage.set('compras-'+y,JSON.stringify(S.compras));
-    await window.storage.set('honorarios-'+y,JSON.stringify(S.honorarios));
-    await window.storage.set('asientos-'+y,JSON.stringify(S.asientos));
-    if(S.activos&&S.activos.length)await window.storage.set('activos',JSON.stringify(S.activos));
-    if(S.trabajadores&&S.trabajadores.length)await window.storage.set('trabajadores',JSON.stringify(S.trabajadores));
-    if(S.centros&&S.centros.length)await window.storage.set('centros',JSON.stringify(S.centros));
-    if(S.cierresCC&&S.cierresCC.length)await window.storage.set('cierresCC',JSON.stringify(S.cierresCC));
-    if(S.comprobantesTipo&&S.comprobantesTipo.length)await window.storage.set('comprobantesTipo',JSON.stringify(S.comprobantesTipo));
-    if(S.fichasAux)await window.storage.set('fichasAux',JSON.stringify(S.fichasAux));
+    const entradas=[
+      {key:'empresa',value:JSON.stringify(S.empresa)},
+      {key:'ventas-'+y,value:JSON.stringify(S.ventas)},
+      {key:'compras-'+y,value:JSON.stringify(S.compras)},
+      {key:'honorarios-'+y,value:JSON.stringify(S.honorarios)},
+      {key:'asientos-'+y,value:JSON.stringify(S.asientos)},
+    ];
+    if(S.activos&&S.activos.length)entradas.push({key:'activos',value:JSON.stringify(S.activos)});
+    if(S.trabajadores&&S.trabajadores.length)entradas.push({key:'trabajadores',value:JSON.stringify(S.trabajadores)});
+    if(S.centros&&S.centros.length)entradas.push({key:'centros',value:JSON.stringify(S.centros)});
+    if(S.cierresCC&&S.cierresCC.length)entradas.push({key:'cierresCC',value:JSON.stringify(S.cierresCC)});
+    if(S.comprobantesTipo&&S.comprobantesTipo.length)entradas.push({key:'comprobantesTipo',value:JSON.stringify(S.comprobantesTipo)});
+    if(S.fichasAux)entradas.push({key:'fichasAux',value:JSON.stringify(S.fichasAux)});
+    const r=typeof window.storage.setMany==='function'?await window.storage.setMany(entradas):null;
+    if(r&&r.ok===false)throw new Error(r.motivo||'fallo-persistencia');
+    if(!r){
+      for(const e of entradas){const rr=await window.storage.set(e.key,e.value);if(!rr||rr.ok===false)throw new Error(rr?.motivo||`fallo-${e.key}`);}
+    }
     ok=true;
     marcarGuardado();
     if(!silencioso)toast('✅ Todos los datos guardados');
@@ -344,6 +351,7 @@ async function initApp(){
     }
     await window.storage.set('pdc_v',String(PDC_VERSION));
   }catch(e){console.warn('Error cargando PDC:',e);}
+  try{if(asegurarCuentasSistema(PDC))await window.storage.set('pdc',JSON.stringify(PDC));}catch(e){console.warn('No se pudo persistir cuentas de sistema:',e);}
   ys.value=S.empresa.anio;
   await loadYear(S.empresa.anio);
   await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
@@ -355,10 +363,15 @@ async function initApp(){
     console.log(`Migración: ${migrados} elementos recibieron folio de comprobante`);
     // Persistir los cambios de migración
     try{
-      if(S.asientos?.length)await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos));
-      if(S.compras?.length)await window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras));
-      if(S.ventas?.length)await window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas));
-    }catch(e){console.warn('Error persistiendo migración de folios:',e);}
+      const entradas=[];
+      if(S.asientos?.length)entradas.push({key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos)});
+      if(S.compras?.length)entradas.push({key:'compras-'+S.empresa.anio,value:JSON.stringify(S.compras)});
+      if(S.ventas?.length)entradas.push({key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)});
+      if(entradas.length){
+        const r=window.storage.setMany?await window.storage.setMany(entradas):null;
+        if(r&&r.ok===false)throw new Error(r.motivo||'fallo-migracion-folios');
+      }
+    }catch(e){console.warn('Error persistiendo migración de folios:',e);toast('⚠️ No se pudo persistir la migración de folios. Revisa la conexión antes de continuar.','e');}
   }
   fillEmpresaForm();updateHdr();renderInicio();
   initImportListener();
@@ -508,6 +521,7 @@ async function recargarEmpresaActiva(){
     const r=await window.storage.get('pdc');
     if(r){const l=JSON.parse(r.value);if(Array.isArray(l)&&l.length){PDC.length=0;l.forEach(c=>PDC.push(c));normalizarPDC(PDC);recalcDerivadasPDC();}}
   }catch(e){}
+  try{if(asegurarCuentasSistema(PDC))await window.storage.set('pdc',JSON.stringify(PDC));}catch(e){console.warn('No se pudo persistir cuentas de sistema:',e);}
   await loadYear(S.empresa.anio);
   await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
   fillEmpresaForm();updateHdr();renderSelectorEmpresa();renderInicio();
@@ -588,7 +602,7 @@ Object.assign(window,{
   aplicarCuentaATodos, confirmarImportacion, renderImportModal, pn,
   cambiarModoImport, verDuplicadoC, renderCDupAlert,
   // honorarios
-  renderHon, uhon, addHon, delHon, saveHon,
+  renderHon, setHonCampo, uhon, addHon, delHon, saveHon,
   // asientos
   renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento, anularAsiento,
   eliminarAsiento, guardarAsiento, addLinea, delLinea, renderLineas, lCd, lVal, lValFmt, lValFmtBlur, lRut,
@@ -596,7 +610,7 @@ Object.assign(window,{
   dtmGuardar, dtmRefresh, dtmCalcTotals, dtmRutInput, dtmCheckDup, dtmAddDist, dtmDelDist,
   dtmRenderDist, dtmUpdDistCheck, dtmRemover, quitarDte, folioPreviewDte, abrirAsientoDesde,
   // activo fijo
-  renderActivoFijo, abrirFormAF, onCatAF, cerrarFormAF, previewAF, guardarAF, editarAF,
+  renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF, editarAF,
   eliminarAF, generarAsientoDepreciacion,
   // remuneraciones
   renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,

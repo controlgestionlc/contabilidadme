@@ -9,7 +9,7 @@ import {logAccion} from './firebase.js';
 import {mesRango, mesOpts, dteVentasOpts, foliosMensuales} from './helpers.js';
 import {todosDocsVentas, abrirAsientoDesde, proxFolioComprobante} from './asientos.js';
 import './storage.js';
-import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento} from './contabilidad-v2.js';
+import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico} from './contabilidad-v2.js';
 
 // Estado del formulario de ventas (interno del módulo)
 // Mismo cuidado que con AF y CF: este objeto se publica en window desde app.js,
@@ -52,32 +52,50 @@ function toggleVSelAll(marcados){
 function limpiarVSel(){VF_SEL.clear();renderVentas();}
 async function cambiarFPVSel(nuevaFP){
   if(!VF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de modificar ventas.','e');return;}
   const fpLbl=nuevaFP==='clientes'?'a crédito (Cliente)':nuevaFP==='banco'?'al contado (Banco)':nuevaFP;
-  // Solo se pueden modificar los documentos del libro (no los que vienen de un
-  // asiento manual, que se editan desde el asiento).
+  const snapV=JSON.stringify(S.ventas||[]),snapA=JSON.stringify(S.asientos||[]);
   let cambiados=0, omitidos=0;
-  S.ventas.forEach(d=>{
-    if(!VF_SEL.has(d.id))return;
-    if(d.formaPago!==nuevaFP){d.formaPago=nuevaFP;cambiados++;}
-  });
-  // ¿Había seleccionados que no están en el libro (vienen de asientos)?
-  omitidos=VF_SEL.size-S.ventas.filter(d=>VF_SEL.has(d.id)).length;
-  if(!cambiados&&!omitidos){toast('Los documentos ya tenían esa forma de pago');return;}
+  try{
+    S.ventas.forEach(d=>{
+      if(!VF_SEL.has(d.id)||d.estado==='anulado')return;
+      if(d.formaPago!==nuevaFP){d.formaPago=nuevaFP;upsertAsientoDocumento('ventas',d);cambiados++;}
+    });
+    omitidos=VF_SEL.size-S.ventas.filter(d=>VF_SEL.has(d.id)).length;
+    if(!cambiados&&!omitidos){toast('Los documentos ya tenían esa forma de pago');return;}
+    await persistirClavesCritico([
+      {key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)},
+      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
+    ]);
+  }catch(e){
+    S.ventas=JSON.parse(snapV);S.asientos=JSON.parse(snapA);
+    toast('❌ No se pudo guardar el cambio. No se aplicaron modificaciones.','e');return;
+  }
   VF_SEL.clear();
-  try{await window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas));}catch(e){}
   toast(`✅ ${cambiados} documento${cambiados===1?'':'s'} marcado${cambiados===1?'':'s'} ${fpLbl}${omitidos?` · ${omitidos} omitido${omitidos===1?'':'s'} (vienen de asientos)`:''}`);
   logAccion('Cambió forma de pago masivamente',`${cambiados} ventas → ${nuevaFP}`);
   rerender();
 }
 async function eliminarVSel(){
   if(!VF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de anular ventas.','e');return;}
   const n=VF_SEL.size;
-  if(!confirm(`¿Eliminar ${n} documento${n===1?'':'s'} de venta seleccionado${n===1?'':'s'}?\n\nEsta acción no se puede deshacer.`))return;
+  if(!confirm(`¿Anular ${n} documento${n===1?'':'s'} de venta seleccionado${n===1?'':'s'}?
+
+Los documentos y sus asientos se conservarán para trazabilidad.`))return;
+  const snapV=JSON.stringify(S.ventas||[]),snapA=JSON.stringify(S.asientos||[]);
   let borrados=0;
-  S.ventas.forEach(d=>{if(VF_SEL.has(d.id)&&d.estado!=='anulado'){d.estado='anulado';d.anuladoEn=new Date().toISOString();borrados++;}});
+  try{
+    S.ventas.forEach(d=>{if(VF_SEL.has(d.id)&&d.estado!=='anulado'){d.estado='anulado';d.anuladoEn=new Date().toISOString();anularAsientoDocumento('ventas',d.id,'anulación masiva');borrados++;}});
+    await persistirClavesCritico([
+      {key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)},
+      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
+    ]);
+  }catch(e){
+    S.ventas=JSON.parse(snapV);S.asientos=JSON.parse(snapA);
+    toast('❌ No se pudo guardar la anulación. No se aplicaron cambios.','e');return;
+  }
   VF_SEL.clear();
-  const r=await window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas));
-  if(r&&r.ok===false){toast('❌ No se pudo guardar la anulación','e');return;}
   toast(`🚫 ${borrados} documento${borrados===1?'':'s'} anulado${borrados===1?'':'s'}`);
   logAccion('Anuló ventas masivamente',`${borrados} documentos`);
   rerender();
@@ -595,14 +613,12 @@ async function confirmarImportacionV(){
   });
 
   try{
-    const r1=await window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas));
-    if(r1&&r1.ok===false)throw new Error(r1.motivo||'fallo-ventas');
-    const r2=await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos||[]));
-    if(r2&&r2.ok===false)throw new Error(r2.motivo||'fallo-asientos');
+    await persistirClavesCritico([
+      {key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)},
+      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
+    ]);
   }catch(err){
     S.ventas=JSON.parse(snapVentas);S.asientos=JSON.parse(snapAsientos);
-    try{await window.storage.set('ventas-'+S.empresa.anio,snapVentas);}catch(_e){}
-    try{await window.storage.set('asientos-'+S.empresa.anio,snapAsientos);}catch(_e){}
     toast('❌ No se pudo completar la importación. Se revirtieron ventas y asientos.','e');return;
   }
 
@@ -640,7 +656,7 @@ async function confirmarImportacionV(){
     }
   });
   if(fichasCreadas||fichasActualizadas){
-    guardarFichasAux().catch(()=>{});
+    guardarFichasAux().catch(e=>console.warn('No se pudo guardar ficha auxiliar:',e));
   }
 
   cerrarImportModalVentas();

@@ -332,27 +332,105 @@ initDispositivo();
     async set(key,value){
       const k=K(key);
       if(bloqueadas.has(k)){
-        // Nunca sobrescribir algo que no pudimos leer: sería escribir el vacío
-        // que la app está mostrando por error encima del dato bueno.
         const motivo=bloqueadas.get(k);
         console.error('Escritura BLOQUEADA en',k,'—',motivo);
         try{window.__avisarBloqueo&&window.__avisarBloqueo(key,motivo);}catch(e){}
         return {key,ok:false,bloqueada:true,motivo};
       }
-      detectarBorrados(k,value);   // lo que desapareció desde la última lectura
-      setLocal(k,value);
-      // Escritura versionada: detecta si otro equipo guardó en el intermedio
+
+      // Sin nube inicializada se conserva el modo offline, pero se declara
+      // explícitamente que el guardado quedó sólo en este dispositivo.
+      if(!FS.enabled||!FS.db){
+        detectarBorrados(k,value);
+        setLocal(k,value);fijarBaseline(k,value);
+        try{ if(window.__marcarGuardado)window.__marcarGuardado(); }catch(e){}
+        return {key,value,ok:true,soloLocal:true};
+      }
+
+      // V2.10: NO tocar localStorage antes de saber que la escritura remota
+      // terminó bien. Antes, una falla de Firestore podía mostrar "no guardado"
+      // pero dejar igualmente el valor nuevo en localStorage; al recargar parecía
+      // que sí se había guardado y más tarde podía volver a sincronizarse.
+      detectarBorrados(k,value);
       const r=await setRemoteVersionado(k,value);
       if(r.motivo==='conflicto'){
         try{window.__avisarConflicto&&window.__avisarConflicto(key,r.otro);}catch(e){}
         return {key,value,ok:false,conflicto:true,otro:r.otro};
       }
+      if(r.ok===false)return {key,value,ok:false,motivo:r.motivo};
+      const definitivo=r.value!==undefined?r.value:value;
+      setLocal(k,definitivo);fijarBaseline(k,definitivo);
       if(r.fusionado){
         try{window.__avisarFusion&&window.__avisarFusion(key,r);}catch(e){}
       }
-      // Avisar al control de salida que se guardó (si está cargado)
       try{ if(window.__marcarGuardado)window.__marcarGuardado(); }catch(e){}
-      return {key,value,ok:r.ok!==false,fusionado:!!r.fusionado,motivo:r.ok===false?r.motivo:undefined};
+      return {key,value:definitivo,ok:true,fusionado:!!r.fusionado};
+    },
+
+    // Escritura atómica de varias claves críticas de la misma empresa.
+    // Se usa cuando un hecho económico debe persistir en más de un documento
+    // de Firestore (ej.: libro de compras + asientos). O se guardan todas, o no
+    // se modifica ninguna ni en la nube ni en localStorage.
+    async setMany(entries){
+      const lista=(entries||[]).filter(x=>x&&x.key!=null).map(x=>({key:String(x.key),value:String(x.value??'')}));
+      if(!lista.length)return {ok:true};
+      for(const e of lista){
+        const k=K(e.key);
+        if(bloqueadas.has(k))return {ok:false,bloqueada:true,clave:e.key,motivo:bloqueadas.get(k)};
+      }
+      if(!FS.enabled||!FS.db){
+        for(const e of lista){const k=K(e.key);detectarBorrados(k,e.value);setLocal(k,e.value);fijarBaseline(k,e.value);}
+        try{ if(window.__marcarGuardado)window.__marcarGuardado(); }catch(e){}
+        return {ok:true,soloLocal:true};
+      }
+      FS.pendingWrites++;fsStatusSet('syncing');
+      try{
+        const refs=lista.map(e=>FS.db.collection(COLL).doc(K(e.key)));
+        const nuevos=[];
+        await FS.db.runTransaction(async t=>{
+          const snaps=[];
+          for(const ref of refs)snaps.push(await t.get(ref));
+          for(let i=0;i<lista.length;i++){
+            const e=lista[i],k=K(e.key),snap=snaps[i];
+            const actual=snap.exists?(snap.data()||{}):null;
+            const revNube=actual?(+actual.rev||0):0;
+            const revMia=revs.has(k)?revs.get(k):null;
+            if(actual&&revMia===null)throw new Error('__SIN_BASELINE__:'+e.key);
+            if(revMia!==null&&revNube!==revMia)throw new Error('__CONFLICTO_MULTI__:'+e.key);
+
+            // Preparar lápidas sin modificar el estado global antes del commit.
+            const prev=baseline.get(k), ahora=idsDe(e.value);
+            const lapidas={...((actual&&actual.borrados)||{}),...(tumbas.get(k)||{})};
+            if(prev&&ahora){
+              prev.forEach(id=>{if(!ahora.has(id)&&!lapidas[id])lapidas[id]=new Date().toISOString();});
+              ahora.forEach(id=>{if(lapidas[id])delete lapidas[id];});
+            }
+            const nuevaRev=revNube+1;
+            t.set(ref,{value:e.value,empresa:empresaDeClave(k),rev:nuevaRev,borrados:lapidas,
+              dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
+              ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+            nuevos.push({k,value:e.value,rev:nuevaRev,lapidas});
+          }
+        });
+        nuevos.forEach(x=>{revs.set(x.k,x.rev);tumbas.set(x.k,x.lapidas);resucitados.delete(x.k);setLocal(x.k,x.value);fijarBaseline(x.k,x.value);});
+        FS.pendingWrites--;FS.lastSaveTs=Date.now();if(FS.pendingWrites===0)fsStatusSet('saved');
+        try{ if(window.__marcarGuardado)window.__marcarGuardado(); }catch(e){}
+        return {ok:true};
+      }catch(e){
+        FS.pendingWrites--;
+        const msg=e&&e.message||String(e);
+        if(msg.startsWith('__CONFLICTO_MULTI__')){
+          const clave=msg.split(':').slice(1).join(':');fsStatusSet('error','conflicto entre equipos');
+          try{window.__avisarConflicto&&window.__avisarConflicto(clave,'otro dispositivo');}catch(_e){}
+          return {ok:false,conflicto:true,clave,motivo:'conflicto'};
+        }
+        if(msg.startsWith('__SIN_BASELINE__')){
+          const clave=msg.split(':').slice(1).join(':');fsStatusSet('error','clave no sincronizada');
+          return {ok:false,clave,motivo:'clave-no-sincronizada'};
+        }
+        fsStatusSet('error',e.code||msg);console.warn('FS setMany',e);
+        return {ok:false,motivo:msg};
+      }
     },
     async delete(key){
       const k=K(key);

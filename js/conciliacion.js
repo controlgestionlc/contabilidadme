@@ -21,7 +21,7 @@ function getConcEstado(){
 function setConcEstado(est){
   if(!S.empresa.conciliacion)S.empresa.conciliacion={};
   S.empresa.conciliacion[concKey()]=est;
-  window.storage.set('empresa',JSON.stringify(S.empresa)).catch(()=>{});
+  window.storage.set('empresa',JSON.stringify(S.empresa)).then(r=>{if(!r||r.ok===false)toast('❌ No se pudo guardar la conciliación','e');}).catch(e=>{console.error('conciliación',e);toast('❌ No se pudo guardar la conciliación','e');});
 }
 // id determinista de un movimiento del mayor
 function movId(m,i){return `${m.fecha}|${(m.glosa||'').slice(0,20)}|${m.debe||0}|${m.haber||0}|${i}`;}

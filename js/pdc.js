@@ -121,6 +121,7 @@ const PDC_DEFAULT=JSON.parse(JSON.stringify([
   {cd:'1108004',nm:'CRÉDITO GASTOS DE CAPACITACIÓN',tp:'A',nat:'D'},
   {cd:'1108005',nm:'CRÉDITO 2% ADICIONAL ISAPRE',tp:'A',nat:'D'},
   {cd:'1108006',nm:'OTROS IMPUESTOS POR RECUPERAR',tp:'A',nat:'D'},
+  {cd:'1108008',nm:'IVA CRÉDITO FISCAL ACTIVO FIJO',tp:'A',nat:'D'},
   {cd:'1109001',nm:'MADERAS',tp:'A',nat:'D'},
   {cd:'1109002',nm:'BOSQUES',tp:'A',nat:'D'},
   {cd:'1109003',nm:'CULTIVOS AGRICOLAS',tp:'A',nat:'D'},
@@ -176,6 +177,7 @@ const PDC_DEFAULT=JSON.parse(JSON.stringify([
   {cd:'2103002',nm:'RETENCIÓN 2º CATEGORÍA',tp:'P',nat:'C'},
   {cd:'2103003',nm:'IVA DÉBITO FISCAL',tp:'P',nat:'C'},
   {cd:'2103004',nm:'OTROS IMPUESTOS POR PAGAR',tp:'P',nat:'C'},
+  {cd:'2103005',nm:'IVA RETENIDO FACTURAS DE COMPRA',tp:'P',nat:'C'},
   {cd:'2104001',nm:'INSTITUCIONES PREVISIONALES POR PAGAR',tp:'P',nat:'C'},
   {cd:'2104002',nm:'IMPUESTOS POR PAGAR',tp:'P',nat:'C'},
   {cd:'2104005',nm:'REMUNERACIONES POR PAGAR',tp:'P',nat:'C'},
@@ -396,7 +398,7 @@ async function eliminarCuenta(cd){
     return;
   }
   // Proteger cuentas críticas del sistema (usadas por ventas/compras automáticas)
-  const criticas=['1101201','1104001','1107003','1108002','2103003','2102001','2102006','3202019','4101002','4101003','4101003'];
+  const criticas=['1101201','1104001','1107003','1108002','1108008','2103003','2103005','2102001','2102006','3202019','4101002','4101003','4101003'];
   if(criticas.includes(cd)){
     if(!confirm(`⚠️ ATENCIÓN: ${cd} ${c.nm}\n\nEs una cuenta usada automáticamente por el sistema (para asientos de ventas, compras u honorarios). Si la eliminas, esos asientos podrían fallar.\n\n¿Eliminar de todas formas?`))return;
   }else{

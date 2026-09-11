@@ -363,7 +363,7 @@ function renderIUSCTabla(){
     </div>`;
 }
 
-function guardarIndicadores(){
+async function guardarIndicadores(){
   const num=id=>+document.getElementById('ind-'+id).value||0;
   const ind={
     uf:num('uf'),utm:num('utm'),uta:num('uta'),dolar:num('dolar'),euro:num('euro'),
@@ -388,17 +388,19 @@ function guardarIndicadores(){
   S.empresa.indicadores=ind;
   // Limpiar valores legacy que quedaban sueltos
   delete S.empresa.remUF;delete S.empresa.remUTM;delete S.empresa.factorCM;
-  window.storage.set('empresa',JSON.stringify(S.empresa)).catch(()=>toast('❌ Error al guardar','e'));
+  const r=await window.storage.set('empresa',JSON.stringify(S.empresa));
+  if(!r||r.ok===false){toast('❌ Error al guardar indicadores','e');return;}
   // Refrescar los inputs de UF/UTM del mes en Remuneraciones si están cargados
   const ufEl=document.getElementById('rem-uf'),utmEl=document.getElementById('rem-utm');
   if(ufEl)ufEl.value=ind.uf;if(utmEl)utmEl.value=ind.utm;
   toast('✅ Indicadores guardados');
   logAccion('Actualizó indicadores',`UF ${fmtC(ind.uf)} · UTM ${fmtC(ind.utm)}`);
 }
-function restaurarIndicadoresDefault(){
+async function restaurarIndicadoresDefault(){
   if(!confirm('¿Restaurar los valores oficiales de referencia 2026? Se sobrescribirán los actuales.'))return;
   S.empresa.indicadores={...INDICADORES_DEFAULT};
-  window.storage.set('empresa',JSON.stringify(S.empresa)).catch(()=>{});
+  const r=await window.storage.set('empresa',JSON.stringify(S.empresa));
+  if(!r||r.ok===false){toast('❌ No se pudieron restaurar los indicadores','e');return;}
   renderIndicadores();toast('↺ Valores 2026 restaurados');
 }
 

@@ -1,11 +1,27 @@
 // contabilidad-v2.js — capa de orquestación contable V2.
 // Mantiene un asiento persistido por documento y protege operaciones críticas.
 import {S} from './state.js';
-import {asientoVenta,asientoCompra,cuadratura} from './motor-contable.js';
+import {asientoVenta,asientoCompra,cuadratura,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra} from './motor-contable.js';
 import {validarMovimientosPDC,reglaCuenta} from './pdc-reglas.js';
 
 const n=v=>Number(v)||0;
 const idAsientoDoc=(fuente,docId)=>`auto:${fuente}:${docId}`;
+
+// Persiste varias claves relacionadas como una sola unidad cuando storage V2.10
+// ofrece transacción multi-documento. El fallback conserva compatibilidad con
+// versiones antiguas del shim, pero la versión actual siempre usa setMany.
+async function persistirClavesCritico(entries){
+  if(window.storage&&typeof window.storage.setMany==='function'){
+    const r=await window.storage.setMany(entries);
+    if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia-multiple');
+    return r;
+  }
+  for(const e of entries){
+    const r=await window.storage.set(e.key,e.value);
+    if(!r||r.ok===false)throw new Error(r?.motivo||`fallo-${e.key}`);
+  }
+  return {ok:true};
+}
 
 function ejercicioCerrado(){
   const anio=+S.empresa.anio;
@@ -92,16 +108,14 @@ async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
       arr[i]=doc;
     }else arr.push(doc);
     upsertAsientoDocumento(fuente,doc);
-    const r1=await window.storage.set(claveDoc,JSON.stringify(arr));
-    if(!r1||r1.ok===false)throw new Error(r1?.motivo||'fallo-documento');
-    const r2=await window.storage.set(claveAs,JSON.stringify(S.asientos));
-    if(!r2||r2.ok===false)throw new Error(r2?.motivo||'fallo-asiento');
+    await persistirClavesCritico([
+      {key:claveDoc,value:JSON.stringify(arr)},
+      {key:claveAs,value:JSON.stringify(S.asientos)},
+    ]);
     return {ok:true,asiento:idAsientoDoc(fuente,doc.id)};
   }catch(e){
     const arrPrev=JSON.parse(snapArr), asPrev=JSON.parse(snapAs);
     arr.splice(0,arr.length,...arrPrev); S.asientos=asPrev;
-    try{await window.storage.set(claveDoc,snapArr);}catch(_e){}
-    try{await window.storage.set(claveAs,snapAs);}catch(_e){}
     return {ok:false,motivo:e.message||String(e)};
   }
 }
@@ -112,9 +126,10 @@ async function anularDocumentoContabilizado(fuente,doc,arr){
   doc.estado='anulado';doc.anuladoEn=new Date().toISOString();
   anularAsientoDocumento(fuente,doc.id);
   try{
-    const r1=await window.storage.set(`${fuente}-${S.empresa.anio}`,JSON.stringify(arr));
-    const r2=await window.storage.set(`asientos-${S.empresa.anio}`,JSON.stringify(S.asientos));
-    if(r1?.ok===false||r2?.ok===false)throw new Error(r1?.motivo||r2?.motivo||'fallo-persistencia');
+    await persistirClavesCritico([
+      {key:`${fuente}-${S.empresa.anio}`,value:JSON.stringify(arr)},
+      {key:`asientos-${S.empresa.anio}`,value:JSON.stringify(S.asientos)},
+    ]);
     return {ok:true};
   }catch(e){
     arr.splice(0,arr.length,...JSON.parse(snapArr)); S.asientos=JSON.parse(snapAs);
@@ -155,8 +170,22 @@ function auditoriaIntegridad(){
       if(encontrados.length>1)agregar('critica','asiento_duplicado',`${encontrados.length} asientos activos para ${fuente}:${d.id}`,`${fuente}:${d.id}`);
     }
   }
+  // Honorarios también son documentos maestros desde V2.5.
+  for(const h of (S.honorarios||[]).filter(x=>x.estado!=='anulado'&&+x.bruto>0)){
+    const encontrados=asAct.filter(x=>x.tipo==='documento'&&x.fuente==='honorarios'&&x.docId===h.id);
+    if(!encontrados.length)agregar('critica','honorario_sin_asiento',`Honorario ${h.nombre||h.id} sin asiento de reconocimiento persistido`,h.id);
+    if(encontrados.length>1)agregar('critica','honorario_asiento_duplicado',`${encontrados.length} asientos de reconocimiento para honorario ${h.nombre||h.id}`,h.id);
+    if(h.modalidad==='contado'){
+      const pagos=asAct.filter(x=>x.tipo==='pago'&&x.fuente==='honorarios'&&x.docId===h.id);
+      if(!pagos.length)agregar('alta','honorario_contado_sin_pago',`Honorario ${h.nombre||h.id} está marcado al contado pero no tiene asiento de pago`,h.id);
+    }
+  }
   for(const a of asAct.filter(x=>x.tipo==='documento')){
-    const arr=a.fuente==='ventas'?S.ventas:S.compras;
+    let arr=[];
+    if(a.fuente==='ventas')arr=S.ventas;
+    else if(a.fuente==='compras')arr=S.compras;
+    else if(a.fuente==='honorarios')arr=S.honorarios;
+    else continue;
     const d=(arr||[]).find(x=>x.id===a.docId&&x.estado!=='anulado');
     if(!d)agregar('alta','asiento_sin_documento',`Asiento automático ${a.id} no tiene documento activo`,a.id);
   }
@@ -180,14 +209,45 @@ function auditoriaIntegridad(){
   // 4) IVA de documentos contra sus asientos maestros. No compara sólo totales
   //    generales: valida documento por documento para detectar modificaciones
   //    que no hayan regenerado su asiento.
-  for(const [fuente,arr,cdIVA] of [['ventas',S.ventas||[],'2103003'],['compras',S.compras||[],'1108002']]){
-    for(const d of arr.filter(x=>x.estado!=='anulado'&&!x.excluidoAuto)){
-      const a=asAct.find(x=>x.tipo==='documento'&&x.fuente===fuente&&x.docId===d.id); if(!a)continue;
-      const movs=(a.movs||[]).filter(m=>m.cd===cdIVA&&m.tributo!=='iva_retenido');
-      const contabilizado=Math.abs(movs.reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
-      const esperado=Math.abs(n(d.iva));
-      if(Math.abs(contabilizado-esperado)>1)agregar('critica','iva_documento_difiere',`${fuente} DTE ${d.tipoDTE} N°${d.numero}: IVA documento ${Math.round(esperado)} ≠ IVA asiento ${Math.round(contabilizado)}`,d.id);
-    }
+  for(const d of (S.ventas||[]).filter(x=>x.estado!=='anulado'&&!x.excluidoAuto)){
+    const a=asAct.find(x=>x.tipo==='documento'&&x.fuente==='ventas'&&x.docId===d.id); if(!a)continue;
+    const contabilizado=Math.abs((a.movs||[]).filter(m=>m.cd==='2103003').reduce((s,m)=>s+n(m.haber)-n(m.debe),0));
+    const esperado=Math.abs(n(d.iva));
+    if(Math.abs(contabilizado-esperado)>1)agregar('critica','iva_documento_difiere',`ventas DTE ${d.tipoDTE} N°${d.numero}: IVA documento ${Math.round(esperado)} ≠ IVA asiento ${Math.round(contabilizado)}`,d.id);
+  }
+  for(const d of (S.compras||[]).filter(x=>x.estado!=='anulado'&&!x.excluidoAuto)){
+    const a=asAct.find(x=>x.tipo==='documento'&&x.fuente==='compras'&&x.docId===d.id); if(!a)continue;
+    const ci=clasificacionIVACompra(d);
+    const recGeneral=Math.abs((a.movs||[]).filter(m=>m.cd==='1108002').reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
+    const recAF=Math.abs((a.movs||[]).filter(m=>m.cd==='1108008').reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
+    if(Math.abs(recGeneral-(ci.recuperable-ci.activoFijo))>1)agregar('critica','iva_credito_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: crédito general esperado ${Math.round(ci.recuperable-ci.activoFijo)} ≠ asiento ${Math.round(recGeneral)}`,d.id);
+    if(Math.abs(recAF-ci.activoFijo)>1)agregar('critica','iva_activo_fijo_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: crédito activo fijo esperado ${Math.round(ci.activoFijo)} ≠ asiento ${Math.round(recAF)}`,d.id);
+    const cuentasCosto=new Set((d.dist||[]).map(l=>l.cuenta).filter(Boolean));
+    const costoAs=Math.abs((a.movs||[]).filter(m=>cuentasCosto.has(m.cd)).reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
+    const oi=clasificacionOtrosImpuestosCompra(d);
+    const costoEsperado=Math.abs(n(d.neto)+n(d.exento)+oi.costo+ci.noRecuperable);
+    if(cuentasCosto.size&&Math.abs(costoAs-costoEsperado)>1)agregar('critica','iva_no_recuperable_costo_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: costo esperado con IVA no recuperable ${Math.round(costoEsperado)} ≠ asiento ${Math.round(costoAs)}`,d.id);
+    if(Math.abs((ci.recuperable+ci.noRecuperable)-ci.total)>1)agregar('critica','clasificacion_iva_invalida',`Compra DTE ${d.tipoDTE} N°${d.numero}: clasificación IVA no suma el IVA total`,d.id);
+    const otrosRecAs=Math.abs((a.movs||[]).filter(m=>m.cd==='1108006'&&m.tributo==='impuesto_adicional_recuperable').reduce((t,m)=>t+n(m.debe)-n(m.haber),0));
+    if(Math.abs(otrosRecAs-oi.recuperable)>1)agregar('critica','otros_impuestos_recuperables_difieren',`Compra DTE ${d.tipoDTE} N°${d.numero}: otros impuestos recuperables esperados ${Math.round(oi.recuperable)} ≠ asiento ${Math.round(otrosRecAs)}`,d.id);
+    const sumaDet=(oi.detalle||[]).reduce((t,x)=>t+n(x.monto),0);
+    if(Math.abs(sumaDet-oi.total)>1)agregar('alta','otros_impuestos_detalle_invalido',`Compra DTE ${d.tipoDTE} N°${d.numero}: detalle de otros impuestos no suma el total informado`,d.id);
+    const rechazadoDist=(d.dist||[]).filter(l=>l.tratamientoTributario==='rechazado').reduce((t,l)=>t+n(l.monto),0);
+    const rechazadoAs=Math.abs((a.movs||[]).filter(m=>m.tributario==='gasto_rechazado').reduce((t,m)=>t+n(m.debe)-n(m.haber),0));
+    if(rechazadoDist>0&&rechazadoAs<1)agregar('alta','gasto_rechazado_sin_marca_asiento',`Compra DTE ${d.tipoDTE} N°${d.numero}: tiene líneas tributariamente rechazadas pero el asiento no conserva la marca`,d.id);
+  }
+
+
+  // 4b) Facturas de compra DTE 45/46: retención y total proveedor deben seguir
+  //     la normalización única del motor contable.
+  for(const d of (S.compras||[]).filter(x=>x.estado!=='anulado'&&( +x.tipoDTE===45||+x.tipoDTE===46))){
+    const a=asAct.find(x=>x.tipo==='documento'&&x.fuente==='compras'&&x.docId===d.id); if(!a)continue;
+    const tc=tributacionCompra(d);
+    const retAs=Math.abs((a.movs||[]).filter(m=>m.cd==='2103005'&&m.tributo==='iva_retenido').reduce((t,m)=>t+n(m.haber)-n(m.debe),0));
+    const provAs=Math.abs((a.movs||[]).filter(m=>m.cd==='2102001').reduce((t,m)=>t+n(m.haber)-n(m.debe),0));
+    if(Math.abs(retAs-tc.ivaRetenido)>1)agregar('critica','iva_retenido_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: retención esperada ${Math.round(tc.ivaRetenido)} ≠ asiento ${Math.round(retAs)}`,d.id);
+    if(Math.abs(provAs-tc.totalProveedor)>1)agregar('critica','proveedor_factura_compra_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: proveedor esperado ${Math.round(tc.totalProveedor)} ≠ asiento ${Math.round(provAs)}`,d.id);
+    if(tc.diferenciaTotal>1)agregar('alta','total_factura_compra_ambiguo',`Compra DTE ${d.tipoDTE} N°${d.numero}: total informado ${Math.round(tc.totalInformado)} no coincide con total documento ${Math.round(tc.totalDocumento)} ni total proveedor ${Math.round(tc.totalProveedor)}`,d.id);
   }
 
   // 5) Cierre y secuencia temporal
@@ -210,13 +270,22 @@ function auditoriaIntegridad(){
   // 7) Pagos: cada referencia debe apuntar a un documento existente y activo.
   asAct.filter(a=>a.tipo==='pago').forEach(a=>{
     (a.documentos||[]).forEach(r=>{
-      const arr=r.tipo==='cliente'?S.ventas:S.compras;
+      const arr=r.tipo==='cliente'?S.ventas:r.tipo==='honorario'?S.honorarios:S.compras;
       const d=(arr||[]).find(x=>x.id===r.docId&&x.estado!=='anulado');
       if(!d)agregar('alta','pago_sin_documento',`Pago ${a.n||a.id} referencia documento inexistente/anulado ${r.docId}`,a.id);
     });
   });
 
-  // 8) Reglas del Plan de Cuentas sobre todos los movimientos activos.
+  // 8) Honorarios: la retención registrada debe coincidir con el asiento maestro.
+  for(const h of (S.honorarios||[]).filter(x=>x.estado!=='anulado'&&+x.bruto>0)){
+    const a=asAct.find(x=>x.tipo==='documento'&&x.fuente==='honorarios'&&x.docId===h.id); if(!a)continue;
+    const retAs=Math.abs((a.movs||[]).filter(m=>m.cd==='2103002').reduce((t,m)=>t+n(m.haber)-n(m.debe),0));
+    const tasa=n(h.tasaRetencion)||0;
+    const retEsp=tasa?Math.round(n(h.bruto)*tasa):retAs;
+    if(tasa&&Math.abs(retAs-retEsp)>1)agregar('critica','retencion_honorario_difiere',`Honorario ${h.nombre||h.id}: retención esperada ${retEsp} ≠ asiento ${Math.round(retAs)}`,h.id);
+  }
+
+  // 9) Reglas del Plan de Cuentas sobre todos los movimientos activos.
   for(const a of asAct){
     (a.movs||[]).forEach((m,i)=>{
       const r=reglaCuenta(m.cd);
@@ -230,24 +299,55 @@ function auditoriaIntegridad(){
     });
   }
 
-  // 9) Control mensual IVA: documento vs asiento maestro por período.
-  for(const [fuente,arr,cdIVA] of [['ventas',S.ventas||[],'2103003'],['compras',S.compras||[],'1108002']]){
-    const periodos=new Set((arr||[]).filter(d=>d.estado!=='anulado').map(d=>String(d.fecha||'').slice(0,7)).filter(Boolean));
+  // 10) Control mensual IVA: documento vs asiento maestro por período.
+  for(const fuente of ['ventas','compras']){
+    const arr=fuente==='ventas'?(S.ventas||[]):(S.compras||[]);
+    const periodos=new Set(arr.filter(d=>d.estado!=='anulado').map(d=>String(d.fecha||'').slice(0,7)).filter(Boolean));
     for(const per of periodos){
-      const ivaDocs=(arr||[]).filter(d=>d.estado!=='anulado'&&String(d.fecha||'').startsWith(per)).reduce((t,d)=>t+Math.abs(n(d.iva)),0);
-      const ivaAs=asAct.filter(a=>a.tipo==='documento'&&a.fuente===fuente&&String(a.fecha||'').startsWith(per)).reduce((t,a)=>t+Math.abs((a.movs||[]).filter(m=>m.cd===cdIVA&&m.tributo!=='iva_retenido').reduce((s,m)=>s+n(m.debe)-n(m.haber),0)),0);
-      if(Math.abs(ivaDocs-ivaAs)>1)agregar('critica','iva_periodo_difiere',`${fuente} ${per}: IVA documentos ${Math.round(ivaDocs)} ≠ IVA asientos ${Math.round(ivaAs)}`,`${fuente}:${per}`);
+      let ivaDocs=0,ivaAs=0;
+      if(fuente==='ventas'){
+        ivaDocs=arr.filter(d=>d.estado!=='anulado'&&String(d.fecha||'').startsWith(per)).reduce((t,d)=>t+Math.abs(n(d.iva)),0);
+        ivaAs=asAct.filter(a=>a.tipo==='documento'&&a.fuente===fuente&&String(a.fecha||'').startsWith(per)).reduce((t,a)=>t+Math.abs((a.movs||[]).filter(m=>m.cd==='2103003').reduce((s,m)=>s+n(m.haber)-n(m.debe),0)),0);
+      }else{
+        ivaDocs=arr.filter(d=>d.estado!=='anulado'&&String(d.fecha||'').startsWith(per)).reduce((t,d)=>t+clasificacionIVACompra(d).recuperable,0);
+        ivaAs=asAct.filter(a=>a.tipo==='documento'&&a.fuente===fuente&&String(a.fecha||'').startsWith(per)).reduce((t,a)=>t+Math.abs((a.movs||[]).filter(m=>m.cd==='1108002'||m.cd==='1108008').reduce((s,m)=>s+n(m.debe)-n(m.haber),0)),0);
+      }
+      if(Math.abs(ivaDocs-ivaAs)>1)agregar('critica','iva_periodo_difiere',`${fuente} ${per}: IVA recuperable documentos ${Math.round(ivaDocs)} ≠ IVA asientos ${Math.round(ivaAs)}`,`${fuente}:${per}`);
     }
   }
 
-  // 10) Activo fijo: verificar que los registros nuevos separen base contable/tributaria.
-  (S.activos||[]).forEach(b=>{
+  // 11) Activo fijo: bases separadas, compra de origen y depreciación única/trazable.
+  const activosAct=(S.activos||[]).filter(b=>b.estado!=='anulado');
+  activosAct.forEach(b=>{
     if(b.valorContable==null||b.valorTributario==null)agregar('alta','activo_modelo_legacy',`Activo "${b.desc||b.id}" aún usa modelo histórico; editar y guardar para separar base contable/tributaria`,b.id);
     if((+b.valorContable||+b.valor||0)<0||(+b.valorTributario||+b.valor||0)<0)agregar('critica','activo_valor_invalido',`Activo "${b.desc||b.id}" tiene valor negativo`,b.id);
+    if(b.compraOrigenId){
+      const c=(S.compras||[]).find(x=>x.id===b.compraOrigenId&&x.estado!=='anulado');
+      if(!c)agregar('alta','activo_compra_origen_inexistente',`Activo "${b.desc||b.id}" referencia una compra inexistente o anulada`,b.id);
+    }
   });
+  const depPorAnio=new Map();
+  asAct.filter(a=>a.tipo==='depreciacion').forEach(a=>{
+    const an=String(a.periodoAF||a.fecha||'').slice(0,4)||'sin-año';
+    depPorAnio.set(an,(depPorAnio.get(an)||0)+1);
+    if(Array.isArray(a.detalleActivos)){
+      const sumDet=a.detalleActivos.reduce((t,x)=>t+n(x.monto),0);
+      const sumAs=(a.movs||[]).filter(m=>String(m.cd||'').startsWith('3301')).reduce((t,m)=>t+n(m.debe)-n(m.haber),0);
+      if(Math.abs(sumDet-sumAs)>1)agregar('critica','depreciacion_detalle_difiere',`Depreciación ${an}: detalle de activos ${Math.round(sumDet)} ≠ gasto contabilizado ${Math.round(sumAs)}`,a.id);
+      a.detalleActivos.forEach(x=>{if(!activosAct.some(b=>b.id===x.activoId))agregar('alta','depreciacion_activo_inexistente',`Depreciación ${an} referencia activo inexistente/anulado ${x.activoId}`,a.id);});
+    }else agregar('alta','depreciacion_sin_trazabilidad',`Asiento de depreciación ${an} no conserva detalle por activo; regenerar en un ejercicio abierto para obtener trazabilidad V2.9`,a.id);
+  });
+  [...depPorAnio].filter(([,c])=>c>1).forEach(([an,c])=>agregar('critica','depreciacion_duplicada',`${c} asientos de depreciación activos para ${an}`,`depreciacion:${an}`));
+
+  // 12) Persistencia: una clave bloqueada significa que no pudo confirmarse
+  // su lectura remota. Guardar encima de ella podría destruir información.
+  try{
+    const bloqueos=window.storage?.clavesBloqueadas?.()||[];
+    bloqueos.forEach(b=>agregar('critica','persistencia_bloqueada',`Persistencia bloqueada para ${b.clave}: ${b.motivo}`,b.clave));
+  }catch(_e){}
 
   const porSeveridad=hallazgos.reduce((o,h)=>(o[h.sev]=(o[h.sev]||0)+1,o),{});
   return {ok:hallazgos.length===0,total:hallazgos.length,hallazgos,porSeveridad};
 }
 
-export {idAsientoDoc,ejercicioCerrado,puedeOperarFecha,persistirAsientosCritico,asientoDesdeDocumento,upsertAsientoDocumento,anularAsientoDocumento,guardarDocumentoContabilizado,anularDocumentoContabilizado,migrarDocumentosAAsientos,auditoriaIntegridad};
+export {idAsientoDoc,ejercicioCerrado,puedeOperarFecha,persistirClavesCritico,persistirAsientosCritico,asientoDesdeDocumento,upsertAsientoDocumento,anularAsientoDocumento,guardarDocumentoContabilizado,anularDocumentoContabilizado,migrarDocumentosAAsientos,auditoriaIntegridad};

@@ -9,7 +9,7 @@ function renderIntegridad(){
   el.innerHTML=`<div class="card" style="margin-bottom:14px">
     <div class="card-title">${r.ok?'🟢 SISTEMA CUADRADO':'🔴 '+r.total+' DIFERENCIA'+(r.total===1?'':'S')+' DETECTADA'+(r.total===1?'':'S')}</div>
     <div class="info-tip" style="margin-bottom:12px;line-height:1.55">
-      Control V2 sobre <strong>cuadratura de asientos, documentos↔asientos, auxiliares↔Mayor, IVA por documento, pagos, duplicados F29 y cierre del ejercicio</strong>.
+      Control V2 sobre <strong>cuadratura de asientos, documentos↔asientos, auxiliares↔Mayor, IVA recuperable/no recuperable, activo fijo (compra→ficha→depreciación), pagos, duplicados F29 y cierre del ejercicio</strong>.
       ${r.ok?'No se detectaron diferencias en los controles implementados.':'Las diferencias críticas deben corregirse antes del cierre o de usar los estados financieros como definitivos.'}
     </div>
     ${r.ok?'':`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">

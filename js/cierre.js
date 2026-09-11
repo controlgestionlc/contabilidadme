@@ -8,7 +8,7 @@ import {IND} from './indicadores.js';
 import {rerender} from './ui.js';
 import {esAdmin} from './auth.js';
 import {logAccion} from './firebase.js';
-import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
+import {ejercicioCerrado,persistirAsientosCritico,auditoriaIntegridad} from './contabilidad-v2.js';
 import {empresaActiva, marcoInfo} from './empresas.js';
 import './storage.js';
 
@@ -52,6 +52,12 @@ async function generarAsientoCierre(){
   const anio=S.empresa.anio;
   const existente=S.asientos.find(a=>!a.anulado&&(a.tipo==='cierre'||(a.glosa&&a.glosa.includes('Cierre del ejercicio '+anio))));
   if(existente){toast(`🔒 El ejercicio ${anio} ya está cerrado (Asiento N°${existente.n})`,'e');return;}
+  const aud=auditoriaIntegridad();
+  const criticas=(aud.hallazgos||[]).filter(h=>h.sev==='critica');
+  if(criticas.length){
+    toast(`❌ No se puede cerrar: la Auditoría de Integridad tiene ${criticas.length} hallazgo${criticas.length===1?' crítico':'s críticos'}. Corrígelos antes del cierre.`,'e');
+    return;
+  }
   const {M,cuentasRes,resultado}=calcularResultadoEjercicio();
   if(!cuentasRes.length){toast('⚠️ No hay cuentas de resultado que cerrar','e');return;}
   if(!confirm(`¿Generar el asiento de cierre del ejercicio ${anio}?\n\nSaldará todas las cuentas de ingresos y gastos y traspasará el resultado (${fmtC(resultado)}) a Resultados Acumulados.\n\nEste asiento se registra al 31/dic/${anio}.`))return;

@@ -234,13 +234,13 @@ function eliminarTrabajador(id){
   const t=S.trabajadores.find(x=>x.id===id);if(!t)return;
   if(!confirm(`¿Eliminar al trabajador "${t.nombre}"?`))return;
   S.trabajadores=S.trabajadores.filter(x=>x.id!==id);
-  window.storage.set('trabajadores',JSON.stringify(S.trabajadores)).catch(()=>{});
+  window.storage.set('trabajadores',JSON.stringify(S.trabajadores)).then(r=>{if(!r||r.ok===false)toast('❌ No se pudo guardar la eliminación del trabajador','e');}).catch(e=>{console.error(e);toast('❌ No se pudo guardar la eliminación del trabajador','e');});
   renderRemuneraciones();updateHdr();toast('🗑 Trabajador eliminado');
 }
 function onParamRem(){
   // Guardar UF/UTM en empresa y re-render
   S.empresa.remUF=getUF();S.empresa.remUTM=getUTM();
-  window.storage.set('empresa',JSON.stringify(S.empresa)).catch(()=>{});
+  window.storage.set('empresa',JSON.stringify(S.empresa)).then(r=>{if(!r||r.ok===false)toast('❌ No se pudieron guardar UF/UTM','e');}).catch(e=>{console.error(e);toast('❌ No se pudieron guardar UF/UTM','e');});
   renderRemuneraciones();
   if(document.getElementById('rem-form').style.display!=='none')previewLiq();
 }

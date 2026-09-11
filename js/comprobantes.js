@@ -15,7 +15,7 @@ import {genDiario, destinoEdicion} from './reportes.js';
 import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux} from './asientos.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {logAccion} from './firebase.js';
-import {ejercicioCerrado,persistirAsientosCritico,anularDocumentoContabilizado} from './contabilidad-v2.js';
+import {ejercicioCerrado,persistirAsientosCritico,persistirClavesCritico,anularDocumentoContabilizado,anularAsientoDocumento} from './contabilidad-v2.js';
 
 // Filtros
 let CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
@@ -791,6 +791,10 @@ async function cmpModalGuardar(){
   if(!ed)return;
   const e=CMP_ENTRIES[CMP_MODAL.idx];
   if(!e)return;
+  if(ejercicioCerrado()){
+    toast('🔒 El ejercicio está cerrado. Reabre antes de modificar comprobantes.','e');
+    return;
+  }
 
   // Validación de cuadratura: si descuadra, pedir confirmación en vez de rechazar.
   // Esto permite guardar en pasos intermedios mientras se corrige la distribución
@@ -829,22 +833,24 @@ async function cmpModalGuardar(){
   }
 
   if(e.origen==='manual'){
-    // Editar el asiento manual existente
     const a=S.asientos.find(x=>x.n===e.ref);
     if(!a){toast('❌ No se encontró el asiento manual','e');return;}
-    a.glosa=ed.glosa;
-    a.fecha=ed.fecha;
-    a.movs=movsClean;
-    await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
+    const snap=JSON.stringify(S.asientos||[]);
+    a.glosa=ed.glosa;a.fecha=ed.fecha;a.movs=movsClean;
+    try{
+      const r=await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos));
+      if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia');
+    }catch(err){S.asientos=JSON.parse(snap);toast('❌ No se pudo guardar el asiento. No se aplicaron cambios.','e');return;}
     logAccion('Editó asiento manual desde Comprobantes',`N°${e.n} · ${ed.glosa}`);
     toast(`✅ Asiento N°${e.n} actualizado`);
   }else if(e.origen==='apertura'){
-    // Editar el balance de apertura
+    const snap=JSON.stringify(S.apertura||null);
     if(!S.apertura)S.apertura={};
-    S.apertura.glosa=ed.glosa;
-    S.apertura.fecha=ed.fecha;
-    S.apertura.movs=movsClean;
-    await window.storage.set('apertura-'+S.empresa.anio,JSON.stringify(S.apertura)).catch(()=>{});
+    S.apertura.glosa=ed.glosa;S.apertura.fecha=ed.fecha;S.apertura.movs=movsClean;
+    try{
+      const r=await window.storage.set('apertura-'+S.empresa.anio,JSON.stringify(S.apertura));
+      if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia');
+    }catch(err){S.apertura=JSON.parse(snap);toast('❌ No se pudo guardar la apertura. No se aplicaron cambios.','e');return;}
     logAccion('Editó balance de apertura desde Comprobantes',ed.glosa);
     toast('✅ Balance de apertura actualizado');
   }else if(e.fuente==='compras'||e.fuente==='ventas'){
@@ -852,45 +858,46 @@ async function cmpModalGuardar(){
     // líneas actuales y marca el documento origen como excluido de la generación
     // automática (excluidoAuto:true). El resumen agregado del mes ya no lo tomará.
     const arr=e.fuente==='compras'?S.compras:S.ventas;
+    const snapArr=JSON.stringify(arr||[]),snapAs=JSON.stringify(S.asientos||[]);
     const doc=arr.find(x=>x.id===e.docId);
-    if(doc){
-      doc.excluidoAuto=true;
-      // Si el usuario editó los datos DTE en alguna línea auxiliar, propagar
-      // esos cambios al documento origen para mantener consistencia con el
-      // libro de compras/ventas y auxiliares.
-      const movAux=movsClean.find(m=>m.dte&&m.dte.rutCodigo);
-      if(movAux){
-        const d=movAux.dte;
-        if(d.fecha)doc.fecha=d.fecha;
-        if(d.fechaVencimiento)doc.fechaVencimiento=d.fechaVencimiento;
-        if(d.tipoDTE)doc.tipoDTE=+d.tipoDTE;
-        if(d.numero)doc.numero=String(d.numero);
-        if(d.rutCodigo)doc.rutCodigo=d.rutCodigo;
-        if(d.rutDV)doc.rutDV=d.rutDV;
-        if(d.razonSocial)doc.razonSocial=d.razonSocial;
-        if(d.neto!==undefined)doc.neto=+d.neto||0;
-        if(d.exento!==undefined)doc.exento=+d.exento||0;
-        if(d.iva!==undefined)doc.iva=+d.iva||0;
-        if(d.otrosImpuestos!==undefined)doc.otrosImpuestos=+d.otrosImpuestos||0;
-        if(d.total!==undefined)doc.total=+d.total||0;
+    try{
+      if(doc){
+        doc.excluidoAuto=true;
+        const movAux=movsClean.find(m=>m.dte&&m.dte.rutCodigo);
+        if(movAux){
+          const d=movAux.dte;
+          if(d.fecha)doc.fecha=d.fecha;
+          if(d.fechaVencimiento)doc.fechaVencimiento=d.fechaVencimiento;
+          if(d.tipoDTE)doc.tipoDTE=+d.tipoDTE;
+          if(d.numero)doc.numero=String(d.numero);
+          if(d.rutCodigo)doc.rutCodigo=d.rutCodigo;
+          if(d.rutDV)doc.rutDV=d.rutDV;
+          if(d.razonSocial)doc.razonSocial=d.razonSocial;
+          if(d.neto!==undefined)doc.neto=+d.neto||0;
+          if(d.exento!==undefined)doc.exento=+d.exento||0;
+          if(d.iva!==undefined)doc.iva=+d.iva||0;
+          if(d.otrosImpuestos!==undefined)doc.otrosImpuestos=+d.otrosImpuestos||0;
+          if(d.total!==undefined)doc.total=+d.total||0;
+        }
+        // El asiento automático persistido debe quedar anulado; de lo contrario
+        // conviviría con el manual y duplicaría el efecto contable.
+        anularAsientoDocumento(e.fuente,doc.id,'convertido a comprobante manual');
       }
+      if(!S.asientos)S.asientos=[];
+      const n=proxFolioAsiento();
+      S.asientos.push({
+        id:'a_'+Date.now(),n,fecha:ed.fecha,glosa:ed.glosa,movs:movsClean,tipo:'manual',
+        referenciaDoc:{fuente:e.fuente,docId:e.docId,tipoDTE:e.tipoDTE,folio:e.folio,rutCodigo:e.rutCodigo},
+      });
+      const entradas=[{key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos)}];
+      if(doc)entradas.unshift({key:e.fuente+'-'+S.empresa.anio,value:JSON.stringify(arr)});
+      await persistirClavesCritico(entradas);
+      logAccion(`Convertió comprobante auto (${e.fuente}) a manual`,`${e.glosa} → asiento N°${n}`);
+      toast(`✅ Comprobante convertido a asiento manual N°${n}`);
+    }catch(err){
+      arr.splice(0,arr.length,...JSON.parse(snapArr));S.asientos=JSON.parse(snapAs);
+      toast('❌ No se pudo convertir el comprobante. No se aplicaron cambios.','e');return;
     }
-    // Crear asiento manual
-    if(!S.asientos)S.asientos=[];
-    const n=proxFolioAsiento();
-    S.asientos.push({
-      id:'a_'+Date.now(),
-      n,
-      fecha:ed.fecha,
-      glosa:ed.glosa,
-      movs:movsClean,
-      referenciaDoc:{fuente:e.fuente,docId:e.docId,tipoDTE:e.tipoDTE,folio:e.folio,rutCodigo:e.rutCodigo},
-    });
-    // Guardar
-    if(doc)await window.storage.set(e.fuente+'-'+S.empresa.anio,JSON.stringify(arr)).catch(()=>{});
-    await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
-    logAccion(`Convertió comprobante auto (${e.fuente}) a manual`,`${e.glosa} → asiento N°${n}`);
-    toast(`✅ Comprobante convertido a asiento manual N°${n}`);
   }
   cerrarCmpModal();
   rerender();

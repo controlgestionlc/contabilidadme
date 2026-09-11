@@ -172,3 +172,87 @@ Todavía existen rutas antiguas de persistencia silenciosa, principalmente en ce
 - En modo sobrescribir, los documentos ausentes del nuevo RCV se anulan y sus asientos se anulan; los documentos que continúan conservan su `id`, correlativo y folio.
 - Los documentos reemplazados guardan una instantánea `versionAnterior` con sus valores principales.
 - Si falla la persistencia de documentos o asientos durante una importación, se restaura el estado anterior en memoria y se intenta restaurar storage.
+
+## V2.5 — Honorarios y motor contable
+- Honorarios dejan de contabilizarse mensualmente contra Banco.
+- Cada boleta genera un asiento maestro individual: Honorarios profesionales / Retención 2ª categoría / Honorarios por pagar.
+- Pago al contado genera un segundo asiento independiente: Honorarios por pagar / Banco-Caja.
+- Registros históricos sin asiento maestro se muestran como pendientes, sin presumir pago.
+- Anulación lógica de honorarios y sus asientos; no se eliminan físicamente.
+- F29 excluye honorarios anulados al calcular retención código 151.
+- Auditoría valida honorarios sin asiento, pagos faltantes y retenciones inconsistentes.
+- Pagos/cobros validan reglas del Plan de Cuentas antes de persistirse.
+
+
+## V2.6 — DTE 45/46 + IVA retenido + F29
+
+- Se creó una semántica canónica para facturas de compra DTE 45/46.
+- El motor ya no depende de la interpretación del campo `total` del RCV.
+- `totalDocumento = neto + exento + otros impuestos económicos + IVA`.
+- `totalProveedor = totalDocumento - ivaRetenido`.
+- La retención se guarda explícitamente en `ivaRetenido`; el total original del RCV puede conservarse como `totalSII`.
+- DTE 45 y DTE 46 reciben el mismo tratamiento tributario en el motor y F29.
+- El IVA retenido se separó de IVA Débito Fiscal: se contabiliza en `2103005` con `tributo:'iva_retenido'`.
+- La compensación F29 salda por separado IVA débito de ventas (`2103003`) e IVA retenido de facturas de compra (`2103005`).
+- La importación SII evita interpretar la retención como "otros impuestos" en DTE 45/46.
+- Compras manuales DTE 45/46 aceptan como `total` tanto el total bruto del documento como el monto pagadero al proveedor, validando ambos contra la normalización del motor.
+- Auditoría de Integridad valida retención, saldo proveedor y totales ambiguos de DTE 45/46.
+
+- Se añadió automáticamente la cuenta de sistema `2103005 IVA RETENIDO FACTURAS DE COMPRA` sin reemplazar el plan de cuentas existente.
+
+## V2.7 — IVA recuperable, no recuperable, proporcional y activo fijo
+
+- Se agregó una clasificación única de IVA de compras en `motor-contable.js` mediante `clasificacionIVACompra()`.
+- `iva` continúa representando el IVA total del documento; el motor deriva por separado `ivaRecuperable`, `ivaNoRecuperable` e `ivaActivoFijo`.
+- En compras manuales se agregó el selector `Tratamiento IVA`: 100% recuperable, no recuperable, proporcional o activo fijo.
+- En tratamiento proporcional se informa el porcentaje efectivamente recuperable; el saldo se incorpora al costo/gasto.
+- El IVA no recuperable se distribuye proporcionalmente sobre las mismas cuentas y centros de costo de la base económica, evitando llevarlo erróneamente a Crédito Fiscal.
+- Se agregó la cuenta de sistema `1108008 IVA CRÉDITO FISCAL ACTIVO FIJO`; se mantiene `1108007` exclusivamente para REMANENTE CRÉDITO FISCAL del F29.
+- Las importaciones RCV leen por separado `IVA recuperable` e `IVA no recuperable` cuando esas columnas existen y conservan `IVA uso común` / `IVA activo fijo` cuando vienen informados.
+- El F29 utiliza sólo IVA recuperable como crédito fiscal. El IVA no recuperable se muestra como importe incorporado al costo y no reduce el débito fiscal.
+- La compensación mensual salda separadamente `1108002 IVA CRÉDITO FISCAL` y `1108008 IVA CRÉDITO FISCAL ACTIVO FIJO`.
+- Auditoría de Integridad valida crédito fiscal general, crédito de activo fijo, clasificación total de IVA e incorporación del IVA no recuperable al costo.
+- Compatibilidad histórica: documentos sin clasificación explícita siguen interpretándose como 100% recuperables, conservando el comportamiento anterior hasta que sean editados o importados nuevamente con detalle tributario.
+
+## V2.8 — Impuestos adicionales y gasto rechazado por documento
+
+- `otrosImpuestos` deja de ser un monto contable opaco. Se agregó `clasificacionOtrosImpuestosCompra()` en el motor.
+- Compatibilidad histórica: si un documento antiguo sólo tiene `otrosImpuestos`, se interpreta por defecto como impuesto no recuperable incorporado al costo.
+- Compras manuales permiten elegir para Otros Impuestos: `Costo / gasto` o `Impuesto recuperable`.
+- Los impuestos adicionales recuperables se contabilizan en `1108006 OTROS IMPUESTOS POR RECUPERAR`, con la marca `tributo:'impuesto_adicional_recuperable'`.
+- Los impuestos no recuperables continúan incorporándose a las mismas cuentas de costo/gasto/activo distribuidas por el documento.
+- Se incorporó `otrosImpuestosDetalle[]` para permitir ampliar en versiones posteriores a múltiples impuestos y códigos F29 sin volver a cambiar la arquitectura.
+- Cada línea de distribución de compras puede marcarse tributariamente como `aceptado` o `rechazado`.
+- El asiento financiero no cambia por marcar un gasto rechazado: el movimiento conserva `tributario:'gasto_rechazado'` para la conciliación tributaria.
+- Renta agrega automáticamente a la RLI los movimientos marcados como gasto rechazado, sin obligar a marcar la cuenta completa. Si la cuenta ya está marcada manualmente como rechazada, evita duplicar el agregado.
+- Auditoría de Integridad valida la clasificación de otros impuestos, la cuenta `1108006` y la conservación de marcas de gasto rechazado.
+- Backup Excel conserva `tratamientoOtrosImpuestos`, `otrosImpuestosDetalleJSON` y el tratamiento tributario dentro de `distJSON`.
+
+
+## V2.9 — Activo fijo financiero / tributario y conciliación de Renta
+
+- La ficha de activo fijo puede vincularse opcionalmente a una compra de origen registrada como inversión, conservando trazabilidad sin duplicar el asiento de adquisición.
+- Se separan explícitamente valor, residual, vida útil, método y fecha de inicio para la base contable y la base tributaria.
+- Las fichas V2.9 prorratean depreciación por meses desde la fecha de inicio configurada en cada ámbito; los activos históricos sin esas fechas mantienen el algoritmo legado para no alterar ejercicios cerrados.
+- El asiento financiero anual usa exclusivamente depreciación contable y pasa a ser único por ejercicio (`dep_<año>`).
+- El asiento de depreciación conserva `detalleActivos[]` con activo, monto y cuentas involucradas para auditoría.
+- Renta concilia siempre depreciación financiera vs. tributaria cuando difieren. En regímenes con depreciación instantánea utiliza el valor tributario de las adquisiciones del ejercicio; en los demás utiliza la cuota tributaria configurada por ficha.
+- La pestaña RLI muestra un resumen de depreciación financiera, tributaria y diferencia temporaria del ejercicio.
+- Auditoría detecta compras de origen inexistentes, asientos de depreciación duplicados, depreciaciones sin detalle V2.9, activos inexistentes referenciados y diferencias entre el detalle y el gasto contabilizado.
+- Backup Excel conserva las bases contable/tributaria, fechas de inicio y vínculo con la compra de origen.
+
+
+## V2.10 — Persistencia atómica, bloqueos y cierre operacional
+
+- `storage.set()` ya no adelanta el nuevo valor a `localStorage` cuando Firestore está activo: primero confirma la escritura remota y sólo entonces actualiza la copia local.
+- Se agregó `storage.setMany()` para guardar varias claves de una empresa dentro de una única transacción de Firestore, con control de revisión por documento. Se usa para hechos económicos que afectan simultáneamente libro y asientos.
+- `guardarDocumentoContabilizado()` y `anularDocumentoContabilizado()` usan persistencia multi-clave atómica.
+- Importaciones SII de compras y ventas y el módulo de Honorarios guardan documento + asiento como una sola unidad.
+- `saveAll()` usa la misma transacción para el conjunto principal del ejercicio y verifica el resultado antes de informar éxito.
+- Anulación masiva de compras/ventas anula también el asiento maestro asociado y revierte memoria si falla la persistencia.
+- Cambio masivo de forma de pago en Ventas actualiza el asiento maestro y queda bloqueado si el ejercicio está cerrado.
+- La conversión de comprobante automático a manual anula el asiento automático persistido para impedir doble contabilización.
+- Ediciones desde Comprobantes verifican el resultado de persistencia y hacen rollback en memoria ante falla.
+- El cierre anual ejecuta Auditoría de Integridad y se niega a cerrar si existen hallazgos críticos.
+- Auditoría de Integridad incluye claves bloqueadas por fallas de lectura remota.
+- Persistencias de conciliación, previsional, indicadores y parámetros de remuneraciones dejan de fallar silenciosamente.

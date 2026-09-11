@@ -10,6 +10,7 @@ import {rerender} from './ui.js';
 import {savePDC} from './pdc.js';
 import {S} from './state.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
+import {tributacionCompra,clasificacionIVACompra} from './motor-contable.js';
 import './storage.js';
 
 // ═══ FORMULARIO 29 (IVA mensual + PPM + retenciones) ═══
@@ -31,25 +32,26 @@ function calcularF29Anual(){
     });
     // Compras del mes (crédito fiscal)
     const cs=todosDocsCompras().filter(d=>+d.fecha.slice(5,7)===m);
-    let comprasNetas=0,credito=0,ivaRetenido=0;
+    let comprasNetas=0,credito=0,creditoActivoFijo=0,ivaNoRecuperable=0,ivaRetenido=0;
     cs.forEach(d=>{
       const signo=(dteC(d.tipoDTE)?.signo)||1;
       comprasNetas+=(d.neto||0)*signo;
-      credito+=(d.iva||0)*signo;
-      // DTE 46 (factura de compra): el receptor RETIENE el IVA. Ese mismo monto
-      // es crédito fiscal Y una retención que hay que enterar, así que suma a
-      // ambos lados y su efecto neto sobre lo que se paga es cero. Si sólo se
-      // contara como crédito, el IVA a pagar quedaría subestimado y la cuenta
-      // IVA Débito Fiscal (donde el asiento automático acredita la retención)
-      // arrastraría un saldo que nunca se salda.
-      if(+d.tipoDTE===46)ivaRetenido+=(d.iva||0)*signo;
+      const ci=clasificacionIVACompra(d);
+      credito+=(ci.recuperable-ci.activoFijo)*signo;
+      creditoActivoFijo+=ci.activoFijo*signo;
+      ivaNoRecuperable+=ci.noRecuperable*signo;
+      // DTE 45/46 (factura de compra): el receptor retiene IVA. La fuente
+      // única de esa semántica es el motor contable, no una excepción local.
+      const tc=tributacionCompra(d);
+      if(tc.facturaCompra)ivaRetenido+=tc.ivaRetenido*signo;
     });
+    const creditoMes=credito+creditoActivoFijo;
     // Honorarios del mes → retención del año (código 151)
-    const honM=S.honorarios.filter(h=>h.mes===m);
+    const honM=(S.honorarios||[]).filter(h=>h.estado!=='anulado'&&h.mes===m);
     const retencionHon=Math.round(honM.reduce((s,h)=>s+ +(h.bruto||0),0)*retencionHonorarios(S.empresa.anio));
     // IVA: crédito total = crédito del mes + remanente anterior
     // Débito total = débito de las ventas + IVA retenido en facturas de compra
-    const creditoTotal=credito+remanenteAnt;
+    const creditoTotal=creditoMes+remanenteAnt;
     const debitoTotal=debito+ivaRetenido;
     const ivaDeterminado=debitoTotal-creditoTotal;
     let ivaAPagar=0,remanente=0;
@@ -60,7 +62,7 @@ function calcularF29Anual(){
     const ppm=Math.round(basePPM*tasaPPM);
     // Total a pagar en el F29
     const totalPagar=ivaAPagar+ppm+retencionHon;
-    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,remanenteAnt,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,ppm,retencionHon,totalPagar,nDocsV:vs.length,nDocsC:cs.length});
+    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,ppm,retencionHon,totalPagar,nDocsV:vs.length,nDocsC:cs.length});
     remanenteAnt=remanente;
   }
   return meses;
@@ -96,7 +98,9 @@ function renderF29(){
       ${d.ivaRetenido?linea('39','IVA retenido facturas de compra (cambio de sujeto)',d.ivaRetenido,{color:'var(--info)'})+linea('','Débito fiscal total',d.debitoTotal,{bold:true}):''}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">CRÉDITO FISCAL (Compras)</td></tr>
       ${linea('520','Compras netas',d.comprasNetas)}
-      ${linea('524','Crédito fiscal del mes',d.credito)}
+      ${linea('524','Crédito fiscal compras',d.credito)}
+      ${d.creditoActivoFijo?linea('','Crédito fiscal activo fijo',d.creditoActivoFijo,{color:'var(--info)'}):''}
+      ${d.ivaNoRecuperable?linea('','IVA no recuperable incorporado al costo',d.ivaNoRecuperable,{color:'var(--warn)'}):''}
       ${d.remanenteAnt>0?linea('504','Remanente crédito mes anterior',d.remanenteAnt,{color:'var(--info)'}):''}
       ${linea('537','Crédito fiscal total',d.creditoTotal,{bold:true})}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">DETERMINACIÓN IVA</td></tr>
@@ -145,7 +149,9 @@ function renderF29(){
 // Cuentas por defecto del asiento (se pueden cambiar en el formulario)
 const IVAC_DEFAULT={
   debito:'2103003',      // IVA DÉBITO FISCAL (pasivo)
+  ivaRetenido:'2103005', // IVA RETENIDO / OTROS IMPUESTOS POR PAGAR (pasivo)
   credito:'1108002',     // IVA CRÉDITO FISCAL (activo)
+  creditoActivoFijo:'1108008', // IVA CRÉDITO FISCAL ACTIVO FIJO
   remanente:'1108007',   // REMANENTE CRÉDITO FISCAL (activo) — se crea si no existe
   porPagar:'2104002',    // IMPUESTOS POR PAGAR (pasivo)
   reajuste:'3501001',    // CORRECCIÓN MONETARIA (resultado) — se resuelve dinámicamente
@@ -201,7 +207,7 @@ function calcularCompensacionIVA(mes){
   // Recalcular la determinación con el remanente reajustado.
   // El débito a saldar incluye el IVA retenido en facturas de compra, porque el
   // asiento automático de compras lo acredita en la misma cuenta de débito.
-  const creditoTotal=d.credito+remanenteReaj;
+  const creditoTotal=d.creditoMes+remanenteReaj;
   const determinado=d.debitoTotal-creditoTotal;
   const ivaAPagar=determinado>0?determinado:0;
   const remanenteNuevo=determinado<0?-determinado:0;
@@ -211,12 +217,16 @@ function calcularCompensacionIVA(mes){
   const movs=[];
   const nm=cd=>pdcNm(cd)||cd;
   const per=`${MESES[mes-1]} ${anio}`;
-  // 1) Se salda el IVA Débito Fiscal acumulado en el mes (ventas + IVA retenido
-  //    en facturas de compra, que el asiento de compras acredita en esta cuenta)
-  if(d.debitoTotal>0)movs.push({cd:c.debito,nm:nm(c.debito),debe:Math.round(d.debitoTotal),haber:0,
-    desc:`Débito fiscal ${per} (F29 cód. 538${d.ivaRetenido?` + ${fmtC(d.ivaRetenido)} retenido en facturas de compra`:''})`});
+  // 1) Se salda el IVA Débito Fiscal de ventas.
+  if(d.debito>0)movs.push({cd:c.debito,nm:nm(c.debito),debe:Math.round(d.debito),haber:0,
+    desc:`Débito fiscal ventas ${per} (F29 cód. 538)`});
+  // 1b) Se salda por separado el IVA retenido de facturas de compra DTE 45/46.
+  //     El motor de compras lo acredita en 2103005, evitando mezclarlo con ventas.
+  if(d.ivaRetenido>0)movs.push({cd:c.ivaRetenido,nm:nm(c.ivaRetenido),debe:Math.round(d.ivaRetenido),haber:0,
+    desc:`IVA retenido facturas de compra ${per} (DTE 45/46)`});
   // 2) Se salda el IVA Crédito Fiscal del mes
   if(d.credito>0)movs.push({cd:c.credito,nm:nm(c.credito),debe:0,haber:Math.round(d.credito),desc:`Crédito fiscal ${per} (F29 cód. 524)`});
+  if(d.creditoActivoFijo>0)movs.push({cd:c.creditoActivoFijo,nm:nm(c.creditoActivoFijo),debe:0,haber:Math.round(d.creditoActivoFijo),desc:`Crédito fiscal activo fijo ${per}`});
   // 3) Reajuste del remanente arrastrado, si corresponde.
   //    Un reajuste positivo aumenta el crédito imputable, así que reduce el IVA
   //    a pagar (o engrosa el remanente): se reconoce como ingreso por corrección
@@ -309,6 +319,8 @@ function renderCompensacionIVA(){
       <tr><td class="tl" style="font-size:12px">Débito fiscal del mes (cód. 538)</td><td style="font-family:var(--mono)">${fmtC(d.debito)}</td></tr>
       ${d.ivaRetenido?`<tr><td class="tl" style="font-size:12px;color:var(--info)">IVA retenido en facturas de compra (cambio de sujeto)</td><td style="font-family:var(--mono);color:var(--info)">${fmtC(d.ivaRetenido)}</td></tr>`:''}
       <tr><td class="tl" style="font-size:12px">Crédito fiscal del mes (cód. 524)</td><td style="font-family:var(--mono)">${fmtC(d.credito)}</td></tr>
+      ${d.creditoActivoFijo?`<tr><td class="tl" style="font-size:12px;color:var(--info)">Crédito fiscal activo fijo</td><td style="font-family:var(--mono);color:var(--info)">${fmtC(d.creditoActivoFijo)}</td></tr>`:''}
+      ${d.ivaNoRecuperable?`<tr><td class="tl" style="font-size:12px;color:var(--warn)">IVA no recuperable incorporado al costo</td><td style="font-family:var(--mono);color:var(--warn)">${fmtC(d.ivaNoRecuperable)}</td></tr>`:''}
       ${d.remanenteAnt>0?`<tr><td class="tl" style="font-size:12px">Remanente del mes anterior (cód. 504)</td><td style="font-family:var(--mono)">${fmtC(d.remanenteAnt)}</td></tr>`:''}
       ${r.reajuste!==0?`<tr><td class="tl" style="font-size:12px;color:var(--info)">Reajuste del remanente (art. 27) — ${r.remanenteUTM.toFixed(2)} UTM</td><td style="font-family:var(--mono);color:var(--info)">${fmtC(r.reajuste)}</td></tr>`:''}
       <tr><td class="tl" style="font-size:12px;font-weight:600">Crédito fiscal total</td><td style="font-family:var(--mono);font-weight:600">${fmtC(r.creditoTotal)}</td></tr>
@@ -330,6 +342,7 @@ function renderCompensacionIVA(){
     <div class="fg" style="margin-bottom:6px">
       ${selCuenta('debito','IVA Débito Fiscal (se salda al DEBE)')}
       ${selCuenta('credito','IVA Crédito Fiscal (se salda al HABER)')}
+      ${d.creditoActivoFijo?selCuenta('creditoActivoFijo','IVA Crédito Fiscal Activo Fijo (se salda al HABER)'):''}
       ${selCuenta('remanente','Remanente crédito fiscal',faltaRemanente?'<span style="color:var(--warn)">⚠️ Esta cuenta no existe en tu plan</span>':'')}
       ${selCuenta('porPagar','IVA por pagar')}
       ${r.reajuste!==0?selCuenta('reajuste','Reajuste del remanente (resultado)'):''}
@@ -472,7 +485,7 @@ function renderPPM(){
 
 const PAGOF29_DEFAULT={
   iva:'2104002',          // IMPUESTOS POR PAGAR
-  ivaRetenido:'2103003',  // IVA DÉBITO FISCAL (es donde el sistema acredita la retención del DTE 46)
+  ivaRetenido:'2103005',  // IVA retenido facturas de compra DTE 45/46
   ppm:'1108001',          // PAGOS PROVISIONALES MENSUALES (activo: anticipo de impuesto renta)
   honorarios:'2103002',   // RETENCIÓN 2º CATEGORÍA
   bte:'2103002',          // RETENCIÓN 2º CATEGORÍA
@@ -486,7 +499,7 @@ const PAGOF29={cuentas:{...PAGOF29_DEFAULT},montos:{},incluir:null,fecha:'',glos
 const CONCEPTOS_F29=[
   {k:'iva',lbl:'IVA determinado a pagar',cod:'89',on:true},
   {k:'ivaRetenido',lbl:'IVA retenido en facturas de compra (cambio de sujeto)',cod:'',on:false,
-   nota:'El sistema acredita esta retención en IVA Débito Fiscal, así que <strong>ya viene incluida dentro del IVA a pagar</strong> de la compensación. Actívala sólo si la llevas en una cuenta separada.'},
+   nota:'El motor la acredita en <strong>IVA retenido / otros impuestos por pagar</strong> y la compensación F29 la salda por separado; su efecto ya está incluido en el IVA determinado. Actívala sólo si la llevas en una cuenta separada.'},
   {k:'ppm',lbl:'PPM Primera Categoría',cod:'62',on:true,
    nota:'Va al activo <strong>Pagos Provisionales Mensuales</strong>: es un anticipo de impuesto a la renta, no un gasto. Si ya lo provisionaste en el asiento de compensación, apunta esta línea a la cuenta de provisión.'},
   {k:'honorarios',lbl:'Retención boletas de honorarios recibidas',cod:'151',on:true},
@@ -498,11 +511,14 @@ const CONCEPTOS_F29=[
    nota:'Va a resultado, no es un pasivo previo: sólo si pagas fuera de plazo.'},
 ];
 
-// IVA retenido en facturas de compra (DTE 46) del período
-function ivaRetenidoDTE46(mes){
+// IVA retenido en facturas de compra (DTE 45/46) del período
+function ivaRetenidoFacturasCompra(mes){
   return Math.round(todosDocsCompras()
-    .filter(d=>+d.tipoDTE===46&&+((d.fecha||'').slice(5,7))===mes)
-    .reduce((s,d)=>s+(d.iva||0)*((dteC(d.tipoDTE)?.signo)||1),0));
+    .filter(d=>+((d.fecha||'').slice(5,7))===mes)
+    .reduce((s,d)=>{
+      const tc=tributacionCompra(d);
+      return s+(tc.facturaCompra?tc.ivaRetenido*((dteC(d.tipoDTE)?.signo)||1):0);
+    },0));
 }
 // Impuesto único estimado con las liquidaciones vigentes
 function iuscEstimado(){
@@ -518,7 +534,7 @@ function montosSugeridosF29(mes){
   const comp=calcularCompensacionIVA(mes);   // respeta el reajuste configurado arriba
   return {
     iva:comp.ivaAPagar,
-    ivaRetenido:ivaRetenidoDTE46(mes),
+    ivaRetenido:ivaRetenidoFacturasCompra(mes),
     ppm:d.ppm,
     honorarios:d.retencionHon,
     bte:0,
@@ -720,4 +736,4 @@ export {calcularF29Anual, renderF29, renderPPM,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,
         setPagoF29Cuenta, setPagoF29Campo, setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29,
-        ivaRetenidoDTE46, asientoPagoExistente};
+        ivaRetenidoFacturasCompra, asientoPagoExistente};

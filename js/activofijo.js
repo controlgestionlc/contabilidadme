@@ -33,7 +33,29 @@ function calcularDepreciacionBase(bien,anioCierre,ambito='contable'){
   const vidaUsada=metodo==='acelerada'?vidaAcelerada(vidaNormal):vidaNormal;
   const valor=+(esTrib?(bien.valorTributario??bien.valor):(bien.valorContable??bien.valor))||0;
   const residual=+(esTrib?(bien.residualTributario??0):(bien.residualContable??bien.residual))||0;
-  const base=valor-residual;
+  const base=Math.max(0,valor-residual);
+  const fechaInicio=esTrib?bien.fechaInicioDepTributaria:bien.fechaInicioDepContable;
+
+  // V2.9: si la ficha tiene fecha de inicio específica se prorratea por meses.
+  // Los registros históricos sin fecha conservan el algoritmo legado para no
+  // alterar retroactivamente ejercicios ya contabilizados.
+  if(fechaInicio&&/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio)){
+    const [yi,mi]=fechaInicio.split('-').map(Number);
+    const totalMeses=Math.max(1,Math.round(vidaUsada*12));
+    const indiceInicio=yi*12+(mi-1);
+    const inicioEj=anioCierre*12, finEj=inicioEj+12;
+    const finVida=indiceInicio+totalMeses;
+    const desde=Math.max(indiceInicio,inicioEj),hasta=Math.min(finVida,finEj);
+    const mesesEsteAnio=Math.max(0,hasta-desde);
+    const mesesHastaCierre=Math.max(0,Math.min(finVida,finEj)-indiceInicio);
+    const cuotaMensual=totalMeses>0?base/totalMeses:0;
+    const deprEsteAnio=Math.min(base,Math.round(cuotaMensual*mesesEsteAnio));
+    const acumulada=Math.min(base,Math.round(cuotaMensual*mesesHastaCierre));
+    const valorLibro=valor-acumulada;
+    return {ambito,metodo,vidaNormal,vidaUsada,base,cuotaAnual:Math.round(cuotaMensual*12),cuotaMensual,fechaInicio,mesesEsteAnio,deprEsteAnio,acumulada,valorLibro,totalmenteDepreciado:mesesHastaCierre>=totalMeses};
+  }
+
+  // Compatibilidad histórica: depreciación anual desde el ejercicio siguiente.
   const cuotaAnual=vidaUsada>0?Math.round(base/vidaUsada):0;
   const anioCompra=+(bien.fecha||'').slice(0,4);
   const anioInicio=anioCompra+1;
@@ -45,12 +67,65 @@ function calcularDepreciacionBase(bien,anioCierre,ambito='contable'){
   if(acumulada>base)acumulada=base;
   const valorLibro=valor-acumulada;
   const totalmenteDepreciado=aniosTranscurridos>=vidaUsada;
-  return {ambito,metodo,vidaNormal,vidaUsada,base,cuotaAnual,anioInicio,aniosTranscurridos,deprEsteAnio,acumulada,valorLibro,totalmenteDepreciado};
+  return {ambito,metodo,vidaNormal,vidaUsada,base,cuotaAnual,anioInicio,aniosTranscurridos,deprEsteAnio,acumulada,valorLibro,totalmenteDepreciado,legacy:true};
 }
 function calcularDepreciacionContable(bien,anioCierre){return calcularDepreciacionBase(bien,anioCierre,'contable');}
 function calcularDepreciacionTributaria(bien,anioCierre){return calcularDepreciacionBase(bien,anioCierre,'tributario');}
 // Alias histórico: los asientos financieros SIEMPRE usan depreciación contable.
 function calcularDepreciacion(bien,anioCierre){return calcularDepreciacionContable(bien,anioCierre);}
+
+// Compra de origen: la ficha puede quedar ligada al documento que generó la
+// inversión. No se contabiliza nuevamente: el vínculo es sólo trazabilidad.
+function comprasElegiblesAF(){
+  return (S.compras||[]).filter(d=>d.estado!=='anulado'&&(
+    d.tratamientoIVA==='activo_fijo'||(+d.ivaActivoFijo||0)>0||
+    (d.dist||[]).some(l=>String(l.cuenta||'').startsWith('12'))
+  )).sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||'')));
+}
+function opcionesCompraAF(sel=''){
+  const docs=comprasElegiblesAF();
+  return '<option value="">— Sin documento vinculado —</option>'+docs.map(d=>{
+    const rot=`${d.fecha||''} · DTE ${d.tipoDTE||''} N°${d.numero||''} · ${d.razonSocial||''} · ${fmtC(d.neto||d.total||0)}`;
+    return `<option value="${d.id}" ${d.id===sel?'selected':''}>${rot}</option>`;
+  }).join('');
+}
+function onCompraAF(){
+  const id=document.getElementById('afb-compra')?.value||'';
+  const d=(S.compras||[]).find(x=>x.id===id);if(!d){previewAF();return;}
+  document.getElementById('afb-fecha').value=d.fecha||today();
+  // Para activo fijo se usa base neta/exenta + impuestos que formen parte del costo,
+  // nunca el IVA recuperable. Si la compra trae distribución, preferimos el monto
+  // efectivamente cargado a cuentas de activo 12xxxx.
+  const desdeDist=(d.dist||[]).filter(l=>String(l.cuenta||'').startsWith('12')).reduce((t,l)=>t+(+l.monto||0),0);
+  const base=desdeDist||(+d.neto||0)+(+d.exento||0)+(+d.ivaNoRecuperable||0)+((d.tratamientoOtrosImpuestos==='recuperable')?0:(+d.otrosImpuestos||0));
+  if(base>0){document.getElementById('afb-valor').value=Math.round(base);document.getElementById('afb-valor-tributario').value=Math.round(base);}
+  document.getElementById('afb-inicio-contable').value=d.fecha||today();
+  document.getElementById('afb-inicio-tributario').value=d.fecha||today();
+  const desc=document.getElementById('afb-desc');
+  if(desc&&!desc.value.trim())desc.value=`${d.razonSocial||'Activo fijo'} · DTE ${d.tipoDTE||''} N°${d.numero||''}`;
+  previewAF();
+}
+
+// Conciliación financiera/tributaria del activo fijo para Renta.
+// En regímenes con depreciación instantánea, la base tributaria del año es el
+// valor tributario de las adquisiciones del ejercicio. En los demás, se usa la
+// cuota tributaria calculada por ficha.
+function conciliacionDepreciacionAF(anio,{deprInstantanea=false}={}){
+  const bienes=(S.activos||[]).filter(b=>b.estado!=='anulado');
+  const detalle=bienes.map(b=>{
+    const c=calcularDepreciacionContable(b,anio);
+    const t=calcularDepreciacionTributaria(b,anio);
+    const adquirido=+(String(b.fecha||'').slice(0,4))===+anio;
+    const depTribEj=deprInstantanea?(adquirido?Math.max(0,+(b.valorTributario??b.valor)||0):0):Math.max(0,t.deprEsteAnio);
+    return {id:b.id,nm:b.desc||b.nombre||'Activo',fecha:b.fecha,contable:c.deprEsteAnio,tributaria:depTribEj,diferencia:depTribEj-c.deprEsteAnio,valorTributario:+(b.valorTributario??b.valor)||0};
+  });
+  return {
+    contable:detalle.reduce((s,x)=>s+x.contable,0),
+    tributaria:detalle.reduce((s,x)=>s+x.tributaria,0),
+    diferencia:detalle.reduce((s,x)=>s+x.diferencia,0),detalle,
+    instantanea:!!deprInstantanea
+  };
+}
 
 function abrirFormAF(){
   AFB={editId:null};
@@ -59,9 +134,14 @@ function abrirFormAF(){
   const sel=document.getElementById('afb-cat');
   sel.innerHTML=AF_CATEGORIAS.map(c=>`<option value="${c.k}">${c.lbl}</option>`).join('');
   document.getElementById('afb-desc').value='';
+  const compraSel=document.getElementById('afb-compra');if(compraSel)compraSel.innerHTML=opcionesCompraAF('');
   document.getElementById('afb-fecha').value=today();
   document.getElementById('afb-valor').value='';
   document.getElementById('afb-residual').value='0';
+  document.getElementById('afb-valor-tributario').value='';
+  document.getElementById('afb-residual-tributario').value='0';
+  document.getElementById('afb-inicio-contable').value=today();
+  document.getElementById('afb-inicio-tributario').value=today();
   document.getElementById('afb-metodo-contable').value='lineal';
   document.getElementById('afb-metodo-tributario').value='lineal';
   onCatAF(); // setea vida útil default
@@ -81,14 +161,16 @@ function previewAF(){
     fecha:document.getElementById('afb-fecha').value,
     valor:+document.getElementById('afb-valor').value||0,
     valorContable:+document.getElementById('afb-valor').value||0,
-    valorTributario:+document.getElementById('afb-valor').value||0,
+    valorTributario:+document.getElementById('afb-valor-tributario').value||(+document.getElementById('afb-valor').value||0),
     residual:+document.getElementById('afb-residual').value||0,
     residualContable:+document.getElementById('afb-residual').value||0,
-    residualTributario:0,
+    residualTributario:+document.getElementById('afb-residual-tributario').value||0,
     vidaContable:+document.getElementById('afb-vida-contable').value||0,
     vidaTributaria:+document.getElementById('afb-vida-tributaria').value||0,
     metodoContable:document.getElementById('afb-metodo-contable').value,
     metodoTributario:document.getElementById('afb-metodo-tributario').value,
+    fechaInicioDepContable:document.getElementById('afb-inicio-contable').value,
+    fechaInicioDepTributaria:document.getElementById('afb-inicio-tributario').value,
   };
   const el=document.getElementById('afb-preview');
   if(!bien.valor||!bien.vidaContable||!bien.vidaTributaria){el.innerHTML='';return;}
@@ -97,10 +179,10 @@ function previewAF(){
   const dif=dt.acumulada-dc.acumulada;
   el.innerHTML=`<div class="info-tip" style="font-size:11px">
     📐 <strong>Separación financiera / tributaria (${anio})</strong><br>
-    • Contable: ${dc.metodo} · ${dc.vidaUsada} años · cuota ${fmtC(dc.cuotaAnual)} · acumulada ${fmtC(dc.acumulada)}<br>
-    • Tributaria: ${dt.metodo} · ${dt.vidaUsada} años · cuota ${fmtC(dt.cuotaAnual)} · acumulada ${fmtC(dt.acumulada)}<br>
-    • Diferencia temporaria acumulada: <strong>${fmtC(dif)}</strong><br>
-    <span style="color:var(--mt)">Los asientos financieros usan únicamente la depreciación contable. La tributaria se conserva para Renta y conciliación tributaria.</span>
+    • Contable: base ${fmtC(dc.base)} · ${dc.metodo} · ${dc.vidaUsada} años${dc.fechaInicio?' · inicio '+dc.fechaInicio:''} · depreciación ${anio} ${fmtC(dc.deprEsteAnio)} · acumulada ${fmtC(dc.acumulada)} · valor libro ${fmtC(dc.valorLibro)}<br>
+    • Tributaria: base ${fmtC(dt.base)} · ${dt.metodo} · ${dt.vidaUsada} años${dt.fechaInicio?' · inicio '+dt.fechaInicio:''} · depreciación ${anio} ${fmtC(dt.deprEsteAnio)} · acumulada ${fmtC(dt.acumulada)} · valor tributario neto ${fmtC(dt.valorLibro)}<br>
+    • Diferencia temporaria acumulada (deprec. tributaria − contable): <strong>${fmtC(dif)}</strong><br>
+    <span style="color:var(--mt)">Los asientos financieros usan únicamente la depreciación contable. La tributaria se usa para conciliación de Renta y no crea asientos financieros.</span>
   </div>`;
 }
 
@@ -110,24 +192,32 @@ async function guardarAF(){
   const fecha=document.getElementById('afb-fecha').value;
   const valor=+document.getElementById('afb-valor').value||0;
   const residual=+document.getElementById('afb-residual').value||0;
+  const valorTributario=+document.getElementById('afb-valor-tributario').value||valor;
+  const residualTributario=+document.getElementById('afb-residual-tributario').value||0;
+  const fechaInicioDepContable=document.getElementById('afb-inicio-contable').value||fecha;
+  const fechaInicioDepTributaria=document.getElementById('afb-inicio-tributario').value||fecha;
   const vidaContable=+document.getElementById('afb-vida-contable').value||0;
   const vidaTributaria=+document.getElementById('afb-vida-tributaria').value||0;
   const metodoContable=document.getElementById('afb-metodo-contable').value;
   const metodoTributario=document.getElementById('afb-metodo-tributario').value;
+  const compraOrigenId=document.getElementById('afb-compra')?.value||'';
+  const compraOrigen=(S.compras||[]).find(d=>d.id===compraOrigenId);
   if(!desc){toast('⚠️ Ingresa la descripción del bien','e');return;}
   if(!fecha){toast('⚠️ Ingresa la fecha de compra','e');return;}
   if(valor<=0){toast('⚠️ El valor debe ser mayor a 0','e');return;}
   if(vidaContable<=0||vidaTributaria<=0){toast('⚠️ Las vidas útiles contable y tributaria deben ser mayores a 0','e');return;}
-  if(residual>=valor){toast('⚠️ El valor residual no puede ser mayor o igual al valor','e');return;}
+  if(residual>=valor){toast('⚠️ El valor residual contable no puede ser mayor o igual al valor','e');return;}
+  if(valorTributario<=0||residualTributario>=valorTributario){toast('⚠️ Revisa la base y residual tributarios','e');return;}
   const c=afCat(cat);
   const bien={
     id:AFB.editId||'af_'+Date.now(),
     desc,cat,fecha,valor,residual,
-    valorContable:valor,residualContable:residual,vidaContable,metodoContable,
-    valorTributario:valor,residualTributario:0,vidaTributaria,metodoTributario,
+    valorContable:valor,residualContable:residual,vidaContable,metodoContable,fechaInicioDepContable,
+    valorTributario,residualTributario,vidaTributaria,metodoTributario,fechaInicioDepTributaria,
     // compatibilidad con lectores históricos
     vida:vidaTributaria,metodo:metodoTributario,
     cuentaActivo:c.activo,cuentaDeprAcum:c.deprAcum,cuentaGasto:c.gasto,
+    compraOrigenId:compraOrigenId||null,compraOrigenRef:compraOrigen?{fecha:compraOrigen.fecha,tipoDTE:compraOrigen.tipoDTE,numero:compraOrigen.numero,rutCodigo:compraOrigen.rutCodigo}:null,
   };
   const snap=JSON.stringify(S.activos||[]);
   if(AFB.editId){const i=S.activos.findIndex(a=>a.id===AFB.editId);if(i>=0)S.activos[i]=bien;}
@@ -145,9 +235,15 @@ function editarAF(id){
   document.getElementById('afb-title').textContent='Editando Activo';
   document.getElementById('afb-cat').innerHTML=AF_CATEGORIAS.map(c=>`<option value="${c.k}" ${c.k===b.cat?'selected':''}>${c.lbl}</option>`).join('');
   document.getElementById('afb-desc').value=b.desc;
+  const compraSel=document.getElementById('afb-compra');if(compraSel)compraSel.innerHTML=opcionesCompraAF(b.compraOrigenId||'');
   document.getElementById('afb-fecha').value=b.fecha;
   document.getElementById('afb-valor').value=b.valor;
-  document.getElementById('afb-residual').value=b.residual||0;
+  document.getElementById('afb-residual').value=b.residualContable??b.residual??0;
+  document.getElementById('afb-valor-tributario').value=b.valorTributario??b.valor??0;
+  document.getElementById('afb-residual-tributario').value=b.residualTributario??0;
+  const yCompra=+(b.fecha||'').slice(0,4)||+S.empresa.anio;
+  document.getElementById('afb-inicio-contable').value=b.fechaInicioDepContable||`${yCompra+1}-01-01`;
+  document.getElementById('afb-inicio-tributario').value=b.fechaInicioDepTributaria||`${yCompra+1}-01-01`;
   document.getElementById('afb-vida-contable').value=b.vidaContable||b.vida||afCat(b.cat).vida;
   document.getElementById('afb-metodo-contable').value=b.metodoContable||'lineal';
   document.getElementById('afb-vida-tributaria').value=b.vidaTributaria||b.vida||afCat(b.cat).vida;
@@ -165,17 +261,21 @@ async function eliminarAF(id){
   renderActivoFijo();updateHdr();toast('🗑 Activo eliminado');
 }
 
-// Genera el asiento de depreciación del año activo y lo agrega como asiento manual
+// Genera el asiento financiero de depreciación del ejercicio. El asiento es
+// único por año y conserva el detalle de activos que lo componen para auditoría.
 async function generarAsientoDepreciacion(){
   const anio=S.empresa.anio;
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de registrar depreciación.','e');return;}
-  // Acumular depreciación del año por cuenta de gasto y de depreciación acumulada
-  const porGasto={},porAcum={};let total=0;
-  S.activos.forEach(b=>{
-    const d=calcularDepreciacion(b,anio);
+  const idDep=`dep_${anio}`;
+  const existente=S.asientos.find(a=>!a.anulado&&(a.id===idDep||(a.tipo==='depreciacion'&&String(a.fecha||'').startsWith(String(anio)))));
+  if(existente){toast(`⚠️ Ya existe depreciación activa para ${anio} (N°${existente.n||'—'}). Anúlala antes de regenerar.`, 'e');return;}
+  const porGasto={},porAcum={},detalleActivos=[];let total=0;
+  (S.activos||[]).filter(b=>b.estado!=='anulado').forEach(b=>{
+    const d=calcularDepreciacionContable(b,anio);
     if(d.deprEsteAnio<=0)return;
     porGasto[b.cuentaGasto]=(porGasto[b.cuentaGasto]||0)+d.deprEsteAnio;
     porAcum[b.cuentaDeprAcum]=(porAcum[b.cuentaDeprAcum]||0)+d.deprEsteAnio;
+    detalleActivos.push({activoId:b.id,desc:b.desc,monto:d.deprEsteAnio,cuentaGasto:b.cuentaGasto,cuentaDeprAcum:b.cuentaDeprAcum});
     total+=d.deprEsteAnio;
   });
   if(total<=0){toast('⚠️ No hay depreciación que registrar para '+anio,'e');return;}
@@ -183,11 +283,8 @@ async function generarAsientoDepreciacion(){
   Object.keys(porGasto).sort().forEach(cd=>movs.push({cd,nm:pdcNm(cd),debe:porGasto[cd],haber:0}));
   Object.keys(porAcum).sort().forEach(cd=>movs.push({cd,nm:pdcNm(cd),debe:0,haber:porAcum[cd]}));
   const fecha=anio+'-12-31';
-  // Evitar duplicado: si ya existe un asiento de depreciación de este año
-  const yaExiste=S.asientos.find(a=>a.glosa&&a.glosa.includes('Depreciación del ejercicio '+anio));
-  if(yaExiste&&!confirm(`Ya existe un asiento de depreciación para ${anio} (N°${yaExiste.n}).\n¿Crear otro de todas formas?`))return;
   const folio=proxFolioAsiento();
-  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha,glosa:'Depreciación del ejercicio '+anio,movs,tipo:'depreciacion'});});
+  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:idDep,n:folio,fecha,glosa:'Depreciación del ejercicio '+anio,movs,tipo:'depreciacion',origenAuto:'activofijo',periodoAF:String(anio),detalleActivos});});
   if(!r.ok){toast('❌ No se pudo guardar la depreciación. La operación NO se contabilizó.','e');return;}
   toast('✅ Asiento N°'+folio+' de depreciación creado ('+fmtC(total)+')');
   renderActivoFijo();updateHdr();
@@ -201,15 +298,15 @@ function renderActivoFijo(){
     return;
   }
   // KPIs
-  let totValor=0,totAcum=0,totLibro=0,totDeprAnio=0;
+  let totValor=0,totAcum=0,totLibro=0,totDeprAnio=0,totDepTrib=0,totDifTemp=0;
   const filas=S.activos.map(b=>{
     const d=calcularDepreciacionContable(b,anio);
     const dt=calcularDepreciacionTributaria(b,anio);
-    totValor+=+b.valor||0;totAcum+=d.acumulada;totLibro+=d.valorLibro;totDeprAnio+=d.deprEsteAnio;
+    totValor+=+(b.valorContable??b.valor)||0;totAcum+=d.acumulada;totLibro+=d.valorLibro;totDeprAnio+=d.deprEsteAnio;totDepTrib+=dt.deprEsteAnio;totDifTemp+=dt.acumulada-d.acumulada;
     const c=afCat(b.cat);
     const estado=d.totalmenteDepreciado?'<span class="badge br">Depreciado</span>':(d.deprEsteAnio>0?'<span class="badge bg">Activo</span>':'<span class="badge" style="background:rgba(130,130,130,.12);color:var(--mt)">Sin iniciar</span>');
     return `<tr>
-      <td class="tl" style="font-size:12px">${b.desc}<div style="font-size:10px;color:var(--mt)">${c.lbl}</div></td>
+      <td class="tl" style="font-size:12px">${b.desc}<div style="font-size:10px;color:var(--mt)">${c.lbl}</div>${b.compraOrigenRef?`<div style="font-size:9px;color:var(--info)">🔗 DTE ${b.compraOrigenRef.tipoDTE||''} N°${b.compraOrigenRef.numero||''}</div>`:''}</td>
       <td class="tl" style="font-family:var(--mono);font-size:10px">${b.fecha}</td>
       <td style="font-size:11px">C: ${d.metodo==='acelerada'?'Acel.':'Lineal'} ${d.vidaUsada}a<div style="font-size:9px;color:var(--mt)">T: ${dt.metodo==='acelerada'?'Acel.':'Normal'} ${dt.vidaUsada}a · Dif. ${fmtC(dt.acumulada-d.acumulada)}</div></td>
       <td style="font-family:var(--mono);text-align:right">${fmtC(b.valor)}</td>
@@ -227,7 +324,9 @@ function renderActivoFijo(){
     <div class="kpi"><div class="kpi-lbl">Valor de Adquisición</div><div class="kpi-val">${fmtC(totValor)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Deprec. Acumulada</div><div class="kpi-val neg">${fmtC(totAcum)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Valor Libro</div><div class="kpi-val pos">${fmtC(totLibro)}</div></div>
-    <div class="kpi"><div class="kpi-lbl">Deprec. ${anio}</div><div class="kpi-val neg">${fmtC(totDeprAnio)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Deprec. contable ${anio}</div><div class="kpi-val neg">${fmtC(totDeprAnio)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Deprec. tributaria ${anio}</div><div class="kpi-val">${fmtC(totDepTrib)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Dif. temporaria acum.</div><div class="kpi-val">${fmtC(totDifTemp)}</div></div>
   </div>
   <div class="card-np"><div class="tw"><table>
     <thead><tr><th class="tl">BIEN</th><th class="tl">COMPRA</th><th class="tl">MÉTODO</th><th style="text-align:right">VALOR</th><th style="text-align:right">DEPR. ${anio}</th><th style="text-align:right">ACUMULADA</th><th style="text-align:right">V. LIBRO</th><th style="text-align:center">ESTADO</th><th></th></tr></thead>
@@ -238,8 +337,8 @@ function renderActivoFijo(){
     <button class="btn btn-p" onclick="generarAsientoDepreciacion()">📝 Generar asiento de depreciación ${anio}</button>
     <span style="font-size:11px;color:var(--mt)">Crea el asiento al 31/dic/${anio} por ${fmtC(totDeprAnio)} (cargo a gasto, abono a depreciación acumulada).</span>
   </div>`:''}
-  <div style="margin-top:10px;font-size:10px;color:var(--mt)">La depreciación financiera y tributaria se calculan por separado. La tributaria puede usar tabla/método SII. La depreciación comienza el 1 de enero del año siguiente a la compra. El método acelerado usa 1/3 de la vida normal (mínimo 3 años).</div>`;
+  <div style="margin-top:10px;font-size:10px;color:var(--mt)">La depreciación financiera y tributaria se calculan por separado. En fichas V2.9 cada ámbito usa su propia base, residual y fecha de inicio, con prorrateo mensual; los activos históricos sin fecha específica conservan el cálculo legado. El método acelerado usa 1/3 de la vida configurada (mínimo 3 años).</div>`;
 }
 
 
-export {AF_CATEGORIAS, afCat, vidaAcelerada, calcularDepreciacion, calcularDepreciacionContable, calcularDepreciacionTributaria, abrirFormAF, onCatAF, cerrarFormAF, previewAF, guardarAF, editarAF, eliminarAF, generarAsientoDepreciacion, renderActivoFijo, AFB};
+export {AF_CATEGORIAS, afCat, vidaAcelerada, calcularDepreciacion, calcularDepreciacionContable, calcularDepreciacionTributaria, conciliacionDepreciacionAF, comprasElegiblesAF, onCompraAF, abrirFormAF, onCatAF, cerrarFormAF, previewAF, guardarAF, editarAF, eliminarAF, generarAsientoDepreciacion, renderActivoFijo, AFB};

@@ -422,3 +422,11 @@ correrlo **en cada publicación**; si no, el problema vuelve.
      (y se desactiva bajo 720px, donde ya existe la vista apilada).
   Más una red de seguridad: `main{overflow-x:hidden}` y `min-width:0` en secciones y tarjetas
   —lo que permite a un hijo de grid/flex encogerse en vez de fijar el mínimo por su contenido.
+
+
+### V2.9 — Activo fijo
+El módulo de Activo Fijo mantiene bases contable y tributaria separadas, permite vincular la ficha a la compra de origen, genera un único asiento financiero de depreciación por ejercicio y entrega la diferencia de depreciación a la conciliación de Renta.
+
+
+### V2.10 — Persistencia y cierre seguro
+Los hechos económicos que modifican más de una colección lógica (por ejemplo, documento + asiento maestro) se guardan mediante transacción multi-clave. Cuando Firestore está activo, una falla remota no deja el valor nuevo adelantado en localStorage. El cierre del ejercicio exige además una Auditoría de Integridad sin hallazgos críticos.
