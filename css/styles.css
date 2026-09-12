@@ -954,3 +954,187 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   .sec-hdr>div{flex-wrap:wrap;min-width:0;max-width:100%}
   .sec-hdr .btn{flex:0 0 auto}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.2 — EXPERIENCIA MÓVIL PRODUCTIVA
+   Objetivo: que toda la aplicación sea operable desde 320–768 px sin que una
+   tabla, formulario, modal o grupo de botones expulse contenido del viewport.
+   Escritorio mantiene sus reglas previas; este bloque sólo endurece móvil.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#mobile-context{display:none}
+
+@media (max-width:768px){
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{font-size:12px;min-width:0}
+  header{
+    position:relative;z-index:70;min-width:0;height:48px;padding:0 8px;gap:6px;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+  }
+  #nav-toggle{flex:0 0 auto;padding:3px 8px!important;font-size:17px!important}
+  header .logo{flex:0 0 auto;min-width:0;gap:4px}
+  header .logo-icon{width:28px;height:28px;font-size:14px}
+  #entorno-badge{max-width:72px;overflow:hidden;text-overflow:ellipsis;padding:3px 6px!important;font-size:8px!important}
+  #save-indicator{min-width:0;max-width:78px;overflow:hidden;text-overflow:ellipsis;font-size:9px!important;margin-left:auto!important}
+  .btn-save-all{flex:0 0 auto;width:36px;height:34px;padding:0!important;justify-content:center;font-size:15px!important}
+  .btn-save-all .save-lbl{display:none}
+
+  /* Contexto persistente: nombre del módulo + volver + inicio. */
+  #mobile-context{
+    display:flex;align-items:center;gap:8px;min-height:44px;flex:0 0 auto;
+    padding:5px 8px;background:var(--sf);border-bottom:1px solid var(--bd);z-index:45;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+  }
+  #mobile-context button{
+    width:34px;height:34px;flex:0 0 34px;border:1px solid var(--bd);border-radius:8px;
+    background:var(--sf2);color:var(--tx);font-size:23px;line-height:1;display:grid;place-items:center;
+  }
+  #mobile-home{font-size:20px!important}
+  .mobile-context-text{flex:1;min-width:0;text-align:left}
+  #mobile-section-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)}
+  #mobile-section-sub{font-size:9px;color:var(--mt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
+  .layout{min-height:0;min-width:0}
+  main{
+    padding:10px 8px 22px;min-width:0;width:100%;
+    overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+    padding-bottom:max(22px,env(safe-area-inset-bottom));
+  }
+  .section,.card,.card-np,.as-form,.doc-form,.aux-card,.asiento-item{min-width:0;max-width:100%}
+  .card{padding:12px;border-radius:7px;margin-bottom:10px}
+  .card-np{margin-bottom:10px}
+  .card-title{font-size:9px;margin-bottom:10px;letter-spacing:.05em}
+  .sec-hdr{margin-bottom:10px;padding-bottom:9px;gap:7px}
+  .sec-title{font-size:15px;line-height:1.25}
+  .sec-sub{font-size:9.5px;line-height:1.45}
+  .sec-hdr>div:last-child,.save-row,.filter-row,.acc-bulk{max-width:100%;display:flex;flex-wrap:wrap;gap:6px}
+  .save-row{justify-content:flex-end;position:relative}
+
+  /* Formularios: densos, legibles y sin controles fuera de pantalla. */
+  .fg{gap:8px}
+  .grp{min-width:0;gap:2px}
+  label{font-size:8.5px;letter-spacing:.045em;line-height:1.25}
+  input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{
+    max-width:100%;min-width:0;font-size:12px;padding:7px 8px;border-radius:6px;line-height:1.25;
+  }
+  textarea{min-height:72px;resize:vertical}
+  .btn{max-width:100%;font-size:11px;padding:7px 9px;line-height:1.2}
+  .btn:not(.btn-icon-mobile){white-space:normal;text-align:center;justify-content:center}
+  .sec-hdr .btn,.filter-row .btn,.save-row .btn{flex:0 1 auto}
+  .filter-row input,.filter-row select{min-width:0;flex:1 1 130px}
+
+  /* KPIs: 2 columnas; números largos se encogen sin cortar. */
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:10px}
+  .kpi{min-width:0;padding:9px}
+  .kpi-lbl{font-size:8px;margin-bottom:4px;line-height:1.25}
+  .kpi-val{font-size:14px;overflow-wrap:anywhere}
+
+  /* Tablas: nunca agrandar el viewport. Las tablas de muchas columnas se
+     desplazan dentro de su caja, con columnas más densas y scroll táctil. */
+  .tw,.rep-scroll,.cmp-tbl-wrap,.lineas-scroll{
+    width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+    scrollbar-width:thin;border-radius:6px;
+  }
+  .tw{-webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 14px),rgba(0,0,0,.65) 100%)}
+  .tw:focus-within{-webkit-mask-image:none}
+  table{font-size:10px;max-width:none}
+  thead th{font-size:8px;padding:5px 6px;letter-spacing:.035em}
+  tbody td,tfoot td{font-size:10px;padding:5px 6px}
+  tbody td.tl,tbody td.tnm{padding:5px 6px}
+  /* Sólo tablas con muchas columnas fuerzan ancho de trabajo. */
+  .tw table:has(tr > *:nth-child(6)){min-width:620px}
+  .tw table:has(tr > *:nth-child(9)){min-width:820px}
+  .tw table:has(tr > *:nth-child(12)){min-width:1040px}
+  td input[type=number],td input[type=text],td select{font-size:10px;min-width:64px;padding:4px}
+
+  /* Tabs y barras de acciones horizontales: desplazables, no cortadas. */
+  .aux-tabs,.tabs,.tab-row,.toolbar,.action-row{
+    max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;white-space:nowrap;
+  }
+  .aux-tabs::-webkit-scrollbar,.tabs::-webkit-scrollbar,.tab-row::-webkit-scrollbar{display:none}
+
+  /* Modales como hoja de trabajo a pantalla completa: header/footer visibles. */
+  .modal-bkd{padding:0;align-items:stretch;overflow:hidden}
+  .modal-box{
+    max-width:none;width:100%;height:100dvh;max-height:100dvh;margin:0;border-radius:0;border-left:0;border-right:0;
+    padding:12px 10px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;
+    padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom));
+  }
+  .modal-hdr{position:sticky;top:-12px;z-index:20;background:var(--bg);padding-top:8px;padding-bottom:9px;margin-bottom:10px}
+  .modal-title{font-size:13px;line-height:1.3}
+  .modal-sub{font-size:9.5px}
+  .modal-close{font-size:22px;min-width:34px;min-height:34px}
+  .modal-footer{
+    position:sticky;bottom:-12px;z-index:20;background:var(--bg);margin-top:auto;padding:9px 0 8px;
+    flex-wrap:wrap;gap:6px
+  }
+  .modal-footer .btn{flex:1 1 120px}
+
+  /* Drawer: usa alto dinámico y áreas seguras. */
+  nav{height:100dvh;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom));width:276px;max-width:88vw}
+  .nav-label{font-size:8.5px;padding:8px 13px 3px}
+  .nav-item{padding:9px 13px;font-size:12px;gap:8px;min-height:38px}
+  .nav-icon{font-size:13px}
+  .nav-contexto{padding:9px 11px}
+  .nav-ctx-nombre{font-size:11px;margin-bottom:6px}
+  .nav-contexto select{font-size:11px;padding:6px 7px}
+
+  /* Mensajes y bloques informativos: texto compacto pero respirable. */
+  .empty,.info-tip,.eerr-aviso{font-size:10.5px;line-height:1.5}
+  .badge{font-size:8px;padding:2px 6px}
+  .as-glosa,.aux-rs{font-size:11px}
+}
+
+@media (max-width:420px){
+  main{padding-left:6px;padding-right:6px}
+  .card{padding:10px}
+  .sec-title{font-size:14px}
+  .kpi-val{font-size:13px}
+  /* En teléfonos angostos, botones de cabecera quedan compactos por contenido. */
+  .sec-hdr .btn{font-size:10px;padding:6px 8px}
+  .filter-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%}
+  .filter-row>*{min-width:0!important;width:100%!important}
+  .filter-row>.full,.filter-row>button:only-child{grid-column:1/-1}
+  /* Grids genéricos de dos columnas que no tengan semántica especial bajan a una. */
+  .fg{grid-template-columns:1fr}
+  .doc-grid{grid-template-columns:1fr 1fr}
+  .doc-grid-totals{grid-template-columns:1fr 1fr}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+}
+
+@media (max-width:340px){
+  #save-indicator{display:none}
+  #entorno-badge{display:none!important}
+  #mobile-context{min-height:40px;padding-top:3px;padding-bottom:3px}
+  #mobile-context button{width:31px;height:31px;flex-basis:31px}
+  .kpi-grid{grid-template-columns:1fr}
+  .doc-grid,.doc-grid-totals{grid-template-columns:1fr}
+}
+
+@media (max-width:768px){
+  /* Anchos mínimos inline heredados de escritorio que sí pertenecen a filtros
+     y controles (no a tablas): en móvil deben poder encogerse. */
+  #vf-search,#cf-search,#cmp-year-bal,#cmp-year-res,#f29-mes,
+  #imp-bulk-wrap,#impv-bulk-wrap,#imp-bulk-cc,
+  .filter-row .ac-wrap,.sec-hdr .ac-wrap{min-width:0!important;max-width:100%!important}
+  #imp-bulk-wrap,#impv-bulk-wrap{flex-basis:100%!important}
+  #imp-bulk-cc{flex:1 1 180px!important}
+
+  /* Cualquier imagen/canvas/gráfico generado debe respetar la tarjeta. */
+  .section img,.section canvas,.section svg{max-width:100%;height:auto}
+  pre,code{max-width:100%;overflow-wrap:anywhere}
+
+  /* Evitar que textos técnicos, RUT, hashes o nombres largos expandan cards. */
+  .section p,.section div,.section span{overflow-wrap:break-word}
+  .mono,[style*="font-family:var(--mono)"]{overflow-wrap:anywhere}
+
+  /* Resumen de asientos/auxiliares: metadatos apilables. */
+  .asiento-hdr,.aux-hdr{min-width:0}
+  .asiento-hdr>* ,.aux-hdr>*{min-width:0}
+  .cuadre-det{margin-left:0;flex-wrap:wrap;gap:5px 10px;font-size:9.5px}
+  .as-cuadre{flex-wrap:wrap;padding:8px 10px;font-size:10.5px}
+}
