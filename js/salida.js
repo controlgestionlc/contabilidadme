@@ -186,6 +186,8 @@ export function initAvisoSalida(){
   // Ahora: la centinela se repone SIEMPRE y de inmediato, lo abierto se detecta
   // de forma genérica, y la confirmación es un diálogo propio de la página.
   let _saliendo=false;
+  let _ultimoAtrasInicio=0;
+  const DOBLE_ATRAS_MS=2200;
   const ponerCentinela=()=>{try{history.pushState({app:'centinela'},'');}catch(e){}};
 
   // Lo que el atrás debe cerrar antes de pensar en salir, de más a menos encima
@@ -272,6 +274,21 @@ export function initAvisoSalida(){
       if(sec!=='inicio'){window.nav('inicio');return;}
     }
 
+    // En Inicio, un toque accidental de Atrás NUNCA debe cerrar la PWA.
+    // El primer toque sólo arma una ventana corta; recién un segundo toque
+    // dentro de esa ventana se interpreta como intención real de salir.
+    const ahora=Date.now();
+    if(ahora-_ultimoAtrasInicio>DOBLE_ATRAS_MS){
+      _ultimoAtrasInicio=ahora;
+      try{toast&&toast('Presiona Atrás nuevamente para salir');}catch(e){}
+      return;
+    }
+    _ultimoAtrasInicio=0;
+
+    // Salir por Atrás NO ejecuta signOut(). Si Android/PWA efectivamente cierra
+    // la app, al abrirla de nuevo auth.js aplicará la política de login
+    // obligatorio de una nueva ejecución. Mientras no se cierre, la sesión
+    // permanece intacta.
     const r=await preguntarSalir(_sucio);
     if(r==='quedarse')return;
     if(r==='guardar'){
@@ -281,14 +298,15 @@ export function initAvisoSalida(){
       }catch(e){}
     }
     _saliendo=true;
-    // Saltar la centinela y la entrada de la app para llegar a lo que había antes
+    // Saltar la centinela y la entrada de la app para llegar a lo que había antes.
+    // No llamamos logout/signOut en este flujo.
     try{history.go(-2);}catch(e){}
-    // Si la app se abrió en una pestaña nueva no hay adónde volver: decirlo en
-    // vez de dejar al usuario mirando la misma pantalla sin entender.
+    // Si la app se abrió en una pestaña nueva no hay adónde volver: mantenerla
+    // abierta y rearmar el centinela en vez de romper la sesión.
     setTimeout(()=>{
       if(!document.hidden){
         _saliendo=false;ponerCentinela();
-        try{toast&&toast('Ya puedes cerrar esta pestaña');}catch(e){}
+        try{toast&&toast('No hay una pantalla anterior. Puedes seguir trabajando.');}catch(e){}
       }
     },600);
   }
