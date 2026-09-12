@@ -1,5 +1,20 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.16.12 — Validación antes de importar desde el SII
+
+- Los importadores de Compras y Ventas simulan la contabilización de cada DTE seleccionado.
+- La previsualización identifica tipo de DTE, folio y diferencia de todo asiento que quedaría descuadrado.
+- El botón Aplicar permanece bloqueado mientras exista un descuadre.
+- Una segunda validación al confirmar impide guardar si los datos cambiaron después de la previsualización.
+- El documento problemático puede corregirse o excluirse dentro del mismo importador.
+
+## V2.16.11 — Número en alertas de descuadre
+
+- La alerta de Comprobantes identifica los números de los asientos descuadrados.
+- Si existen más de seis, muestra los primeros y señala cuántos quedan en el filtro.
+- Las etiquetas se adaptan al ancho del móvil sin provocar desbordes.
+- El Libro Diario replica la identificación antes de su tabla de detalle.
+
 ## V2.16.10 — Honorarios con y sin retención
 
 - El formulario permite seleccionar boleta con retención o sin retención (no afecta/exenta).
