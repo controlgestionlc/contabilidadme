@@ -149,6 +149,7 @@ import {renderConciliacion, onSaldoBancoChange, toggleConciliado,
 import {abrirBusqueda, cerrarBusqueda, ejecutarBusqueda, navBusqueda,
         irAResultado} from './busqueda.js';
 import {prepararImpresion} from './impresion.js';
+import {renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios} from './folios-sii.js';
 import {exportarExcelManual, conectarBD, fsBackupToCloud, fsRestoreFromCloud,
         importarExcelBD, initBDImportListener, bdRestaurarHandle, BD} from './backup.js';
 
@@ -503,6 +504,7 @@ function renderSec(s){
   else if(s==='asientos')renderComprobantes();
   else if(s==='auxiliares')renderAuxiliares();
   else if(s==='diario')renderDiario();
+  else if(s==='foliossii')renderFoliosSII();
   else if(s==='mayor')renderMayor();
   else if(s==='balance')renderBalance();
   else if(s==='resultados')renderResultados();
@@ -592,7 +594,8 @@ setOnAuthReady(initApp);
 // El HTML usa onclick="renderVentas()" etc. Los módulos ES tienen scope propio,
 // así que hay que publicar esas funciones en window.
 // Objetos de estado usados directamente en onclick del HTML
-Object.assign(window,{AF, VF, CF, REMF, AFB, PF, APF, IMB, IM, IMV, US, BD, S, getCurSec, CD, IVAC, PAGOF29, DJ, ACC});
+Object.assign(window,{
+  renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios,AF, VF, CF, REMF, AFB, PF, APF, IMB, IM, IMV, US, BD, S, getCurSec, CD, IVAC, PAGOF29, DJ, ACC});
 
 Object.assign(window,{
   // utilidades

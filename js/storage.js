@@ -312,7 +312,7 @@ initDispositivo();
   function clavesDeLaEmpresa(anio){
     const fijas=['empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC',
                  'comprobantesTipo','fichasAux','indicadores','previsional','libroRem'];
-    const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-','f29-declaraciones-','cierresContables-','hardening-certificacion-','preproduccion-'].map(p=>p+anio);
+    const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-','f29-declaraciones-','cierresContables-','hardening-certificacion-','preproduccion-','folios-sii-'].map(p=>p+anio);
     const set=new Set([...fijas,...delAnio]);
     try{
       const pref=prefix+empresaId+':';
