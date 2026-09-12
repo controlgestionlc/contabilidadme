@@ -417,11 +417,11 @@ function renderCmpModalView(box,e,o){
 // contable de un documento del libro. Por eso "eliminar" significa cosas
 // distintas según el origen, y el diálogo lo dice con todas sus letras.
 //
-// Honorarios queda fuera: su comprobante resume TODAS las boletas del mes, así
-// que no hay un documento único que borrar — se manda al libro correspondiente.
+// Cada comprobante automático de honorarios queda vinculado a una boleta
+// individual; anularlo deriva al flujo de anulación documental con trazabilidad.
 function borrable(e){
   if(e.origen==='manual'||e.origen==='apertura')return true;
-  return e.origen==='auto'&&(e.fuente==='ventas'||e.fuente==='compras')&&!!e.docId;
+  return e.origen==='auto'&&['ventas','compras','honorarios'].includes(e.fuente)&&!!e.docId;
 }
 
 async function eliminarComprobante(){
@@ -484,13 +484,11 @@ async function eliminarComprobante(){
     return;
   }
 
-  // ── Honorarios: resumen mensual, sin documento único ──
+  // ── Honorarios: cada boleta y su pago tienen comprobantes vinculados ──
   if(e.fuente==='honorarios'){
-    if(confirm(
-      `Este comprobante resume TODAS las boletas de honorarios del mes,\n`+
-      `así que no hay un documento único que eliminar.\n\n`+
-      `¿Quieres ir al libro de Honorarios para borrar las boletas que\n`+
-      `correspondan?`)){cerrarCmpModal();nav('honorarios');}
+    cerrarCmpModal();
+    if(e.docId)window.anularHonDesdeComprobante?.(e.docId);
+    else nav('honorarios');
     return;
   }
 

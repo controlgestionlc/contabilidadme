@@ -95,7 +95,7 @@ import {onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cer
         initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos,
         cambiarModoImport, verDuplicadoC, renderCDupAlert,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF, IM} from './compras.js';
-import {renderHon, setHonCampo, uhon, addHon, delHon, saveHon} from './honorarios.js';
+import {renderHon, setHonCampo, uhon, addHon, delHon, saveHon, abrirHonComprobante, cerrarHonComprobante, actualizarPreviewHon, guardarHonComprobante, anularHonDesdeComprobante, seleccionarPrestadorHon} from './honorarios.js';
 import {renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento,
         anularAsiento, eliminarAsiento, guardarAsiento, addLinea, delLinea, renderLineas,
         lCd, lVal, lValFmt, lValFmtBlur, lRut, toggleAs, updCuadre, limpiarFormAsiento, sigAsiento,
@@ -664,7 +664,7 @@ Object.assign(window,{
   aplicarCuentaATodos, confirmarImportacion, renderImportModal, pn,
   cambiarModoImport, verDuplicadoC, renderCDupAlert,
   // honorarios
-  renderHon, setHonCampo, uhon, addHon, delHon, saveHon,
+  renderHon, setHonCampo, uhon, addHon, delHon, saveHon, abrirHonComprobante, cerrarHonComprobante, actualizarPreviewHon, guardarHonComprobante, anularHonDesdeComprobante, seleccionarPrestadorHon,
   // asientos
   renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento, anularAsiento,
   eliminarAsiento, guardarAsiento, addLinea, delLinea, renderLineas, lCd, lVal, lValFmt, lValFmtBlur, lRut,

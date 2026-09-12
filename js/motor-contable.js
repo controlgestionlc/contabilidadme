@@ -230,14 +230,15 @@ function rutPartes(rut){
 // Honorarios V2: reconocimiento y pago son hechos económicos distintos.
 function asientoHonorario(h,anio){
   const bruto=n(h.bruto);
-  const tasa=n(h.tasaRetencion!=null?h.tasaRetencion:h.retencionTasa);
-  const ret=n(h.retencion!=null?h.retencion:Math.round(bruto*tasa));
+  const sinRet=h.tipoRetencion==='sin_retencion';
+  const tasa=sinRet?0:n(h.tasaRetencion!=null?h.tasaRetencion:h.retencionTasa);
+  const ret=sinRet?0:n(h.retencion!=null?h.retencion:Math.round(bruto*tasa));
   const liquido=bruto-ret;
   const rp=rutPartes(h.rut);
   const fecha=h.fecha||`${anio}-${String(h.mes||1).padStart(2,'0')}-28`;
   const aux={rutCodigo:rp.rutCodigo,rutDV:rp.rutDV,docId:h.id,folio:h.numero||h.folio||'',tipoAux:'honorario',desc:h.nombre||'Honorario'};
   const movs=[];
-  if(bruto)movs.push(mov('3202019',bruto,0,{...aux,cc:h.cc||undefined}));
+  if(bruto)movs.push(mov(h.cuentaGasto||'3202019',bruto,0,{...aux,cc:h.cc||undefined}));
   if(ret)movs.push(mov('2103002',0,ret,{docId:h.id,tributo:'retencion_honorarios'}));
   if(liquido)movs.push(mov('2102006',0,liquido,aux));
   return {fecha,glosa:`Boleta de honorarios${h.numero?' N°'+h.numero:''} — ${h.nombre||'prestador'}`,movs,fuente:'honorarios',docId:h.id,rutCodigo:rp.rutCodigo,retencion:ret,liquido,cuadre:cuadratura(movs)};

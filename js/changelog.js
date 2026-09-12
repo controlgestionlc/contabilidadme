@@ -15,6 +15,23 @@ const APP_VERSION='v2026.09.12-2255';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.10',fecha:'12-09-2026',titulo:'Boletas de honorarios con y sin retención',items:[
+    {tipo:'nuevo',txt:'El comprobante de honorarios permite elegir Con retención o Sin retención (no afecta/exenta).'},
+    {tipo:'cambio',txt:'Las boletas sin retención llevan el monto bruto íntegro a Honorarios por pagar y no generan movimiento en Retenciones por pagar.'},
+    {tipo:'arreglo',txt:'El auxiliar, los totales, el pago y los reportes respetan el tratamiento tributario seleccionado en cada boleta.'},
+    {tipo:'cambio',txt:'Las boletas históricas mantienen el tratamiento Con retención para conservar compatibilidad contable.'}
+  ]},
+  {version:'V2.16.9',fecha:'12-09-2026',titulo:'Honorarios integrados en Comprobantes y Ventas móvil',items:[
+    {tipo:'nuevo',txt:'Comprobantes incorpora Nueva boleta de honorarios con prestador, folio, bruto, cuenta de gasto, centro de costo y cálculo automático de retención.'},
+    {tipo:'nuevo',txt:'Registrar pago ahora crea un comprobante de egreso separado y vinculado; las boletas pendientes pueden pagarse posteriormente desde el auxiliar.'},
+    {tipo:'cambio',txt:'Honorarios pasa a ser un libro auxiliar de consulta con estados Pendiente/Pagada y acciones Editar, Pagar y Anular.'},
+    {tipo:'arreglo',txt:'El importador SII de Ventas muestra sus documentos como fichas desplazables en móvil, evitando que el listado desaparezca.'}
+  ]},
+  {version:'V2.16.8',fecha:'12-09-2026',titulo:'Listado móvil del importador SII Compras',items:[
+    {tipo:'arreglo',txt:'El listado de documentos ya no se comprime hasta desaparecer cuando el archivo RCV contiene muchas compras.'},
+    {tipo:'cambio',txt:'En teléfonos, cada DTE se muestra como una ficha legible con proveedor, documento, montos, cuenta y centro de costo.'},
+    {tipo:'cambio',txt:'El listado dispone de desplazamiento vertical táctil independiente, manteniendo visibles los controles y botones del importador.'}
+  ]},
   {version:'V2.16.7',fecha:'12-09-2026',titulo:'Sistema productivo por defecto y alertas administrativas',items:[
     {tipo:'cambio',txt:'Todas las empresas y ejercicios operan directamente en PRODUCCIÓN, sin habilitaciones por sesión ni bloqueos de preproducción.'},
     {tipo:'seguridad',txt:'Auditoría de Integridad, alertas técnicas y Registro de Actividad quedan visibles y accesibles sólo para administradores.'},

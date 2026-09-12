@@ -63,21 +63,27 @@ function genDiario(){
   const tieneAsientoHon=id=>(S.asientos||[]).some(a=>!a.anulado&&a.fuente==='honorarios'&&a.docId===id&&a.subtipo==='honorario');
   (S.honorarios||[]).filter(h=>h.estado!=='anulado'&&!tieneAsientoHon(h.id)).forEach(h=>{
     const bruto=+(h.bruto||0); if(!bruto)return;
-    const tasa=retencionHonorarios(S.empresa.anio),ret=Math.round(bruto*tasa),liq=bruto-ret;
+    const sinRet=h.tipoRetencion==='sin_retencion';
+    const tasa=sinRet?0:(h.tasaRetencion!=null?+h.tasaRetencion:retencionHonorarios(S.empresa.anio));
+    const ret=sinRet?0:(h.retencion!=null?+h.retencion:Math.round(bruto*tasa)),liq=bruto-ret;
     const limpio=String(h.rut||'').replace(/[^0-9kK]/g,'').toUpperCase();
     const rutCodigo=limpio.length>1?limpio.slice(0,-1):'',rutDV=limpio.length>1?limpio.slice(-1):'';
     const fecha=h.fecha||`${anio}-${String(h.mes||1).padStart(2,'0')}-28`;
     const aux={rutCodigo,rutDV,docId:h.id,tipoAux:'honorario',desc:h.nombre||'Honorario'};
-    entries.push({n:n++,fecha,glosa:`Honorario — ${h.nombre||'prestador'}`,origen:'legado-auto',fuente:'honorarios',docId:h.id,movs:[
+    const movs=[
       {cd:'3202019',nm:pdcNm('3202019'),debe:bruto,haber:0,...aux,cc:h.cc||undefined},
-      {cd:'2103002',nm:pdcNm('2103002'),debe:0,haber:ret,docId:h.id,tributo:'retencion_honorarios'},
       {cd:'2102006',nm:pdcNm('2102006'),debe:0,haber:liq,...aux},
-    ]});
+    ];
+    if(ret)movs.splice(1,0,{cd:'2103002',nm:pdcNm('2103002'),debe:0,haber:ret,docId:h.id,tributo:'retencion_honorarios'});
+    entries.push({n:n++,fecha,glosa:`Honorario — ${h.nombre||'prestador'}`,origen:'legado-auto',fuente:'honorarios',docId:h.id,movs});
   });
 
   // Asientos persistidos: pagos, remuneraciones, depreciaciones, manuales, etc.
   [...S.asientos].filter(a=>!a.anulado).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(a=>{
-    entries.push({n:a.numeroContable||a.folioComp||a.n||n++,fecha:a.fecha,glosa:a.glosa,movs:a.movs,origen:'asiento',ref:a.n,tipo:a.tipo||'manual',asientoId:a.id,numeroContable:a.numeroContable||null});
+    const origen=a.tipo==='manual'?'manual':(a.generadoAutomaticamente||a.origen==='motor-v2')?'auto':'asiento';
+    entries.push({n:a.numeroContable||a.folioComp||a.n||n++,fecha:a.fecha,glosa:a.glosa,movs:a.movs,origen,ref:a.n,tipo:a.tipo||'manual',
+      asientoId:a.id,numeroContable:a.numeroContable||null,fuente:a.fuente||'',docId:a.docId||'',subtipo:a.subtipo||'',
+      cuentaPago:a.cuentaPago||'',documentos:a.documentos||[],generadoAutomaticamente:!!a.generadoAutomaticamente});
   });
   return entries.sort((a,b)=>{
     if(a.origen==='apertura')return -1;if(b.origen==='apertura')return 1;
@@ -355,8 +361,8 @@ function destinoEdicion(e){
     return {ic:'🧾',lbl:'Al doc',hint:'Este asiento lo genera un documento: se edita en el Libro de Compras',
             fn:e.docId?`corregirDesdeDiario('compras','${e.docId}')`:`nav('compras')`};
   if(e.fuente==='honorarios')
-    return {ic:'📝',lbl:'Al libro',hint:'Este asiento resume las boletas del mes: se edita en Honorarios',
-            fn:`nav('honorarios')`};
+    return {ic:'📝',lbl:'Boleta',hint:'Abrir la boleta de honorarios que origina este comprobante',
+            fn:e.docId?`abrirHonComprobante('${e.docId}')`:`nav('honorarios')`};
   return null;
 }
 
