@@ -834,7 +834,7 @@ El sistema está diseñado para bloquear o advertir cuando alguno de estos contr
 
 ## 38. Versión documentada
 
-**V2.16.3**  
+**V2.16.4**  
 Documentación vigente del sistema, incluyendo experiencia móvil productiva y columnas monetarias optimizadas.
 
 
@@ -884,7 +884,7 @@ La interfaz utiliza tres niveles principales:
 
 En móvil se prioriza que los montos, fechas, cuentas y acciones sean utilizables. Cuando una tabla contable contiene demasiadas columnas para representarse sin perder significado, se conserva su estructura y se habilita scroll horizontal táctil dentro de ella en vez de reducir los datos hasta volverlos ilegibles.
 
-## Ajuste de columnas monetarias en móvil — V2.16.3
+## Ajuste de columnas monetarias en móvil — V2.16.4
 
 Las vistas tributarias y contables críticas reservan espacio fijo para cifras monetarias largas. En teléfonos, las columnas de importes no se dimensionan según valores pequeños como `$ 0`; se diseñan para soportar montos de aproximadamente 12 caracteres visibles incluyendo signo monetario, separadores de miles y eventual signo negativo.
 
@@ -903,3 +903,6 @@ Se aplican estas reglas:
 - en F29 y Renta se reduce primero el ancho del código y luego la tipografía descriptiva antes de sacrificar la columna monetaria;
 - en PPM se compacta la columna Mes y se priorizan Base y PPM;
 - en Comprobantes tipo, Debe y Haber tienen exactamente el mismo ancho en móvil.
+
+### Ajustes monetarios en móvil (V2.16.4)
+En Formulario 29, Estado de Resultados y Balance General las columnas monetarias tienen un ancho reservado para importes grandes (por ejemplo `$999.999.999` o `-$99.999.999`). La descripción utiliza el espacio restante y puede envolver texto sin superponerse al monto. En F29 la columna de código queda limitada al espacio necesario para códigos de hasta cinco caracteres.

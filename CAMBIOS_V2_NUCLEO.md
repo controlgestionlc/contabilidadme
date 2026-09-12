@@ -507,7 +507,7 @@ Cambios principales:
 
 La regla de diseño móvil queda definida así: **la página principal nunca debe desbordar horizontalmente; sólo una tabla o componente que realmente necesite ancho puede desplazarse dentro de su propia caja.**
 
-## V2.16.3 — Ajuste fino de columnas monetarias en móvil
+## V2.16.4 — Ajuste fino de columnas monetarias en móvil
 
 - **Comprobantes tipo:** en móvil, Cuenta y Descripción ocupan ancho completo; Debe y Haber quedan en dos columnas exactamente iguales.
 - **Formulario 29:** se reduce el ancho del código y la tipografía descriptiva, reservando una columna monetaria fija y más ancha.
@@ -516,3 +516,10 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Todas las celdas monetarias críticas usan números tabulares, alineación derecha y `white-space: nowrap`.
 - Criterio de diseño: soportar importes de aproximadamente 12 caracteres visibles incluyendo signo `$`, separadores de miles y eventual signo negativo, por ejemplo `$999.999.999` o `-$99.999.999`.
 - En teléfonos muy angostos se mantiene un ancho monetario mínimo de 112 px, priorizando la cifra sobre la descripción.
+
+## V2.16.4 — Ajuste de columnas F29, Estado de Resultados y Balance (móvil)
+- F29: columna de código limitada a un ancho equivalente a 5 caracteres; descripción flexible y monto con ancho estable.
+- F29: descripciones largas envuelven dentro de su celda y no invaden la columna monetaria.
+- Estado de Resultados: columna de montos fija, alineada a la derecha y preparada para importes largos con separadores de miles.
+- Balance General: mismo criterio de columna monetaria que Estado de Resultados.
+- En teléfonos angostos se conserva un ancho monetario mínimo productivo y se reduce primero el área descriptiva.
