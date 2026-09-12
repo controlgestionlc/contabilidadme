@@ -1294,3 +1294,8 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   #resultados-content .report-money-table td:last-child,
   #balance-content .report-money-table td:last-child{width:124px!important;min-width:124px!important;max-width:124px!important;font-size:10.2px!important}
 }
+
+/* ═══ V2.16.5 — Hojas foliadas SII ═══ */
+.fsii-card{margin-bottom:14px}.fsii-card .card-title{font-size:14px;font-weight:800;margin-bottom:12px}.fsii-range-kpis,.fsii-preview-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.fsii-range-kpis span,.fsii-preview-grid>div{padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg2);display:flex;flex-direction:column;gap:2px}.fsii-range-kpis b,.fsii-preview-grid b{font-family:var(--mono);font-size:13px}.fsii-range-kpis small,.fsii-preview-grid small{font-size:9px;color:var(--mt);text-transform:uppercase}.fsii-actions,.fsii-actions-main{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.fsii-actions-main{margin:12px 0}.check-line{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:var(--tx);margin:8px 0}.check-line input{width:auto!important;margin-top:1px}.badge.warn{background:rgba(210,153,34,.12);color:#b7791f;border:1px solid rgba(210,153,34,.3)}.badge.err{background:rgba(248,81,73,.1);color:var(--err);border:1px solid rgba(248,81,73,.25)}
+#folio-print-root{display:none}
+@media(max-width:768px){.fsii-range-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.fsii-preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fsii-margins{grid-template-columns:repeat(2,minmax(0,1fr))!important}.fsii-actions-main .btn{flex:1 1 190px}.fsii-card .tw{overflow-x:auto}.fsii-card .tw table{min-width:620px}}
