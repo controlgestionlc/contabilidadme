@@ -340,7 +340,7 @@ function renderF29(){
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px">${presentado?`<button class="btn btn-g" onclick="reabrirF29()">🔓 Reabrir declaración</button>`:`<button class="btn btn-g" onclick="copiarCalculadoAF29()">↙ Copiar calculado</button><button class="btn btn-s" onclick="guardarBorradorF29()">💾 Guardar borrador</button><button class="btn btn-p" onclick="presentarF29()">✅ Marcar presentado</button>`}</div>
   </div>`;
   const linea=(cod,lbl,val,opts={})=>`<tr${opts.hl?' style="background:'+(opts.pos?'rgba(46,160,67,.10)':'rgba(88,166,255,.08)')+'"':''}>
-    <td class="f29-cod" style="font-family:var(--mono);font-size:11px;color:var(--mt);width:60px">${cod||''}</td>
+    <td class="f29-cod" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${cod||''}</td>
     <td class="tl f29-desc" style="font-size:12px;${opts.bold?'font-weight:700':''}">${lbl}</td>
     <td class="f29-monto money-cell" style="font-family:var(--mono);text-align:right;${opts.bold?'font-weight:700;':''}color:${opts.color||'var(--tx)'}">${val===''?'':fmtC(val)}</td>
   </tr>`;
@@ -350,7 +350,7 @@ function renderF29(){
       <div style="color:var(--mt);font-size:12px;margin-top:3px">Formulario 29 — ${MESES[mSel-1]} ${S.empresa.anio}</div>
       <div style="color:var(--mt);font-size:11px">RUT ${S.empresa.rut||'—'} · ${d.nDocsV} ventas · ${d.nDocsC} compras</div>
     </div>
-    <table class="f29-table"><tbody>
+    <table class="f29-table"><colgroup><col class="f29-col-cod"><col class="f29-col-desc"><col class="f29-col-monto"></colgroup><tbody>
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">DÉBITO FISCAL (Ventas)</td></tr>
       ${d.codigos[502]?linea('502',`IVA Facturas emitidas (${d.codigos[503]} docs)`,d.codigos[502]):''}
       ${d.codigos[111]?linea('111',`IVA Boletas emitidas (${d.codigos[110]} docs)`,d.codigos[111]):''}

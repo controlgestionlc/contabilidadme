@@ -703,7 +703,7 @@ async function renderBalance(){
     <div class="bal-layout">
       <div>
         <div class="card-title">ACTIVOS</div>
-        <table><tbody>
+        <table class="report-money-table balance-money-table"><colgroup><col class="report-col-desc"><col class="report-col-money"></colgroup><tbody>
           ${gAC.h}<tr class="rtot"><td class="tl" style="padding:8px 10px;font-size:11px">Total Activos Corrientes</td><td style="font-family:var(--mono)">${fmtC(gAC.tot)}</td></tr>
           ${gAF.h}<tr class="rtot"><td class="tl" style="padding:8px 10px;font-size:11px">Total Activos No Corrientes</td><td style="font-family:var(--mono)">${fmtC(gAF.tot)}</td></tr>
           <tr style="background:rgba(46,160,67,.12)"><td class="tl" style="padding:10px;font-weight:700;font-size:13px">TOTAL ACTIVOS</td><td style="font-family:var(--mono);font-weight:700;font-size:13px;color:var(--ach)">${fmtC(totAct)}</td></tr>
@@ -711,7 +711,7 @@ async function renderBalance(){
       </div>
       <div>
         <div class="card-title">PASIVOS Y PATRIMONIO</div>
-        <table><tbody>
+        <table class="report-money-table balance-money-table"><colgroup><col class="report-col-desc"><col class="report-col-money"></colgroup><tbody>
           ${gPC.h}<tr class="rtot"><td class="tl" style="padding:8px 10px;font-size:11px">Total Pasivos Corrientes</td><td style="font-family:var(--mono)">${fmtC(gPC.tot)}</td></tr>
           ${gPNC.h}<tr class="rtot"><td class="tl" style="padding:8px 10px;font-size:11px">Total Pasivos No Corrientes</td><td style="font-family:var(--mono)">${fmtC(gPNC.tot)}</td></tr>
           <tr class="rtot" style="background:rgba(248,81,73,.08)"><td class="tl" style="padding:8px 10px;font-size:11px">Total Pasivos</td><td style="font-family:var(--mono)">${fmtC(totPas)}</td></tr>
@@ -872,7 +872,7 @@ async function renderResultados(){
       <div style="color:var(--mt);font-size:12px;margin-top:3px">Estado de Resultados — Año ${S.empresa.anio}</div>
       <div style="color:var(--mt);font-size:11px;margin-top:2px">Régimen 14 D N°3 Pro-Pyme General</div>
     </div>
-    <table><tbody>
+    <table class="report-money-table eerr-money-table"><colgroup><col class="report-col-desc"><col class="report-col-money"></colgroup><tbody>
       ${nivel('Ingresos de explotación',ingExp,'41',{color:'var(--ach)'})}
       ${nivel('Costo de explotación',costoExp,'31',{resta:true,color:'var(--err)'})}
       ${subtotal('= MARGEN BRUTO',margenBruto)}
