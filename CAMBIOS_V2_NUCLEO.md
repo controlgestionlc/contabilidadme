@@ -424,10 +424,22 @@ El panel de Preparación Productiva muestra cada escenario por área y la regres
 - Preparación Productiva exige al menos un período piloto certificado antes de activar PRODUCCIÓN.
 
 
-## V2.15.9 — Puesta en marcha asistida
+## V2.15.9.1 — Puesta en marcha asistida
 - Nuevo panel final de habilitación que consolida controles técnicos, checklist manual, empresa, ejercicio y período piloto certificado.
 - Muestra exactamente qué requisitos siguen pendientes y bloquea la activación mientras exista alguno.
 - Al activar PRODUCCIÓN se genera un acta inmutable de referencia con versión desplegada, usuario administrador, snapshot de criterios/checklist y huella SHA-256.
 - Se mantiene historial de actas si un ejercicio vuelve a PRUEBA y posteriormente se habilita otra vez.
 - El acta vigente puede descargarse en HTML para archivo interno, impresión o conversión posterior a PDF.
 - Los snapshots de recuperación incluyen explícitamente las claves de preproducción y certificación piloto.
+
+## V2.15.9.1 — Corrección guardado multi-clave
+- Corrige `ReferenceError: ref is not defined` en `storage.setMany()` al guardar dentro de la transacción Firestore.
+- La escritura usa ahora explícitamente la referencia correspondiente `refs[i]`.
+
+## V2.15.9.2 — Autoguardado seguro
+- Se separa **borrador de formulario** de **dato confirmado**.
+- Escribir en INPUT/SELECT/TEXTAREA crea un borrador local por empresa/ejercicio; el temporizador nunca lo contabiliza ni lo manda a Firestore.
+- Los borradores sobreviven cierres inesperados y se restauran en los campos cuando vuelven a existir en pantalla.
+- `pagehide` ya no ejecuta `saveAll()`/Firestore: sólo persiste el borrador local de forma síncrona.
+- El botón superior distingue `📝 Borrador` de cambios confirmados pendientes de sincronización.
+- Datos de Empresa limpia su borrador únicamente después de una escritura Firestore/local confirmada y ahora comprueba explícitamente `r.ok`.
