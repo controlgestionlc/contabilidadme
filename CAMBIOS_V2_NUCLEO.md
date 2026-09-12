@@ -1,5 +1,31 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.16.10 — Honorarios con y sin retención
+
+- El formulario permite seleccionar boleta con retención o sin retención (no afecta/exenta).
+- Con retención: reconoce gasto bruto, retención por pagar y líquido al prestador.
+- Sin retención: reconoce gasto bruto y el total íntegro como honorarios por pagar.
+- El comprobante de pago cancela exactamente el líquido o total pendiente, según corresponda.
+- Auxiliar, totales y reportes respetan el tratamiento guardado en cada documento.
+- Los registros históricos se conservan como boletas con retención.
+
+## V2.16.9 — Honorarios en Comprobantes y Ventas móvil
+
+- Nuevo formulario `Nueva boleta honorarios` dentro de Comprobantes.
+- El reconocimiento registra gasto bruto, retención y honorarios por pagar.
+- El pago inmediato o posterior genera un comprobante separado, vinculado a la boleta.
+- La cuenta de gasto, banco/caja y centro de costo son configurables.
+- Honorarios queda como libro auxiliar compatible con los registros anteriores.
+- Prestadores conocidos pueden seleccionarse desde fichas de proveedores y boletas previas.
+- El importador SII de Ventas adopta fichas móviles y una zona de desplazamiento estable.
+
+## V2.16.8 — Importador SII Compras en móvil
+
+- Se evita que el contenedor flex reduzca el listado de DTE a una franja vacía.
+- El listado móvil reserva una altura estable con desplazamiento vertical táctil.
+- Cada compra se presenta como ficha compacta con identificación, montos, cuenta, centro de costo y estado.
+- La tabla de escritorio conserva su distribución original de trece columnas.
+
 ## V2.16.7 — Sistema productivo y alertas sólo para administración
 
 - El modo operativo global pasa a PRODUCCIÓN para todas las empresas y ejercicios.
