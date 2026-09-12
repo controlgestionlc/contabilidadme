@@ -101,10 +101,15 @@ export function renderComprobantes(){
   // Panel de alerta cuando hay descuadres (y no estamos ya filtrando solo por ellos)
   let alerta='';
   if(descuadres.length&&CMP_FILTRO.origen!=='descuadrados'){
+    const numeros=descuadres.map(e=>String(e.n??e.numeroContable??'S/N'));
+    const detalleNumeros=numeros.length<=6
+      ? numeros.map(n=>`<span style="display:inline-block;border:1px solid rgba(248,81,73,.45);border-radius:6px;padding:3px 7px;font-family:var(--mono);font-weight:700">N° ${attr(n)}</span>`).join(' ')
+      : `${numeros.slice(0,6).map(n=>`<span style="display:inline-block;border:1px solid rgba(248,81,73,.45);border-radius:6px;padding:3px 7px;font-family:var(--mono);font-weight:700">N° ${attr(n)}</span>`).join(' ')} <span style="font-size:11px;color:var(--mt)">y ${numeros.length-6} más</span>`;
     alerta=`<div style="background:rgba(248,81,73,.08);border:1px solid var(--err);border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:16px">⚠️</span>
       <span style="font-weight:700;color:var(--err)">${descuadres.length} comprobante${descuadres.length===1?'':'s'} descuadrado${descuadres.length===1?'':'s'}</span>
-      <span style="font-size:11px;color:var(--mt)">— revisa cada asiento y corrige el documento origen</span>
+      <span style="font-size:11px;color:var(--mt)">— revisa y corrige el documento origen</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1 1 100%;color:var(--err)" aria-label="Números de comprobantes descuadrados">${detalleNumeros}</div>
       <button class="btn btn-d" style="font-size:11px;margin-left:auto" onclick="setCmpFiltro('origen','descuadrados')">Ver solo descuadrados</button>
     </div>`;
   }

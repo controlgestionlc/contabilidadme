@@ -11,6 +11,7 @@ import {todosDocsVentas, abrirAsientoDesde, proxFolioComprobante} from './asient
 import './storage.js';
 import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
 import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
+import {asientoVenta} from './motor-contable.js';
 
 // Estado del formulario de ventas (interno del módulo)
 // Mismo cuidado que con AF y CF: este objeto se publica en window desde app.js,
@@ -19,6 +20,21 @@ import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCamb
 const VF={editId:null};
 const fijarVF=editId=>{VF.editId=editId==null?null:editId;};
 let IMV={docs:[]}; // estado del importador SII de ventas
+
+function validarCuadraturaImportVentas(){
+  return IMV.docs.filter(d=>d.incluir).map((d,i)=>{
+    const doc={...d,id:d.dup?.id||`preview-v-${i}`,fecha:d.fechaOriginal||d.fecha,
+      formaPago:d.dup?.formaPago||d.fp||'clientes',cuentaIngreso:d.dup?.cuentaIngreso||d.cuenta||''};
+    const a=asientoVenta(doc);
+    return a.cuadre?.ok?null:{tipoDTE:d.tipoDTE,numero:d.numero,diferencia:a.cuadre?.diferencia||0};
+  }).filter(Boolean);
+}
+
+function alertaCuadraturaImport(lista){
+  if(!lista.length)return '';
+  const items=lista.slice(0,8).map(x=>`DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}`).join('<br>');
+  return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--err);border-radius:7px;background:rgba(248,81,73,.08);color:var(--err);font-size:11px;line-height:1.5"><strong>⚠️ No se puede guardar: ${lista.length} comprobante${lista.length===1?' quedaría':'s quedarían'} descuadrado${lista.length===1?'':'s'}.</strong><br>${items}${lista.length>8?`<br>… y ${lista.length-8} más`:''}<br><span style="color:var(--mt)">Corrige los montos o excluye el documento antes de aplicar.</span></div>`;
+}
 
 function recalcularEstadoImportVentas(){
   IMV.docs.forEach(d=>{
@@ -585,15 +601,18 @@ function renderImportModalVentas(){
   const manuales=IMV.docs.filter(d=>d.estadoImport==='manual').length;
   const incluidos=IMV.docs.filter(d=>d.incluir).length;
   const conCuenta=IMV.docs.filter(d=>d.incluir&&d.cuenta).length;
+  const descuadrados=validarCuadraturaImportVentas();
 
   const summary=document.getElementById('impv-summary');
   if(summary){
-    summary.innerHTML=`📄 <strong>${IMV.docs.length}</strong> documentos en <em>${IMV.archivo||''}</em> · <strong style="color:var(--ach)">${nuevos}</strong> nuevos · <strong style="color:var(--mt)">${iguales}</strong> sin cambios${cambiados?` · <strong style="color:var(--warn)">${cambiados}</strong> con cambios SII`:''}${manuales?` · <strong style="color:var(--info)">${manuales}</strong> ya en asiento manual`:''}${IMV.descartados?' · '+IMV.descartados+' descartados':''}`;
+    summary.innerHTML=`📄 <strong>${IMV.docs.length}</strong> documentos en <em>${IMV.archivo||''}</em> · <strong style="color:var(--ach)">${nuevos}</strong> nuevos · <strong style="color:var(--mt)">${iguales}</strong> sin cambios${cambiados?` · <strong style="color:var(--warn)">${cambiados}</strong> con cambios SII`:''}${manuales?` · <strong style="color:var(--info)">${manuales}</strong> ya en asiento manual`:''}${IMV.descartados?' · '+IMV.descartados+' descartados':''}${alertaCuadraturaImport(descuadrados)}`;
   }
   const info=document.getElementById('impv-periodo-info');
   if(info)info.textContent=`${incluidos} para importar · ${conCuenta} con cuenta asignada`;
   const cnt=document.getElementById('impv-count');
   if(cnt)cnt.textContent=`${incluidos} seleccionados`;
+  const btn=document.getElementById('impv-btn-ok');
+  if(btn){btn.disabled=incluidos===0||descuadrados.length>0;btn.title=descuadrados.length?'Corrige o excluye los documentos descuadrados antes de guardar':'';}
 }
 
 async function confirmarImportacionV(){
@@ -612,6 +631,11 @@ async function confirmarImportacionV(){
   const sinCuenta=incluidos.filter(d=>!d.cuenta);
   if(sinCuenta.length){
     if(!confirm(`⚠️ Hay ${sinCuenta.length} documentos sin cuenta de ingreso asignada.\n\nSe importarán igual pero deberás asignarles cuenta después. ¿Continuar?`))return;
+  }
+  const descuadrados=validarCuadraturaImportVentas();
+  if(descuadrados.length){
+    alert(`No se puede guardar. Los siguientes comprobantes quedarían descuadrados:\n\n${descuadrados.slice(0,12).map(x=>`DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}`).join('\n')}${descuadrados.length>12?'\n…':''}`);
+    renderImportModalVentas();return;
   }
 
   const cambiosSeleccionados=incluidos.filter(d=>d.estadoImport==='cambio');

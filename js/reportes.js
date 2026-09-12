@@ -114,6 +114,10 @@ function renderDiario(){
         <span style="font-weight:700;color:var(--err)">${descuadres.length} comprobante${descuadres.length===1?'':'s'} descuadrado${descuadres.length===1?'':'s'}</span>
         <span style="font-size:11px;color:var(--mt)">— la partida doble no cuadra en estos asientos</span>
       </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;color:var(--err)">
+        ${descuadres.slice(0,6).map(d=>`<span style="display:inline-block;border:1px solid rgba(248,81,73,.45);border-radius:6px;padding:3px 7px;font-family:var(--mono);font-weight:700">N° ${String(d.n??'S/N').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}</span>`).join('')}
+        ${descuadres.length>6?`<span style="font-size:11px;color:var(--mt);padding:4px">y ${descuadres.length-6} más</span>`:''}
+      </div>
       <div style="max-height:180px;overflow-y:auto">
         <table style="width:100%;font-size:11px">
           <thead><tr style="color:var(--mt);text-transform:uppercase;font-size:10px">

@@ -1,4 +1,4 @@
-import {tributacionCompra,periodoContableCompra,fechaContabilizacionCompra} from './motor-contable.js';
+import {tributacionCompra,periodoContableCompra,fechaContabilizacionCompra,asientoCompra} from './motor-contable.js';
 import {claveRCV,compararCompraRCV,snapshotCompraRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 // compras.js — Libro de compras + importador SII
 import {toast, fmt, pn, today, MESES, IVA, DTE_COMPRAS, dteC, rutParse, rutFmt, rutDV, pdcNm, CCOLS, CUENTAS_GASTO, CUENTAS_COMPRA, fmtC} from './core.js';
@@ -23,6 +23,31 @@ const CF={editId:null,dist:[]};
 function fijarCF(editId,dist){
   CF.editId=editId==null?null:editId;
   CF.dist=dist||[];
+}
+
+function validarCuadraturaImportCompras(){
+  return IM.docs.filter(d=>d.incluir).map((d,i)=>{
+    const base=(+d.neto||0)+(+d.exento||0);
+    const prev=d.dup||null;
+    let dist=[{cuenta:d.cuenta||'',monto:base,cc:d.cc||''}];
+    if(prev&&Array.isArray(prev.dist)&&prev.dist.length>1){
+      const sum=prev.dist.reduce((s,l)=>s+(+l.monto||0),0);
+      if(Math.abs(sum-base)<=1)dist=prev.dist.map(l=>({...l}));
+    }
+    const doc={...d,id:prev?.id||`preview-c-${i}`,fecha:d.fechaOriginal||d.fecha,
+      periodoContable:periodoImportSeleccionado(),fechaContabilizacion:fechaContabilizacionImport(d),dist,
+      totalIncluyeRetencion:(+d.tipoDTE===45||+d.tipoDTE===46)?false:d.totalIncluyeRetencion,
+      ...((+d.tipoDTE===45||+d.tipoDTE===46)?{ivaRetenido:d.ivaRetenido!=null?d.ivaRetenido:d.iva}:{}),
+      tratamientoOtrosImpuestos:d.tratamientoOtrosImpuestos||'costo'};
+    const a=asientoCompra(doc);
+    return a.cuadre?.ok?null:{tipoDTE:d.tipoDTE,numero:d.numero,diferencia:a.cuadre?.diferencia||0};
+  }).filter(Boolean);
+}
+
+function alertaCuadraturaImportCompras(lista){
+  if(!lista.length)return '';
+  const items=lista.slice(0,8).map(x=>`DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}`).join('<br>');
+  return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--err);border-radius:7px;background:rgba(248,81,73,.08);color:var(--err);font-size:11px;line-height:1.5"><strong>⚠️ No se puede guardar: ${lista.length} comprobante${lista.length===1?' quedaría':'s quedarían'} descuadrado${lista.length===1?'':'s'}.</strong><br>${items}${lista.length>8?`<br>… y ${lista.length-8} más`:''}<br><span style="color:var(--mt)">Corrige cuenta/montos o excluye el documento antes de aplicar.</span></div>`;
 }
 
 // ═══ CORRELATIVO MENSUAL PERSISTENTE ═══
@@ -860,6 +885,7 @@ function renderImportModal(){
   const iguales=IM.docs.filter(d=>d.estadoImport==='igual').length;
   const cambiados=IM.docs.filter(d=>d.estadoImport==='cambio').length;
   const manuales=IM.docs.filter(d=>d.estadoImport==='manual').length;
+  const descuadrados=validarCuadraturaImportCompras();
 
   // Info del periodo
   const periodoStr=`${MESES[IM.periodoMes-1]} ${IM.periodoAnio}`;
@@ -904,7 +930,7 @@ function renderImportModal(){
     ` · <strong style="color:var(--mt)">${iguales} sin cambios</strong>`+
     (cambiados?` · <strong style="color:var(--warn)">${cambiados} con cambios SII</strong>`:'')+
     (manuales?` · <strong style="color:var(--info)">${manuales} ya en asiento manual</strong>`:'')+
-    ` · Archivo: <code style="font-family:var(--mono);font-size:11px">${IM.archivo||'-'}</code>`+avisoModo;
+    ` · Archivo: <code style="font-family:var(--mono);font-size:11px">${IM.archivo||'-'}</code>`+avisoModo+alertaCuadraturaImportCompras(descuadrados);
   document.getElementById('imp-count').textContent=`${conCuenta}/${incl} con cuenta asignada`;
 
   // Botón OK
@@ -913,7 +939,8 @@ function renderImportModal(){
   btnOk.textContent=sobre
     ?`♻️ Conciliar ${periodoStr}: ${incl} cambio${incl===1?'':'s'}${ausentes?` + ${ausentes} ausencia${ausentes===1?'':'s'}`:''}`
     :`💾 Aplicar ${incl} documento${incl===1?'':'s'} al ${periodoStr}`;
-  btnOk.disabled=incl===0&&ausentes===0;
+  btnOk.disabled=(incl===0&&ausentes===0)||descuadrados.length>0;
+  btnOk.title=descuadrados.length?'Corrige o excluye los documentos descuadrados antes de guardar':'';
 
   // Checkbox "todos"
   const chkAll=document.getElementById('imp-all');
@@ -1020,6 +1047,11 @@ async function confirmarImportacion(){
   if(sinCuenta.length){
     toast(`⚠️ ${sinCuenta.length} documento${sinCuenta.length===1?' no tiene':'s no tienen'} cuenta asignada`,'e');
     return;
+  }
+  const descuadrados=validarCuadraturaImportCompras();
+  if(descuadrados.length){
+    alert(`No se puede guardar. Los siguientes comprobantes quedarían descuadrados:\n\n${descuadrados.slice(0,12).map(x=>`DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}`).join('\n')}${descuadrados.length>12?'\n…':''}`);
+    renderImportModal();return;
   }
   const cambiosSeleccionados=incluidos.filter(d=>d.estadoImport==='cambio');
   if(cambiosSeleccionados.length){

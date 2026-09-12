@@ -8,13 +8,24 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.12-2255';
+const APP_VERSION='v2026.09.12-2350';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.12',fecha:'12-09-2026',titulo:'Control preventivo de cuadratura en importadores SII',items:[
+    {tipo:'nuevo',txt:'Compras y Ventas simulan el asiento de cada DTE seleccionado antes de guardar.'},
+    {tipo:'seguridad',txt:'Si un documento produciría un comprobante descuadrado, el importador muestra tipo, folio y diferencia y bloquea Aplicar.'},
+    {tipo:'arreglo',txt:'La cuadratura se valida nuevamente al confirmar, evitando guardar datos modificados después de la previsualización.'},
+    {tipo:'cambio',txt:'El usuario puede corregir la clasificación o excluir el documento problemático sin cerrar el importador.'}
+  ]},
+  {version:'V2.16.11',fecha:'12-09-2026',titulo:'Identificación de comprobantes descuadrados',items:[
+    {tipo:'arreglo',txt:'La alerta de Comprobantes muestra directamente el número de cada comprobante descuadrado.'},
+    {tipo:'cambio',txt:'Cuando existen varios descuadres, los primeros números aparecen como etiquetas legibles y adaptadas a móvil.'},
+    {tipo:'arreglo',txt:'La alerta del Libro Diario también identifica los números antes del detalle contable.'}
+  ]},
   {version:'V2.16.10',fecha:'12-09-2026',titulo:'Boletas de honorarios con y sin retención',items:[
     {tipo:'nuevo',txt:'El comprobante de honorarios permite elegir Con retención o Sin retención (no afecta/exenta).'},
     {tipo:'cambio',txt:'Las boletas sin retención llevan el monto bruto íntegro a Honorarios por pagar y no generan movimiento en Retenciones por pagar.'},
