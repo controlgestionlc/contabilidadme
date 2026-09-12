@@ -6,6 +6,18 @@ Sistema web contable, tributario y de control para empresas chilenas, diseñado 
 
 ---
 
+
+## Actualizaciones obligatorias de la aplicación
+
+Desde **V2.15.9.4** toda instalación PWA verifica `version.json` contra la versión que está ejecutando. La comprobación se realiza al iniciar la aplicación, al recuperar conexión, al volver desde segundo plano y periódicamente mientras permanece abierta.
+
+Cuando el servidor anuncia una versión distinta, la aplicación entra en estado **Actualización obligatoria**: bloquea la interfaz, impide nuevas escrituras en `storage.set`, `storage.setMany` y `storage.delete`, solicita la actualización del service worker, elimina las cachés PWA antiguas y recarga con una URL versionada. El usuario no puede continuar contabilizando con la versión anterior.
+
+Si el equipo está sin conexión, la PWA puede seguir abriendo con su respaldo offline; la verificación se repite automáticamente al recuperar internet. El archivo `version.json` nunca se responde desde la caché del service worker.
+
+> La obligatoriedad automática aplica a partir de la primera instalación de V2.15.9.4 o posterior. Una instalación anterior debe actualizarse una vez a esta versión para incorporar el verificador.
+
+
 ## 1. Arquitectura general
 
 La aplicación es un frontend web estático publicado en GitHub Pages y utiliza Firebase para autenticación, control de usuarios y persistencia remota. Mantiene lógica contable y tributaria en módulos JavaScript separados, con un motor contable central y validaciones previas a toda persistencia crítica.

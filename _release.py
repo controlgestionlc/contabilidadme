@@ -38,8 +38,15 @@ s=s[:anc.start()]+mapa+'\n'+f'<script type="module" src="js/app.js?v={epoch}"></
 
 # 2. Versión visible en la barra superior
 s=re.sub(r'v20\d\d\.\d\d\.\d\d-\d{4}',version,s)
+s=re.sub(r'(<meta name="app-version" content=")[^"]+(">)',r'\1'+version+r'\2',s)
 
 open('index.html','w',encoding='utf-8').write(s)
+
+# 2b. Manifiesto de versión para instalaciones PWA ya abiertas. Se consulta
+# con cache:no-store y permite forzar la actualización cuando cambia.
+open('version.json','w',encoding='utf-8').write(json.dumps({
+    'version':version,'revision':epoch,'publicadoEn':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
+},ensure_ascii=False,indent=2)+'\n')
 
 # 3. Nombre de la caché del service worker
 #

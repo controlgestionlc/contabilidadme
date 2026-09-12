@@ -443,3 +443,14 @@ El panel de Preparación Productiva muestra cada escenario por área y la regres
 - `pagehide` ya no ejecuta `saveAll()`/Firestore: sólo persiste el borrador local de forma síncrona.
 - El botón superior distingue `📝 Borrador` de cambios confirmados pendientes de sincronización.
 - Datos de Empresa limpia su borrador únicamente después de una escritura Firestore/local confirmada y ahora comprueba explícitamente `r.ok`.
+
+
+## V2.15.9.4 — Verificador obligatorio de actualizaciones
+
+- Nuevo `version.json` generado en cada release.
+- Verificación al arranque, al recuperar conexión, al volver al primer plano y cada 2 minutos.
+- Si la versión publicada difiere, se muestra un overlay bloqueante y se fuerza la actualización antes de continuar.
+- `storage.set`, `storage.setMany` y `storage.delete` rechazan escrituras mientras existe una actualización pendiente.
+- `version.json` queda fuera de la caché del service worker.
+- La actualización limpia las cachés `contabilidad-*`, solicita `skipWaiting` al nuevo service worker y recarga con query versionada.
+- En modo offline no se bloquea el arranque; la verificación vuelve a ejecutarse al recuperar conexión.

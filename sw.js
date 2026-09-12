@@ -18,7 +18,7 @@
 
 // _release.py reescribe esta línea en cada publicación: al cambiar el nombre,
 // la caché anterior se descarta entera en activate.
-const CACHE = 'contabilidad-1789175826';
+const CACHE = 'contabilidad-1789176606';
 
 // Lo mínimo para que la aplicación abra sin red. Los módulos JS y el CSS se van
 // guardando solos a medida que se usan (ver fetch), así no hay que mantener a
@@ -58,6 +58,13 @@ self.addEventListener('fetch', e => {
   // se dejan pasar tal cual: tienen su propia caché y sus propias reglas, y
   // cachear respuestas de la base de datos sería servir datos contables viejos.
   if (url.origin !== self.location.origin) return;
+
+  // El manifiesto de versión nunca se sirve desde la caché. Es la fuente de
+  // verdad que permite a una instalación antigua saber que debe actualizarse.
+  if (url.pathname.endsWith('/version.json')) {
+    e.respondWith(fetch(new Request(req,{cache:'no-store'})));
+    return;
+  }
 
   // `no-cache` obliga a revalidar contra el servidor en vez de aceptar lo que
   // tenga la caché HTTP del navegador. Sin esto, el service worker iría a la
