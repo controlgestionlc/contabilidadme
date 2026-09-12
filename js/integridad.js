@@ -24,6 +24,10 @@ function opcionesSnapshots(){
 }
 function renderIntegridad(){
   const el=document.getElementById('integridad-content'); if(!el)return;
+  if(AUTH.user?.rol!=='admin'){
+    el.innerHTML='<div class="empty"><div class="ei">🔒</div>Auditoría y alertas técnicas disponibles sólo para administración.</div>';
+    return;
+  }
   const r=auditoriaIntegridad();
   const prod=estadoPreparacionProductiva();
   const filas=r.hallazgos.map(h=>`<tr><td class="tl"><b>${h.sev.toUpperCase()}</b></td><td class="tl">${h.tipo}</td><td class="tl">${h.detalle}</td></tr>`).join('');
@@ -52,7 +56,7 @@ function renderIntegridad(){
     </div>
     ${faltan.length?`<div style="margin-bottom:10px"><strong>Falta completar ${faltan.length} requisito(s):</strong><ol style="margin:6px 0 0 20px">${faltan.map(x=>`<li style="margin:3px 0">${x}</li>`).join('')}</ol></div>`:`<div style="margin-bottom:10px;color:var(--ok);font-weight:700">✅ Todos los requisitos previos están aprobados.</div>`}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${pre.modo==='prueba'?`<button class="btn btn-i" onclick="activarProduccion().then(()=>renderIntegridad())" ${!listoMarcha?'disabled title="Completa todos los requisitos"':''}>🚀 Activar PRODUCCIÓN y emitir acta</button>`:''}
+      ${pre.modo==='prueba'?`<button class="btn btn-i" onclick="activarProduccion().then(()=>renderIntegridad())">🚀 ${listoMarcha?'Activar PRODUCCIÓN':'Activar PRODUCCIÓN con pendientes'} y emitir acta</button>`:''}
       ${acta?`<button class="btn btn-g" onclick="descargarActaHabilitacion()">📄 Descargar acta de habilitación</button>`:''}
     </div>
     ${acta?`<div style="margin-top:10px;font-size:11px;color:var(--mt)">Acta <strong>${acta.id}</strong> · ${new Date(acta.generadoEn).toLocaleString('es-CL')} · ${acta.autorizadoPor?.email||''}<br>SHA-256: <code style="word-break:break-all">${acta.hash||'—'}</code></div>`:''}
@@ -69,7 +73,7 @@ function renderIntegridad(){
   <div class="card" style="margin-bottom:14px;border-left:4px solid ${pre.modo==='produccion'?'var(--ok)':'var(--warn)'}">
     <div class="card-title">${pre.modo==='produccion'?'🟢 ENTORNO PRODUCTIVO':'🧪 PILOTO / PREPRODUCCIÓN'}</div>
     <div class="info-tip" style="margin-bottom:10px;line-height:1.55">
-      <strong>PRUEBA</strong> bloquea por defecto las escrituras de negocio al abrir una nueva sesión. Para probar modificaciones debes habilitarlas explícitamente; al cerrar la app vuelven a bloquearse. <strong>PRODUCCIÓN</strong> sólo puede activarse con todos los controles técnicos verdes y las seis confirmaciones de puesta en marcha.
+      <strong>PRUEBA</strong> bloquea por defecto las escrituras de negocio al abrir una nueva sesión. Para probar modificaciones debes habilitarlas explícitamente; al cerrar la app vuelven a bloquearse. <strong>PRODUCCIÓN</strong> puede habilitarse en forma condicional por un administrador; los pendientes quedan registrados en el acta y las protecciones contables permanecen activas.
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <span class="badge ${pre.modo==='produccion'?'bg':'br'}">${pre.modo.toUpperCase()}</span>

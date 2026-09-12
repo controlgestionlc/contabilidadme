@@ -476,6 +476,13 @@ function nav(s){
   cerrarNavMovil(); // en móvil, cerrar el drawer tras elegir sección
 }
 function renderSec(s){
+  // Las pantallas de administración y sus alertas no se exponen aunque se
+  // intente abrirlas mediante un enlace o un estado de navegación antiguo.
+  if(AUTH.user&&['usuarios','auditlog','integridad'].includes(s)&&AUTH.user.rol!=='admin'){
+    const sec=document.getElementById('s-'+s);
+    if(sec)sec.innerHTML='<div class="empty"><div class="ei">🔒</div>Sección disponible sólo para administración.</div>';
+    return;
+  }
   // Verificar permiso de acceso a la sección.
   // 'empresa' y 'usuarios' se excluyen del bloqueo genérico: empresa es la landing,
   // y usuarios tiene su propio control de admin dentro de renderUsuarios().

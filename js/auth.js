@@ -78,6 +78,12 @@ function permisosDeRol(rol){
     else if(rol==='consulta')p[s.id]='read';
     else p[s.id]='none';
   });
+  // Diagnóstico, alertas técnicas y trazabilidad global son exclusivos del
+  // administrador. El contador conserva operación total en sus empresas.
+  if(rol!=='admin'){
+    p.integridad='none';
+    p.auditlog='none';
+  }
   return p;
 }
 
@@ -500,7 +506,9 @@ const SECCION_POR_REGIMEN={correccion:'correccion', activofijo:'activofijo',
 function aplicarPermisosUI(){
   document.querySelectorAll('.nav-item[data-s]').forEach(item=>{
     const s=item.getAttribute('data-s');
-    if(s==='usuarios')return; // se maneja aparte (solo admin)
+    if(['usuarios','auditlog','integridad'].includes(s)){
+      item.style.display=esAdmin()?'':'none';return;
+    }
     if(!puedeVer(s)){item.style.display='none';return;}
     // Régimen: se oculta la sección, pero nunca se borra su dato
     const clave=Object.keys(SECCION_POR_REGIMEN).find(k=>SECCION_POR_REGIMEN[k]===s);
