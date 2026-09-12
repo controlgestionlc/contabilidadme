@@ -1132,6 +1132,92 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   .section p,.section div,.section span{overflow-wrap:break-word}
   .mono,[style*="font-family:var(--mono)"]{overflow-wrap:anywhere}
 
+  /* Importador SII Compras: el contenedor flex del modal comprimía el listado
+     de cientos de DTE hasta dejar visible sólo la barra horizontal. Se reserva
+     una zona táctil estable y cada documento se presenta como ficha vertical. */
+  #imp-modal .card-np{
+    flex:0 0 auto;height:min(52dvh,480px);min-height:280px;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    background:var(--bg);padding:6px
+  }
+  #imp-modal .imp-row-hdr{display:none}
+  #imp-modal .imp-row{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    min-width:0;width:100%;gap:7px 10px;margin:0 0 8px;padding:10px;
+    border:1px solid var(--bd);border-radius:8px;background:var(--sf);
+    align-items:start;font-size:10px;box-sizing:border-box
+  }
+  #imp-modal .imp-row>div{min-width:0;overflow:visible;white-space:normal!important}
+  #imp-modal .imp-row>div:nth-child(1){grid-column:1;grid-row:1}
+  #imp-modal .imp-row>div:nth-child(13){grid-column:2;grid-row:1;text-align:right}
+  #imp-modal .imp-row>div:nth-child(6){grid-column:1/-1;font-size:11px!important;font-weight:700}
+  #imp-modal .imp-row>div:nth-child(11),
+  #imp-modal .imp-row>div:nth-child(12){grid-column:1/-1}
+  #imp-modal .imp-row>div:nth-child(n+2):nth-child(-n+12)::before{
+    display:block;margin-bottom:2px;color:var(--mt);font-size:8px;
+    font-weight:800;letter-spacing:.04em;text-transform:uppercase
+  }
+  #imp-modal .imp-row>div:nth-child(2)::before{content:'Fecha'}
+  #imp-modal .imp-row>div:nth-child(3)::before{content:'DTE'}
+  #imp-modal .imp-row>div:nth-child(4)::before{content:'N° documento'}
+  #imp-modal .imp-row>div:nth-child(5)::before{content:'RUT'}
+  #imp-modal .imp-row>div:nth-child(6)::before{content:'Proveedor'}
+  #imp-modal .imp-row>div:nth-child(7)::before{content:'Neto'}
+  #imp-modal .imp-row>div:nth-child(8)::before{content:'IVA'}
+  #imp-modal .imp-row>div:nth-child(9)::before{content:'Otros'}
+  #imp-modal .imp-row>div:nth-child(10)::before{content:'Total'}
+  #imp-modal .imp-row>div:nth-child(11)::before{content:'Cuenta contable'}
+  #imp-modal .imp-row>div:nth-child(12)::before{content:'Centro de costo'}
+  #imp-modal .imp-row>div:nth-child(7),#imp-modal .imp-row>div:nth-child(8),
+  #imp-modal .imp-row>div:nth-child(9),#imp-modal .imp-row>div:nth-child(10){text-align:left!important}
+  #imp-modal .imp-row .ac-wrap,#imp-modal .imp-row input,#imp-modal .imp-row select{
+    width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box
+  }
+
+  /* El importador de Ventas comparte el mismo patrón y necesita la misma
+     reserva de altura. Sus estilos inline de escritorio se sobreescriben sólo
+     dentro del modal móvil. */
+  #impv-modal .card-np{
+    flex:0 0 auto;height:min(52dvh,480px);min-height:280px;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    background:var(--bg);padding:6px
+  }
+  #impv-modal .imp-row-hdr{display:none!important}
+  #impv-modal .imp-row{
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    min-width:0!important;width:100%!important;gap:7px 10px!important;
+    margin:0 0 8px!important;padding:10px!important;border:1px solid var(--bd)!important;
+    border-radius:8px;background:var(--sf);align-items:start!important;box-sizing:border-box
+  }
+  #impv-modal .imp-row>div{min-width:0;overflow:visible!important;white-space:normal!important}
+  #impv-modal .imp-row>div:nth-child(1){grid-column:1;grid-row:1}
+  #impv-modal .imp-row>div:nth-child(13){grid-column:2;grid-row:1;text-align:right}
+  #impv-modal .imp-row>div:nth-child(6),#impv-modal .imp-row>div:nth-child(11),
+  #impv-modal .imp-row>div:nth-child(12){grid-column:1/-1}
+  #impv-modal .imp-row>div:nth-child(6){font-size:11px!important;font-weight:700}
+  #impv-modal .imp-row>div:nth-child(n+2):nth-child(-n+12)::before{
+    display:block;margin-bottom:2px;color:var(--mt);font-size:8px;
+    font-weight:800;letter-spacing:.04em;text-transform:uppercase
+  }
+  #impv-modal .imp-row>div:nth-child(2)::before{content:'Fecha'}
+  #impv-modal .imp-row>div:nth-child(3)::before{content:'DTE'}
+  #impv-modal .imp-row>div:nth-child(4)::before{content:'N° documento'}
+  #impv-modal .imp-row>div:nth-child(5)::before{content:'RUT'}
+  #impv-modal .imp-row>div:nth-child(6)::before{content:'Cliente'}
+  #impv-modal .imp-row>div:nth-child(7)::before{content:'Neto'}
+  #impv-modal .imp-row>div:nth-child(8)::before{content:'IVA'}
+  #impv-modal .imp-row>div:nth-child(9)::before{content:'Otros'}
+  #impv-modal .imp-row>div:nth-child(10)::before{content:'Total'}
+  #impv-modal .imp-row>div:nth-child(11)::before{content:'Cuenta de ingreso'}
+  #impv-modal .imp-row>div:nth-child(12)::before{content:'Forma de pago'}
+  #impv-modal .imp-row>div:nth-child(7),#impv-modal .imp-row>div:nth-child(8),
+  #impv-modal .imp-row>div:nth-child(9),#impv-modal .imp-row>div:nth-child(10){text-align:left!important}
+  #impv-modal .imp-row .ac-wrap,#impv-modal .imp-row input,#impv-modal .imp-row select{
+    width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box
+  }
+
   /* Resumen de asientos/auxiliares: metadatos apilables. */
   .asiento-hdr,.aux-hdr{min-width:0}
   .asiento-hdr>* ,.aux-hdr>*{min-width:0}
