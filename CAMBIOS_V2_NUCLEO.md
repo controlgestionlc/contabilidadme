@@ -523,3 +523,13 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Estado de Resultados: columna de montos fija, alineada a la derecha y preparada para importes largos con separadores de miles.
 - Balance General: mismo criterio de columna monetaria que Estado de Resultados.
 - En teléfonos angostos se conserva un ancho monetario mínimo productivo y se reduce primero el área descriptiva.
+
+## V2.16.5 — Hojas foliadas SII
+- Nuevo módulo **Hojas foliadas SII** para imprimir Libro Diario, Libro Mayor, Libro Caja y una base del Libro de Inventarios y Balances sobre hojas sueltas previamente autorizadas/timbradas.
+- Registro de rangos físicos autorizados, sin reutilización automática de folios.
+- Reserva previa de folios antes de imprimir; luego cada lote debe confirmarse como **usado** o **inutilizado**.
+- Prueba de alineación sobre hoja blanca sin consumir folios.
+- Márgenes configurables en milímetros, A4/Carta/Oficio, orientación y orden de alimentación ascendente/descendente.
+- Control de hojas sueltas exportable a CSV.
+- Las hojas inutilizadas permanecen bloqueadas y no vuelven al stock disponible.
+- No se incluye Libro Compras/Ventas dentro del flujo de timbraje, porque el RCV reemplazó esa obligación desde agosto de 2017.

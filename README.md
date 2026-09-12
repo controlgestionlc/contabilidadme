@@ -906,3 +906,6 @@ Se aplican estas reglas:
 
 ### Ajustes monetarios en móvil (V2.16.4)
 En Formulario 29, Estado de Resultados y Balance General las columnas monetarias tienen un ancho reservado para importes grandes (por ejemplo `$999.999.999` o `-$99.999.999`). La descripción utiliza el espacio restante y puede envolver texto sin superponerse al monto. En F29 la columna de código queda limitada al espacio necesario para códigos de hasta cinco caracteres.
+
+## Impresión en hojas foliadas SII
+El sistema incluye un módulo para contribuyentes autorizados a llevar contabilidad computacional en hojas sueltas. Permite registrar rangos de folios físicos previamente autorizados/timbrados, preparar Libro Diario, Mayor, Caja e Inventarios y Balances, calibrar márgenes con una prueba en hoja blanca y reservar folios antes de imprimir. Los folios reservados deben posteriormente confirmarse como usados o inutilizados y nunca se reutilizan automáticamente. El módulo es un control operativo de impresión: no reemplaza la solicitud de autorización de contabilidad computacional ni el timbraje/autorización del SII.
