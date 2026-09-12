@@ -454,3 +454,12 @@ El panel de Preparación Productiva muestra cada escenario por área y la regres
 - `version.json` queda fuera de la caché del service worker.
 - La actualización limpia las cachés `contabilidad-*`, solicita `skipWaiting` al nuevo service worker y recarga con query versionada.
 - En modo offline no se bloquea el arranque; la verificación vuelve a ejecutarse al recuperar conexión.
+
+
+## V2.15.9.5 — Navegación móvil / botón Atrás
+
+- En la pantalla Inicio, el primer botón Atrás en Android/PWA ya no cierra la app.
+- Se exige un segundo Atrás dentro de 2,2 segundos para confirmar intención de salida.
+- Modales, formularios y navegación interna se resuelven antes de cualquier salida.
+- El flujo de navegación no ejecuta `signOut()`.
+- La política de login obligatorio al volver a abrir una app realmente cerrada se mantiene.

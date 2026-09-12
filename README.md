@@ -834,3 +834,8 @@ El sistema está diseñado para bloquear o advertir cuando alguno de estos contr
 
 **V2.15.9.3**  
 Documentación reconstruida desde cero para describir exclusivamente el funcionamiento vigente de la aplicación.
+
+
+## Navegación móvil y botón Atrás
+
+En Android/PWA, el botón Atrás se maneja como navegación interna. Si existe un modal, formulario o una sección anterior, se vuelve a esa capa. Desde Inicio, el primer Atrás sólo muestra el aviso **“Presiona Atrás nuevamente para salir”** y la aplicación permanece abierta con la sesión activa. Únicamente un segundo Atrás dentro de 2,2 segundos inicia la salida. Este flujo no ejecuta `signOut()`; si el sistema operativo realmente cierra la PWA y luego se inicia una nueva ejecución, vuelve a aplicarse el login obligatorio.
