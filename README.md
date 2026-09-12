@@ -839,3 +839,15 @@ Documentación reconstruida desde cero para describir exclusivamente el funciona
 ## Navegación móvil y botón Atrás
 
 En Android/PWA, el botón Atrás se maneja como navegación interna. Si existe un modal, formulario o una sección anterior, se vuelve a esa capa. Desde Inicio, el primer Atrás sólo muestra el aviso **“Presiona Atrás nuevamente para salir”** y la aplicación permanece abierta con la sesión activa. Únicamente un segundo Atrás dentro de 2,2 segundos inicia la salida. Este flujo no ejecuta `signOut()`; si el sistema operativo realmente cierra la PWA y luego se inicia una nueva ejecución, vuelve a aplicarse el login obligatorio.
+
+## Libro de Remuneraciones Electrónico — Dirección del Trabajo
+
+El módulo **Remuneraciones → Libro de Remuneraciones** puede generar el archivo de carga masiva para el Libro de Remuneraciones Electrónico (LRE) de Mi DT.
+
+La exportación **CSV Mi DT** utiliza la estructura oficial de conceptos del LRE, separador punto y coma (`;`), encabezados del tipo `Nombre concepto(código)`, fechas en formato `dd/mm/aaaa`, montos enteros y codificación ANSI/Windows-1252. El archivo se nombra `rutempleador_aaaamm.csv`.
+
+La ficha de cada trabajador contiene un bloque **Datos Libro de Remuneraciones Electrónico (Dirección del Trabajo)** con los antecedentes que no forman parte de la liquidación normal pero sí son exigidos por el LRE: fecha de inicio/término y causal, región/comuna de prestación, tipo de impuesto, tipo de jornada, días trabajados/licencia/vacaciones, discapacidad o pensión de invalidez, pensión de vejez, técnico extranjero, APV/APVC e indemnización a todo evento. AFP, FONASA/ISAPRE, AFC, CCAF y organismo administrador de la Ley 16.744 se relacionan con la configuración previsional del sistema.
+
+Antes de generar el archivo, **Validar LRE** revisa campos obligatorios y consistencia básica. Si existen errores, el CSV no se descarga. Se recomienda cerrar el mes de remuneraciones antes de generar el archivo definitivo, de modo que la declaración se base en la fotografía mensual ya pagada y no en datos provisionales.
+
+El archivo generado es una ayuda para la carga masiva. La aceptación definitiva depende de las validaciones de forma y fondo de la Dirección del Trabajo en Mi DT, por lo que debe revisarse el informe de procesamiento emitido por esa plataforma.

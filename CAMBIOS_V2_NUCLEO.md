@@ -463,3 +463,14 @@ El panel de Preparación Productiva muestra cada escenario por área y la regres
 - Modales, formularios y navegación interna se resuelven antes de cualquier salida.
 - El flujo de navegación no ejecuta `signOut()`.
 - La política de login obligatorio al volver a abrir una app realmente cerrada se mantiene.
+
+## V2.16.0 — Libro de Remuneraciones Electrónico (LRE) CSV Mi DT
+
+- Se incorpora generación directa del archivo CSV para carga masiva del Libro de Remuneraciones Electrónico de la Dirección del Trabajo.
+- El archivo usa delimitador `;`, headers con nomenclatura oficial `Nombre concepto(código)`, fechas `dd/mm/aaaa`, montos enteros positivos y salida ANSI/Windows-1252.
+- Nombre de archivo conforme al esquema `rutempleador_aaaamm.csv`.
+- Se incorporan todos los conceptos del Anexo N°1 de la plantilla LRE en el orden oficial; conceptos opcionales sin uso se dejan vacíos y obligatorios numéricos no aplicables se informan en `0`.
+- Los trabajadores incorporan ficha LRE: fecha inicio/término, causal, región, comuna, tipo de impuesto, jornada, días trabajados/licencia/vacaciones, discapacidad/invalidez, pensionado, técnico extranjero, APV/APVC e indemnización Art. 164.
+- AFP, salud, AFC, CCAF y organismo Ley 16.744 se vinculan con la configuración previsional existente y códigos DT conocidos.
+- Se agrega validador previo al CSV. La exportación se bloquea ante RUT inválido, fecha inicial faltante, región/comuna faltante, códigos previsionales indeterminados o inconsistencia fecha/causal de término.
+- El cierre mensual del libro conserva también la metadata LRE del trabajador para que el archivo histórico no dependa de cambios posteriores en la ficha.
