@@ -853,3 +853,33 @@ La ficha de cada trabajador contiene un bloque **Datos Libro de Remuneraciones E
 Antes de generar el archivo, **Validar LRE** revisa campos obligatorios y consistencia básica. Si existen errores, el CSV no se descarga. Se recomienda cerrar el mes de remuneraciones antes de generar el archivo definitivo, de modo que la declaración se base en la fotografía mensual ya pagada y no en datos provisionales.
 
 El archivo generado es una ayuda para la carga masiva. La aceptación definitiva depende de las validaciones de forma y fondo de la Dirección del Trabajo en Mi DT, por lo que debe revisarse el informe de procesamiento emitido por esa plataforma.
+
+---
+
+## Experiencia móvil
+
+Desde V2.16.2 la aplicación está diseñada para poder operar desde teléfonos como dispositivo de trabajo y no sólo como visor.
+
+En pantallas de hasta 768 px se aplica una interfaz específica:
+
+- una barra de contexto muestra siempre el módulo actual y ofrece accesos directos a **Volver** e **Inicio**;
+- el menú principal funciona como drawer lateral y muestra empresa activa, ejercicio, módulos y cierre de sesión;
+- el encabezado se compacta para priorizar navegación y guardado;
+- formularios, filtros, tarjetas y KPIs reducen espaciado y tipografía sin quitar campos;
+- los formularios de compras, ventas y asientos reorganizan sus campos para evitar cifras cortadas;
+- tablas con muchas columnas usan desplazamiento horizontal **dentro de la tabla**, evitando desplazar toda la aplicación;
+- los modales usan la pantalla completa del teléfono, con encabezado y acciones persistentes;
+- filtros y grupos de botones se envuelven automáticamente;
+- textos técnicos y nombres largos se ajustan dentro de sus contenedores;
+- se respetan las áreas seguras (`safe-area`) de Android/iOS/PWA;
+- el botón Atrás de Android cierra primero modales/formularios o vuelve al módulo anterior antes de ofrecer salir de la aplicación.
+
+### Criterio responsive
+
+La interfaz utiliza tres niveles principales:
+
+- **Escritorio:** más de 768 px, navegación lateral permanente y mayor densidad de información.
+- **Móvil/Tablet pequeña:** 341–768 px, drawer, barra de contexto y diseño compacto.
+- **Teléfono angosto:** hasta 340 px, KPIs y grids críticos bajan a una columna y se ocultan indicadores secundarios del header.
+
+En móvil se prioriza que los montos, fechas, cuentas y acciones sean utilizables. Cuando una tabla contable contiene demasiadas columnas para representarse sin perder significado, se conserva su estructura y se habilita scroll horizontal táctil dentro de ella en vez de reducir los datos hasta volverlos ilegibles.

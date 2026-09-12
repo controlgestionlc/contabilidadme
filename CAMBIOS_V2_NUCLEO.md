@@ -485,3 +485,24 @@ El panel de Preparación Productiva muestra cada escenario por área y la regres
 - Se mantiene intacto el aislamiento real: `firestore.rules`, `empresas_acl` y la sincronización automática de ACL al crear, compartir, reclamar, modificar o eliminar empresas.
 - La ayuda de Empresas fue actualizada para no dirigir al usuario a una pantalla eliminada.
 - Los comentarios de `firestore.rules` ahora describen el modelo productivo actual y no un procedimiento histórico de preparación.
+
+## V2.16.2 — Experiencia móvil productiva
+
+Se incorporó una capa responsive transversal orientada a uso diario desde teléfonos y tablets pequeñas (320–768 px), priorizando operación y navegación por sobre densidad visual.
+
+Cambios principales:
+
+- Nueva barra de contexto móvil con **Volver**, nombre de módulo, subtítulo e **Inicio**.
+- Header compacto: guardar pasa a botón iconográfico y los indicadores largos se truncan sin desbordar.
+- Drawer lateral adaptado a `100dvh`, safe areas y objetivos táctiles compactos.
+- Tipografías, tarjetas, formularios, filtros y KPIs reducidos específicamente en móvil.
+- Formularios genéricos pasan a una columna; documentos y totales usan rejillas de 2 columnas cuando el ancho lo permite.
+- Tablas anchas quedan contenidas en scroll horizontal táctil y nunca aumentan el ancho de la página.
+- Las tablas con 6/9/12+ columnas reciben un ancho de trabajo mínimo dentro de su contenedor para mantener legibilidad.
+- Modales móviles pasan a vista de pantalla completa con cabecera y pie pegajosos, evitando botones fuera de alcance.
+- Se eliminaron anchos mínimos de escritorio en filtros/importadores que provocaban scroll de toda la pantalla.
+- Textos técnicos, RUT, hashes, nombres de cuenta e identificadores largos pueden quebrarse dentro de su tarjeta.
+- Se añadieron safe areas para dispositivos con notch/barras del sistema.
+- Se mantiene la navegación Android/PWA implementada en V2.15.9.5.
+
+La regla de diseño móvil queda definida así: **la página principal nunca debe desbordar horizontalmente; sólo una tabla o componente que realmente necesite ancho puede desplazarse dentro de su propia caja.**
