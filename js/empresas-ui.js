@@ -31,8 +31,8 @@ function bannerErrorCatalogo(){
     <div style="margin-top:4px">
       1. Que este equipo tenga conexión y que hayas entrado con <strong>el mismo correo</strong> del PC.<br>
       2. Que en Firebase las reglas publicadas sean las del archivo <code>firestore.rules</code>.<br>
-      3. Configuración → Sistema → 🔒 Aislamiento por empresa → <strong>Verificar</strong>, que dice
-         exactamente qué está rechazando la nube.
+      3. Verifica que el usuario tenga acceso a la empresa y que la ficha <code>empresas_acl</code>
+         correspondiente exista en Firestore. Las ACL se mantienen automáticamente al crear, compartir o editar una empresa.
     </div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="location.reload()">🔄 Reintentar</button>

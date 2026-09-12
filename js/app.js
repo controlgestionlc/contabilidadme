@@ -66,7 +66,6 @@ import {renderCargaDatos, descargarPlantillaDatos, abrirCargaDatos,
         initCargaDatosListener, CD} from './cargadatos.js';
 import {renderSistema} from './sistema.js';
 import {DISPOSITIVO, renombrarDispositivo} from './dispositivo.js';
-import {diagnosticarSeguridad, prepararAislamiento, repararAccesos, repararDocumentos} from './seguridad.js';
 import {initAyuda, toggleAyuda, actualizarAyuda, ayudaAlNavegar} from './ayuda.js';
 import {renderInicio, abrirEmpresaInicio} from './inicio.js';
 import {abrirReporteAux, cerrarReporteAux, setReporteAuxVista, renderReporteAux,
@@ -664,7 +663,6 @@ Object.assign(window,{
   setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion,actualizarBadgeEntorno,
   ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI,
   renderCargaDatos, descargarPlantillaDatos, abrirCargaDatos, renderSistema,
-  diagnosticarSeguridad, prepararAislamiento, repararAccesos, repararDocumentos,
   renombrarEsteDispositivo,
   renderCompensacionIVA, generarAsientoIVA, setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente,
   renderPagoF29, generarAsientoPagoF29, setPagoF29Cuenta, setPagoF29Campo, setPagoF29Monto,

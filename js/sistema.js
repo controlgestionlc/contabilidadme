@@ -11,7 +11,6 @@
 
 import {S, AUTH} from './state.js';
 import {TEMAS} from './tema.js';
-import {bloqueSeguridad} from './seguridad.js';
 import {AG, OPCIONES_INTERVALO, etiquetaIntervalo} from './autoguardado.js';
 import {DISPOSITIVO} from './dispositivo.js';
 
@@ -141,15 +140,6 @@ function renderSistema(){
 
     </div>
 
-    <div class="card" style="margin-top:14px">
-      <div style="font-size:15px;font-weight:700">🔒 Aislamiento por empresa</div>
-      <div style="font-size:11px;color:var(--mt);margin-top:3px;margin-bottom:12px;line-height:1.5">
-        Hoy cada usuario <em>ve</em> sólo sus empresas, pero los datos siguen siendo alcanzables para
-        cualquier usuario activo con conocimientos técnicos. Para que el aislamiento sea real hay que
-        publicar las reglas endurecidas (<code>firestore.rules</code>) — y antes, dejar la base preparada.
-      </div>
-      ${bloqueSeguridad()}
-    </div>
 
     <div style="margin-top:16px;font-size:10px;color:var(--mt)">
       Sesión iniciada como <strong>${AUTH.user?.nombre||AUTH.user?.email||'—'}</strong>${AUTH.user?.rol?` · ${AUTH.user.rol}`:''} ·

@@ -20,8 +20,8 @@
 // catálogo cada vez que se crea, comparte, reclama o elimina una empresa.
 //
 // El campo `miembros` es la fuente de verdad para las REGLAS; el catálogo lo
-// sigue siendo para la INTERFAZ. Si los dos se desincronizan, "Reparar accesos"
-// en Configuración → Sistema los vuelve a igualar.
+// sigue siendo para la INTERFAZ. Las ACL se actualizan automáticamente cada vez
+// que el catálogo cambia; ya no existe una herramienta manual de migración.
 
 import {FS} from './firebase.js';
 
@@ -36,9 +36,8 @@ export function miembrosDe(e){
   return [...new Set(lista.filter(Boolean))];
 }
 
-// Último error de escritura, para poder explicarlo en pantalla
+// Último error de escritura, útil para diagnóstico técnico.
 export const ACL_ERR={ultimo:null};
-export const esErrorPermisos=msg=>/permission|insufficient|permisos/i.test(String(msg||''));
 
 // Escribe (o actualiza) el documento ACL de una empresa
 export async function guardarACLEmpresa(e){
@@ -58,44 +57,4 @@ export async function borrarACLEmpresa(id){
   if(!aclDisponible()||!id)return false;
   try{await FS.db.collection(COLL).doc(id).delete();return true;}
   catch(err){console.warn('ACL del',id,err);return false;}
-}
-
-// Sincroniza TODO el catálogo. Se llama en la migración y en "Reparar accesos".
-// No borra ACLs de empresas que ya no están en el catálogo salvo que se pida.
-export async function sincronizarACL(empresas,{limpiarSobrantes=false}={}){
-  if(!aclDisponible())return {escritos:0,borrados:0,error:'Firestore no está disponible'};
-  let escritos=0,borrados=0;
-  ACL_ERR.ultimo=null;
-  for(const e of empresas){ if(await guardarACLEmpresa(e))escritos++; }
-  if(!escritos&&empresas.length&&ACL_ERR.ultimo)return {escritos:0,borrados:0,error:ACL_ERR.ultimo};
-  if(limpiarSobrantes){
-    try{
-      const vivos=new Set(empresas.map(e=>e.id));
-      const snap=await FS.db.collection(COLL).get();
-      for(const doc of snap.docs){
-        if(!vivos.has(doc.id)){await doc.ref.delete();borrados++;}
-      }
-    }catch(err){console.warn('ACL limpieza',err);}
-  }
-  return {escritos,borrados};
-}
-
-// Compara catálogo vs ACL y devuelve las diferencias (para el diagnóstico)
-export async function diagnosticarACL(empresas){
-  if(!aclDisponible())return {ok:false,error:'Firestore no está disponible'};
-  const faltantes=[],desfasadas=[],sobrantes=[];
-  let snap;
-  try{snap=await FS.db.collection(COLL).get();}
-  catch(err){return {ok:false,error:err.message};}
-  const porId={};snap.forEach(d=>{porId[d.id]=d.data()||{};});
-  for(const e of empresas){
-    const a=porId[e.id];
-    if(!a){faltantes.push(e.nombre||e.id);continue;}
-    const esperado=miembrosDe(e).slice().sort().join(',');
-    const actual=(a.miembros||[]).map(x=>String(x).toLowerCase()).sort().join(',');
-    if(esperado!==actual)desfasadas.push(e.nombre||e.id);
-  }
-  const vivos=new Set(empresas.map(e=>e.id));
-  Object.keys(porId).forEach(id=>{if(!vivos.has(id))sobrantes.push(id);});
-  return {ok:true,total:Object.keys(porId).length,faltantes,desfasadas,sobrantes};
 }
