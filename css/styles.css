@@ -1138,3 +1138,82 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   .cuadre-det{margin-left:0;flex-wrap:wrap;gap:5px 10px;font-size:9.5px}
   .as-cuadre{flex-wrap:wrap;padding:8px 10px;font-size:10.5px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.3 — AJUSTE FINO DE COLUMNAS MONETARIAS EN MÓVIL
+   Requisito: mostrar montos de hasta ~12 caracteres visibles (incluyendo $,
+   signo y separadores de miles) sin partirlos ni colapsar la columna.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.money-cell{
+  white-space:nowrap!important;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+
+@media (max-width:768px){
+  /* Comprobantes tipo: Cuenta/Descripción ocupan fila completa; Debe/Haber
+     comparten exactamente el mismo ancho. */
+  #ct-modal .ct-linea-hdr{display:none!important}
+  #ct-modal .ct-linea-row{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    gap:7px!important;
+    padding:9px!important;
+    margin-bottom:9px!important;
+    border:1px solid var(--bd);
+    border-radius:8px;
+    background:var(--sf2);
+    align-items:end!important;
+  }
+  #ct-modal .ct-linea-row>div{min-width:0}
+  #ct-modal .ct-linea-row>div:nth-child(1),
+  #ct-modal .ct-linea-row>div:nth-child(2){grid-column:1/-1}
+  #ct-modal .ct-linea-row>div:nth-child(3),
+  #ct-modal .ct-linea-row>div:nth-child(4){grid-column:auto}
+  #ct-modal .ct-linea-row>div:nth-child(5){grid-column:1/-1;text-align:right!important}
+  #ct-modal .ct-linea-row>div:nth-child(1)::before,
+  #ct-modal .ct-linea-row>div:nth-child(2)::before,
+  #ct-modal .ct-linea-row>div:nth-child(3)::before,
+  #ct-modal .ct-linea-row>div:nth-child(4)::before{
+    display:block;margin:0 0 3px;font-size:8px;font-weight:700;color:var(--mt);
+    text-transform:uppercase;letter-spacing:.045em
+  }
+  #ct-modal .ct-linea-row>div:nth-child(1)::before{content:"Cuenta"}
+  #ct-modal .ct-linea-row>div:nth-child(2)::before{content:"Descripción"}
+  #ct-modal .ct-linea-row>div:nth-child(3)::before{content:"Debe"}
+  #ct-modal .ct-linea-row>div:nth-child(4)::before{content:"Haber"}
+  #ct-modal .linea-num-inp{width:100%!important;min-width:0!important;text-align:right;font-variant-numeric:tabular-nums}
+
+  /* F29: código estrecho, descripción flexible y monto monetario real. */
+  .f29-table{width:100%!important;table-layout:fixed}
+  .f29-table .f29-cod{width:38px!important;min-width:38px!important;max-width:38px!important;padding-left:4px!important;padding-right:4px!important;text-align:center;font-size:9px!important}
+  .f29-table .f29-desc{width:auto!important;font-size:10px!important;line-height:1.25;padding:7px 7px!important;overflow-wrap:normal!important;word-break:normal}
+  .f29-table .f29-monto{width:118px!important;min-width:118px!important;max-width:118px!important;padding:7px 7px!important;font-size:11px!important;white-space:nowrap!important}
+  .f29-table tr:last-child .f29-desc,.f29-table tr:last-child .f29-monto{font-size:11.5px!important}
+
+  /* PPM: dejar la mayor parte del ancho a los valores, especialmente PPM. */
+  .ppm-table{width:100%!important;table-layout:fixed}
+  .ppm-table .ppm-mes{width:76px!important;min-width:76px!important;max-width:76px!important;font-size:10px!important;padding:6px 5px!important}
+  .ppm-table .ppm-base{width:auto!important;min-width:0!important;font-size:10.5px!important;padding:6px 7px!important;white-space:nowrap!important}
+  .ppm-table .ppm-monto{width:116px!important;min-width:116px!important;max-width:116px!important;font-size:10.5px!important;padding:6px 7px!important;white-space:nowrap!important}
+  .ppm-table thead .ppm-base,.ppm-table thead .ppm-monto{font-size:8px!important;white-space:normal!important;line-height:1.15}
+
+  /* Renta: evitar el scroll que ocultaba el inicio de las descripciones y
+     reservar una columna estable para importes largos. */
+  .renta-table-wrap{overflow-x:hidden!important;width:100%;max-width:100%}
+  .renta-rli-table{width:100%!important;min-width:0!important;table-layout:fixed}
+  .renta-rli-table .renta-cod{width:32px!important;min-width:32px!important;max-width:32px!important;padding:6px 3px!important;text-align:center;font-size:8.5px!important}
+  .renta-rli-table .renta-desc{width:auto!important;font-size:10px!important;line-height:1.25;padding:7px 6px!important;overflow-wrap:normal!important;word-break:normal}
+  .renta-rli-table .renta-monto{width:118px!important;min-width:118px!important;max-width:118px!important;padding:7px 7px!important;font-size:10.5px!important;white-space:nowrap!important}
+  .renta-rli-table tr[style*="background"] .renta-desc,
+  .renta-rli-table tr[style*="background"] .renta-monto{font-size:11px!important}
+}
+
+@media (max-width:380px){
+  .f29-table .f29-cod{width:34px!important;min-width:34px!important;max-width:34px!important}
+  .f29-table .f29-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10.5px!important}
+  .ppm-table .ppm-mes{width:68px!important;min-width:68px!important;max-width:68px!important;font-size:9.5px!important}
+  .ppm-table .ppm-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10px!important}
+  .renta-rli-table .renta-cod{width:28px!important;min-width:28px!important;max-width:28px!important}
+  .renta-rli-table .renta-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10px!important}
+}
