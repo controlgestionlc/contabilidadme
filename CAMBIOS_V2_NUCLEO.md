@@ -506,3 +506,13 @@ Cambios principales:
 - Se mantiene la navegación Android/PWA implementada en V2.15.9.5.
 
 La regla de diseño móvil queda definida así: **la página principal nunca debe desbordar horizontalmente; sólo una tabla o componente que realmente necesite ancho puede desplazarse dentro de su propia caja.**
+
+## V2.16.3 — Ajuste fino de columnas monetarias en móvil
+
+- **Comprobantes tipo:** en móvil, Cuenta y Descripción ocupan ancho completo; Debe y Haber quedan en dos columnas exactamente iguales.
+- **Formulario 29:** se reduce el ancho del código y la tipografía descriptiva, reservando una columna monetaria fija y más ancha.
+- **PPM:** se compacta la columna Mes y se amplían Base y PPM para cifras extensas.
+- **Declaración de Renta:** se elimina el desborde horizontal del cuadro RLI y se reserva una columna monetaria estable.
+- Todas las celdas monetarias críticas usan números tabulares, alineación derecha y `white-space: nowrap`.
+- Criterio de diseño: soportar importes de aproximadamente 12 caracteres visibles incluyendo signo `$`, separadores de miles y eventual signo negativo, por ejemplo `$999.999.999` o `-$99.999.999`.
+- En teléfonos muy angostos se mantiene un ancho monetario mínimo de 112 px, priorizando la cifra sobre la descripción.

@@ -834,8 +834,8 @@ El sistema está diseñado para bloquear o advertir cuando alguno de estos contr
 
 ## 38. Versión documentada
 
-**V2.15.9.3**  
-Documentación reconstruida desde cero para describir exclusivamente el funcionamiento vigente de la aplicación.
+**V2.16.3**  
+Documentación vigente del sistema, incluyendo experiencia móvil productiva y columnas monetarias optimizadas.
 
 
 ## Navegación móvil y botón Atrás
@@ -883,3 +883,23 @@ La interfaz utiliza tres niveles principales:
 - **Teléfono angosto:** hasta 340 px, KPIs y grids críticos bajan a una columna y se ocultan indicadores secundarios del header.
 
 En móvil se prioriza que los montos, fechas, cuentas y acciones sean utilizables. Cuando una tabla contable contiene demasiadas columnas para representarse sin perder significado, se conserva su estructura y se habilita scroll horizontal táctil dentro de ella en vez de reducir los datos hasta volverlos ilegibles.
+
+## Ajuste de columnas monetarias en móvil — V2.16.3
+
+Las vistas tributarias y contables críticas reservan espacio fijo para cifras monetarias largas. En teléfonos, las columnas de importes no se dimensionan según valores pequeños como `$ 0`; se diseñan para soportar montos de aproximadamente 12 caracteres visibles incluyendo signo monetario, separadores de miles y eventual signo negativo.
+
+Ejemplos de referencia:
+
+```text
+$999.999.999
+-$99.999.999
+```
+
+Se aplican estas reglas:
+
+- montos alineados a la derecha;
+- números tabulares (`font-variant-numeric: tabular-nums`);
+- el importe nunca se parte en dos líneas;
+- en F29 y Renta se reduce primero el ancho del código y luego la tipografía descriptiva antes de sacrificar la columna monetaria;
+- en PPM se compacta la columna Mes y se priorizan Base y PPM;
+- en Comprobantes tipo, Debe y Haber tienen exactamente el mismo ancho en móvil.
