@@ -431,12 +431,12 @@ function bloqueRLI(R){
     <div class="info-tip" style="margin-top:10px;font-size:11px">🧾 Resultado contable del ejercicio: ${fmtC(R.resultadoBalance)} — no determina el impuesto en este régimen, pero sirve de control interno y para el Balance General.</div>
   </div>`;
   const fila=(lbl,monto,opts={})=>`<tr${opts.bg?` style="background:${opts.bg}"`:''}>
-    <td style="font-family:var(--mono);font-size:10px;color:var(--mt);width:52px">${opts.cod||''}</td>
-    <td class="tl" style="padding:${opts.fuerte?'9px 12px':'6px 12px'};font-size:${opts.fuerte?'13':'12'}px;font-weight:${opts.fuerte?'700':'400'}">
+    <td class="renta-cod" style="font-family:var(--mono);font-size:10px;color:var(--mt);width:52px">${opts.cod||''}</td>
+    <td class="tl renta-desc" style="padding:${opts.fuerte?'9px 12px':'6px 12px'};font-size:${opts.fuerte?'13':'12'}px;font-weight:${opts.fuerte?'700':'400'}">
       ${opts.signo?`<span style="color:var(--mt)">${opts.signo}</span> `:''}${esc(lbl)}
       ${opts.nota?`<div style="font-size:10px;color:var(--mt);margin-top:2px;overflow-wrap:anywhere">${esc(opts.nota)}</div>`:''}
     </td>
-    <td style="font-family:var(--mono);text-align:right;white-space:nowrap;font-weight:${opts.fuerte?'700':'400'};color:${opts.color||'var(--tx)'}">${fmtC(monto)}</td>
+    <td class="renta-monto money-cell" style="font-family:var(--mono);text-align:right;white-space:nowrap;font-weight:${opts.fuerte?'700':'400'};color:${opts.color||'var(--tx)'}">${fmtC(monto)}</td>
   </tr>`;
 
   const filasAg=R.ag.length?R.ag.map(a=>fila(a.lbl,a.monto,{cod:a.cod,signo:'+',nota:a.nota,color:'var(--warn)'})).join('')
@@ -447,7 +447,7 @@ function bloqueRLI(R){
   return `<div class="card">
     <div class="sec-title" style="font-size:14px;margin-bottom:4px">Determinación de la Renta Líquida Imponible</div>
     <div style="font-size:11px;color:var(--mt);margin-bottom:14px">Recuadro N°${R.reg.recuadro} del F22 · ejercicio comercial ${R.anio}</div>
-    <div style="overflow-x:auto"><table style="width:100%;min-width:520px"><tbody>
+    <div class="renta-table-wrap" style="overflow-x:auto"><table class="renta-rli-table" style="width:100%;min-width:520px"><tbody>
       ${fila('Ingresos del giro y otros ingresos',R.ingresos,{cod:R.reg.cod.ingresos,color:'var(--ach)'})}
       ${fila('Costos y gastos del ejercicio',R.gastos,{cod:R.reg.cod.gastos,signo:'−',color:'var(--err)'})}
       ${fila('RESULTADO SEGÚN BALANCE (antes de impuesto)',R.resultadoBalance,{cod:'645',fuerte:true,bg:'rgba(88,166,255,.08)'})}
@@ -475,7 +475,7 @@ function bloqueF22(R,at){
     <td style="font-family:var(--mono);font-size:10px;color:var(--mt);width:44px">${linea||''}</td>
     <td style="font-family:var(--mono);font-size:10px;color:var(--acc);width:48px">${cod||''}</td>
     <td class="tl" style="padding:${opts.fuerte?'9px 10px':'6px 10px'};font-size:${opts.fuerte?'13':'12'}px;font-weight:${opts.fuerte?'700':'400'}">${esc(lbl)}</td>
-    <td style="font-family:var(--mono);text-align:right;white-space:nowrap;font-weight:${opts.fuerte?'700':'400'};color:${opts.color||'var(--tx)'}">${fmtC(monto)}</td>
+    <td class="renta-monto money-cell" style="font-family:var(--mono);text-align:right;white-space:nowrap;font-weight:${opts.fuerte?'700':'400'};color:${opts.color||'var(--tx)'}">${fmtC(monto)}</td>
   </tr>`;
   const filasCred=R.creditos.length?R.creditos.map(c=>ln('',c.cod,c.lbl,c.monto,{color:'var(--ach)'})).join('')
     :`<tr><td colspan="4" style="padding:8px 10px;font-size:11px;color:var(--mt)">Sin créditos informados. Agrégalos en la pestaña <strong>Ajustes</strong>.</td></tr>`;

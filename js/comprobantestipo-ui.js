@@ -122,7 +122,7 @@ export function renderCTModal(){
   const lista=comprobantesTipo();
 
   const filas=CTF.lineas.map((l,i)=>`
-    <div class="linea-row" style="display:grid;grid-template-columns:1fr 1fr 110px 110px 40px;gap:6px;margin-bottom:6px;align-items:start">
+    <div class="linea-row ct-linea-row" style="display:grid;grid-template-columns:1fr 1fr 110px 110px 40px;gap:6px;margin-bottom:6px;align-items:start">
       <div>${inputCuenta({id:`ct-cd-${i}`,value:l.cd,onPick:`setCTCuenta(${i},'%CD%')`,placeholder:'Cuenta…'})}</div>
       <div><input type="text" class="linea-inp" placeholder="Descripción" value="${(l.desc||'').replace(/"/g,'&quot;')}" oninput="setCTCampo(${i},'desc',this.value)"></div>
       <div><input type="number" class="linea-num-inp" placeholder="Debe" value="${l.debe||''}" oninput="setCTCampo(${i},'debe',this.value)"></div>
@@ -152,7 +152,7 @@ export function renderCTModal(){
     </div>
 
     <div style="margin-top:12px">
-      <div style="display:grid;grid-template-columns:1fr 1fr 110px 110px 40px;gap:6px;font-size:10px;color:var(--mt);text-transform:uppercase;margin-bottom:4px">
+      <div class="ct-linea-hdr" style="display:grid;grid-template-columns:1fr 1fr 110px 110px 40px;gap:6px;font-size:10px;color:var(--mt);text-transform:uppercase;margin-bottom:4px">
         <div>Cuenta</div><div>Descripción</div><div>Debe</div><div>Haber</div><div></div>
       </div>
       ${filas}

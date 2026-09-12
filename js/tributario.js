@@ -340,9 +340,9 @@ function renderF29(){
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px">${presentado?`<button class="btn btn-g" onclick="reabrirF29()">🔓 Reabrir declaración</button>`:`<button class="btn btn-g" onclick="copiarCalculadoAF29()">↙ Copiar calculado</button><button class="btn btn-s" onclick="guardarBorradorF29()">💾 Guardar borrador</button><button class="btn btn-p" onclick="presentarF29()">✅ Marcar presentado</button>`}</div>
   </div>`;
   const linea=(cod,lbl,val,opts={})=>`<tr${opts.hl?' style="background:'+(opts.pos?'rgba(46,160,67,.10)':'rgba(88,166,255,.08)')+'"':''}>
-    <td style="font-family:var(--mono);font-size:11px;color:var(--mt);width:60px">${cod||''}</td>
-    <td class="tl" style="font-size:12px;${opts.bold?'font-weight:700':''}">${lbl}</td>
-    <td style="font-family:var(--mono);text-align:right;${opts.bold?'font-weight:700;':''}color:${opts.color||'var(--tx)'}">${val===''?'':fmtC(val)}</td>
+    <td class="f29-cod" style="font-family:var(--mono);font-size:11px;color:var(--mt);width:60px">${cod||''}</td>
+    <td class="tl f29-desc" style="font-size:12px;${opts.bold?'font-weight:700':''}">${lbl}</td>
+    <td class="f29-monto money-cell" style="font-family:var(--mono);text-align:right;${opts.bold?'font-weight:700;':''}color:${opts.color||'var(--tx)'}">${val===''?'':fmtC(val)}</td>
   </tr>`;
   el.innerHTML=`<div class="card" style="max-width:640px">
     <div style="text-align:center;margin-bottom:18px">
@@ -350,7 +350,7 @@ function renderF29(){
       <div style="color:var(--mt);font-size:12px;margin-top:3px">Formulario 29 — ${MESES[mSel-1]} ${S.empresa.anio}</div>
       <div style="color:var(--mt);font-size:11px">RUT ${S.empresa.rut||'—'} · ${d.nDocsV} ventas · ${d.nDocsC} compras</div>
     </div>
-    <table><tbody>
+    <table class="f29-table"><tbody>
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">DÉBITO FISCAL (Ventas)</td></tr>
       ${d.codigos[502]?linea('502',`IVA Facturas emitidas (${d.codigos[503]} docs)`,d.codigos[502]):''}
       ${d.codigos[111]?linea('111',`IVA Boletas emitidas (${d.codigos[110]} docs)`,d.codigos[111]):''}
@@ -376,9 +376,9 @@ function renderF29(){
       ${linea('62','PPM ('+((S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0))+'%)',d.ppm,{color:'var(--err)'})}
       ${linea('151',`Retención honorarios (${(retencionHonorarios(S.empresa.anio)*100).toFixed(2)}%)`,d.retencionHon,{color:'var(--err)'})}
       <tr style="background:${d.totalPagar>0?'rgba(248,81,73,.12)':'rgba(46,160,67,.12)'}">
-        <td style="font-family:var(--mono);font-size:11px;color:var(--mt)">91</td>
-        <td class="tl" style="padding:11px;font-weight:700;font-size:14px">TOTAL A PAGAR</td>
-        <td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:${d.totalPagar>0?'var(--err)':'var(--ach)'}">${fmtC(d.totalPagar)}</td>
+        <td class="f29-cod" style="font-family:var(--mono);font-size:11px;color:var(--mt)">91</td>
+        <td class="tl f29-desc" style="padding:11px;font-weight:700;font-size:14px">TOTAL A PAGAR</td>
+        <td class="f29-monto money-cell" style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:${d.totalPagar>0?'var(--err)':'var(--ach)'}">${fmtC(d.totalPagar)}</td>
       </tr>
     </tbody></table>
     ${d.tasaPPM===0&&(S.empresa.tasaPPM==null||+S.empresa.tasaPPM===0)?'<div class="info-tip" style="margin-top:12px;font-size:11px">⚠️ La tasa de PPM está en 0%. Configúrala en Empresa → Configuración Tributaria para que se calcule el PPM.</div>':''}
@@ -717,15 +717,15 @@ function renderPPM(){
   const totBase=data.reduce((s,d)=>s+d.basePPM,0);
   const totPPM=data.reduce((s,d)=>s+d.ppm,0);
   const rows=data.map(d=>`<tr${d.basePPM>0?'':' style="opacity:.4"'}>
-    <td class="tl" style="font-size:12px">${MESES[d.m-1]}</td>
-    <td style="font-family:var(--mono);text-align:right">${fmtC(d.basePPM)}</td>
-    <td style="font-family:var(--mono);text-align:right;color:var(--err)">${fmtC(d.ppm)}</td>
+    <td class="tl ppm-mes" style="font-size:12px">${MESES[d.m-1]}</td>
+    <td class="ppm-base money-cell" style="font-family:var(--mono);text-align:right">${fmtC(d.basePPM)}</td>
+    <td class="ppm-monto money-cell" style="font-family:var(--mono);text-align:right;color:var(--err)">${fmtC(d.ppm)}</td>
   </tr>`).join('');
   el.innerHTML=`<div class="card" style="max-width:560px">
     <div class="info-tip" style="margin-bottom:14px">💰 PPM del ejercicio ${S.empresa.anio} — tasa <strong>${tasaPPM}%</strong> sobre ingresos brutos mensuales.${tasaPPM===0?' <span style="color:var(--warn)">Configura la tasa en Empresa.</span>':''}</div>
-    <table><thead><tr><th class="tl">MES</th><th style="text-align:right">BASE (Ingresos brutos)</th><th style="text-align:right">PPM</th></tr></thead>
+    <table class="ppm-table"><thead><tr><th class="tl ppm-mes">MES</th><th class="ppm-base" style="text-align:right">BASE (Ingresos brutos)</th><th class="ppm-monto" style="text-align:right">PPM</th></tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr style="background:rgba(88,166,255,.08)"><td class="tl" style="font-weight:700">TOTAL AÑO</td><td style="font-family:var(--mono);text-align:right;font-weight:700">${fmtC(totBase)}</td><td style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--err)">${fmtC(totPPM)}</td></tr></tfoot>
+    <tfoot><tr style="background:rgba(88,166,255,.08)"><td class="tl ppm-mes" style="font-weight:700">TOTAL AÑO</td><td class="ppm-base money-cell" style="font-family:var(--mono);text-align:right;font-weight:700">${fmtC(totBase)}</td><td class="ppm-monto money-cell" style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--err)">${fmtC(totPPM)}</td></tr></tfoot>
     </table>
   </div>`;
 }
