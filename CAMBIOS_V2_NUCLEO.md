@@ -1,5 +1,20 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.16.7 — Sistema productivo y alertas sólo para administración
+
+- El modo operativo global pasa a PRODUCCIÓN para todas las empresas y ejercicios.
+- Se eliminan los bloqueos de escritura asociados al antiguo modo de prueba.
+- Los contadores conservan edición normal únicamente sobre las empresas asignadas por ACL.
+- Auditoría de Integridad, alertas técnicas, Registro de Actividad e indicador de entorno quedan restringidos al administrador.
+- Permanecen activas la cuadratura, reglas contables, cierres, control de concurrencia y persistencia segura.
+
+## V2.16.6 — Inicio de producción condicional
+
+- El administrador puede activar PRODUCCIÓN aunque existan controles técnicos o confirmaciones pendientes.
+- La confirmación reforzada exige escribir `ACTIVAR PRODUCCION CON PENDIENTES`.
+- El acta registra expresamente la modalidad condicional y conserva el detalle de los pendientes.
+- Persistencia segura, cuadratura, reglas contables, cierres y trazabilidad permanecen activas.
+
 ## V2.16.5.1 — Certificación coherente entre equipos
 
 - La verificación de concurrencia vuelve a leer la certificación vigente desde Firebase antes de actualizarla.
