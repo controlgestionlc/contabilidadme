@@ -474,3 +474,14 @@ El panel de Preparación Productiva muestra cada escenario por área y la regres
 - AFP, salud, AFC, CCAF y organismo Ley 16.744 se vinculan con la configuración previsional existente y códigos DT conocidos.
 - Se agrega validador previo al CSV. La exportación se bloquea ante RUT inválido, fecha inicial faltante, región/comuna faltante, códigos previsionales indeterminados o inconsistencia fecha/causal de término.
 - El cierre mensual del libro conserva también la metadata LRE del trabajador para que el archivo histórico no dependa de cambios posteriores en la ficha.
+
+
+## V2.16.1 — Limpieza de herramientas de migración
+
+- Se eliminó de **Configuración → Sistema** la tarjeta histórica **Aislamiento por empresa**.
+- Se retiraron los botones manuales `Verificar`, `Preparar aislamiento`, `Reparar accesos` y `Reparar documentos`.
+- Se eliminó `js/seguridad.js` y los helpers de `storage.js` utilizados exclusivamente por la migración inicial.
+- Se retiraron del orquestador `app.js` las funciones globales de migración que ya no se usan.
+- Se mantiene intacto el aislamiento real: `firestore.rules`, `empresas_acl` y la sincronización automática de ACL al crear, compartir, reclamar, modificar o eliminar empresas.
+- La ayuda de Empresas fue actualizada para no dirigir al usuario a una pantalla eliminada.
+- Los comentarios de `firestore.rules` ahora describen el modelo productivo actual y no un procedimiento histórico de preparación.

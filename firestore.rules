@@ -7,15 +7,14 @@ rules_version = '2';
 //  VERSIÓN FINAL — aislamiento estricto, lista para pegar en
 //  Firebase → Firestore Database → Reglas → Publicar (reemplaza TODO).
 //
-//  ⚠️  Requisito previo: la base tiene que estar migrada.
-//      Configuración → Sistema → 🔒 Aislamiento por empresa → "Preparar",
-//      hasta que el panel quede en verde. La migración hace dos cosas:
-//        1. crea un documento en `empresas_acl` por cada empresa del catálogo
-//        2. estampa el campo `empresa` en todos los documentos existentes
-//      Si se publican estas reglas antes, la app deja de leer sus propios datos.
+//  Estas reglas corresponden al modelo productivo actual. La colección
+//  `empresas_acl` se mantiene automáticamente al crear, compartir, reclamar o
+//  eliminar empresas, y cada documento de `contabilidad_data` se persiste con
+//  su campo `empresa`. Las antiguas herramientas manuales de preparación y
+//  reparación de aislamiento fueron retiradas de la interfaz en V2.16.1.
 //
-//  Si algo sale mal, la consola de Firebase guarda el historial de reglas
-//  publicadas y permite volver a la versión anterior en un clic.
+//  Si se migra una base histórica anterior al modelo multiempresa, la migración
+//  debe realizarse de forma controlada antes de publicar estas reglas.
 //
 //  Modelo de datos
 //  ───────────────

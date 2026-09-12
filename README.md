@@ -66,6 +66,8 @@ Roles operativos soportados por la arquitectura actual:
 
 Firestore aplica reglas de seguridad para impedir escrituras no autorizadas. Las ACL de empresas y los documentos de usuario son parte del control server-side.
 
+Las ACL se mantienen automáticamente desde el catálogo de empresas. Las antiguas herramientas visibles **“Verificar / Preparar aislamiento / Reparar accesos”** eran utilidades de migración y fueron retiradas en V2.16.1; no forman parte de la operación normal ni son necesarias en una instalación productiva ya migrada.
+
 Las acciones críticas pueden dejar registro de:
 
 - usuario;
