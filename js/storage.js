@@ -333,6 +333,17 @@ initDispositivo();
     }catch(e){return {ok:false,motivo:e.message||String(e)};}
   }
 
+
+  // Una actualización publicada invalida las escrituras de la versión antigua.
+  // El overlay del actualizador bloquea la interfaz y esta segunda barrera evita
+  // que un temporizador o una promesa ya iniciada alcance Firestore igualmente.
+  function guardiaActualizacion(key){
+    if(typeof window!=='undefined'&&window.__UPDATE_REQUIRED__){
+      return {key,ok:false,bloqueada:true,motivo:'actualizacion-obligatoria',detalle:'Hay una versión nueva del sistema. Actualiza antes de guardar.'};
+    }
+    return null;
+  }
+
   window.storage={
     // Cambia la empresa activa (lo llama empresas.js)
     setPrefijo(id){empresaId=id||'emp1';},
@@ -349,6 +360,7 @@ initDispositivo();
       return local?{key,value:local.value}:null;
     },
     async set(key,value){
+      const gu=guardiaActualizacion(key);if(gu)return gu;
       const k=K(key);
       const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(key):{ok:true};
       if(ge&&ge.ok===false)return {key,ok:false,bloqueada:true,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};
@@ -399,6 +411,7 @@ initDispositivo();
     // de Firestore (ej.: libro de compras + asientos). O se guardan todas, o no
     // se modifica ninguna ni en la nube ni en localStorage.
     async setMany(entries){
+      const gu=guardiaActualizacion('setMany');if(gu)return gu;
       const lista=(entries||[]).filter(x=>x&&x.key!=null).map(x=>({key:String(x.key),value:String(x.value??'')}));
       if(!lista.length)return {ok:true};
       for(const e of lista){const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(e.key):{ok:true};if(ge&&ge.ok===false)return {ok:false,bloqueada:true,clave:e.key,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};}
@@ -472,6 +485,7 @@ initDispositivo();
       }
     },
     async delete(key){
+      const gu=guardiaActualizacion(key);if(gu)return gu;
       const k=K(key);
       const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(key):{ok:true};
       if(ge&&ge.ok===false)return {key,ok:false,bloqueada:true,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};

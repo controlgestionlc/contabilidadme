@@ -1,3 +1,4 @@
+import {initActualizador, verificarActualizacion} from './actualizador.js';
 // app.js — Orquestador: routing, arranque y puente con el HTML.
 // Importa todos los módulos, registra los callbacks de ui.js/auth.js
 // y expone al scope global las funciones usadas por los onclick del HTML.
@@ -679,7 +680,7 @@ Object.assign(window,{
   guardarDJ, borrarDJ, restaurarCatalogoDJ, exportarDJExcel,
   renderRenta, setRentaTab, setRentaParam, restaurarTasaLegal, toggleRechazada,
   onRegimenEmpresaChange, pintarRegimen, onRegimenChange, aplicarPermisosUI,
-  toggleAyuda, actualizarAyuda, renderInicio, abrirEmpresaInicio,
+  toggleAyuda, actualizarAyuda, renderInicio, abrirEmpresaInicio, verificarActualizacion,
   addRentaLinea, setRentaLinea, delRentaLinea, setRentaCredito, exportRentaXLSX,
   renderConciliacion, onSaldoBancoChange, toggleConciliado, marcarTodosConciliados,
   cargarCartola, autoConciliarCartola,
@@ -704,6 +705,7 @@ function descargarPlantillaAuxActual(){descargarPlantillaAux(tipoAuxActual());}
 function abrirImportFichasActual(){abrirImportFichas(tipoAuxActual());}
 
 // ═══ ARRANQUE ═══
+initActualizador(); // bloquea y actualiza obligatoriamente si el servidor publica otra versión
 initTema();
 initAyuda();         // ampolleta 💡 por sección: las ayudas quedan plegadas
 initAvisoSalida();   // aviso si se cierra con cambios sin guardar
