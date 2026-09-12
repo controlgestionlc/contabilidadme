@@ -451,6 +451,24 @@ function nav(s){
   if(sec)sec.classList.add('active');
   const item=document.querySelector('[data-s="'+s+'"]');
   if(item)item.classList.add('active');   // hay secciones sin ítem de menú
+  // Contexto móvil: siempre mostrar dónde está el usuario. Preferimos el título
+  // visible de la sección y, como respaldo, el texto del menú lateral.
+  try{
+    const mt=document.getElementById('mobile-section-title');
+    const ms=document.getElementById('mobile-section-sub');
+    const titulo=sec?.querySelector('.sec-title')?.textContent?.trim()
+      ||item?.textContent?.replace(/^\s*[^A-Za-zÁÉÍÓÚÜÑ0-9]+/,'').trim()
+      ||'Contabilidad';
+    if(mt)mt.textContent=titulo;
+    if(ms){
+      const sub=sec?.querySelector('.sec-sub')?.textContent?.trim();
+      ms.textContent=sub||(s==='inicio'?'Panel principal':'Empresa · '+(S?.empresa?.anio||''));
+    }
+    const volver=document.getElementById('mobile-back');
+    if(volver)volver.style.visibility=(s==='inicio'?'hidden':'visible');
+    const inicio=document.getElementById('mobile-home');
+    if(inicio)inicio.style.visibility=(s==='inicio'?'hidden':'visible');
+  }catch(e){}
   setCurSec(s);renderSec(s);
   recordarNav(s);      // para que el botón atrás deshaga un paso, no salte a Inicio
   ayudaAlNavegar(s);   // aplicar la preferencia de ayuda de esta pantalla
