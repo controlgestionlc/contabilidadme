@@ -112,6 +112,7 @@ import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSalud
         onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF} from './remuneraciones.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
         cerrarMesRem, reabrirMesRem, exportarLibroRemExcel} from './libroremuneraciones.js';
+import {exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS} from './lre-dt.js';
 import {renderCierre, generarAsientoCierre, reabrirEjercicio, renderProvisiones, previewProvInc,
         previewProvFer, generarProvisionIncobrables, generarProvisionFeriado,
         renderCorreccion, previewCM} from './cierre.js';
@@ -649,7 +650,7 @@ Object.assign(window,{
   // remuneraciones
   renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
   renderLibroRem, setRemView, getRemView, tabsRemuneraciones, cerrarMesRem, reabrirMesRem,
-  exportarLibroRemExcel, libroDelMes,
+  exportarLibroRemExcel, exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS, libroDelMes,
   previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem,
   verLiquidacion, generarAsientoRemuneraciones,
   // cierre

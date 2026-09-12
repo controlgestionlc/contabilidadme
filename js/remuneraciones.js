@@ -125,6 +125,7 @@ function abrirFormTrabajador(){
   ['grat','otros','colacion','movilizacion'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='0';});
   document.getElementById('remf-salud').value='fonasa';
   document.getElementById('remf-contrato').value='indefinido';
+  cargarLREForm({});
   // Los trabajadores nuevos parten con la gratificación legal en porcentaje
   document.getElementById('remf-gratmodo').value='pct';
   document.getElementById('remf-gratpct').value=getIndicadores().gratifPct??25;
@@ -154,6 +155,25 @@ function onSaludChange(){
   document.getElementById('remf-plan-wrap').style.display=isIsapre?'':'none';
   previewLiq();
 }
+function leerLRETrabajador(){
+  const g=id=>document.getElementById(id)?.value??'';
+  return {
+    fechaInicio:g('remf-lre-inicio'),fechaTermino:g('remf-lre-termino'),causalTermino:g('remf-lre-causal'),
+    region:g('remf-lre-region'),comuna:g('remf-lre-comuna'),tipoImpuesto:g('remf-lre-impuesto')||'1',
+    jornada:g('remf-lre-jornada')||'101',diasTrabajados:g('remf-lre-dias')||'30',diasLicencia:g('remf-lre-licencia'),diasVacaciones:g('remf-lre-vacaciones'),
+    discapacidad:g('remf-lre-discapacidad')||'0',pensionadoVejez:g('remf-lre-vejez')||'0',tecnicoExtranjero:g('remf-lre-extranjero')||'0',
+    apvIndividual:g('remf-lre-apv')||'0',apvColectivo:g('remf-lre-apvc')||'0',indemnizacionTodoEvento:g('remf-lre-ite')||'0',
+    otrosCodigo:g('remf-lre-otros')||'2111'
+  };
+}
+function cargarLREForm(lre={}){
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v??'';};
+  set('remf-lre-inicio',lre.fechaInicio||'');set('remf-lre-termino',lre.fechaTermino||'');set('remf-lre-causal',lre.causalTermino||'');
+  set('remf-lre-region',lre.region||'');set('remf-lre-comuna',lre.comuna||'');set('remf-lre-impuesto',lre.tipoImpuesto||'1');
+  set('remf-lre-jornada',lre.jornada||'101');set('remf-lre-dias',lre.diasTrabajados??'30');set('remf-lre-licencia',lre.diasLicencia||'');set('remf-lre-vacaciones',lre.diasVacaciones||'');
+  set('remf-lre-discapacidad',lre.discapacidad||'0');set('remf-lre-vejez',lre.pensionadoVejez||'0');set('remf-lre-extranjero',lre.tecnicoExtranjero||'0');
+  set('remf-lre-apv',lre.apvIndividual||'0');set('remf-lre-apvc',lre.apvColectivo||'0');set('remf-lre-ite',lre.indemnizacionTodoEvento||'0');set('remf-lre-otros',lre.otrosCodigo||'2111');
+}
 function leerFormTrabajador(){
   return {
     nombre:document.getElementById('remf-nombre').value.trim(),
@@ -170,6 +190,7 @@ function leerFormTrabajador(){
     salud:document.getElementById('remf-salud').value,
     plan:+document.getElementById('remf-plan').value||0,
     contrato:document.getElementById('remf-contrato').value,
+    lre:leerLRETrabajador(),
   };
 }
 function previewLiq(){
@@ -227,6 +248,7 @@ function editarTrabajador(id){
   document.getElementById('remf-salud').value=t.salud||'fonasa';
   document.getElementById('remf-plan').value=t.plan||0;
   document.getElementById('remf-contrato').value=t.contrato||'indefinido';
+  cargarLREForm(t.lre||{});
   onSaludChange();previewLiq();
   f.scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -385,4 +407,4 @@ async function generarAsientoRemuneraciones(){
 }
 
 
-export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};
+export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};
