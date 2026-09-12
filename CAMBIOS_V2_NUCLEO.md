@@ -1,5 +1,12 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.16.5.1 — Certificación coherente entre equipos
+
+- La verificación de concurrencia vuelve a leer la certificación vigente desde Firebase antes de actualizarla.
+- PC y móvil conservan y fusionan los resultados ya aprobados sin intentar sobrescribir una revisión antigua.
+- Se reemplaza el aviso ambiguo `persistencia` por la causa concreta cuando una certificación no puede guardarse.
+- La aprobación sólo se informa cuando la certificación quedó confirmada en Firebase, no únicamente en el dispositivo.
+
 ## Implementado en esta entrega
 
 - Nuevo `js/motor-contable.js` como punto único para traducir ventas y compras a movimientos contables.
