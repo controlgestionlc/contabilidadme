@@ -59,7 +59,7 @@ function renderSistema(){
         <div style="font-size:10px;color:var(--mt);margin-top:8px">El sistema guarda solo cada vez que registras algo; este botón fuerza un guardado inmediato.</div>`)}
 
       ${tarjeta('⏱','Guardado automático',
-        'Guarda solo cada cierto rato mientras trabajas, y también al cambiar de pestaña o cerrar. La preferencia queda en este dispositivo.',
+        'Protege borradores localmente y sincroniza sólo cambios que ya fueron confirmados. La preferencia queda en este dispositivo.',
         `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn ${AG.activo?'btn-p':'btn-g'}" onclick="setAutoguardado(${!AG.activo})">
             ${AG.activo?'✅ Activado':'⏸ Desactivado'}
@@ -70,9 +70,9 @@ function renderSistema(){
         </div>
         <div style="font-size:10px;color:var(--mt);margin-top:10px;line-height:1.6">
           ${AG.activo
-            ? `Guarda cada <strong>${etiquetaIntervalo(AG.segundos)}</strong> si hay algo pendiente${AG.ultimo?` · último automático a las ${AG.ultimo.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}`:''}.`
+            ? `Cada <strong>${etiquetaIntervalo(AG.segundos)}</strong> respalda borradores en este dispositivo y sincroniza a Firebase sólo hechos ya confirmados${AG.ultimo?` · última sincronización automática a las ${AG.ultimo.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}`:''}.`
             : 'Con el automático apagado, el botón 💾 de la barra superior se pone <strong>amarillo</strong> cuando hay algo sin guardar.'}
-          <br>Al cerrar sesión o cerrar la pestaña con trabajo pendiente, el sistema ofrece guardarlo antes de salir.
+          <br><strong>Importante:</strong> escribir en un formulario no lo contabiliza automáticamente. Hasta presionar Guardar/Registrar queda como <em>borrador local</em>. Al cerrar, no se inicia una escritura Firestore insegura desde <code>pagehide</code>.
         </div>`)}
 
       ${tarjeta('🔐','Inicio de sesión obligatorio',

@@ -7,8 +7,76 @@
 import {AUTH} from './state.js';
 import {toast} from './core.js';
 
-let _sucio=false;           // hay cambios sin guardar
-let _ultimoGuardado=null;   // marca de tiempo del último guardado
+let _sucio=false;           // cambios confirmados en memoria aún no persistidos
+let _borrador=false;        // campos de formulario editados, todavía NO confirmados
+let _ultimoGuardado=null;   // marca de tiempo del último guardado confirmado
+let _ultimoBorrador=null;   // marca de tiempo del último respaldo local de borrador
+
+const BORRADOR_BASE='cv:borrador-form';
+const borradores=new Map();
+let _restauracionAvisada=false;
+
+function claveBorrador(){
+  let emp='emp1',anio='';
+  try{emp=window.storage?.getPrefijo?.()||emp;}catch(e){}
+  try{anio=String(window.S?.empresa?.anio||'');}catch(e){}
+  return `${BORRADOR_BASE}:${emp}:${anio||'actual'}`;
+}
+function serializarCampo(el){
+  if(!el||!el.id)return null;
+  return {id:el.id,tipo:(el.type||el.tagName||'').toLowerCase(),value:el.value??'',checked:!!el.checked,
+    seccion:(window.getCurSec&&window.getCurSec())||'',ts:Date.now()};
+}
+function persistirBorradores(){
+  try{
+    const o={version:1,ts:Date.now(),campos:Object.fromEntries(borradores)};
+    if(borradores.size)localStorage.setItem(claveBorrador(),JSON.stringify(o));
+    else localStorage.removeItem(claveBorrador());
+    _ultimoBorrador=new Date();
+    return true;
+  }catch(e){console.warn('No se pudo guardar borrador local',e);return false;}
+}
+function cargarBorradores(){
+  try{
+    const raw=localStorage.getItem(claveBorrador());if(!raw)return;
+    const o=JSON.parse(raw);const c=o&&o.campos||{};
+    Object.entries(c).forEach(([id,v])=>{if(v&&v.id)borradores.set(id,v);});
+    _borrador=borradores.size>0;
+  }catch(e){console.warn('Borrador local inválido',e);}
+}
+function aplicarBorradoresDOM(){
+  let n=0;
+  borradores.forEach((d,id)=>{
+    const el=document.getElementById(id);if(!el||el.dataset.borradorRestaurado==='1')return;
+    if((el.type||'').toLowerCase()==='checkbox'||(el.type||'').toLowerCase()==='radio')el.checked=!!d.checked;
+    else el.value=d.value??'';
+    el.dataset.borradorRestaurado='1';n++;
+  });
+  if(n&&!_restauracionAvisada){_restauracionAvisada=true;try{toast('📝 Se recuperó un borrador local sin confirmar');}catch(e){}}
+}
+
+export function recargarBorradoresContexto(){
+  borradores.clear();_borrador=false;_restauracionAvisada=false;
+  cargarBorradores();aplicarBorradoresDOM();actualizarIndicador();
+}
+
+export function registrarBorradorCampo(el){
+  const d=serializarCampo(el);if(!d)return;
+  borradores.set(d.id,d);_borrador=true;persistirBorradores();actualizarIndicador();
+}
+export function limpiarBorradorCampos(ids=[]){
+  (ids||[]).forEach(id=>{borradores.delete(String(id));const el=document.getElementById(String(id));if(el)delete el.dataset.borradorRestaurado;});
+  _borrador=borradores.size>0;persistirBorradores();actualizarIndicador();
+}
+export function limpiarBorradoresOcultos(){
+  let cambio=false;
+  [...borradores.keys()].forEach(id=>{const el=document.getElementById(id);if(!el||el.offsetParent===null){borradores.delete(id);cambio=true;}});
+  if(cambio){_borrador=borradores.size>0;persistirBorradores();}
+  actualizarIndicador();
+}
+export function guardarBorradoresAhora(){return persistirBorradores();}
+export const hayBorrador=()=>_borrador||borradores.size>0;
+export const hayCambiosConfirmados=()=>_sucio;
 
 // ── Historial de secciones dentro de la app ──
 // El botón atrás saltaba SIEMPRE a Inicio desde cualquier pantalla, así que
@@ -52,6 +120,7 @@ export function marcarSucio(){
 export function marcarGuardado(){
   _sucio=false;
   _ultimoGuardado=new Date();
+  limpiarBorradoresOcultos();
   actualizarIndicador();
   // V2.15.4: cada guardado normal puede programar un snapshot automático.
   // recovery.js aplica debounce y un mínimo de 6 horas, así que esto no crea
@@ -59,7 +128,7 @@ export function marcarGuardado(){
   try{window.__programarSnapshotRecuperacion&&window.__programarSnapshotRecuperacion();}catch(e){}
 }
 
-export const haySinGuardar=()=>_sucio;
+export const haySinGuardar=()=>_sucio||hayBorrador();
 
 // Indicador visual en el encabezado
 function actualizarIndicador(){
@@ -69,10 +138,14 @@ function actualizarIndicador(){
   try{ if(window.actualizarBotonGuardar)window.actualizarBotonGuardar(); }catch(e){}
   const el=document.getElementById('save-indicator');
   if(!el)return;
-  if(_sucio){
-    el.textContent='● Sin guardar';
+  if(hayBorrador()){
+    el.textContent='📝 Borrador sin confirmar';
     el.style.color='var(--warn)';
-    el.title='Hay cambios que aún no se han guardado';
+    el.title='El formulario está respaldado localmente, pero todavía no fue confirmado ni enviado a Firebase';
+  }else if(_sucio){
+    el.textContent='● Sin sincronizar';
+    el.style.color='var(--warn)';
+    el.title='Hay cambios confirmados pendientes de persistir';
   }else if(_ultimoGuardado){
     el.textContent='✓ Guardado '+_ultimoGuardado.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
     el.style.color='var(--mt)';
@@ -89,6 +162,10 @@ export function initAvisoSalida(){
   // justo el tipo de comportamiento errático que se está corrigiendo acá.
   if(window.__salidaLista)return;
   window.__salidaLista=true;
+
+  cargarBorradores();
+  aplicarBorradoresDOM();
+  try{new MutationObserver(()=>aplicarBorradoresDOM()).observe(document.body,{childList:true,subtree:true});}catch(e){}
 
   // Publicar el marcador para que storage.js lo llame al persistir
   window.__marcarGuardado=marcarGuardado;
@@ -198,7 +275,10 @@ export function initAvisoSalida(){
     const r=await preguntarSalir(_sucio);
     if(r==='quedarse')return;
     if(r==='guardar'){
-      try{ if(window.saveAll)await window.saveAll(); }catch(e){}
+      try{
+        if(hayCambiosConfirmados()&&window.saveAll)await window.saveAll();
+        if(hayBorrador())guardarBorradoresAhora();
+      }catch(e){}
     }
     _saliendo=true;
     // Saltar la centinela y la entrada de la app para llegar a lo que había antes
@@ -228,7 +308,12 @@ export function initAvisoSalida(){
     if(!['INPUT','SELECT','TEXTAREA'].includes(t.tagName))return;
     if(IGNORAR.has(t.id)||esFiltro(t.id))return;
     if(t.type==='file')return;
-    marcarSucio();
+    registrarBorradorCampo(t);
+  },true);
+  document.addEventListener('change',(e)=>{
+    const t=e.target;if(!t||!['INPUT','SELECT','TEXTAREA'].includes(t.tagName))return;
+    if(IGNORAR.has(t.id)||esFiltro(t.id)||t.type==='file')return;
+    registrarBorradorCampo(t);
   },true);
   window.addEventListener('beforeunload',(e)=>{
     // Solo avisar si hay sesión activa Y cambios sin guardar.

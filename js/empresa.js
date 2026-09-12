@@ -4,6 +4,7 @@ import {S} from './state.js';
 import {REGIMENES, regimenInfo, tasaIDPC, tasaPPM, REGIMEN_DEFAULT, regimenLbl} from './regimenes.js';
 import {EMPRESAS} from './empresas.js';
 import './storage.js';
+import {limpiarBorradorCampos} from './salida.js';
 
 // ── Régimen tributario de la empresa activa ──
 // El régimen se elige al crear la empresa y vive en el catálogo (_empresas).
@@ -80,7 +81,9 @@ async function saveEmpresa(){
     S.empresa={anio:+document.getElementById('e-anio').value||new Date().getFullYear(),nombre:document.getElementById('e-nombre').value.trim(),rut:document.getElementById('e-rut').value.trim(),domicilio:document.getElementById('e-domicilio').value.trim(),giro:document.getElementById('e-giro').value.trim(),codigo:document.getElementById('e-codigo').value.trim(),ciudad:document.getElementById('e-ciudad').value.trim(),comuna:document.getElementById('e-comuna').value.trim(),rep:document.getElementById('e-rep').value.trim(),rutrep:document.getElementById('e-rutrep').value.trim(),tasaRenta:+document.getElementById('e-tasarenta').value||25,tasaPPM:+document.getElementById('e-tasappm').value||0,regimen:(document.getElementById('e-regimen')||{}).value||S.empresa.regimen||REGIMEN_DEFAULT};
     const ys=document.getElementById('year-sel');if(ys)ys.value=S.empresa.anio;
     updateHdr();
-    await window.storage.set('empresa',JSON.stringify(S.empresa));
+    const r=await window.storage.set('empresa',JSON.stringify(S.empresa));
+    if(!r||r.ok===false)throw new Error(r?.detalle||r?.motivo||'No se pudo persistir la empresa');
+    limpiarBorradorCampos(['e-anio','e-nombre','e-rut','e-domicilio','e-giro','e-codigo','e-ciudad','e-comuna','e-rep','e-rutrep','e-tasarenta','e-tasappm','e-regimen']);
     // El régimen decide qué secciones tienen sentido: refrescar el menú
     try{if(window.aplicarPermisosUI)window.aplicarPermisosUI();}catch(e){}
     pintarRegimen();

@@ -440,7 +440,7 @@ initDispositivo();
             const vgFinal=validarAsientosAntesDeEscribir(e.key,e.value,actual&&actual.value!==undefined?actual.value:null);
             if(vgFinal.ok===false)throw new Error('__VALIDACION_MULTI__:'+e.key+':'+(vgFinal.errores?.[0]||vgFinal.motivo||'validación contable'));
             const nuevaRev=revNube+1;
-            t.set(ref,{value:e.value,empresa:empresaDeClave(k),rev:nuevaRev,borrados:lapidas,
+            t.set(refs[i],{value:e.value,empresa:empresaDeClave(k),rev:nuevaRev,borrados:lapidas,
               dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
               ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
             nuevos.push({k,value:e.value,rev:nuevaRev,lapidas});

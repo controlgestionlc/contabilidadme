@@ -1,21 +1,15 @@
-// autoguardado.js — Guardado automático y salida segura
+// autoguardado.js — Autoguardado seguro
 //
-// Tres redes de protección, de menos a más agresiva:
+// V2.15.9.2 separa explícitamente dos estados:
+//   · BORRADOR: texto aún no confirmado -> sólo localStorage, nunca Firebase.
+//   · CONFIRMADO: estado de negocio ya aceptado -> puede sincronizarse a Firebase.
 //
-//   1. Temporizador: cada N segundos, si hay cambios pendientes, guarda solo.
-//   2. Al dejar la pestaña (cambiar de pestaña, minimizar, bloquear el móvil):
-//      guarda en ese momento, que es cuando la gente cree que "ya terminó".
-//   3. Al cerrar: `pagehide` alcanza a escribir en localStorage aunque el
-//      navegador ya no espere promesas — Firestore puede no alcanzar, pero el
-//      dato no se pierde y sube en el próximo arranque.
-//
-// La preferencia es POR DISPOSITIVO (localStorage, como el tema): alguien puede
-// querer el autoguardado en su computador de la oficina y no en un equipo
-// prestado.
+// `pagehide` sólo persiste borradores localmente porque el navegador no espera
+// promesas Firestore durante el cierre.
 
 import {toast} from './core.js';
 import {AUTH} from './state.js';
-import {haySinGuardar} from './salida.js';
+import {haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora} from './salida.js';
 
 const CLAVE='cv:_autoguardado';
 const OPCIONES=[30,60,120,300];      // segundos ofrecidos en la interfaz
@@ -39,12 +33,15 @@ function grabarPreferencia(){
 // ¿Tiene sentido guardar ahora?
 // Con claves bloqueadas por una lectura fallida NO se guarda nada automático:
 // el autoguardado es justamente el que convertiría el error en pérdida.
-const procede=()=>!!(AUTH.user&&haySinGuardar()&&!AG.guardando&&window.saveAll
+const procede=()=>!!(AUTH.user&&hayCambiosConfirmados()&&!AG.guardando&&window.saveAll
                      &&!(window.storage&&window.storage.hayBloqueos&&window.storage.hayBloqueos()));
 
 // Guardado silencioso: sin toast, salvo que falle
 export async function guardarAuto(motivo){
-  if(!procede())return false;
+  // Los campos que el usuario todavía no confirmó se respaldan SÓLO como borrador local.
+  // Nunca se transforman en una operación contable por el temporizador.
+  if(AUTH.user&&hayBorrador())guardarBorradoresAhora();
+  if(!procede())return hayBorrador();
   AG.guardando=true;
   try{
     const ok=await window.saveAll({silencioso:true});
@@ -90,6 +87,11 @@ export async function guardarTodoAhora(){
     return;
   }
   if(!haySinGuardar()){toast('✓ No hay cambios pendientes');return;}
+  if(hayBorrador()&&!hayCambiosConfirmados()){
+    guardarBorradoresAhora();
+    toast('📝 Borrador respaldado en este dispositivo. Confirma el formulario para guardarlo en Firebase.');
+    return;
+  }
   await window.saveAll();
 }
 
@@ -109,11 +111,13 @@ export function actualizarBotonGuardar(){
   }
   btn.classList.remove('bloqueado');
   const sucio=haySinGuardar();
+  const borrador=hayBorrador();
   btn.classList.toggle('pendiente',sucio);
-  btn.title=sucio
-    ? 'Hay cambios sin guardar — haz clic para guardarlos ahora'
-    : 'Todo guardado'+(AG.activo?` · autoguardado cada ${etiquetaIntervalo(AG.segundos)}`:'');
-  btn.innerHTML=sucio?'💾 Guardar •':'💾 Guardar';
+  btn.title=borrador
+    ? 'Borrador local protegido, todavía sin confirmar en el formulario'
+    : sucio ? 'Hay cambios confirmados sin sincronizar — haz clic para guardarlos ahora'
+    : 'Todo guardado'+(AG.activo?` · respaldo automático cada ${etiquetaIntervalo(AG.segundos)}`:'');
+  btn.innerHTML=borrador?'📝 Borrador •':(sucio?'💾 Guardar •':'💾 Guardar');
 }
 
 // ── Salida segura ──
@@ -125,7 +129,9 @@ export async function confirmarSalida(accion='salir'){
     `Aceptar  → guardar y ${accion}\n`+
     `Cancelar → volver sin ${accion}`);
   if(!guardar)return false;
-  const ok=await window.saveAll();
+  let ok=true;
+  if(hayCambiosConfirmados())ok=await window.saveAll();
+  if(hayBorrador())guardarBorradoresAhora();
   if(!ok){
     return confirm('No se pudo guardar.\n\n¿Quieres '+accion+' de todas formas y perder esos cambios?');
   }
@@ -142,10 +148,12 @@ export function initAutoguardado(){
   });
   window.addEventListener('blur',()=>guardarAuto('pierde el foco'));
 
-  // Último recurso al cerrar: no se pueden esperar promesas, pero storage
-  // escribe en localStorage de forma síncrona, así que el dato queda salvado.
+  // Al cerrar NO lanzamos Firestore: pagehide no espera promesas y podía dejar
+  // la interfaz creyendo que algo había sido sincronizado. Sólo persistimos el
+  // borrador local de forma síncrona; los hechos ya confirmados siguen usando
+  // los guardados transaccionales normales.
   window.addEventListener('pagehide',()=>{
-    if(AUTH.user&&haySinGuardar()&&window.saveAll){try{window.saveAll({silencioso:true});}catch(e){}}
+    if(AUTH.user&&hayBorrador())try{guardarBorradoresAhora();}catch(e){}
   });
 
   actualizarBotonGuardar();

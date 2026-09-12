@@ -41,8 +41,8 @@ import {renderIndicadores, guardarIndicadores, restaurarIndicadoresDefault,
 import {renderPrevisional, guardarPrevisional, restaurarPrevisional} from './previsional-ui.js';
 import {acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
         axAcBuscar, axAcTecla, axAcElegir, axAcCerrar} from './buscadorcuentas.js';
-import {initAvisoSalida, marcarGuardado, marcarSucio, haySinGuardar,
-        recordarNav, ultimaSeccion, olvidarNav} from './salida.js';
+import {initAvisoSalida, marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados,
+        guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, recordarNav, ultimaSeccion, olvidarNav} from './salida.js';
 import {initAutoguardado, actualizarBotonGuardar, guardarTodoAhora, setAutoguardado,
         setIntervaloAutoguardado, confirmarSalida, AG} from './autoguardado.js';
 import {cargarFichasAux, descargarPlantillaAux, abrirImportFichas,
@@ -298,7 +298,7 @@ async function loadYear(y){
   try{actualizarBotonGuardar();}catch(e){}
   return S.cargaFallida;
 }
-async function changeYear(y){S.empresa.anio=y;await loadYear(y);await cargarPreproduccion();await cargarPiloto();await cargarDeclaracionesF29(true);rerender();}
+async function changeYear(y){S.empresa.anio=y;await loadYear(y);recargarBorradoresContexto();await cargarPreproduccion();await cargarPiloto();await cargarDeclaracionesF29(true);rerender();}
 async function init(){
   // Firestore y Auth arrancan EN PARALELO.
   // Antes se esperaba a que Firestore terminara de conectar para recién empezar
@@ -397,7 +397,7 @@ async function initApp(){
     }
   }catch(e){console.warn('Numeración contable:',e);toast('⚠️ No se pudo completar la numeración contable definitiva.','e');}
 
-  fillEmpresaForm();updateHdr();renderInicio();
+  fillEmpresaForm();recargarBorradoresContexto();updateHdr();renderInicio();
   initImportListener();
   initImportListenerV();
   initImportFichasListener();
@@ -597,7 +597,7 @@ Object.assign(window,{
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,
   acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
   axAcBuscar, axAcTecla, axAcElegir, axAcCerrar, lAuxElegido,
-  marcarGuardado, marcarSucio, haySinGuardar,
+  marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto,
   actualizarBotonGuardar, guardarTodoAhora, setAutoguardado, setIntervaloAutoguardado, confirmarSalida, AG,
   abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos,
   toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel,
