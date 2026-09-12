@@ -91,12 +91,31 @@ const concKey=()=>`hardening-concurrencia-${S.empresa.anio}`;
 const ssKey='cv:hardening-concurrencia-sesion';
 
 async function guardarCertificacion(parcial){
-  const anterior=(S.hardeningCert&&typeof S.hardeningCert==='object')?S.hardeningCert:{};
-  const nuevo={...anterior,...parcial,actualizadoEn:new Date().toISOString(),actualizadoPor:AUTH.user?.email||''};
-  const r=await window.storage.set(certKey(),JSON.stringify(nuevo));
-  if(r&&r.ok===false)return {ok:false,motivo:r.motivo||'persistencia'};
-  S.hardeningCert=nuevo;
-  return {ok:true,cert:nuevo};
+  // La certificación puede ser actualizada desde dos equipos casi al mismo
+  // tiempo (por ejemplo, ambos verifican la concurrencia). Como es un objeto y
+  // no una lista con id, storage no puede fusionarlo automáticamente. Leer la
+  // última revisión antes de guardar evita que el segundo equipo intente
+  // sobrescribir una revisión antigua y termine mostrando el ambiguo aviso
+  // "persistencia" aunque la prueba ya haya sido aprobada en el primero.
+  for(let intento=0;intento<2;intento++){
+    const lectura=await window.storage.leerConEstado(certKey());
+    if(lectura?.fuente==='error')return {ok:false,motivo:lectura.error||'No se pudo leer la certificación desde Firebase'};
+    let remoto={};
+    try{remoto=lectura?.value?JSON.parse(lectura.value):{};}catch(e){return {ok:false,motivo:'La certificación guardada no es legible'};}
+    const memoria=(S.hardeningCert&&typeof S.hardeningCert==='object')?S.hardeningCert:{};
+    const anterior={...memoria,...(remoto&&typeof remoto==='object'?remoto:{})};
+    const nuevo={...anterior,...parcial,actualizadoEn:new Date().toISOString(),actualizadoPor:AUTH.user?.email||''};
+    const r=await window.storage.set(certKey(),JSON.stringify(nuevo));
+    if(r?.ok){
+      if(r.soloLocal)return {ok:false,motivo:'Firebase sin conexión; la certificación quedó sólo en este equipo'};
+      S.hardeningCert=nuevo;
+      return {ok:true,cert:nuevo};
+    }
+    if(!r?.conflicto)return {ok:false,motivo:r?.detalle||r?.motivo||'No se pudo guardar la certificación en Firebase'};
+    // Si otro equipo alcanzó a escribir entre la lectura y el guardado,
+    // repetimos una vez sobre la revisión recién publicada.
+  }
+  return {ok:false,motivo:'Otro equipo actualizó la certificación. Vuelve a verificar.'};
 }
 
 function nuevaSesion(){
