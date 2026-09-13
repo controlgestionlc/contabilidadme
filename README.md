@@ -2,7 +2,7 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.16.13 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
+> **Estado actual:** V2.16.21 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
 
 ---
 
@@ -37,7 +37,7 @@ Componentes principales:
 - **Hosting:** GitHub Pages.
 - **Autenticación:** Firebase Authentication con correo y contraseña.
 - **Base de datos:** Cloud Firestore.
-- **Persistencia local:** almacenamiento local para caché, estado operativo y borradores no confirmados.
+- **Persistencia local:** almacenamiento local para caché y estado operativo. Los formularios incompletos permanecen sólo en memoria durante la sesión y se descartan al cerrar.
 - **PWA:** manifest y service worker con cache-busting por versión.
 - **Backups:** respaldo Excel + snapshots de recuperación en Firebase.
 - **Auditoría:** registro de acciones críticas y trazabilidad de cambios.
@@ -576,29 +576,18 @@ La regresión es un criterio de Preparación Productiva.
 
 ---
 
-## 27. Autoguardado seguro y borradores
+## 27. Autoguardado seguro y formularios incompletos
 
-El autoguardado distingue entre **borrador** y **dato confirmado**.
+El autoguardado sincroniza únicamente **datos ya confirmados**. Un formulario que el usuario todavía está completando no se contabiliza ni se envía a Firebase.
 
-Mientras el usuario está escribiendo un formulario:
+Desde V2.16.21, los campos incompletos permanecen sólo en memoria durante la sesión actual:
 
-- el contenido se guarda localmente como borrador;
-- no se contabiliza;
-- no se envía automáticamente a Firebase como dato definitivo;
-- puede recuperarse tras un cierre inesperado.
+- no se persisten en `localStorage`;
+- no reaparecen después de cerrar y volver a abrir la app;
+- se pueden retomar desde **Configuración → Sistema y Respaldos → Borradores de esta sesión** mientras la app siga abierta;
+- se eliminan al pulsar **Cancelar**, cerrar el formulario con `X`, usar Atrás sobre ese formulario o cerrar la aplicación.
 
-Sólo una acción explícita de Guardar, Registrar o Contabilizar confirma el dato.
-
-El sistema no intenta completar escrituras Firestore asíncronas durante `pagehide`, porque el navegador no garantiza su finalización.
-
-Indicadores operativos distinguen:
-
-- borrador sin confirmar;
-- cambios confirmados pendientes;
-- guardado/sincronizado;
-- error de persistencia.
-
-Los borradores se separan por empresa y ejercicio.
+Sólo una acción explícita de Guardar, Registrar o Contabilizar confirma el dato. El encabezado no muestra un estado global de borrador; sólo informa cambios confirmados pendientes de sincronización y el último guardado.
 
 ---
 
@@ -945,11 +934,11 @@ Los valores existentes en el documento origen o RCV siempre tienen prioridad. La
 La pantalla de inicio de sesión muestra en su parte inferior la **versión funcional vigente** de la aplicación y la leyenda **“Desarrollado por R.A.B.F. · 2026”**. La versión visible se sincroniza con la primera entrada del changelog durante el proceso de publicación, evitando mantener textos de versión duplicados.
 
 
-## Borradores locales y navegación lateral
+## Borradores de sesión y navegación lateral
 
-Los formularios en edición no se guardan automáticamente como operaciones contables. Mientras el usuario escribe, los campos se respaldan como **borrador local** en el dispositivo, separados por empresa y ejercicio. En **Configuración → Sistema y Respaldos → Borradores locales** se muestra cada trabajo pendiente con módulo, fecha y campos asociados.
+Los formularios en edición no se guardan automáticamente como operaciones contables. Mientras la app permanece abierta, **Configuración → Sistema y Respaldos → Borradores de esta sesión** permite ver y retomar un formulario incompleto. Estos datos no se almacenan entre ejecuciones: al cerrar la app se eliminan.
 
-Desde allí se puede **Editar** para regresar al módulo original, recuperar los valores y continuar trabajando; el dato sólo pasa a Firebase cuando se usa el botón **Guardar / Registrar / Contabilizar** propio del formulario. También se puede **Descartar** un borrador individual o todos los borradores del contexto activo. Descartar elimina exclusivamente la copia local pendiente y no modifica documentos ya contabilizados.
+Cada formulario dispone de **Cancelar** al final. Cancelar cierra el formulario y descarta sus campos incompletos sin tocar documentos ya contabilizados. Cerrar con `X` o usar Atrás sobre el formulario aplica el mismo criterio.
 
 El menú lateral utiliza categorías plegables para reducir desplazamiento y evitar perderse, especialmente en móvil. Las categorías actuales son **Registros, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración**. Al tocar una categoría se despliegan sus módulos; al entrar en un módulo, su categoría queda recordada como la activa. **Comprobantes forma parte de Registros**, junto a los demás módulos de captura y operación diaria.
 
@@ -960,3 +949,14 @@ La aplicación protege cada clave de Firestore mediante una revisión (`rev`) pa
 Desde V2.16.19, **Guardar Todo** puede reconstruir esa revisión únicamente si la copia local persistida coincide exactamente con el contenido actual de Firestore. Si no coincide, el guardado se bloquea y exige sincronización/revisión, manteniendo intacta la protección de concurrencia. Los errores de Guardar Todo muestran además la clave afectada.
 
 En el menú móvil, **Sistema y Respaldos** aparece una sola vez dentro de **Configuración**. El bloque de acciones conserva únicamente **Guardar Todo**.
+
+## V2.16.21 — Borradores sólo de sesión y cancelación explícita
+- Los campos de formularios incompletos ya **no se persisten en localStorage** ni se restauran al volver a abrir la aplicación.
+- Al iniciar V2.16.21 se purgan automáticamente borradores persistentes creados por versiones anteriores.
+- El gestor de Configuración pasa a mostrar **Borradores de esta sesión**: sirven únicamente para retomar un formulario mientras la app sigue abierta.
+- El encabezado deja de mostrar `Borrador sin confirmar`; sólo informa cambios ya confirmados pendientes de sincronización o el último guardado.
+- **Guardar Todo** no convierte ni respalda formularios incompletos: el usuario debe usar el Guardar/Registrar del formulario o Cancelar.
+- Todo formulario de ingreso debe tener un botón **Cancelar** al final. Si un módulo no lo incorpora explícitamente, la capa común agrega uno.
+- Cancelar, cerrar con `X` o usar Atrás sobre un formulario elimina sus campos incompletos de la sesión y no escribe en Firebase.
+- Al cerrar la PWA/app, cualquier formulario incompleto restante se descarta automáticamente.
+

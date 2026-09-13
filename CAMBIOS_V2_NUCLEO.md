@@ -661,3 +661,13 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 
 - Se mueve Comprobantes desde Reportes a Registros.
 - Se mantiene una sola entrada de navegación, sin cambios en lógica ni permisos.
+
+## V2.16.21 — Borradores efímeros y Cancelar obligatorio
+
+- Los borradores de formularios dejan de persistirse entre ejecuciones; al cerrar la app se descartan.
+- Se purgan automáticamente borradores antiguos guardados por versiones previas.
+- Se elimina el mensaje global `Borrador sin confirmar` de la barra superior y del botón Guardar Todo.
+- Configuración muestra únicamente borradores de la sesión actual.
+- Cancelar/X/Atrás sobre un formulario descarta el estado incompleto sin guardar.
+- La capa común agrega un botón Cancelar al pie de formularios de ingreso que no lo tengan.
+
