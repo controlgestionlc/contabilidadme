@@ -648,3 +648,10 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Se puede descartar un borrador individual o todos los borradores de la empresa/ejercicio activo.
 - El menú lateral se reorganiza como acordeón por categorías: Registros, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración.
 - Al seleccionar un módulo se conserva expandida su categoría; en móvil el panel queda mucho más corto y navegable.
+
+## V2.16.19 — Guardar Todo robusto / menú móvil sin duplicados
+- Se corrige el error `clave-no-sincronizada` que podía aparecer al usar **Guardar Todo** después de que Android recreara el contexto JavaScript de la PWA.
+- La revisión Firestore sólo se reconstruye automáticamente cuando la copia persistida local coincide exactamente con la nube; si hay diferencias se mantiene el bloqueo de concurrencia.
+- La protección equivalente se aplica a guardados individuales y eliminaciones versionadas.
+- Si un guardado sigue fallando, el mensaje incluye la clave afectada para facilitar el diagnóstico.
+- Se elimina el acceso rápido duplicado **Sistema y Respaldos** del bloque Acciones del menú móvil; el módulo permanece en **Configuración → Sistema y Respaldos**.

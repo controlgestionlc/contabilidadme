@@ -952,3 +952,11 @@ Los formularios en edición no se guardan automáticamente como operaciones cont
 Desde allí se puede **Editar** para regresar al módulo original, recuperar los valores y continuar trabajando; el dato sólo pasa a Firebase cuando se usa el botón **Guardar / Registrar / Contabilizar** propio del formulario. También se puede **Descartar** un borrador individual o todos los borradores del contexto activo. Descartar elimina exclusivamente la copia local pendiente y no modifica documentos ya contabilizados.
 
 El menú lateral utiliza categorías plegables para reducir desplazamiento y evitar perderse, especialmente en móvil. Las categorías actuales son **Registros, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración**. Al tocar una categoría se despliegan sus módulos; al entrar en un módulo, su categoría queda recordada como la activa.
+
+## Guardado total y reanudación móvil
+
+La aplicación protege cada clave de Firestore mediante una revisión (`rev`) para evitar que dos equipos se sobrescriban. En Android/PWA el sistema operativo puede recrear el contexto JavaScript al volver desde segundo plano; cuando eso ocurre, la memoria temporal de revisiones puede perderse aunque `localStorage` conserve la última copia correctamente sincronizada.
+
+Desde V2.16.19, **Guardar Todo** puede reconstruir esa revisión únicamente si la copia local persistida coincide exactamente con el contenido actual de Firestore. Si no coincide, el guardado se bloquea y exige sincronización/revisión, manteniendo intacta la protección de concurrencia. Los errores de Guardar Todo muestran además la clave afectada.
+
+En el menú móvil, **Sistema y Respaldos** aparece una sola vez dentro de **Configuración**. El bloque de acciones conserva únicamente **Guardar Todo**.
