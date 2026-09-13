@@ -625,3 +625,11 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Los datos explícitos provenientes del documento/RCV tienen prioridad y nunca son reemplazados por la inferencia contable.
 - El usuario conserva la posibilidad de ajustar manualmente casos especiales, pero el flujo normal queda reducido a elegir tipo de documento y fecha de vencimiento.
 
+## V2.16.16 — Base Neto/Exento automática al asociar DTE
+- Al abrir el modal DTE desde un asiento de Venta o Compra, el sistema completa **Neto/Exento, IVA, Otros impuestos y Total** desde las líneas contables disponibles.
+- Si existe IVA identificable, se reconstruye la base afecta y se muestra inmediatamente en **Neto**, incluso antes de elegir el tipo SII.
+- Si no existe IVA y todavía no se ha elegido el tipo de documento, la base se muestra provisionalmente en **Exento**; al seleccionar el DTE se reclasifica automáticamente si corresponde a un documento afecto.
+- La reclasificación automática sólo opera mientras la base no haya sido editada manualmente por el usuario.
+- Se toleran diferencias de hasta 2 pesos producidas por redondeo del IVA, evitando crear montos exentos ficticios por reversión matemática de la tasa 19%.
+- En un caso como Total `$531.243.316` e IVA `$84.820.361`, el sistema completa Neto `$446.422.955` al abrir el documento.
+
