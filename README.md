@@ -2,9 +2,18 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.15.9.3 · aplicación preparada para piloto y puesta en marcha controlada. La activación a PRODUCCIÓN requiere que los controles internos, pruebas operacionales y certificación de piloto estén aprobados dentro de la propia aplicación.
+> **Estado actual:** V2.16.13 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
 
 ---
+
+
+## Control de descuadres y operación móvil de Comprobantes
+
+En teléfonos, **Comprobantes** utiliza fichas verticales en vez de obligar a navegar una tabla horizontal ancha. Cada ficha mantiene visibles el número, fecha, origen, glosa y los totales **Debe / Haber** en dos columnas iguales. La tabla completa se conserva en escritorio.
+
+Los descuadres se detectan sobre el Diario completo. Cuando existe uno, la alerta muestra el **N° de comprobante como acción clicable**: al tocarlo, la aplicación abre el documento de Compras/Ventas, el asiento manual, la apertura o el honorario correspondiente. La alerta no se almacena manualmente; se recalcula desde los movimientos, por lo que desaparece automáticamente cuando Debe y Haber vuelven a cuadrar.
+
+En los importadores **RCV Compras** y **RCV Ventas**, cada DTE seleccionado se simula contablemente antes de persistir. Si un DTE produciría un asiento descuadrado, se informa antes de guardar y queda marcado como **pendiente por cuadratura**. Los documentos cuadrados del mismo lote pueden procesarse normalmente; los problemáticos no se incorporan a los libros ni al F29 y permanecen en la ventana del importador para revisión. Tocar el DTE de la alerta lleva directamente a su fila/ficha.
 
 
 ## Actualizaciones obligatorias de la aplicación

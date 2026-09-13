@@ -1,5 +1,16 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.16.13 — Comprobantes móvil y descuadres RCV pendientes
+
+- Comprobantes deja de usar una tabla horizontal de siete columnas en teléfonos y presenta cada asiento como una ficha compacta con Debe/Haber del mismo ancho.
+- La alerta de comprobantes descuadrados se calcula sobre todo el Diario, sin depender de los filtros visibles.
+- Cada número de comprobante de la alerta es clicable y abre directamente su documento/asiento de origen para corregirlo.
+- Al volver a cuadrar el asiento, la alerta desaparece automáticamente porque no se mantiene ningún estado de alerta persistente.
+- Los importadores RCV de Compras y Ventas vuelven a simular cada asiento antes de guardar.
+- Si hay DTE descuadrados, se muestra una confirmación previa: los documentos cuadrados pueden guardarse y los problemáticos no se contabilizan.
+- Los DTE problemáticos permanecen visibles como **PENDIENTES** dentro del importador después de procesar el resto del lote.
+- Los DTE de la alerta preventiva son clicables para desplazarse directamente a la fila/ficha que requiere revisión.
+
 ## V2.16.12 — Validación antes de importar desde el SII
 
 - Los importadores de Compras y Ventas simulan la contabilización de cada DTE seleccionado.
