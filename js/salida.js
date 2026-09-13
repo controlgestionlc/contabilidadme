@@ -10,8 +10,12 @@ import {toast} from './core.js';
 let _sucio=false;           // cambios confirmados en memoria aún no persistidos
 let _borrador=false;        // campos de formulario editados, todavía NO confirmados
 let _ultimoGuardado=null;   // marca de tiempo del último guardado confirmado
-let _ultimoBorrador=null;   // marca de tiempo del último respaldo local de borrador
+let _ultimoBorrador=null;   // marca de tiempo de la última edición de formulario en esta sesión
 
+// V2.16.21: los borradores son deliberadamente efímeros. Viven sólo en memoria
+// durante la ejecución actual y se descartan al cerrar la app. BORRADOR_BASE se
+// conserva únicamente para purgar copias persistentes creadas por versiones
+// anteriores.
 const BORRADOR_BASE='cv:borrador-form';
 const borradores=new Map();
 let _restauracionAvisada=false;
@@ -48,22 +52,30 @@ function serializarCampo(el){
     etiqueta:etiquetaCampo(el),contenedor:contenedorBorrador(el),
     seccion:(window.getCurSec&&window.getCurSec())||'',ts:Date.now()};
 }
-function persistirBorradores(){
+function purgarBorradoresPersistentes(){
+  // Versiones anteriores guardaban formularios incompletos en localStorage.
+  // Desde V2.16.21 no deben sobrevivir al cierre de la aplicación.
   try{
-    const o={version:1,ts:Date.now(),campos:Object.fromEntries(borradores)};
-    if(borradores.size)localStorage.setItem(claveBorrador(),JSON.stringify(o));
-    else localStorage.removeItem(claveBorrador());
-    _ultimoBorrador=new Date();
-    return true;
-  }catch(e){console.warn('No se pudo guardar borrador local',e);return false;}
+    const borrar=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k&&(k===BORRADOR_BASE||k.startsWith(BORRADOR_BASE+':')))borrar.push(k);
+    }
+    borrar.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+}
+function persistirBorradores(){
+  // Compatibilidad con llamadas históricas: ya NO escribe localStorage.
+  // El borrador queda únicamente en el Map de esta ejecución.
+  _ultimoBorrador=new Date();
+  return true;
 }
 function cargarBorradores(){
-  try{
-    const raw=localStorage.getItem(claveBorrador());if(!raw)return;
-    const o=JSON.parse(raw);const c=o&&o.campos||{};
-    Object.entries(c).forEach(([id,v])=>{if(v&&v.id)borradores.set(id,v);});
-    _borrador=borradores.size>0;
-  }catch(e){console.warn('Borrador local inválido',e);}
+  // No restaurar nada de ejecuciones anteriores. Además se limpian copias
+  // antiguas que pudieran haber quedado después de actualizar desde V2.16.20.
+  purgarBorradoresPersistentes();
+  borradores.clear();
+  _borrador=false;
 }
 function aplicarBorradoresDOM(){
   let n=0;
@@ -73,12 +85,13 @@ function aplicarBorradoresDOM(){
     else el.value=d.value??'';
     el.dataset.borradorRestaurado='1';n++;
   });
-  if(n&&!_restauracionAvisada){_restauracionAvisada=true;try{toast('📝 Se recuperó un borrador local sin confirmar');}catch(e){}}
+  if(n&&!_restauracionAvisada){_restauracionAvisada=true;}
 }
 
 export function recargarBorradoresContexto(){
+  // Cambiar empresa/ejercicio equivale a abandonar el formulario en curso.
   borradores.clear();_borrador=false;_restauracionAvisada=false;
-  cargarBorradores();aplicarBorradoresDOM();actualizarIndicador();
+  purgarBorradoresPersistentes();actualizarIndicador();
 }
 
 export function registrarBorradorCampo(el){
@@ -124,11 +137,39 @@ export function descartarBorradorLocal(clave){
   try{toast('🗑 Borrador descartado');}catch(e){}
   return true;
 }
-export function descartarTodosBorradoresLocales(){
-  if(!borradores.size)return true;
+export function descartarTodosBorradoresLocales(silencioso=false){
   borradores.forEach((_,id)=>{const el=document.getElementById(String(id));if(el)delete el.dataset.borradorRestaurado;});
   borradores.clear();_borrador=false;persistirBorradores();actualizarIndicador();
-  try{toast('🗑 Todos los borradores locales fueron descartados');}catch(e){}
+  if(!silencioso)try{toast('🗑 Borradores de esta sesión descartados');}catch(e){}
+  return true;
+}
+
+// Descarta sólo los campos pertenecientes a un formulario/modal. Es la base del
+// botón Cancelar global y también del botón Atrás de Android.
+export function descartarBorradorContenedor(ref){
+  let c=ref;
+  if(typeof ref==='string')c=document.getElementById(ref);
+  if(c&&c.nodeType===1&&!c.matches?.('.modal-bkd,[id$="-form"],form'))c=c.closest?.('.modal-bkd,[id$="-form"],form');
+  const cid=c?.id||'';
+  let cambio=false;
+  for(const [id,d] of [...borradores.entries()]){
+    const el=document.getElementById(String(id));
+    const pertenece=(cid&&d.contenedor===cid)||(c&&el&&c.contains(el));
+    if(pertenece){borradores.delete(id);if(el)delete el.dataset.borradorRestaurado;cambio=true;}
+  }
+  if(cambio){_borrador=borradores.size>0;persistirBorradores();actualizarIndicador();}
+  return cambio;
+}
+
+export function cancelarFormularioSinGuardar(ref){
+  let c=ref;
+  if(typeof ref==='string')c=document.getElementById(ref);
+  if(c&&c.nodeType===1&&!c.matches?.('.modal-bkd,[id$="-form"],form'))c=c.closest?.('.modal-bkd,[id$="-form"],form');
+  if(!c)return false;
+  descartarBorradorContenedor(c);
+  if(c.classList.contains('modal-bkd'))c.classList.remove('open');
+  else c.style.display='none';
+  try{toast('Formulario cancelado · no se guardaron cambios');}catch(e){}
   return true;
 }
 export function continuarBorradorLocal(clave){
@@ -209,7 +250,10 @@ export function marcarGuardado(){
   try{window.__programarSnapshotRecuperacion&&window.__programarSnapshotRecuperacion();}catch(e){}
 }
 
-export const haySinGuardar=()=>_sucio||hayBorrador();
+// Los formularios incompletos son efímeros y no cuentan como un guardado pendiente
+// global: al cerrar se descartan. Sólo hechos ya confirmados activan el estado
+// 'sin guardar' y la advertencia de salida.
+export const haySinGuardar=()=>_sucio;
 
 // Indicador visual en el encabezado
 function actualizarIndicador(){
@@ -219,11 +263,7 @@ function actualizarIndicador(){
   try{ if(window.actualizarBotonGuardar)window.actualizarBotonGuardar(); }catch(e){}
   const el=document.getElementById('save-indicator');
   if(!el)return;
-  if(hayBorrador()){
-    el.textContent='📝 Borrador sin confirmar';
-    el.style.color='var(--warn)';
-    el.title='El formulario está respaldado localmente, pero todavía no fue confirmado ni enviado a Firebase';
-  }else if(_sucio){
+  if(_sucio){
     el.textContent='● Sin sincronizar';
     el.style.color='var(--warn)';
     el.title='Hay cambios confirmados pendientes de persistir';
@@ -236,6 +276,45 @@ function actualizarIndicador(){
   }
 }
 
+// Asegura que todo formulario de ingreso tenga una salida explícita y que
+// Cancelar nunca deje un borrador escondido. Los módulos que ya traen su propio
+// botón Cancelar conservan su lógica; esta capa sólo limpia el estado efímero.
+function instalarCancelacionFormularios(){
+  const esEditable=c=>!!c.querySelector('input:not([type="hidden"]):not([disabled]),select:not([disabled]),textarea:not([disabled])');
+  const tieneAccion=c=>[...c.querySelectorAll('button')].some(b=>/(guardar|registrar|asociar|importar|confirmar|crear|actualizar|presentar|pagar)/i.test(b.textContent||''));
+  const tieneCancelarAbajo=c=>{
+    const bs=[...c.querySelectorAll('button')].filter(b=>/cancelar/i.test(b.textContent||''));
+    if(!bs.length)return false;
+    const r=c.getBoundingClientRect();
+    return bs.some(b=>b.getBoundingClientRect().top>r.top+r.height*.45);
+  };
+  const decorar=()=>{
+    const candidatos=[...document.querySelectorAll('.modal-bkd.open,[id$="-form"]')];
+    for(const c of candidatos){
+      if(!c.classList.contains('modal-bkd')&&(c.offsetParent===null||getComputedStyle(c).display==='none'))continue;
+      if(c.id==='login-form-box'||!esEditable(c)||!tieneAccion(c)||tieneCancelarAbajo(c)||c.querySelector(':scope > .cancel-form-auto'))continue;
+      // Para modal insertamos dentro de modal-box; para formulario inline, al final.
+      const host=c.classList.contains('modal-bkd')?(c.querySelector('.modal-box')||c):c;
+      if(host.querySelector(':scope > .cancel-form-auto'))continue;
+      const pie=document.createElement('div');pie.className='cancel-form-auto';
+      pie.style.cssText='display:flex;justify-content:flex-end;margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)';
+      pie.innerHTML='<button type="button" class="btn btn-g" style="min-width:140px">Cancelar</button>';
+      pie.querySelector('button').onclick=()=>cancelarFormularioSinGuardar(c);
+      host.appendChild(pie);
+    }
+  };
+  // Los Cancelar/X existentes primero descartan el borrador y después ejecutan
+  // la función histórica del módulo que cierre/resetee el formulario.
+  document.addEventListener('click',e=>{
+    const b=e.target?.closest?.('button');if(!b)return;
+    const c=b.closest?.('.modal-bkd,[id$="-form"],form');if(!c)return;
+    const txt=(b.textContent||'').trim();
+    if(/cancelar/i.test(txt)||b.classList.contains('modal-close'))descartarBorradorContenedor(c);
+  },true);
+  try{new MutationObserver(decorar).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});}catch(e){}
+  setTimeout(decorar,0);
+}
+
 // Instala el aviso del navegador al cerrar/recargar
 export function initAvisoSalida(){
   // Idempotente: si se llamara dos veces quedarían dos manejadores de `atrás`
@@ -245,8 +324,7 @@ export function initAvisoSalida(){
   window.__salidaLista=true;
 
   cargarBorradores();
-  aplicarBorradoresDOM();
-  try{new MutationObserver(()=>aplicarBorradoresDOM()).observe(document.body,{childList:true,subtree:true});}catch(e){}
+  instalarCancelacionFormularios();
 
   // Publicar el marcador para que storage.js lo llame al persistir
   window.__marcarGuardado=marcarGuardado;
@@ -275,12 +353,12 @@ export function initAvisoSalida(){
   function capaAbierta(){
     // 1. Modales (comprobante, DTE, importadores, plantillas…)
     const modales=[...document.querySelectorAll('.modal-bkd.open')];
-    if(modales.length)return {el:modales[modales.length-1],cerrar:el=>el.classList.remove('open')};
+    if(modales.length)return {el:modales[modales.length-1],cerrar:el=>{descartarBorradorContenedor(el);el.classList.remove('open');}};
     // 2. Buscador global y otras capas por display
     for(const id of ['search-overlay','nav-overlay']){
       const el=document.getElementById(id);
       if(el&&el.style.display&&el.style.display!=='none')
-        return {el,cerrar:e=>{e.style.display='none';}};
+        return {el,cerrar:e=>{descartarBorradorContenedor(e);e.style.display='none';}};
     }
     // 3. Menú lateral desplegado en móvil
     const nav=document.querySelector('nav.open,nav.abierto,.sidebar.abierto,#sidebar.open');
@@ -291,7 +369,7 @@ export function initAvisoSalida(){
     for(const id of forms){
       const el=document.getElementById(id);
       if(el&&el.style.display!=='none'&&el.offsetParent!==null)
-        return {el,cerrar:e=>{e.style.display='none';}};
+        return {el,cerrar:e=>{descartarBorradorContenedor(e);e.style.display='none';}};
     }
     return null;
   }
@@ -375,7 +453,6 @@ export function initAvisoSalida(){
     if(r==='guardar'){
       try{
         if(hayCambiosConfirmados()&&window.saveAll)await window.saveAll();
-        if(hayBorrador())guardarBorradoresAhora();
       }catch(e){}
     }
     _saliendo=true;
@@ -414,6 +491,11 @@ export function initAvisoSalida(){
     if(IGNORAR.has(t.id)||esFiltro(t.id)||t.type==='file')return;
     registrarBorradorCampo(t);
   },true);
+  window.addEventListener('pagehide',()=>{
+    // Formularios incompletos no sobreviven a una nueva ejecución.
+    descartarTodosBorradoresLocales(true);
+    purgarBorradoresPersistentes();
+  });
   window.addEventListener('beforeunload',(e)=>{
     // Solo avisar si hay sesión activa Y cambios sin guardar.
     // Sin cambios pendientes no molestamos al usuario.

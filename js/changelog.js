@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-0750';
+const APP_VERSION='v2026.09.13-0832';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.21',fecha:'13-09-2026',titulo:'Borradores efímeros y Cancelar obligatorio',items:[
+    {tipo:'cambio',txt:'Los formularios incompletos viven sólo durante la sesión actual y se eliminan al cerrar la app; ya no se restauran en una ejecución posterior.'},
+    {tipo:'cambio',txt:'Se elimina el estado Borrador de la barra superior y del botón Guardar Todo; sólo los cambios ya confirmados muestran estado de sincronización.'},
+    {tipo:'nuevo',txt:'Todo formulario de ingreso debe disponer de Cancelar al final; si un módulo no lo incluía, la aplicación agrega una acción de cancelación automáticamente.'},
+    {tipo:'arreglo',txt:'Cancelar, cerrar con X o usar Atrás sobre un formulario descarta su borrador de sesión sin persistirlo.'},
+    {tipo:'cambio',txt:'Configuración muestra Borradores de esta sesión, disponibles únicamente mientras la app permanezca abierta.'}
+  ]},
   {version:'V2.16.20',fecha:'13-09-2026',titulo:'Comprobantes dentro de Registros',items:[
     {tipo:'cambio',txt:'El módulo Comprobantes se mueve desde Reportes a la categoría Registros, junto a Ventas, Compras, Honorarios, Remuneraciones, Pagos y Auxiliares.'},
     {tipo:'arreglo',txt:'La navegación lateral mantiene una sola entrada para Comprobantes y conserva intacta su lógica, permisos y funcionamiento.'}

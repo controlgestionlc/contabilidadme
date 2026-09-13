@@ -29,7 +29,7 @@ function nombreSeccionBorrador(s){
 }
 function resumenBorradores(){
   const grupos=listarBorradoresLocales();
-  if(!grupos.length)return `<div class="info-tip" style="font-size:11px">✅ No hay borradores locales pendientes en esta empresa y ejercicio.</div>`;
+  if(!grupos.length)return `<div class="info-tip" style="font-size:11px">✅ No hay formularios incompletos en esta sesión.</div>`;
   return `<div class="draft-list">${grupos.map(g=>{
     const k=encodeURIComponent(g.clave);
     const fecha=g.ts?new Date(g.ts).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
@@ -38,11 +38,11 @@ function resumenBorradores(){
       <div class="draft-main"><strong>📝 ${esc(nombreSeccionBorrador(g.seccion))}</strong><span>${g.campos.length} campo${g.campos.length===1?'':'s'} · ${esc(fecha)}</span><small>${campos}</small></div>
       <div class="draft-actions">
         <button class="btn btn-i" onclick="continuarBorradorLocal(decodeURIComponent('${k}'))">✏️ Editar</button>
-        <button class="btn btn-g" onclick="if(confirm('¿Descartar este borrador local?')){descartarBorradorLocal(decodeURIComponent('${k}'));renderSistema()}">🗑 Descartar</button>
+        <button class="btn btn-g" onclick="if(confirm('¿Descartar este formulario incompleto de la sesión?')){descartarBorradorLocal(decodeURIComponent('${k}'));renderSistema()}">🗑 Descartar</button>
       </div>
     </div>`;
   }).join('')}</div>
-  <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-g" onclick="if(confirm('¿Descartar TODOS los borradores locales de esta empresa y ejercicio?')){descartarTodosBorradoresLocales();renderSistema()}">🗑 Descartar todos</button></div>`;
+  <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-g" onclick="if(confirm('¿Descartar TODOS los formularios incompletos de esta sesión?')){descartarTodosBorradoresLocales();renderSistema()}">🗑 Descartar todos</button></div>`;
 }
 
 function renderSistema(){
@@ -81,15 +81,15 @@ function renderSistema(){
         </div>
         <div style="font-size:10px;color:var(--mt);margin-top:8px">El sistema guarda solo cada vez que registras algo; este botón fuerza un guardado inmediato.</div>`)}
 
-      ${tarjeta('📝','Borradores locales',
-        'Trabajo iniciado pero todavía no confirmado. Puedes retomarlo o descartarlo sin enviarlo a Firebase.',
+      ${tarjeta('📝','Borradores de esta sesión',
+        'Formularios iniciados pero todavía no confirmados. Se eliminan automáticamente al cerrar la app.',
         `${resumenBorradores()}
         <div style="font-size:10px;color:var(--mt);margin-top:10px;line-height:1.55">
-          <strong>Editar</strong> vuelve al módulo y recupera los campos. Para convertir el borrador en un dato real debes usar el botón <strong>Guardar / Registrar</strong> del formulario correspondiente.
+          <strong>Editar</strong> vuelve al módulo y recupera los campos mientras esta sesión siga abierta. <strong>Cancelar</strong> en el formulario los descarta. Al cerrar la app se eliminan automáticamente.
         </div>`)}
 
       ${tarjeta('⏱','Guardado automático',
-        'Protege borradores localmente y sincroniza sólo cambios que ya fueron confirmados. La preferencia queda en este dispositivo.',
+        'Sincroniza automáticamente sólo cambios que ya fueron confirmados. Los formularios incompletos no se guardan entre sesiones.',
         `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn ${AG.activo?'btn-p':'btn-g'}" onclick="setAutoguardado(${!AG.activo})">
             ${AG.activo?'✅ Activado':'⏸ Desactivado'}
@@ -100,9 +100,9 @@ function renderSistema(){
         </div>
         <div style="font-size:10px;color:var(--mt);margin-top:10px;line-height:1.6">
           ${AG.activo
-            ? `Cada <strong>${etiquetaIntervalo(AG.segundos)}</strong> respalda borradores en este dispositivo y sincroniza a Firebase sólo hechos ya confirmados${AG.ultimo?` · última sincronización automática a las ${AG.ultimo.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}`:''}.`
+            ? `Cada <strong>${etiquetaIntervalo(AG.segundos)}</strong> sincroniza a Firebase sólo hechos ya confirmados${AG.ultimo?` · última sincronización automática a las ${AG.ultimo.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}`:''}.`
             : 'Con el automático apagado, el botón 💾 de la barra superior se pone <strong>amarillo</strong> cuando hay algo sin guardar.'}
-          <br><strong>Importante:</strong> escribir en un formulario no lo contabiliza automáticamente. Hasta presionar Guardar/Registrar queda como <em>borrador local</em>. Al cerrar, no se inicia una escritura Firestore insegura desde <code>pagehide</code>.
+          <br><strong>Importante:</strong> escribir en un formulario no lo contabiliza automáticamente. Hasta presionar Guardar/Registrar queda sólo en esta sesión. Al cerrar la app, los formularios incompletos se descartan.
         </div>`)}
 
       ${tarjeta('🔐','Inicio de sesión obligatorio',

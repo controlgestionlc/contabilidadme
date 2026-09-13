@@ -1,15 +1,13 @@
 // autoguardado.js — Autoguardado seguro
 //
-// V2.15.9.2 separa explícitamente dos estados:
-//   · BORRADOR: texto aún no confirmado -> sólo localStorage, nunca Firebase.
+// Desde V2.16.21 los formularios incompletos viven sólo durante la sesión:
+//   · BORRADOR DE SESIÓN: texto aún no confirmado -> memoria, nunca Firebase.
 //   · CONFIRMADO: estado de negocio ya aceptado -> puede sincronizarse a Firebase.
-//
-// `pagehide` sólo persiste borradores localmente porque el navegador no espera
-// promesas Firestore durante el cierre.
+// Al cerrar la aplicación, los formularios incompletos se descartan.
 
 import {toast} from './core.js';
 import {AUTH} from './state.js';
-import {haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora} from './salida.js';
+import {haySinGuardar, hayBorrador, hayCambiosConfirmados} from './salida.js';
 
 const CLAVE='cv:_autoguardado';
 const OPCIONES=[30,60,120,300];      // segundos ofrecidos en la interfaz
@@ -38,10 +36,9 @@ const procede=()=>!!(AUTH.user&&hayCambiosConfirmados()&&!AG.guardando&&window.s
 
 // Guardado silencioso: sin toast, salvo que falle
 export async function guardarAuto(motivo){
-  // Los campos que el usuario todavía no confirmó se respaldan SÓLO como borrador local.
-  // Nunca se transforman en una operación contable por el temporizador.
-  if(AUTH.user&&hayBorrador())guardarBorradoresAhora();
-  if(!procede())return hayBorrador();
+  // Los formularios incompletos permanecen sólo en memoria durante esta sesión.
+  // Nunca se persisten ni se transforman en una operación contable por el temporizador.
+  if(!procede())return false;
   AG.guardando=true;
   try{
     const ok=await window.saveAll({silencioso:true});
@@ -86,10 +83,9 @@ export async function guardarTodoAhora(){
       'guardado se desbloquea solo.');
     return;
   }
-  if(!haySinGuardar()){toast('✓ No hay cambios pendientes');return;}
-  if(hayBorrador()&&!hayCambiosConfirmados()){
-    guardarBorradoresAhora();
-    toast('📝 Borrador respaldado en este dispositivo. Confirma el formulario para guardarlo en Firebase.');
+  if(!hayCambiosConfirmados()){
+    if(hayBorrador())toast('Completa el formulario y usa Guardar/Registrar, o Cancelar para descartarlo.');
+    else toast('✓ No hay cambios pendientes');
     return;
   }
   await window.saveAll();
@@ -110,14 +106,11 @@ export function actualizarBotonGuardar(){
     return;
   }
   btn.classList.remove('bloqueado');
-  const sucio=haySinGuardar();
-  const borrador=hayBorrador();
+  const sucio=hayCambiosConfirmados();
   btn.classList.toggle('pendiente',sucio);
-  btn.title=borrador
-    ? 'Borrador local protegido, todavía sin confirmar en el formulario'
-    : sucio ? 'Hay cambios confirmados sin sincronizar — haz clic para guardarlos ahora'
-    : 'Todo guardado'+(AG.activo?` · respaldo automático cada ${etiquetaIntervalo(AG.segundos)}`:'');
-  btn.innerHTML=borrador?'📝 Borrador •':(sucio?'💾 Guardar •':'💾 Guardar');
+  btn.title=sucio ? 'Hay cambios confirmados sin sincronizar — haz clic para guardarlos ahora'
+    : 'Todo guardado'+(AG.activo?` · sincronización automática cada ${etiquetaIntervalo(AG.segundos)}`:'');
+  btn.innerHTML=sucio?'💾 Guardar •':'💾 Guardar';
 }
 
 // ── Salida segura ──
@@ -131,7 +124,6 @@ export async function confirmarSalida(accion='salir'){
   if(!guardar)return false;
   let ok=true;
   if(hayCambiosConfirmados())ok=await window.saveAll();
-  if(hayBorrador())guardarBorradoresAhora();
   if(!ok){
     return confirm('No se pudo guardar.\n\n¿Quieres '+accion+' de todas formas y perder esos cambios?');
   }
@@ -148,13 +140,6 @@ export function initAutoguardado(){
   });
   window.addEventListener('blur',()=>guardarAuto('pierde el foco'));
 
-  // Al cerrar NO lanzamos Firestore: pagehide no espera promesas y podía dejar
-  // la interfaz creyendo que algo había sido sincronizado. Sólo persistimos el
-  // borrador local de forma síncrona; los hechos ya confirmados siguen usando
-  // los guardados transaccionales normales.
-  window.addEventListener('pagehide',()=>{
-    if(AUTH.user&&hayBorrador())try{guardarBorradoresAhora();}catch(e){}
-  });
 
   actualizarBotonGuardar();
 }
