@@ -424,6 +424,41 @@ function renderCResumen(){
 function cfDteChanged(){
   const t=+document.getElementById('cf-dte')?.value||0;
   const row=document.getElementById('cf-ref-row');if(row)row.style.display=(t===56||t===61)?'grid':'none';
+  if(t===56||t===61)cfRefrescarDocs();
+}
+
+let _cfRefs=[];
+const escOptC=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function cfAsegurarTipoReferencia(tipo){
+  const sel=document.getElementById('cf-ref-tipo');if(!sel)return;
+  const val=String(+tipo||33);
+  if(![...sel.options].some(o=>o.value===val)){
+    const info=dteC(+tipo);sel.add(new Option(`${val} — ${info?.nm||'Documento tributario'}`,val));
+  }
+  sel.value=val;
+}
+function cfRefrescarDocs(){
+  const sel=document.getElementById('cf-ref-doc');if(!sel)return;
+  const r=rutParse(document.getElementById('cf-rut')?.value||'');
+  const actual={tipo:+document.getElementById('cf-ref-tipo')?.value||0,folio:(document.getElementById('cf-ref-folio')?.value||'').trim(),fecha:document.getElementById('cf-ref-fecha')?.value||''};
+  _cfRefs=r.codigo?todosDocsCompras().filter(d=>d&&d.estado!=='anulado'&&d.rutCodigo===r.codigo&&d.id!==CF.editId)
+    .sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||String(b.numero||'').localeCompare(String(a.numero||''))):[];
+  const ayuda=document.getElementById('cf-ref-ayuda');
+  if(!r.codigo){sel.innerHTML='<option value="">Ingrese el RUT para buscar documentos…</option>';if(ayuda)ayuda.textContent='Selecciona un documento ya registrado para completar la referencia.';return;}
+  if(!_cfRefs.length){sel.innerHTML='<option value="">No hay documentos registrados para este proveedor</option>';if(ayuda)ayuda.textContent='Puedes ingresar la referencia manualmente en los campos inferiores.';return;}
+  sel.innerHTML='<option value="">Seleccionar documento referenciado…</option>'+_cfRefs.map((d,i)=>`<option value="${i}">${escOptC(d.fecha)} · DTE ${+d.tipoDTE||''} N° ${escOptC(d.numero)} · ${escOptC(fmtC(d.total||0))}</option>`).join('');
+  const idx=_cfRefs.findIndex(d=>+d.tipoDTE===actual.tipo&&String(d.numero||'')===actual.folio&&(!actual.fecha||d.fecha===actual.fecha));
+  if(idx>=0)sel.value=String(idx);
+  if(ayuda)ayuda.textContent=`${_cfRefs.length} documento${_cfRefs.length===1?' disponible':'s disponibles'} para este proveedor.`;
+}
+function cfSeleccionarReferencia(valor){
+  if(valor==='')return;
+  const d=_cfRefs[+valor];if(!d)return;
+  cfAsegurarTipoReferencia(d.tipoDTE);
+  document.getElementById('cf-ref-folio').value=d.numero||'';
+  document.getElementById('cf-ref-fecha').value=d.fecha||'';
+  const razon=document.getElementById('cf-ref-razon');
+  if(razon&&!razon.value)razon.value=(+document.getElementById('cf-dte')?.value===61?'Anula / corrige documento seleccionado':'Modifica documento seleccionado');
 }
 
 function abrirCF(){
@@ -480,12 +515,13 @@ function cerrarCF(){document.getElementById('cf-form').style.display='none';fija
 function cfRutInput(val){
   const r=rutParse(val);
   const el=document.getElementById('cf-dv');
-  if(!r.raw){el.textContent='';el.className='rut-dv';return;}
+  if(!r.raw){el.textContent='';el.className='rut-dv';cfRefrescarDocs();return;}
   if(r.codigo&&r.valido){el.textContent='✓ '+r.dv;el.className='rut-dv ok';
     const prev=S.compras.find(v=>v.rutCodigo===r.codigo&&v.razonSocial);
     const rs=document.getElementById('cf-rs');
     if(prev&&!rs.value)rs.value=prev.razonSocial;
-  }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';}
+    cfRefrescarDocs();
+  }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';cfRefrescarDocs();}
   else{el.textContent='…';el.className='rut-dv';}
 }
 
@@ -627,6 +663,8 @@ async function guardarCompra(){
 
   const esNota=tipoDTE===56||tipoDTE===61;
   const referencia=esNota?{tipoDTE:+document.getElementById('cf-ref-tipo')?.value||33,folio:(document.getElementById('cf-ref-folio')?.value||'').trim(),fecha:document.getElementById('cf-ref-fecha')?.value||'',razon:(document.getElementById('cf-ref-razon')?.value||'').trim()}:null;
+  const refRegistrada=referencia?_cfRefs.find(d=>+d.tipoDTE===referencia.tipoDTE&&String(d.numero||'')===referencia.folio&&(!referencia.fecha||d.fecha===referencia.fecha)):null;
+  if(refRegistrada){referencia.documentoId=refRegistrada.id;referencia.totalOriginal=refRegistrada.total||0;}
   if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de registrar o modificar documentos.','e');return;}
   const prevEdit=CF.editId?S.compras.find(x=>x.id===CF.editId):null;
@@ -1375,5 +1413,5 @@ function initImportListener(){
 
 
 export {onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
-        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
+        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF};

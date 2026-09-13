@@ -83,14 +83,14 @@ import {abrirAperturaAux, cerrarAperturaAux, renderAperturaAux, apxAddDoc, apxDe
         apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
         descargarPlantillaAperturaAux, initAperturaAuxListener, APX} from './aperturaaux.js';
 import {onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerrarVF,
-        vfRutInput, vfCheckDup, vfDteChanged, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
+        vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
         eliminarVenta, VF, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas,
         initImportListenerV, setBulkCuentaImpV, enfocarPendienteImportV,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, IMV} from './ventas.js';
 import {onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
-        cfRutInput, cfCheckDup, cfDteChanged, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
+        cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
         guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal,
         cambiarPeriodoImport, cerrarImportModal, toggleImportDoc, toggleAllImport,
         setImportCuenta, aplicarCuentaATodos, confirmarImportacion,
@@ -695,10 +695,10 @@ Object.assign(window,{
   descargarPlantillaAperturaAux, APX,
   // ventas
   onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerrarVF,
-  vfRutInput, vfCheckDup, vfDteChanged, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
+  vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
   // compras
   onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
-  cfRutInput, cfCheckDup, cfDteChanged, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
+  cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
   guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal, cambiarPeriodoImport,
   cerrarImportModal, toggleImportDoc, toggleAllImport, setImportCuenta,
   aplicarCuentaATodos, confirmarImportacion, renderImportModal, pn,

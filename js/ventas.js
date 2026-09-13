@@ -284,6 +284,41 @@ function renderVResumen(){
 function vfDteChanged(){
   const t=+document.getElementById('vf-dte')?.value||0;
   const row=document.getElementById('vf-ref-row');if(row)row.style.display=(t===56||t===61)?'grid':'none';
+  if(t===56||t===61)vfRefrescarDocs();
+}
+
+let _vfRefs=[];
+const escOptV=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function vfAsegurarTipoReferencia(tipo){
+  const sel=document.getElementById('vf-ref-tipo');if(!sel)return;
+  const val=String(+tipo||33);
+  if(![...sel.options].some(o=>o.value===val)){
+    const info=dteV(+tipo);sel.add(new Option(`${val} — ${info?.nm||'Documento tributario'}`,val));
+  }
+  sel.value=val;
+}
+function vfRefrescarDocs(){
+  const sel=document.getElementById('vf-ref-doc');if(!sel)return;
+  const r=rutParse(document.getElementById('vf-rut')?.value||'');
+  const actual={tipo:+document.getElementById('vf-ref-tipo')?.value||0,folio:(document.getElementById('vf-ref-folio')?.value||'').trim(),fecha:document.getElementById('vf-ref-fecha')?.value||''};
+  _vfRefs=r.codigo?todosDocsVentas().filter(d=>d&&d.estado!=='anulado'&&d.rutCodigo===r.codigo&&d.id!==VF.editId)
+    .sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||String(b.numero||'').localeCompare(String(a.numero||''))):[];
+  const ayuda=document.getElementById('vf-ref-ayuda');
+  if(!r.codigo){sel.innerHTML='<option value="">Ingrese el RUT para buscar documentos…</option>';if(ayuda)ayuda.textContent='Selecciona un documento ya registrado para completar la referencia.';return;}
+  if(!_vfRefs.length){sel.innerHTML='<option value="">No hay documentos registrados para este cliente</option>';if(ayuda)ayuda.textContent='Puedes ingresar la referencia manualmente en los campos inferiores.';return;}
+  sel.innerHTML='<option value="">Seleccionar documento referenciado…</option>'+_vfRefs.map((d,i)=>`<option value="${i}">${escOptV(d.fecha)} · DTE ${+d.tipoDTE||''} N° ${escOptV(d.numero)} · ${escOptV(fmtC(d.total||0))}</option>`).join('');
+  const idx=_vfRefs.findIndex(d=>+d.tipoDTE===actual.tipo&&String(d.numero||'')===actual.folio&&(!actual.fecha||d.fecha===actual.fecha));
+  if(idx>=0)sel.value=String(idx);
+  if(ayuda)ayuda.textContent=`${_vfRefs.length} documento${_vfRefs.length===1?' disponible':'s disponibles'} para este cliente.`;
+}
+function vfSeleccionarReferencia(valor){
+  if(valor==='')return;
+  const d=_vfRefs[+valor];if(!d)return;
+  vfAsegurarTipoReferencia(d.tipoDTE);
+  document.getElementById('vf-ref-folio').value=d.numero||'';
+  document.getElementById('vf-ref-fecha').value=d.fecha||'';
+  const razon=document.getElementById('vf-ref-razon');
+  if(razon&&!razon.value)razon.value=(+document.getElementById('vf-dte')?.value===61?'Anula / corrige documento seleccionado':'Modifica documento seleccionado');
 }
 
 function abrirVF(){
@@ -339,12 +374,13 @@ function cerrarVF(){document.getElementById('vf-form').style.display='none';fija
 function vfRutInput(val){
   const r=rutParse(val);
   const el=document.getElementById('vf-dv');
-  if(!r.raw){el.textContent='';el.className='rut-dv';return;}
+  if(!r.raw){el.textContent='';el.className='rut-dv';vfRefrescarDocs();return;}
   if(r.codigo&&r.valido){el.textContent='✓ '+r.dv;el.className='rut-dv ok';
     const prev=S.ventas.find(v=>v.rutCodigo===r.codigo&&v.razonSocial);
     const rs=document.getElementById('vf-rs');
     if(prev&&!rs.value)rs.value=prev.razonSocial;
-  }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';}
+    vfRefrescarDocs();
+  }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';vfRefrescarDocs();}
   else{el.textContent='…';el.className='rut-dv';}
 }
 
@@ -426,6 +462,8 @@ async function guardarVenta(){
   const cuentaIngreso=_vfCuentaSel||(document.getElementById('vf-cuenta')?.dataset.cd)||'';
   const esNota=tipoDTE===56||tipoDTE===61;
   const referencia=esNota?{tipoDTE:+document.getElementById('vf-ref-tipo')?.value||33,folio:(document.getElementById('vf-ref-folio')?.value||'').trim(),fecha:document.getElementById('vf-ref-fecha')?.value||'',razon:(document.getElementById('vf-ref-razon')?.value||'').trim()}:null;
+  const refRegistrada=referencia?_vfRefs.find(d=>+d.tipoDTE===referencia.tipoDTE&&String(d.numero||'')===referencia.folio&&(!referencia.fecha||d.fecha===referencia.fecha)):null;
+  if(refRegistrada){referencia.documentoId=refRegistrada.id;referencia.totalOriginal=refRegistrada.total||0;}
   if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
   if(!puedeOperarFecha(fecha)){toast('🔒 El período contable de esta fecha está cerrado. Reabre el período antes de registrar o modificar documentos.','e');return;}
   const prevEdit=VF.editId?S.ventas.find(x=>x.id===VF.editId):null;
@@ -815,5 +853,5 @@ async function confirmarImportacionV(){
 export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV, enfocarPendienteImportV,
-        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
+        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, VF};
