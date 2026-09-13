@@ -185,7 +185,11 @@ async function saveAll({silencioso=false}={}){
     if(S.comprobantesTipo&&S.comprobantesTipo.length)entradas.push({key:'comprobantesTipo',value:JSON.stringify(S.comprobantesTipo)});
     if(S.fichasAux)entradas.push({key:'fichasAux',value:JSON.stringify(S.fichasAux)});
     const r=typeof window.storage.setMany==='function'?await window.storage.setMany(entradas):null;
-    if(r&&r.ok===false)throw new Error(r.motivo||'fallo-persistencia');
+    if(r&&r.ok===false){
+      const clave=r.clave?` · ${r.clave}`:'';
+      const detalle=r.detalle?` · ${r.detalle}`:'';
+      throw new Error((r.motivo||'fallo-persistencia')+clave+detalle);
+    }
     if(!r){
       for(const e of entradas){const rr=await window.storage.set(e.key,e.value);if(!rr||rr.ok===false)throw new Error(rr?.motivo||`fallo-${e.key}`);}
     }

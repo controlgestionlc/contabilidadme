@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-0049';
+const APP_VERSION='v2026.09.13-0104';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.19',fecha:'13-09-2026',titulo:'Guardar Todo robusto y menú móvil sin duplicados',items:[
+    {tipo:'arreglo',txt:'Guardar Todo recupera de forma segura una revisión Firestore perdida en memoria cuando la copia local coincide exactamente con la nube, evitando el error clave-no-sincronizada después de reanudaciones en Android.'},
+    {tipo:'seguridad',txt:'Si la copia local y Firestore difieren, el sistema mantiene el bloqueo y no adopta la revisión remota, por lo que no se debilita la protección contra sobrescrituras entre equipos.'},
+    {tipo:'arreglo',txt:'La misma protección se aplica a guardados individuales y eliminaciones versionadas.'},
+    {tipo:'cambio',txt:'Guardar Todo informa además la clave concreta si persiste un problema de sincronización.'},
+    {tipo:'arreglo',txt:'Se elimina el acceso rápido duplicado a Sistema y Respaldos del bloque Acciones del menú móvil; queda únicamente dentro de Configuración.'}
+  ]},
   {version:'V2.16.18',fecha:'13-09-2026',titulo:'Gestor de borradores y menú lateral por categorías',items:[
     {tipo:'nuevo',txt:'Configuración > Sistema y Respaldos incorpora un apartado Borradores locales con fecha, módulo y campos pendientes.'},
     {tipo:'nuevo',txt:'Cada borrador puede retomarse con Editar para continuar en su módulo y guardarse con las validaciones normales, o descartarse individualmente.'},

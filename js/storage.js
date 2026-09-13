@@ -74,14 +74,23 @@ initDispositivo();
         if(!snap.exists)return;
         const actual=snap.data()||{};
         const revNube=+actual.rev||0;
-        const revMia=revs.has(k)?revs.get(k):null;
-        if(revMia!==null&&revNube!==revMia)throw new Error('__CONFLICTO_DELETE__');
+        let revMia=revs.has(k)?revs.get(k):null;
+        if(revMia===null){
+          const copiaLocal=getLocal(k);
+          if(copiaLocal&&actual.value!==undefined&&copiaLocal.value===actual.value){
+            revMia=revNube;revs.set(k,revNube);fijarBaseline(k,actual.value);
+          }else{
+            throw new Error('__SIN_BASELINE_DELETE__');
+          }
+        }
+        if(revNube!==revMia)throw new Error('__CONFLICTO_DELETE__');
         t.delete(ref);
       });
       revs.delete(k);baseline.delete(k);tumbas.delete(k);resucitados.delete(k);
       return {ok:true};
     }catch(e){
       if(e&&e.message==='__CONFLICTO_DELETE__')return {ok:false,motivo:'conflicto'};
+      if(e&&e.message==='__SIN_BASELINE_DELETE__')return {ok:false,motivo:'clave-no-sincronizada'};
       console.warn('FS del versionado',k,e);return {ok:false,motivo:e.message||String(e)};
     }
   }
@@ -219,8 +228,25 @@ initDispositivo();
         const snap=await t.get(ref);
         const actual=snap.exists?(snap.data()||{}):null;
         const revNube=actual?(+actual.rev||0):0;
-        const revMia=revs.has(k)?revs.get(k):null;
+        let revMia=revs.has(k)?revs.get(k):null;
         let aGuardar=value;
+
+        // V2.16.19 — Android puede recrear el contexto JS y perder `revs` aunque
+        // localStorage conserve exactamente la última copia de Firestore. Si la
+        // copia local coincide byte a byte con la nube, recuperamos la revisión
+        // con seguridad. Si no coincide, bloqueamos en vez de sobrescribir.
+        if(actual&&revMia===null){
+          const copiaLocal=getLocal(k);
+          const localCoincide=!!(copiaLocal&&actual.value!==undefined&&copiaLocal.value===actual.value);
+          const escrituraEsNoop=actual.value!==undefined&&value===actual.value;
+          if(localCoincide||escrituraEsNoop){
+            revMia=revNube;revs.set(k,revNube);
+            if(actual.value!==undefined)fijarBaseline(k,actual.value);
+          }else{
+            salida={ok:false,motivo:'clave-no-sincronizada'};
+            throw new Error('__SIN_BASELINE__');
+          }
+        }
 
         // Hay conflicto si leímos una versión y la nube ya avanzó. La condición
         // es SÓLO la revisión, a propósito: comparar además el id del
@@ -271,6 +297,10 @@ initDispositivo();
       FS.pendingWrites--;
       if(e&&e.message==='__CONFLICTO__'){
         fsStatusSet('error','conflicto entre equipos');
+        return salida;
+      }
+      if(e&&e.message==='__SIN_BASELINE__'){
+        fsStatusSet('error','clave no sincronizada');
         return salida;
       }
       if(e&&e.message==='__VALIDACION_CONTABLE__'){
@@ -439,8 +469,30 @@ initDispositivo();
             const e=lista[i],k=K(e.key),snap=snaps[i];
             const actual=snap.exists?(snap.data()||{}):null;
             const revNube=actual?(+actual.rev||0):0;
-            const revMia=revs.has(k)?revs.get(k):null;
-            if(actual&&revMia===null)throw new Error('__SIN_BASELINE__:'+e.key);
+            let revMia=revs.has(k)?revs.get(k):null;
+
+            // V2.16.19 — recuperación segura de una revisión perdida en memoria.
+            // En móvil Android puede descargarse/recrear el contexto JS sin borrar
+            // localStorage. En ese caso conservamos la última copia sincronizada,
+            // pero el Map `revs` vuelve vacío y Guardar Todo terminaba en
+            // `clave-no-sincronizada` aunque el equipo SÍ estuviera al día.
+            //
+            // Sólo recuperamos la revisión cuando podemos demostrar que la copia
+            // local persistida es exactamente la misma que existe en Firestore.
+            // Si difieren, NO se adopta la rev de la nube: se mantiene el bloqueo
+            // para evitar pisar cambios de otro equipo.
+            if(actual&&revMia===null){
+              const copiaLocal=getLocal(k);
+              const localCoincide=!!(copiaLocal&&actual.value!==undefined&&copiaLocal.value===actual.value);
+              const escrituraEsNoop=actual.value!==undefined&&e.value===actual.value;
+              if(localCoincide||escrituraEsNoop){
+                revMia=revNube;
+                revs.set(k,revNube);
+                if(actual.value!==undefined)fijarBaseline(k,actual.value);
+              }else{
+                throw new Error('__SIN_BASELINE__:'+e.key);
+              }
+            }
             if(revMia!==null&&revNube!==revMia)throw new Error('__CONFLICTO_MULTI__:'+e.key);
 
             // Preparar lápidas sin modificar el estado global antes del commit.
