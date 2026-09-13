@@ -688,3 +688,13 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Rol `contador`: puede cerrar y reabrir períodos mensuales en empresas visibles/asignadas, con permiso de edición y trazabilidad obligatoria.
 - Cierre anual y reapertura: disponibles para administrador/contador autorizado en la empresa activa.
 - Auditoría técnica continúa restringida al administrador.
+
+## V2.16.24 — Fecha de vencimiento en capturadores SII
+
+- Compras y Ventas detectan columnas de fecha de vencimiento en CSV/Excel del SII.
+- Si el archivo no informa vencimiento, se asignan 30 días corridos desde la fecha de emisión.
+- Se registra el origen del vencimiento (`archivo`, `estimado30d`, `manual`) para proteger reimportaciones.
+- Una estimación nunca pisa una fecha real/manual ya existente; un vencimiento real puede reemplazar una estimación anterior.
+- El vencimiento queda disponible para auxiliares, pagos/cobros, aging y flujo de caja.
+- La vista previa del importador muestra el vencimiento y marca los estimados a 30 días.
+

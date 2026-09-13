@@ -2,7 +2,7 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.16.23 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
+> **Estado actual:** V2.16.24 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
 
 ---
 
@@ -963,6 +963,17 @@ En el menú móvil, **Sistema y Respaldos** aparece una sola vez dentro de **Con
 - Al cerrar la PWA/app, cualquier formulario incompleto restante se descarta automáticamente.
 
 
+
+
+## V2.16.24 — Vencimiento automático en Compras y Ventas
+
+Los capturadores SII de Compras y Ventas normalizan la fecha de vencimiento de cada DTE. Si el archivo CSV/Excel trae una columna de vencimiento, la fecha se conserva exactamente; si no existe o viene vacía, el sistema calcula **30 días corridos desde la fecha de emisión**.
+
+La fecha queda guardada en `fechaVencimiento` y se utiliza en auxiliares de clientes/proveedores, pagos y cobros, antigüedad de saldos y proyección de flujo de caja. El origen se conserva internamente como `archivo`, `estimado30d` o `manual`.
+
+En una reimportación se aplica una prioridad segura: una fecha manual o histórica existente no se reemplaza por una estimación; una fecha real ya registrada tampoco se pierde si un archivo posterior no trae vencimiento; y una fecha real informada por el SII puede reemplazar una estimación previa de 30 días.
+
+La previsualización del importador muestra `Vence AAAA-MM-DD`; cuando la fecha fue calculada se identifica como `30d`.
 
 ## V2.16.23 — Cierres mensuales y anuales para contadores
 
