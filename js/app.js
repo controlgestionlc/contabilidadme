@@ -124,7 +124,7 @@ import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBala
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla,
         exportarMayorExcel} from './reportes.js';
-import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, corregirDescuadreCmp,
+import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
         eliminarComprobante, anularComprobante,
         setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
@@ -671,7 +671,7 @@ Object.assign(window,{
   abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos, enfocarPendienteImportC, enfocarPendienteImportV,
   toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel,
   abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
-  renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, corregirDescuadreCmp,
+  renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
   abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
   eliminarComprobante, anularComprobante,
   setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,

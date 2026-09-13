@@ -374,7 +374,7 @@ function destinoEdicion(e){
 // El destino es 'comprobantes', que es donde vive el formulario de asientos
 // manuales; 's-asientos' ya no existe como sección.
 function editarAsientoRef(n){
-  const a=S.asientos.find(x=>+x.numeroContable===+n)||S.asientos.find(x=>x.n===n);
+  const a=S.asientos.find(x=>String(x.id)===String(n))||S.asientos.find(x=>+x.numeroContable===+n)||S.asientos.find(x=>x.n===n);
   if(!a){toast('⚠️ No se encontró el asiento N°'+n,'e');return;}
   nav('comprobantes');
   setTimeout(()=>{try{window.editarAsiento&&window.editarAsiento(a.id);}catch(e){}},50);

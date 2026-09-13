@@ -8,13 +8,21 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-1630';
+const APP_VERSION='v2026.09.13-1700';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.27',fecha:'13-09-2026',titulo:'Corrección directa de comprobantes descuadrados',items:[
+    {tipo:'arreglo',txt:'Los botones de la alerta abren el asiento descuadrado exacto mediante su identidad interna, incluso si existen números visibles duplicados en datos heredados.'},
+    {tipo:'arreglo',txt:'El buscador por número conserva cada coincidencia y ya no abre silenciosamente el primer comprobante que comparte el mismo correlativo.'},
+    {tipo:'arreglo',txt:'Al editar o convertir un comprobante se conservan centro de costo, vínculo documental, datos auxiliares y clasificación tributaria de cada línea.'},
+    {tipo:'seguridad',txt:'El editor exige Debe igual a Haber antes de habilitar Guardar, en concordancia con la validación contable central.'},
+    {tipo:'arreglo',txt:'Los asientos manuales se localizan por su ID interno antes que por números históricos y se guardan mediante la misma puerta de validación central.'},
+    {tipo:'cambio',txt:'Si una conversión no puede guardarse, el mensaje informa la causa específica y conserva el comprobante original sin cambios.'}
+  ]},
   {version:'V2.16.26',fecha:'13-09-2026',titulo:'Selección asistida de documentos referenciados',items:[
     {tipo:'nuevo',txt:'Al registrar o editar una Nota de Crédito/Débito en Compras, el sistema muestra los documentos activos ya capturados para el RUT del proveedor.'},
     {tipo:'nuevo',txt:'Ventas ofrece la misma selección filtrada por el RUT del cliente.'},
