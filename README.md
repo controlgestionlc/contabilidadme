@@ -921,3 +921,12 @@ El sistema incluye un módulo para contribuyentes autorizados a llevar contabili
 
 ### Centros de costo normales y capitalizables
 Los subcentros pueden utilizarse en empresas comerciales sin ninguna lógica de activación: el tipo **Normal** es el valor por defecto y equivale a **Sin Capitalización**. En ese modo solo se acumulan y analizan costos por centro. Las opciones de fecha de inicio, curva, porcentajes y cuenta de costo para cierre/capitalización se muestran únicamente cuando el tipo es **Inversión en curso**. Se conserva compatibilidad con centros históricos de tipo `operativo` y `capitalizado`.
+
+## Asociación automática de DTE desde asientos
+
+Al editar un comprobante de venta o compra, el botón **DTE** no obliga a volver a digitar información que ya está contenida en el asiento. El sistema intenta reconstruir automáticamente el documento desde las líneas contables: fecha de emisión, RUT, razón social, número, descripción, Neto, Exento, IVA, otros impuestos y Total.
+
+En una venta, el Total se obtiene desde la cuenta auxiliar del cliente, el IVA desde **IVA Débito Fiscal (2103003)** y otros impuestos identificables desde **Otros Impuestos por Pagar (2103004)**. En una compra, el Total se toma desde Proveedores, el IVA identificable desde las cuentas de crédito fiscal y otros impuestos recuperables desde **1108006**. En facturas de compra DTE 45/46 se incorpora además el IVA retenido registrado en **2103005** para reconstruir el total documental.
+
+Los valores existentes en el documento origen o RCV siempre tienen prioridad. La inferencia contable sólo rellena campos que están vacíos, por lo que no reemplaza información tributaria real. Una vez seleccionado el tipo de DTE, el sistema determina si la base corresponde a Neto o Exento. En el caso habitual, el usuario sólo debe seleccionar el tipo de documento e indicar la fecha de vencimiento antes de asociarlo.
+

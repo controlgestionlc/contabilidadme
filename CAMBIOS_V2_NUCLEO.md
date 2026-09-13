@@ -615,3 +615,13 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - La lógica central fuerza 0% de capitalización para centros normales/operativos, aunque conserven metadatos históricos.
 - Los centros `operativo` existentes siguen siendo compatibles.
 - Plantilla de carga y respaldo Excel de centros de costo preservan la configuración completa de capitalización.
+
+## V2.16.15 — DTE autocompletado desde el asiento
+- Al abrir **DTE** desde la edición de Compras/Ventas o desde un asiento manual, los datos ya contenidos en la contabilidad se recuperan automáticamente.
+- Se completan, cuando están disponibles, RUT, razón social, N° de documento, descripción, Neto, Exento, IVA, Otros impuestos y Total.
+- El N° de documento también puede recuperarse desde textos como `Factura Electrónica N°3129`.
+- Al seleccionar el tipo de DTE, la base restante se asigna a **Neto** o **Exento** según la naturaleza del documento.
+- Para DTE 45/46, el total documental suma el IVA retenido identificado en la cuenta `2103005`.
+- Los datos explícitos provenientes del documento/RCV tienen prioridad y nunca son reemplazados por la inferencia contable.
+- El usuario conserva la posibilidad de ajustar manualmente casos especiales, pero el flujo normal queda reducido a elegir tipo de documento y fecha de vencimiento.
+
