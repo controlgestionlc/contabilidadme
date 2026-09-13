@@ -44,7 +44,7 @@ export function renderCentrosCosto(){
       <div style="margin-top:14px;font-size:11px;color:var(--mt);max-width:420px;margin-left:auto;margin-right:auto">
         Organiza los costos en dos niveles: <strong>centro principal</strong> (ej. Administración, Área Maderas, Transporte, un predio)
         y <strong>subcentro</strong> (ej. Contabilidad, Aserradero, Camión 1, un cuartel).
-        Los centros marcados como <strong>inversión en curso</strong> acumulan costos capitalizables a activo fijo.
+        Los subcentros <strong>Normales</strong> solo acumulan costos; únicamente los marcados como <strong>inversión en curso</strong> habilitan capitalización a activo fijo.
       </div></div>
   <!-- Formulario -->
   <div class="card" id="cc-form" style="display:none;margin-top:14px">
@@ -57,8 +57,8 @@ export function renderCentrosCosto(){
         ${CC_ESTADOS.filter(e=>e.id!=='capitalizado').map(e=>`<option value="${e.id}" title="${e.desc}">${e.nm}</option>`).join('')}
       </select></div>
       <div class="grp" id="ccf-fecha-wrap"><label>Fecha de inicio</label><input type="date" id="ccf-fecha"><div style="font-size:10px;color:var(--mt);margin-top:2px">Define el año 1 de la curva de capitalización</div></div>
-      <div class="grp" id="ccf-curva-wrap"><label>Curva de capitalización</label><select id="ccf-curva" onchange="onCurvaChange()">
-        ${CURVAS_DEFAULT.map(cv=>`<option value="${cv.id}">${cv.nm} — ${cv.pcts.join('/')}%</option>`).join('')}
+      <div class="grp" id="ccf-curva-wrap"><label>Capitalización</label><select id="ccf-curva" onchange="onCurvaChange()">
+        ${CURVAS_DEFAULT.map(cv=>`<option value="${cv.id}">${cv.id==='none'?cv.nm:`${cv.nm} — ${cv.pcts.join('/')}%`}</option>`).join('')}
       </select></div>
       <div class="grp full" id="ccf-cuenta-wrap"><label>Cuenta de costo del período</label><select id="ccf-cuenta-costo">
         ${PDC.filter(x=>x.cd.length===7&&x.nat&&(x.cd.startsWith('31')||x.cd.startsWith('33'))).map(x=>`<option value="${x.cd}">${x.cd} — ${x.nm}</option>`).join('')}
@@ -93,11 +93,11 @@ export function renderCentrosCosto(){
         </td>
         <td style="text-align:right;font-size:11px;color:var(--mt)">${movimientos}</td>
         <td style="font-family:var(--mono);text-align:right;font-weight:600">${fmtC(costo)}
-          ${rep.totalActivo!==costo?`<div style="font-size:9px;color:var(--mt)">act. ${fmtC(rep.totalActivo)} · cto. ${fmtC(rep.totalCosto)}</div>`:''}
+          ${['formacion','capitalizado'].includes(c.estado)&&rep.totalActivo!==costo?`<div style="font-size:9px;color:var(--mt)">act. ${fmtC(rep.totalActivo)} · cto. ${fmtC(rep.totalCosto)}</div>`:''}
         </td>
         <td style="text-align:right;white-space:nowrap">
           ${costo>0?`<button class="btn btn-i" onclick="verDetalleCC('${c.id}')" title="Ver movimientos">📋</button>`:''}
-          ${c.estado==='formacion'&&costo>0?`<button class="btn btn-p" onclick="abrirCapitalizar('${c.id}')" title="Capitalizar a activo fijo">📦 Capitalizar</button>`:''}
+          ${c.estado==='formacion'&&c.curva!=='none'&&costo>0?`<button class="btn btn-p" onclick="abrirCapitalizar('${c.id}')" title="Capitalizar a activo fijo">📦 Capitalizar</button>`:''}
           <button class="btn btn-i" onclick="editarCC('${c.id}')">✏️</button>
           <button class="btn btn-d" onclick="borrarCC('${c.id}')">🗑</button>
         </td>
@@ -135,7 +135,7 @@ export function renderCentrosCosto(){
     <div class="kpi"><div class="kpi-lbl">Inversión en curso</div><div class="kpi-val">${cuarteles().filter(c=>c.estado==='formacion').length}</div></div>
     <div class="kpi"><div class="kpi-lbl">Costo acumulado</div><div class="kpi-val">${fmtC(totalGeneral)}</div></div>
   </div>
-  <div class="info-tip" style="margin-bottom:14px">📊 Asigna gastos a cualquier centro para analizarlos por área. Los centros marcados como <strong>inversión en curso</strong> acumulan costos capitalizables: cuando el proyecto termina, pulsa <strong>Capitalizar</strong> para traspasarlos a un activo fijo.</div>
+  <div class="info-tip" style="margin-bottom:14px">📊 Asigna gastos a cualquier centro para analizarlos por área. Para empresas comerciales usa subcentros <strong>Normales</strong> (sin capitalización). Solo una <strong>inversión en curso</strong> muestra las opciones de capitalización y permite traspasar costos a activo fijo.</div>
   ${bloques}
   <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-p" onclick="abrirFormCC(1)">+ Nuevo centro principal</button>
@@ -152,8 +152,8 @@ export function renderCentrosCosto(){
         ${CC_ESTADOS.filter(e=>e.id!=='capitalizado').map(e=>`<option value="${e.id}" title="${e.desc}">${e.nm}</option>`).join('')}
       </select></div>
       <div class="grp" id="ccf-fecha-wrap"><label>Fecha de inicio</label><input type="date" id="ccf-fecha"><div style="font-size:10px;color:var(--mt);margin-top:2px">Define el año 1 de la curva de capitalización</div></div>
-      <div class="grp" id="ccf-curva-wrap"><label>Curva de capitalización</label><select id="ccf-curva" onchange="onCurvaChange()">
-        ${CURVAS_DEFAULT.map(cv=>`<option value="${cv.id}">${cv.nm} — ${cv.pcts.join('/')}%</option>`).join('')}
+      <div class="grp" id="ccf-curva-wrap"><label>Capitalización</label><select id="ccf-curva" onchange="onCurvaChange()">
+        ${CURVAS_DEFAULT.map(cv=>`<option value="${cv.id}">${cv.id==='none'?cv.nm:`${cv.nm} — ${cv.pcts.join('/')}%`}</option>`).join('')}
       </select></div>
       <div class="grp full" id="ccf-cuenta-wrap"><label>Cuenta de costo del período</label><select id="ccf-cuenta-costo">
         ${PDC.filter(x=>x.cd.length===7&&x.nat&&(x.cd.startsWith('31')||x.cd.startsWith('33'))).map(x=>`<option value="${x.cd}">${x.cd} — ${x.nm}</option>`).join('')}
@@ -182,9 +182,26 @@ function renderDetalleCC(id){
   const centro=ccInfo(id);
   const {filas,totalGasto,totalActivo,totalCosto}=costoPorAnio(id);
   if(!filas.length)return '';
+  const capitalizable=['formacion','capitalizado'].includes(centro?.estado);
+  if(!capitalizable){
+    const cuerpo=filas.map(f=>`<tr style="background:rgba(0,0,0,.12)">
+      <td class="tl" style="font-size:11px;padding-left:34px">${f.lbl} <span style="color:var(--mt)">· ${f.movs} mov.</span></td>
+      <td style="font-family:var(--mono);text-align:right;font-size:11px">${fmtC(f.total)}</td>
+    </tr>`).join('');
+    return `<tr style="background:rgba(0,0,0,.12)">
+        <td class="tl" style="padding-left:34px;font-size:10px;color:var(--mt);text-transform:uppercase">Período</td>
+        <td style="text-align:right;font-size:10px;color:var(--mt)">GASTO</td>
+      </tr>
+      ${cuerpo}
+      <tr style="background:rgba(0,0,0,.2)">
+        <td class="tl" style="padding-left:34px;font-size:11px;font-weight:700">Total</td>
+        <td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:11px">${fmtC(totalGasto)}</td>
+      </tr>
+      <tr style="background:rgba(0,0,0,.12)"><td colspan="2" style="text-align:right;padding:6px 10px"><button class="btn btn-g" onclick="verDetalleCC(null)">Cerrar detalle</button></td></tr>`;
+  }
   const cuerpo=filas.map(f=>`<tr style="background:rgba(0,0,0,.12)">
     <td class="tl" style="font-size:11px;padding-left:34px">
-      ${f.anio} <span style="color:var(--mt)">· año ${f.anioFormacion} de formación · ${f.movs} mov.</span>
+      ${f.lbl} <span style="color:var(--mt)">· año ${f.anioFormacion} de formación · ${f.movs} mov.</span>
       <div style="font-size:10px;color:var(--mt)">${f.pct}% activo / ${100-f.pct}% costo período</div>
     </td>
     <td style="font-family:var(--mono);text-align:right;font-size:11px">${fmtC(f.total)}</td>
@@ -192,7 +209,7 @@ function renderDetalleCC(id){
     <td style="font-family:var(--mono);text-align:right;font-size:11px;color:var(--warn)">${fmtC(f.costo)}</td>
   </tr>`).join('');
   return `<tr style="background:rgba(0,0,0,.12)">
-      <td class="tl" style="padding-left:34px;font-size:10px;color:var(--mt);text-transform:uppercase">Ejercicio</td>
+      <td class="tl" style="padding-left:34px;font-size:10px;color:var(--mt);text-transform:uppercase">Temporada</td>
       <td style="text-align:right;font-size:10px;color:var(--mt)">GASTO</td>
       <td style="text-align:right;font-size:10px;color:var(--ach)">→ ACTIVO</td>
       <td style="text-align:right;font-size:10px;color:var(--warn)">→ COSTO</td>
@@ -215,7 +232,7 @@ export function verDetalleCC(id){CC_DETALLE=(CC_DETALLE===id)?null:id;renderCent
 function renderPanelCierre(){
   if(!esAdmin())return '';
   const anio=S.empresa.anio;
-  const enFormacion=cuarteles().filter(c=>c.estado==='formacion');
+  const enFormacion=cuarteles().filter(c=>c.estado==='formacion'&&c.curva!=='none');
   if(!enFormacion.length)return ''; // sin inversiones en curso no hay nada que traspasar
 
   const sel=cierreMes();
@@ -248,7 +265,7 @@ function renderPreviewCierre(){
   if(!cont)return;
   const anio=S.empresa.anio;
   const mes=cierreMes();
-  const enFormacion=cuarteles().filter(c=>c.estado==='formacion');
+  const enFormacion=cuarteles().filter(c=>c.estado==='formacion'&&c.curva!=='none');
   const filas=enFormacion.map(c=>{
     const m=costosDelMes(c.id,anio,mes);
     const cerrado=estaCerrado(c.id,anio,mes);
@@ -289,7 +306,7 @@ export async function ejecutarCierreMensual(){
   if(!esAdmin()){toast('⚠️ Solo un administrador puede cerrar el mes','e');return;}
   const anio=S.empresa.anio;
   const mes=cierreMes();
-  const enFormacion=cuarteles().filter(c=>c.estado==='formacion');
+  const enFormacion=cuarteles().filter(c=>c.estado==='formacion'&&c.curva!=='none');
   const pendientes=enFormacion
     .map(c=>({centro:c,m:costosDelMes(c.id,anio,mes)}))
     .filter(x=>x.m.total>0&&!estaCerrado(x.centro.id,anio,mes));
@@ -380,8 +397,9 @@ export async function revertirCierreMensual(){
 }
 
 
-// Los campos de capitalización (curva, cuenta de costo, fecha) solo tienen
-// sentido en centros de "inversión en curso". En los operativos se ocultan.
+// Los campos de capitalización solo se muestran cuando el subcentro es una
+// inversión en curso (o un centro histórico ya capitalizado). Un centro Normal
+// u Operativo es siempre no capitalizable.
 export function onTipoCentroChange(){
   const tipo=(document.getElementById('ccf-estado')||{}).value;
   const esInversion=tipo==='formacion'||tipo==='capitalizado';
@@ -389,6 +407,12 @@ export function onTipoCentroChange(){
     const e=document.getElementById(id);
     if(e)e.style.display=esInversion?'':'none';
   });
+  if(!esInversion){
+    const cv=document.getElementById('ccf-curva');
+    if(cv)cv.value='none';
+    CCF_PCTS=[0];
+    renderPcts();
+  }
 }
 
 // ── Curva de capitalización ──
@@ -441,14 +465,15 @@ export function abrirFormCC(nivel,padre){
   document.getElementById('ccf-fecha-wrap').style.display=esN2?'':'none';
   if(esN2){
     document.getElementById('ccf-padre').innerHTML=predios().map(p=>`<option value="${p.id}" ${p.id===padre?'selected':''}>${p.nombre}</option>`).join('');
-    document.getElementById('ccf-estado').value='operativo';
-    document.getElementById('ccf-curva').value='cerezo';
+    document.getElementById('ccf-estado').value='normal';
+    document.getElementById('ccf-curva').value='none';
     document.getElementById('ccf-cuenta-costo').value='3101003';
-    CCF_PCTS=[...curvaInfo('cerezo').pcts];
+    CCF_PCTS=[0];
     renderPcts();
     onTipoCentroChange();
   }
-  ['ccf-curva-wrap','ccf-pcts-wrap','ccf-cuenta-wrap'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=esN2?'':'none';});
+  if(esN2)onTipoCentroChange();
+  else ['ccf-curva-wrap','ccf-pcts-wrap','ccf-cuenta-wrap','ccf-fecha-wrap'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
   f.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -469,14 +494,15 @@ export function editarCC(id){
     const sel=document.getElementById('ccf-estado');
     if(c.estado==='capitalizado'&&!sel.querySelector('[value="capitalizado"]'))
       sel.innerHTML+='<option value="capitalizado">Capitalizado</option>';
-    sel.value=c.estado||'formacion';
-    document.getElementById('ccf-curva').value=c.curva||'custom';
+    sel.value=c.estado||'normal';
+    document.getElementById('ccf-curva').value=c.curva||((c.estado==='formacion'||c.estado==='capitalizado')?'custom':'none');
     document.getElementById('ccf-cuenta-costo').value=c.cuentaCosto||'3101003';
-    CCF_PCTS=(c.pctsCapitalizacion&&c.pctsCapitalizacion.length)?[...c.pctsCapitalizacion]:[...curvaInfo(c.curva).pcts];
+    CCF_PCTS=(c.pctsCapitalizacion&&c.pctsCapitalizacion.length)?[...c.pctsCapitalizacion]:[...curvaInfo(c.curva||((c.estado==='formacion'||c.estado==='capitalizado')?'cerezo':'none')).pcts];
     renderPcts();
     onTipoCentroChange();
   }
-  ['ccf-curva-wrap','ccf-pcts-wrap','ccf-cuenta-wrap'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=esN2?'':'none';});
+  if(esN2)onTipoCentroChange();
+  else ['ccf-curva-wrap','ccf-pcts-wrap','ccf-cuenta-wrap','ccf-fecha-wrap'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
   f.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -494,11 +520,12 @@ export async function guardarCC(){
   if(nivel===2){
     campos.padre=document.getElementById('ccf-padre').value;
     campos.estado=document.getElementById('ccf-estado').value;
-    campos.fechaInicio=document.getElementById('ccf-fecha').value;
-    campos.curva=document.getElementById('ccf-curva').value;
-    campos.pctsCapitalizacion=[...CCF_PCTS];
-    campos.cuentaCosto=document.getElementById('ccf-cuenta-costo').value;
-    if(!campos.padre){toast('⚠️ Selecciona el predio','e');return;}
+    const esInversion=campos.estado==='formacion'||campos.estado==='capitalizado';
+    campos.fechaInicio=esInversion?document.getElementById('ccf-fecha').value:'';
+    campos.curva=esInversion?(document.getElementById('ccf-curva').value||'none'):'none';
+    campos.pctsCapitalizacion=esInversion?[...CCF_PCTS]:[0];
+    campos.cuentaCosto=esInversion?(document.getElementById('ccf-cuenta-costo').value||'3101003'):null;
+    if(!campos.padre){toast('⚠️ Selecciona el centro principal','e');return;}
   }
   if(CCF.editId)actualizarCentro(CCF.editId,campos);
   else crearCentro({nivel,...campos});

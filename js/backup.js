@@ -110,8 +110,8 @@ function construirWorkbookBD(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([trHdr,...trRows]),'Trabajadores');
 
   // CENTROS DE COSTO (predios y cuarteles)
-  const ccHdr=['id','nivel','nombre','codigo','padre','estado','fechaInicio','capitalizadoEn'];
-  const ccRows=(S.centros||[]).map(c=>ccHdr.map(k=>c[k]!==undefined&&c[k]!==null?c[k]:''));
+  const ccHdr=['id','nivel','nombre','codigo','padre','estado','fechaInicio','curva','pctsCapitalizacionJSON','cuentaCosto','capitalizadoEn'];
+  const ccRows=(S.centros||[]).map(c=>ccHdr.map(k=>k==='pctsCapitalizacionJSON'?JSON.stringify(c.pctsCapitalizacion||null):(c[k]!==undefined&&c[k]!==null?c[k]:'')));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ccHdr,...ccRows]),'CentrosCosto');
 
   // PLAN DE CUENTAS (solo referencia, no se importa)
@@ -454,8 +454,10 @@ async function importarExcelBD(file){
       S.centros=ccRows.map(r=>({
         id:r.id||'cc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
         nivel:+r.nivel||1,nombre:r.nombre||'',codigo:String(r.codigo||''),
-        padre:r.padre||null,estado:r.estado||null,
-        fechaInicio:r.fechaInicio||'',capitalizadoEn:r.capitalizadoEn||null,
+        padre:r.padre||null,estado:r.estado||(+r.nivel===2?'normal':null),
+        fechaInicio:r.fechaInicio||'',curva:r.curva||((r.estado==='formacion'||r.estado==='capitalizado')?'cerezo':'none'),
+        pctsCapitalizacion:(()=>{try{return r.pctsCapitalizacionJSON?JSON.parse(r.pctsCapitalizacionJSON):null;}catch(e){return null;}})(),
+        cuentaCosto:r.cuentaCosto||null,capitalizadoEn:r.capitalizadoEn||null,
       }));
     }
 
