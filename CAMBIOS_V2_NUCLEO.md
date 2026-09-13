@@ -671,3 +671,11 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Cancelar/X/Atrás sobre un formulario descarta el estado incompleto sin guardar.
 - La capa común agrega un botón Cancelar al pie de formularios de ingreso que no lo tengan.
 
+
+
+## V2.16.22 — Buscador de Comprobantes estable en móvil
+
+- El buscador **glosa o cuenta** deja de reconstruir la vista de forma inmediata con cada tecla.
+- Se incorpora una espera de 220 ms y restauración explícita de foco/cursor después del filtrado.
+- En Android/PWA el teclado permanece disponible para seguir escribiendo términos completos.
+- Cambiar otros filtros o pulsar **Limpiar** cancela búsquedas pendientes para evitar reenfoques inesperados.

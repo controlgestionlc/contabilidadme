@@ -2,7 +2,7 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.16.21 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
+> **Estado actual:** V2.16.22 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
 
 ---
 
@@ -10,6 +10,8 @@ Sistema web contable, tributario y de control para empresas chilenas, diseñado 
 ## Control de descuadres y operación móvil de Comprobantes
 
 En teléfonos, **Comprobantes** utiliza fichas verticales en vez de obligar a navegar una tabla horizontal ancha. Cada ficha mantiene visibles el número, fecha, origen, glosa y los totales **Debe / Haber** en dos columnas iguales. La tabla completa se conserva en escritorio.
+
+El campo **Buscar por glosa o cuenta** está optimizado para Android/PWA: la lista se filtra con una espera breve mientras se escribe y, al actualizarse, recupera automáticamente el foco y la posición del cursor. Esto evita que el teclado virtual se cierre tras ingresar el primer carácter.
 
 Los descuadres se detectan sobre el Diario completo. Cuando existe uno, la alerta muestra el **N° de comprobante como acción clicable**: al tocarlo, la aplicación abre el documento de Compras/Ventas, el asiento manual, la apertura o el honorario correspondiente. La alerta no se almacena manualmente; se recalcula desde los movimientos, por lo que desaparece automáticamente cuando Debe y Haber vuelven a cuadrar.
 
