@@ -83,6 +83,12 @@ function ejecutarRegresionContableCompleta(){
     add('Factura de compra DTE 45/46 con retención','Compras',()=>{
       [45,46].forEach(tipo=>{const a=asientoCompra({id:'rc'+tipo,fecha:'2026-09-07',tipoDTE:tipo,numero:String(tipo),rutCodigo:'22222222',rutDV:'2',razonSocial:'PROVEEDOR',neto:100000,iva:19000,ivaRetenido:19000,total:119000,dist:[{cuenta:'5101001',monto:100000}]});assert(cuadratura(a.movs).ok,`DTE ${tipo} descuadrado`);assert(eq(-saldoCuenta([{movs:a.movs}],'2103005'),19000),`Retención DTE ${tipo} incorrecta`);});return 'DTE 45 y 46 balanceados';
     });
+    add('NC de factura de compra revierte retención','Compras',()=>{
+      const a=asientoCompra({id:'rc61ret',fecha:'2026-09-07',tipoDTE:61,numero:'249',rutCodigo:'22222222',rutDV:'2',razonSocial:'PROVEEDOR',neto:50000000,iva:9500000,ivaRetenido:9500000,total:50000000,totalIncluyeRetencion:false,dist:[{cuenta:'5101001',monto:50000000}]});
+      assert(cuadratura(a.movs).ok,'NC con retención descuadrada');
+      assert(eq(saldoCuenta([{movs:a.movs}],'2103005'),9500000),'NC no revirtió IVA retenido');
+      return 'Proveedor e IVA retenido revertidos';
+    });
     add('RCV conserva fecha documental','Compras',()=>{const d={fecha:'2026-08-15',periodoContable:'2026-09',fechaContabilizacion:'2026-09-30'};assert(fechaContabilizacionCompra(d)==='2026-09-30','Fecha contable incorrecta');assert(d.fecha==='2026-08-15','Fecha DTE alterada');return '15-08 contabiliza 30-09';});
 
     // 3. Honorarios / pagos / auxiliares

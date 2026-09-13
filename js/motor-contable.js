@@ -68,7 +68,10 @@ function asientoVenta(d){
 // puede informar `ivaRetenido` explícitamente para soportar casos parciales.
 function tributacionCompra(d){
   const tipo=+d.tipoDTE;
-  const facturaCompra=tipo===45||tipo===46;
+  // Una NC (61) que revierte una factura de compra trae `ivaRetenido`
+  // explícito desde el RCV. Debe revertir también la retención, no tratarse
+  // como una NC de proveedor corriente.
+  const facturaCompra=tipo===45||tipo===46||(tipo===61&&n(d.ivaRetenido)>0);
   const base=n(d.neto)+n(d.exento)+n(d.otrosImpuestos);
   const iva=n(d.iva);
   if(!facturaCompra){

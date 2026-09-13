@@ -28,7 +28,9 @@ function fijarCF(editId,dist){
 function validarCuadraturaImportCompras(){
   const out=[];
   IM.docs.forEach((d,i)=>{
-    if(!d.incluir)return;
+    // Sin cuenta todavía no existe un asiento completo que validar. Es un
+    // pendiente de clasificación, no un descuadre del documento del SII.
+    if(!d.incluir||!d.cuenta)return;
     const base=(+d.neto||0)+(+d.exento||0);
     const prev=d.dup||null;
     let dist=[{cuenta:d.cuenta||'',monto:base,cc:d.cc||''}];
@@ -59,6 +61,12 @@ function alertaCuadraturaImportCompras(lista){
   if(!lista.length)return '';
   const items=lista.slice(0,8).map(x=>`<button type="button" class="imp-pending-link" onclick="enfocarPendienteImportC(${x.idx})">DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}</button>`).join('');
   return `<div class="imp-pending-alert"><strong>⚠️ ${lista.length} documento${lista.length===1?'':'s'} quedarían descuadrado${lista.length===1?'':'s'}.</strong><div class="imp-pending-links">${items}${lista.length>8?`<span>… y ${lista.length-8} más</span>`:''}</div><span>Se avisará antes de guardar. Los documentos cuadrados sí pueden importarse; estos quedarán pendientes en esta ventana para revisión.</span></div>`;
+}
+
+function alertaSinCuentaImportCompras(lista){
+  if(!lista.length)return '';
+  const items=lista.slice(0,8).map(x=>`<button type="button" class="imp-pending-link" onclick="enfocarPendienteImportC(${x.idx})">DTE ${x.tipoDTE} N° ${x.numero}</button>`).join('');
+  return `<div class="imp-pending-alert" style="border-color:var(--warn);background:rgba(210,153,34,.08)"><strong style="color:var(--warn)">⚠️ ${lista.length} documento${lista.length===1?'':'s'} sin cuenta asignada.</strong><div class="imp-pending-links">${items}${lista.length>8?`<span>… y ${lista.length-8} más</span>`:''}</div><span>Los montos del RCV están cuadrados. Asigna una cuenta de gasto o activo para completar y guardar estos documentos.</span></div>`;
 }
 
 // ═══ CORRELATIVO MENSUAL PERSISTENTE ═══
@@ -902,7 +910,9 @@ function renderImportModal(){
   const manuales=IM.docs.filter(d=>d.estadoImport==='manual').length;
   const descuadrados=validarCuadraturaImportCompras();
   const badIdx=new Set(descuadrados.map(x=>x.idx));
-  const listos=IM.docs.filter((d,i)=>d.incluir&&!badIdx.has(i));
+  const sinCuenta=IM.docs.map((d,idx)=>({...d,idx})).filter(d=>d.incluir&&!d.cuenta);
+  const noAccountIdx=new Set(sinCuenta.map(x=>x.idx));
+  const listos=IM.docs.filter((d,i)=>d.incluir&&d.cuenta&&!badIdx.has(i));
 
   // Info del periodo
   const periodoStr=`${MESES[IM.periodoMes-1]} ${IM.periodoAnio}`;
@@ -947,8 +957,8 @@ function renderImportModal(){
     ` · <strong style="color:var(--mt)">${iguales} sin cambios</strong>`+
     (cambiados?` · <strong style="color:var(--warn)">${cambiados} con cambios SII</strong>`:'')+
     (manuales?` · <strong style="color:var(--info)">${manuales} ya en asiento manual</strong>`:'')+
-    ` · Archivo: <code style="font-family:var(--mono);font-size:11px">${IM.archivo||'-'}</code>`+avisoModo+alertaCuadraturaImportCompras(descuadrados);
-  document.getElementById('imp-count').textContent=descuadrados.length?`${listos.length} listos · ${descuadrados.length} pendientes por cuadratura`:`${conCuenta}/${incl} con cuenta asignada`;
+    ` · Archivo: <code style="font-family:var(--mono);font-size:11px">${IM.archivo||'-'}</code>`+avisoModo+alertaCuadraturaImportCompras(descuadrados)+alertaSinCuentaImportCompras(sinCuenta);
+  document.getElementById('imp-count').textContent=`${listos.length} listos${sinCuenta.length?` · ${sinCuenta.length} sin cuenta`:''}${descuadrados.length?` · ${descuadrados.length} con descuadre real`:''}`;
 
   // Botón OK
   const btnOk=document.getElementById('imp-btn-ok');
@@ -956,7 +966,7 @@ function renderImportModal(){
   const nListos=listos.length;
   btnOk.textContent=sobre
     ?`♻️ Conciliar ${periodoStr}: ${nListos} cambio${nListos===1?'':'s'}${descuadrados.length?` · ${descuadrados.length} pendiente${descuadrados.length===1?'':'s'}`:''}${ausentes?` + ${ausentes} ausencia${ausentes===1?'':'s'}`:''}`
-    :`💾 Aplicar ${nListos} documento${nListos===1?'':'s'}${descuadrados.length?` · dejar ${descuadrados.length} pendiente${descuadrados.length===1?'':'s'}`:''}`;
+    :`💾 Aplicar ${nListos} documento${nListos===1?'':'s'}${sinCuenta.length?` · ${sinCuenta.length} sin cuenta`:''}${descuadrados.length?` · ${descuadrados.length} con descuadre`:''}`;
   btnOk.disabled=(nListos===0&&ausentes===0);
   btnOk.title=descuadrados.length?'Los descuadrados no se guardarán: quedarán pendientes para revisión':'';
 
@@ -967,7 +977,7 @@ function renderImportModal(){
 
   // Filas: cada una usa buscador dinámico (compra = gasto + activo)
   document.getElementById('imp-rows').innerHTML=IM.docs.map((d,i)=>{
-    const pendiente=badIdx.has(i);
+    const pendiente=badIdx.has(i)||noAccountIdx.has(i);
     const cls='imp-row'+(d.dup?' dup':'')+(!d.incluir?' excluded':'')+(pendiente?' imp-pending-row':'');
     const [y,m]=d.fechaOriginal.split('-');
     const fueraP=+y!==IM.periodoAnio||+m!==IM.periodoMes;
@@ -976,7 +986,9 @@ function renderImportModal(){
       ? `<span style="color:var(--err)" title="Fecha documental fuera del período RCV">${d.fechaOriginal}</span><div style="font-size:9px;color:var(--info)">Contab. → ${fechaContabilizacionImport(d)}</div>`
       : d.fechaOriginal)+vtoShow;
     const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
-    const estado=pendiente
+    const estado=noAccountIdx.has(i)
+      ?`<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportC(${i})" style="color:var(--warn)">⚠ SIN CUENTA</button>`
+      :pendiente
       ?`<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportC(${i})">⚠ PENDIENTE</button>`
       :d.estadoImport==='manual'
       ?`<span class="dup-badge" style="background:rgba(88,166,255,.12);color:var(--info)" title="Este DTE ya existe dentro de un asiento manual y el importador no lo modificará">YA EN ASIENTO</span>`
@@ -1059,7 +1071,9 @@ async function confirmarImportacion(){
   const seleccionados=IM.docs.filter(d=>d.incluir);
   const descuadrados=validarCuadraturaImportCompras();
   const badIdx=new Set(descuadrados.map(x=>x.idx));
-  const incluidos=IM.docs.filter((d,i)=>d.incluir&&!badIdx.has(i));
+  const sinCuenta=IM.docs.map((d,idx)=>({...d,idx})).filter(d=>d.incluir&&!d.cuenta);
+  const sinCuentaIdx=new Set(sinCuenta.map(x=>x.idx));
+  const incluidos=IM.docs.filter((d,i)=>d.incluir&&d.cuenta&&!badIdx.has(i)&&!sinCuentaIdx.has(i));
   const modo=IM.modo||'agregar';
   const enPeriodoActivos=modo==='sobrescribir'?docsLibroDelPeriodo().filter(d=>d.estado!=='anulado'):[];
   const clavesFuente=new Set(IM.docs.map(claveDocCompra));
@@ -1077,10 +1091,9 @@ async function confirmarImportacion(){
     const ok=confirm(`⚠️ Se detectaron ${descuadrados.length} documento(s) que producirían un comprobante descuadrado.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nEstos NO se guardarán. Se procesarán ${incluidos.length} documento(s) cuadrados y los descuadrados quedarán pendientes en esta ventana para corregir o revisar.\n\n¿Continuar?`);
     if(!ok){renderImportModal();return;}
   }
-  const sinCuenta=incluidos.filter(d=>!d.cuenta);
-  if(sinCuenta.length){
-    toast(`⚠️ ${sinCuenta.length} documento${sinCuenta.length===1?' no tiene':'s no tienen'} cuenta asignada`,'e');
-    return;
+  if(sinCuenta.length&&!incluidos.length&&!ausentesFuente.length){
+    toast(`⚠️ Asigna una cuenta a los ${sinCuenta.length} documento${sinCuenta.length===1?'':'s'} pendientes`,'e');
+    renderImportModal();return;
   }
   const cambiosSeleccionados=incluidos.filter(d=>d.estadoImport==='cambio');
   if(cambiosSeleccionados.length){
@@ -1328,16 +1341,19 @@ async function confirmarImportacion(){
     guardarFichasAux().catch(e=>console.warn('No se pudo guardar ficha auxiliar:',e));
   }
 
-  const pendientesCuadratura=IM.docs.filter((d,i)=>badIdx.has(i));
-  if(pendientesCuadratura.length){
-    IM.docs=pendientesCuadratura;
-    IM.docs.forEach(d=>{d.incluir=true;d.estadoImport='pendiente_cuadratura';});
+  // Mantener abierta la ventana con todo lo que todavía requiere acción:
+  // descuadre real o falta de cuenta. Antes, los sin cuenta desaparecían de la
+  // vista después de aplicar el resto del lote.
+  const pendientes=IM.docs.filter((d,i)=>badIdx.has(i)||sinCuentaIdx.has(i));
+  if(pendientes.length){
+    IM.docs=pendientes;
+    IM.docs.forEach(d=>{d.incluir=true;d.estadoImport=d.cuenta?'pendiente_cuadratura':'pendiente_cuenta';});
     renderImportModal();
   }else cerrarImportModal();
   const periodoStr=periodoStrConf;
   const msgProv=proveedoresNuevos.size?` · ${proveedoresNuevos.size} proveedor${proveedoresNuevos.size===1?'':'es'} nuevo${proveedoresNuevos.size===1?'':'s'} detectado${proveedoresNuevos.size===1?'':'s'} en auxiliares`:'';
   const msgFichas=(fichasCreadas||fichasActualizadas)?` · fichas: ${fichasCreadas} nuevas${fichasActualizadas?', '+fichasActualizadas+' completadas':''}`:'';
-  const msgPend=pendientesCuadratura.length?` · ⚠️ ${pendientesCuadratura.length} pendiente${pendientesCuadratura.length===1?'':'s'} por cuadratura`:'';
+  const msgPend=pendientes.length?` · ⚠️ ${pendientes.length} pendiente${pendientes.length===1?'':'s'} de clasificación/revisión`:'';
   if(modo==='sobrescribir'){
     toast(`♻️ ${periodoStr} reemplazado — ${agregados} documento${agregados===1?'':'s'} · ${reemplazados} conservaron su correlativo${depurados?` · ${depurados} anulado${depurados===1?'':'s'}`:''}${msgFichas}${msgPend}`);
     logAccion('Sobrescribió compras SII',`${periodoStr}: ${agregados} nuevos/cambiados, ${reemplazados} ya presentes, ${depurados} anulados por ausencia en RCV`);

@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-1140';
+const APP_VERSION='v2026.09.13-1600';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.25',fecha:'13-09-2026',titulo:'Captura RCV cuadrada y clasificación pendiente',items:[
+    {tipo:'arreglo',txt:'Compras ya no presenta como descuadre contable un documento que sólo está pendiente de asignar a una cuenta de gasto o activo.'},
+    {tipo:'arreglo',txt:'El lector distingue Código Otro Impuesto de Valor Otro Impuesto y acumula correctamente documentos del SII que distribuyen varios impuestos en filas continuadas.'},
+    {tipo:'arreglo',txt:'Facturas de compra DTE 45/46 y sus notas de crédito contabilizan el IVA retenido sin duplicarlo como costo u otro impuesto.'},
+    {tipo:'seguridad',txt:'Los documentos sin cuenta permanecen visibles en el importador después de aplicar el resto del lote y sólo se guardan cuando su clasificación está completa.'},
+    {tipo:'cambio',txt:'La captura conserva por separado IVA recuperable, no recuperable, de uso común y de activo fijo para Compras, tanto desde CSV como desde Excel.'}
+  ]},
   {version:'V2.16.24',fecha:'13-09-2026',titulo:'Fecha de vencimiento automática en capturadores SII',items:[
     {tipo:'nuevo',txt:'Los capturadores de Compras y Ventas leen la fecha de vencimiento cuando viene informada en el archivo RCV/Excel/CSV del SII.'},
     {tipo:'cambio',txt:'Si el archivo no informa vencimiento, el sistema asigna automáticamente emisión + 30 días y guarda la fecha en el documento para auxiliares, pagos, aging y flujo de caja.'},

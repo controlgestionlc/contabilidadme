@@ -89,6 +89,15 @@ function splitCSVRow(line,delim=','){
 
 // Detecta la columna por variantes del encabezado
 function findCol(headers,...variantes){
+  // Preferir coincidencia exacta. En el RCV existen pares como
+  // "Codigo Otro Impuesto" / "Valor Otro Impuesto" e "IVA Recuperable" /
+  // "IVA No Recuperable"; una coincidencia parcial puede leer la columna
+  // equivocada aunque ambas estén presentes.
+  for(const v of variantes){
+    const needle=v.toLowerCase().trim();
+    const idx=headers.findIndex(h=>h===needle);
+    if(idx>=0)return idx;
+  }
   for(const v of variantes){
     const idx=headers.findIndex(h=>h.includes(v.toLowerCase()));
     if(idx>=0)return idx;
@@ -126,9 +135,11 @@ function parseFilas(rows,tipo){
   const cNeto   = findCol(headers,'monto neto','neto');
   const cIvaRec = findCol(headers,'iva recuperable','monto iva recuperable');
   const cIvaNoRec = findCol(headers,'iva no recuperable','monto iva no recuperable');
+  const cIvaUso = findCol(headers,'iva uso comun','iva uso común');
   const cIva    = findCol(headers,'monto iva','iva');
   const cTotal  = findCol(headers,'monto total','total');
-  const cOtro   = findCol(headers,'valor otro impuesto','otro impuesto','otros impuestos');
+  const cOtro   = findCol(headers,'valor otro impuesto','valor otros impuestos','otros impuestos');
+  const cCodOtro= findCol(headers,'codigo otro impuesto','código otro impuesto');
   const cNetoAF = findCol(headers,'monto neto activo fijo','neto activo fijo');
   const cIvaAF  = findCol(headers,'iva activo fijo');
   const cNroSII = findCol(headers,'nro');   // "Nro" (contador SII) — indica documento nuevo
@@ -163,7 +174,21 @@ function parseFilas(rows,tipo){
       if(docs.length){
         const extra=cOtro>=0?Math.abs(parseNumSII(r[cOtro])):0;
         if(extra>0){
-          docs[docs.length-1].otrosImpuestos+=extra;
+          const anterior=docs[docs.length-1];
+          // Facturas de compra y sus NC informan el IVA retenido como "otro
+          // impuesto". No es un costo adicional: se contabiliza como retención.
+          const esRetencion=(+anterior.tipoDTE===45||+anterior.tipoDTE===46||+anterior.tipoDTE===61)&&
+            Math.abs(extra-Math.abs(+anterior.iva||0))<=1;
+          if(esRetencion){
+            anterior.ivaRetenido=Math.max(+anterior.ivaRetenido||0,extra);
+            anterior.totalSII=anterior.total;
+          }else{
+            anterior.otrosImpuestos+=extra;
+            anterior.otrosImpuestosDetalle.push({
+              tipo:String(cCodOtro>=0?r[cCodOtro]||'otro':'otro'),nombre:'Otro impuesto RCV',
+              monto:extra,tratamiento:'costo'
+            });
+          }
           continuaciones++;
         }
       }
@@ -185,10 +210,13 @@ function parseFilas(rows,tipo){
     const neto=Math.abs(parseNumSII(r[cNeto]));
     const netoAF=cNetoAF>=0?Math.abs(parseNumSII(r[cNetoAF])):0;
     const exento=Math.abs(parseNumSII(r[cExento]));
-    let iva=0;
-    if(cIvaRec>=0)iva+=Math.abs(parseNumSII(r[cIvaRec]));
-    if(cIvaNoRec>=0)iva+=Math.abs(parseNumSII(r[cIvaNoRec]));
-    if(cIvaAF>=0)iva+=Math.abs(parseNumSII(r[cIvaAF]));
+    const ivaRecuperable=cIvaRec>=0?Math.abs(parseNumSII(r[cIvaRec])):null;
+    const ivaNoRecuperable=cIvaNoRec>=0?Math.abs(parseNumSII(r[cIvaNoRec])):null;
+    const ivaUsoComun=cIvaUso>=0?Math.abs(parseNumSII(r[cIvaUso])):0;
+    const ivaActivoFijo=cIvaAF>=0?Math.abs(parseNumSII(r[cIvaAF])):0;
+    let iva=(ivaRecuperable||0)+(ivaNoRecuperable||0);
+    // IVA activo fijo y uso común son clasificaciones del crédito informado,
+    // no importes adicionales que deban sumarse nuevamente.
     if(!iva&&cIva>=0)iva=Math.abs(parseNumSII(r[cIva]));
     const total=Math.abs(parseNumSII(r[cTotal]));
     const otrosImpuestos=cOtro>=0?Math.abs(parseNumSII(r[cOtro])):0;
@@ -202,7 +230,9 @@ function parseFilas(rows,tipo){
     // `ivaRetenido` y deriva totalDocumento/totalProveedor en forma canónica.
     let otrosFinal=otrosImpuestos;
     const facturaCompra=tipoDTE===45||tipoDTE===46;
-    if(facturaCompra)otrosFinal=0;
+    const ncFacturaCompra=tipoDTE===61&&iva>0&&Math.abs(otrosImpuestos-iva)<=1&&
+      Math.abs(total-(neto+exento))<=1;
+    if(facturaCompra||ncFacturaCompra)otrosFinal=0;
 
     // ── Dedup dentro del archivo ──
     // Clave: RUT + tipoDTE + número. El SII a veces trae la misma factura
@@ -215,8 +245,17 @@ function parseFilas(rows,tipo){
       fecha, fechaVencimiento, fechaVencimientoOrigen, tipoDTE, numero,
       rutCodigo:rutInfo.codigo, rutDV:rutInfo.dv,
       razonSocial:String(r[cRazon]||'').trim(),
-      neto, exento, iva, otrosImpuestos:otrosFinal, total,
-      ...(facturaCompra?{ivaRetenido:iva,totalSII:total}:{}),
+      neto, exento, iva,
+      ...(ivaRecuperable!=null?{ivaRecuperable}:{}),
+      ...(ivaNoRecuperable!=null?{ivaNoRecuperable}:{}),
+      ...(ivaUsoComun?{ivaUsoComun}:{}),
+      ...(ivaActivoFijo?{ivaActivoFijo}:{}),
+      tratamientoIVA:ivaActivoFijo>0?'activo_fijo':(ivaNoRecuperable>0?'sii':'recuperable'),
+      otrosImpuestos:otrosFinal,
+      tratamientoOtrosImpuestos:'costo',
+      otrosImpuestosDetalle:otrosFinal?[{tipo:String(cCodOtro>=0?r[cCodOtro]||'otro':'otro'),nombre:'Otro impuesto RCV',monto:otrosFinal,tratamiento:'costo'}]:[],
+      total,
+      ...((facturaCompra||ncFacturaCompra)?{ivaRetenido:iva,totalSII:total,totalIncluyeRetencion:false}:{}),
       netoAF,   // porción de neto que es activo fijo (guía para asignar cuenta)
     });
   }
