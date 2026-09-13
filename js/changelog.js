@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-0255';
+const APP_VERSION='v2026.09.13-0328';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.17',fecha:'13-09-2026',titulo:'Versión y autor visibles en login',items:[
+    {tipo:'cambio',txt:'La pantalla de inicio de sesión muestra en su parte inferior la versión funcional de la aplicación y la leyenda Desarrollado por R.A.B.F. · 2026.'},
+    {tipo:'arreglo',txt:'La versión del pie de login se obtiene desde la metadata de la publicación para evitar que quede desactualizada en futuras versiones.'}
+  ]},
   {version:'V2.16.16',fecha:'12-09-2026',titulo:'Base Neto/Exento automática al asociar DTE',items:[
     {tipo:'arreglo',txt:'Al abrir DTE desde un asiento de Venta o Compra, el sistema completa inmediatamente la base además del IVA y Total, sin esperar a seleccionar el tipo de documento.'},
     {tipo:'cambio',txt:'Si existe IVA, la base afecta se reconstruye automáticamente y se muestra en Neto; si no existe IVA, la base se presenta provisionalmente en Exento hasta elegir el tipo SII.'},
