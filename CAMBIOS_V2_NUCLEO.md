@@ -639,3 +639,12 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Se incorpora al pie del login la versión funcional vigente.
 - Se agrega la leyenda `Desarrollado por R.A.B.F. · 2026`.
 - `_release.py` sincroniza automáticamente `app-release` y `version.json` con la primera versión del changelog.
+
+
+## V2.16.18 — Gestor de borradores locales y menú por categorías
+- **Configuración → Sistema y Respaldos** incorpora un gestor de borradores locales.
+- Los borradores se agrupan por módulo/formulario, muestran fecha y campos pendientes y pueden **Editar/Continuar** o **Descartarse**.
+- Editar vuelve al módulo original, repone los campos locales y deja que el usuario use el Guardar/Registrar normal; nunca confirma contabilidad automáticamente.
+- Se puede descartar un borrador individual o todos los borradores de la empresa/ejercicio activo.
+- El menú lateral se reorganiza como acordeón por categorías: Registros, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración.
+- Al seleccionar un módulo se conserva expandida su categoría; en móvil el panel queda mucho más corto y navegable.

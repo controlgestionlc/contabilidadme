@@ -943,3 +943,12 @@ Los valores existentes en el documento origen o RCV siempre tienen prioridad. La
 ## Identificación de versión en el login
 
 La pantalla de inicio de sesión muestra en su parte inferior la **versión funcional vigente** de la aplicación y la leyenda **“Desarrollado por R.A.B.F. · 2026”**. La versión visible se sincroniza con la primera entrada del changelog durante el proceso de publicación, evitando mantener textos de versión duplicados.
+
+
+## Borradores locales y navegación lateral
+
+Los formularios en edición no se guardan automáticamente como operaciones contables. Mientras el usuario escribe, los campos se respaldan como **borrador local** en el dispositivo, separados por empresa y ejercicio. En **Configuración → Sistema y Respaldos → Borradores locales** se muestra cada trabajo pendiente con módulo, fecha y campos asociados.
+
+Desde allí se puede **Editar** para regresar al módulo original, recuperar los valores y continuar trabajando; el dato sólo pasa a Firebase cuando se usa el botón **Guardar / Registrar / Contabilizar** propio del formulario. También se puede **Descartar** un borrador individual o todos los borradores del contexto activo. Descartar elimina exclusivamente la copia local pendiente y no modifica documentos ya contabilizados.
+
+El menú lateral utiliza categorías plegables para reducir desplazamiento y evitar perderse, especialmente en móvil. Las categorías actuales son **Registros, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración**. Al tocar una categoría se despliegan sus módulos; al entrar en un módulo, su categoría queda recordada como la activa.
