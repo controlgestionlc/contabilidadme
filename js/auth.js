@@ -67,6 +67,7 @@ const SECCIONES=[
   {id:'activofijo',lbl:'Activos Fijos'},
   {id:'provisiones',lbl:'Provisiones'},
   {id:'correccion',lbl:'Corrección Monetaria'},
+  {id:'cierresmensuales',lbl:'Cierres Mensuales'},
   {id:'cierre',lbl:'Cierre del Ejercicio'}
 ];
 

@@ -7,6 +7,8 @@ import {validarMovimientosPDC,reglaCuenta} from './pdc-reglas.js';
 import {dteV,dteC} from './core.js';
 import {asegurarNumerosContables} from './correlativo-contable.js';
 import {validarAsientoCentral,validarMutacionAsientos,leerAsientosPersistidosLocal} from './asiento-validacion.js';
+import {puedeEditar} from './auth.js';
+import {empresaActiva,puedeVerEmpresa} from './empresas.js';
 
 const n=v=>Number(v)||0;
 const idAsientoDoc=(fuente,docId)=>`auto:${fuente}:${docId}`;
@@ -73,11 +75,17 @@ function puedeOperarFecha(fecha){
   if(anio===+S.empresa.anio&&ejercicioCerrado())return false;
   return !periodoCerrado(fecha);
 }
+function puedeGestionarCierresMensuales(){
+  const u=AUTH.user;
+  if(!u?.activo||!['admin','contador'].includes(u.rol))return false;
+  const e=empresaActiva();
+  return !!e&&puedeVerEmpresa(e)&&puedeEditar('cierresmensuales');
+}
 async function cerrarPeriodoContable(periodo,motivo='Cierre mensual de control'){
   if(!/^\d{4}-\d{2}$/.test(String(periodo||'')))return {ok:false,motivo:'periodo-invalido'};
   if(+String(periodo).slice(0,4)!==+S.empresa.anio)return {ok:false,motivo:'otro-ejercicio'};
   if(ejercicioCerrado())return {ok:false,motivo:'ejercicio-cerrado'};
-  if(AUTH.user?.rol!=='admin'&&AUTH.user?.rol!=='contador')return {ok:false,motivo:'sin-permiso'};
+  if(!puedeGestionarCierresMensuales())return {ok:false,motivo:'sin-permiso'};
   if(periodoCerrado(periodo))return {ok:true,yaCerrado:true};
   const aud=auditoriaIntegridad();
   if((aud.porSeveridad?.critica||0)>0)return {ok:false,motivo:'integridad-critica',criticas:aud.porSeveridad.critica};
@@ -91,7 +99,8 @@ async function cerrarPeriodoContable(periodo,motivo='Cierre mensual de control')
   return {ok:true,registro:rec};
 }
 async function reabrirPeriodoContable(periodo,motivo){
-  if(AUTH.user?.rol!=='admin')return {ok:false,motivo:'solo-admin'};
+  if(!puedeGestionarCierresMensuales())return {ok:false,motivo:'sin-permiso'};
+  if(ejercicioCerrado())return {ok:false,motivo:'ejercicio-cerrado'};
   if(!motivo||String(motivo).trim().length<10)return {ok:false,motivo:'motivo-corto'};
   const rec=(S.cierresContables||[]).find(c=>c.periodo===periodo&&c.estado==='cerrado');
   if(!rec)return {ok:false,motivo:'no-cerrado'};

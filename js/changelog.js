@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-0849';
+const APP_VERSION='v2026.09.13-1116';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.23',fecha:'13-09-2026',titulo:'Cierres mensuales operativos para contadores',items:[
+    {tipo:'nuevo',txt:'Cierres Mensuales se separa de Auditoría de Integridad y aparece como módulo propio dentro de Cierre de Ejercicio.'},
+    {tipo:'cambio',txt:'Administradores y contadores con acceso de edición a la empresa activa pueden cerrar y reabrir períodos mensuales; la reapertura exige motivo y queda auditada.'},
+    {tipo:'cambio',txt:'El cierre anual y su reapertura quedan disponibles para contadores autorizados en sus empresas asignadas, manteniendo motivo obligatorio, trazabilidad y validaciones contables.'},
+    {tipo:'seguridad',txt:'Auditoría de Integridad continúa siendo exclusiva del administrador; un cierre bloqueado por hallazgos críticos informa al contador sin exponer el panel técnico.'}
+  ]},
   {version:'V2.16.22',fecha:'13-09-2026',titulo:'Buscador de Comprobantes estable en móvil',items:[
     {tipo:'arreglo',txt:'El buscador por glosa o cuenta ya no destruye el campo de texto con cada pulsación en Android, evitando que el teclado se cierre después del primer carácter.'},
     {tipo:'cambio',txt:'La búsqueda aplica un debounce breve de 220 ms, conserva foco, cursor y posición de desplazamiento mientras actualiza los resultados.'},

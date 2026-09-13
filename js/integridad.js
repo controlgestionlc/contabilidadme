@@ -1,4 +1,4 @@
-import {auditoriaIntegridad,migrarDocumentosAAsientos,ejercicioCerrado,periodoCerrado,cerrarPeriodoContable,reabrirPeriodoContable} from './contabilidad-v2.js';
+import {auditoriaIntegridad,migrarDocumentosAAsientos,ejercicioCerrado,periodoCerrado} from './contabilidad-v2.js';
 import {estadoPreparacionProductiva,ejecutarPruebasProductivas,ejecutarRegresionContableCompleta,iniciarPruebaConcurrencia,prepararPruebaConcurrencia,escribirPruebaConcurrencia,verificarPruebaConcurrencia,ejecutarSimulacroRestauracion} from './hardening.js';
 import {toast,MESES} from './core.js';
 import {S,AUTH} from './state.js';
@@ -95,16 +95,6 @@ function renderIntegridad(){
     <div id="piloto-contenido"></div>
   </div>
 
-  <div class="card" style="margin-bottom:14px">
-    <div class="card-title">🔒 Cierre contable mensual</div>
-    <div class="info-tip" style="margin-bottom:10px">Bloquea altas, modificaciones, anulaciones y asientos cuya <strong>fecha de contabilización</strong> pertenezca al período cerrado. En compras RCV se usa <code>periodoContable/fechaContabilizacion</code>, no la fecha original del DTE.</div>
-    <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
-      <div><label>Período</label><select id="hard-periodo" onchange="renderIntegridad()">${opcionesPeriodo()}</select></div>
-      <button class="btn btn-i" onclick="cerrarMesContableUI()" ${ejercicioCerrado()?'disabled':''}>🔒 Cerrar período</button>
-      <button class="btn btn-g" onclick="reabrirMesContableUI()" ${AUTH.user?.rol!=='admin'?'disabled title="Sólo administrador"':''}>🔓 Reabrir período</button>
-    </div>
-    <div style="margin-top:8px"><span class="badge ${periodoCerrado(per)?'br':''}">${periodoCerrado(per)?'CERRADO':'ABIERTO'}</span></div>
-  </div>
 
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">🌐 Prueba operacional Firebase · 2 equipos</div>
@@ -167,28 +157,6 @@ function renderIntegridad(){
   renderPilotoUI();
 }
 
-async function cerrarMesContableUI(){
-  const per=periodoActualUI();
-  const rec=estadoRecuperacion();
-  const ult=rec.ultimo;
-  const ultTxt=ult?`${new Date(ult.creadoEn).toLocaleString('es-CL')} · ${ult.tipo} · ${ult.totalClaves||0} claves · ${((ult.totalBytes||0)/1024).toFixed(1)} KB`:'Aún no hay snapshots';
-  if(periodoCerrado(per)){toast(`ℹ️ ${per} ya está cerrado`);return;}
-  if(!confirm(`¿Cerrar contablemente ${per}?\n\nNo se podrán registrar ni modificar movimientos contabilizados en ese mes hasta una reapertura formal.`))return;
-  const r=await cerrarPeriodoContable(per,'Cierre mensual desde Hardening Productivo');
-  if(!r.ok){toast(r.motivo==='integridad-critica'?`🚫 No se puede cerrar: existen ${r.criticas} hallazgo(s) crítico(s) de integridad.`:`❌ No se pudo cerrar ${per}: ${r.motivo}`,'e');return;}
-  toast(`🔒 Período ${per} cerrado`);renderIntegridad();
-}
-async function reabrirMesContableUI(){
-  const per=periodoActualUI();
-  const rec=estadoRecuperacion();
-  const ult=rec.ultimo;
-  const ultTxt=ult?`${new Date(ult.creadoEn).toLocaleString('es-CL')} · ${ult.tipo} · ${ult.totalClaves||0} claves · ${((ult.totalBytes||0)/1024).toFixed(1)} KB`:'Aún no hay snapshots';
-  if(!periodoCerrado(per)){toast(`ℹ️ ${per} no está cerrado`);return;}
-  const motivo=prompt(`Motivo de reapertura de ${per} (mínimo 10 caracteres):`,'');
-  const r=await reabrirPeriodoContable(per,motivo||'');
-  if(!r.ok){toast(r.motivo==='solo-admin'?'🔒 Sólo un administrador puede reabrir períodos':r.motivo==='motivo-corto'?'⚠️ Indica un motivo de al menos 10 caracteres':`❌ No se pudo reabrir ${per}`,'e');return;}
-  toast(`🔓 Período ${per} reabierto`);renderIntegridad();
-}
 function ejecutarRegresionContableUI(){
   const r=ejecutarRegresionContableCompleta();toast(r.ok?`✅ Regresión contable: ${r.aprobadas}/${r.total} pruebas aprobadas`:`❌ Regresión contable: ${r.aprobadas}/${r.total} aprobadas · ${r.fallidas} fallida(s)`,r.ok?undefined:'e');renderIntegridad();
 }
@@ -287,4 +255,4 @@ async function migrarAsientosV2(){
   if(!r.ok){toast(r.motivo==='ejercicio-cerrado'?'🔒 No se puede migrar con el ejercicio cerrado':'❌ No se pudo completar la migración','e');return;}
   toast(`✅ Migración V2: ${r.creados} asientos creados, ${r.actualizados} actualizados`);renderIntegridad();
 }
-export {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI};
+export {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI};

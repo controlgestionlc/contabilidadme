@@ -26,7 +26,8 @@ import {cargarUsuarios, renderUsuarios, abrirInvitarUsuario, editarUsuario,
         renderPermisosForm, cerrarUsuarioForm, guardarUsuario, aprobarUsuario,
         desactivarUsuario, US} from './usuarios.js';
 import {renderAuditLog} from './audit.js';
-import {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI} from './integridad.js';
+import {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI} from './integridad.js';
+import {renderCierresMensuales,cerrarMesContableOperativo,reabrirMesContableOperativo} from './cierres-mensuales.js';
 import {initRecovery} from './recovery.js';
 import {cargarPreproduccion,actualizarBadgeEntorno,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion} from './preproduccion.js';
 import {cargarPiloto} from './piloto.js';
@@ -566,6 +567,7 @@ function renderSec(s){
   else if(s==='activofijo')renderActivoFijo();
   else if(s==='provisiones')renderProvisiones();
   else if(s==='correccion')renderCorreccion();
+  else if(s==='cierresmensuales')renderCierresMensuales();
   else if(s==='cierre')renderCierre();
 }
 function rerender(){updateHdr();renderSec(getCurSec());}
@@ -725,7 +727,7 @@ Object.assign(window,{
   renderDiario, setDiarioQ, renderMayor, renderBalance, onCmpYear, renderResultados,
   onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
   onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel,
-  renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,cerrarMesContableUI,reabrirMesContableUI,
+  renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,renderCierresMensuales,cerrarMesContableOperativo,reabrirMesContableOperativo,
   setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion,actualizarBadgeEntorno,
   ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI,
   renderCargaDatos, descargarPlantillaDatos, abrirCargaDatos, renderSistema,

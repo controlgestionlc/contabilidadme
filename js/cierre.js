@@ -6,10 +6,10 @@ import {buildMayor} from './reportes.js';
 import {proxFolioAsiento} from './asientos.js';
 import {IND} from './indicadores.js';
 import {rerender} from './ui.js';
-import {esAdmin} from './auth.js';
+import {puedeEditar} from './auth.js';
 import {logAccion,logCambio} from './firebase.js';
 import {ejercicioCerrado,persistirAsientosCritico,auditoriaIntegridad} from './contabilidad-v2.js';
-import {empresaActiva, marcoInfo} from './empresas.js';
+import {empresaActiva, marcoInfo, puedeVerEmpresa} from './empresas.js';
 import './storage.js';
 
 // ═══ FASE 4: AJUSTES DE CIERRE ═══
@@ -18,6 +18,13 @@ import './storage.js';
 // Calcula el resultado del ejercicio (ingresos − gastos) y prepara el asiento de cierre
 // que salda todas las cuentas de resultado (grupos 3 y 4) contra Resultados Acumulados (2303001).
 const CUENTA_RESULTADOS_ACUM='2303001';
+
+function puedeGestionarCierreAnual(){
+  const u=AUTH.user;
+  if(!u?.activo||!['admin','contador'].includes(u.rol))return false;
+  const e=empresaActiva();
+  return !!e&&puedeVerEmpresa(e)&&puedeEditar('cierre');
+}
 function calcularResultadoEjercicio(){
   const M=buildMayor();
   // Cuentas de resultado con saldo
@@ -40,9 +47,9 @@ function renderCierre(){
       <tr style="background:${resultado>=0?'rgba(46,160,67,.12)':'rgba(248,81,73,.12)'}"><td class="tl" style="padding:11px 12px;font-weight:700;font-size:14px">${resultado>=0?'UTILIDAD':'PÉRDIDA'} DEL EJERCICIO</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:${resultado>=0?'var(--ach)':'var(--err)'}">${fmtC(resultado)}</td></tr>
     </tbody></table>
     ${cuentasRes.length===0?'<div class="empty"><div class="ei">📭</div>No hay cuentas de resultado con movimientos para cerrar.</div>':
-    yaCerrado?`<div class="info-tip" style="background:rgba(210,153,34,.10);border-color:var(--warn)">🔒 Ejercicio ${anio} cerrado con asiento N°${yaCerrado.n}. No se permite generar un segundo cierre.<div style="margin-top:10px"><button class="btn btn-g" onclick="reabrirEjercicio()" ${esAdmin()?'':'disabled title="Sólo administrador"'}>🔓 Reabrir ejercicio</button><span style="margin-left:8px;font-size:10px;color:var(--mt)">Requiere administrador y motivo obligatorio.</span></div></div>`:
+    yaCerrado?`<div class="info-tip" style="background:rgba(210,153,34,.10);border-color:var(--warn)">🔒 Ejercicio ${anio} cerrado con asiento N°${yaCerrado.n}. No se permite generar un segundo cierre.<div style="margin-top:10px"><button class="btn btn-g" onclick="reabrirEjercicio()" ${puedeGestionarCierreAnual()?'':'disabled title="Sin permiso de edición"'}>🔓 Reabrir ejercicio</button><span style="margin-left:8px;font-size:10px;color:var(--mt)">Requiere contador/administrador autorizado y motivo obligatorio.</span></div></div>`:
     `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-p" onclick="generarAsientoCierre()">🔒 Generar asiento de cierre ${anio}</button>
+      <button class="btn btn-p" onclick="generarAsientoCierre()" ${puedeGestionarCierreAnual()?'':'disabled title="Sin permiso de edición"'}>🔒 Generar asiento de cierre ${anio}</button>
       <span style="font-size:11px;color:var(--mt)">Saldará ${cuentasRes.length} cuentas de resultado contra Resultados Acumulados al 31/dic/${anio}.</span>
     </div>`}
     <div style="margin-top:14px;font-size:10px;color:var(--mt)">Cuenta destino: ${CUENTA_RESULTADOS_ACUM} · ${pdcNm(CUENTA_RESULTADOS_ACUM)}. Recomendado hacerlo después de registrar depreciación y provisiones del año.</div>
@@ -50,6 +57,7 @@ function renderCierre(){
 }
 async function generarAsientoCierre(){
   const anio=S.empresa.anio;
+  if(!puedeGestionarCierreAnual()){toast('🚫 No tienes permiso para cerrar este ejercicio en la empresa activa','e');return;}
   const existente=S.asientos.find(a=>!a.anulado&&(a.tipo==='cierre'||(a.glosa&&a.glosa.includes('Cierre del ejercicio '+anio))));
   if(existente){toast(`🔒 El ejercicio ${anio} ya está cerrado (Asiento N°${existente.n})`,'e');return;}
   const aud=auditoriaIntegridad();
@@ -88,11 +96,11 @@ async function generarAsientoCierre(){
 }
 
 // Reapertura formal: conserva el asiento de cierre, pero lo anula con trazabilidad.
-// Sólo un administrador puede reabrir. El motivo queda tanto en el asiento como
+// Administradores y contadores autorizados pueden reabrir su empresa. El motivo queda tanto en el asiento como
 // en audit_log para poder reconstruir quién, cuándo y por qué abrió el período.
 async function reabrirEjercicio(){
   const anio=S.empresa.anio;
-  if(!esAdmin()){toast('🚫 Sólo un administrador puede reabrir un ejercicio','e');return;}
+  if(!puedeGestionarCierreAnual()){toast('🚫 No tienes permiso para reabrir este ejercicio en la empresa activa','e');return;}
   const cierre=(S.asientos||[]).find(a=>!a.anulado&&a.tipo==='cierre'&&(+((a.ejercicio)||String(a.fecha||'').slice(0,4))===+anio));
   if(!cierre){toast(`El ejercicio ${anio} ya está abierto`);return;}
   const anteriorCierre=JSON.parse(JSON.stringify(cierre));
