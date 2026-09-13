@@ -951,7 +951,7 @@ Los formularios en edición no se guardan automáticamente como operaciones cont
 
 Desde allí se puede **Editar** para regresar al módulo original, recuperar los valores y continuar trabajando; el dato sólo pasa a Firebase cuando se usa el botón **Guardar / Registrar / Contabilizar** propio del formulario. También se puede **Descartar** un borrador individual o todos los borradores del contexto activo. Descartar elimina exclusivamente la copia local pendiente y no modifica documentos ya contabilizados.
 
-El menú lateral utiliza categorías plegables para reducir desplazamiento y evitar perderse, especialmente en móvil. Las categorías actuales son **Registros, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración**. Al tocar una categoría se despliegan sus módulos; al entrar en un módulo, su categoría queda recordada como la activa.
+El menú lateral utiliza categorías plegables para reducir desplazamiento y evitar perderse, especialmente en móvil. Las categorías actuales son **Registros, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración**. Al tocar una categoría se despliegan sus módulos; al entrar en un módulo, su categoría queda recordada como la activa. **Comprobantes forma parte de Registros**, junto a los demás módulos de captura y operación diaria.
 
 ## Guardado total y reanudación móvil
 

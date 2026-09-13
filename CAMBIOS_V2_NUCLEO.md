@@ -655,3 +655,9 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - La protección equivalente se aplica a guardados individuales y eliminaciones versionadas.
 - Si un guardado sigue fallando, el mensaje incluye la clave afectada para facilitar el diagnóstico.
 - Se elimina el acceso rápido duplicado **Sistema y Respaldos** del bloque Acciones del menú móvil; el módulo permanece en **Configuración → Sistema y Respaldos**.
+
+
+## V2.16.20 — Comprobantes dentro de Registros
+
+- Se mueve Comprobantes desde Reportes a Registros.
+- Se mantiene una sola entrada de navegación, sin cambios en lógica ni permisos.
