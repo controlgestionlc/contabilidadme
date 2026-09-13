@@ -72,15 +72,41 @@ function inferirDteDesdeAsiento({movs=[],lineaIdx=-1,tipoAux='',tipoDTE=0,actual
   if(!tiene(d.otrosImpuestos)&&otrosAsiento)d.otrosImpuestos=otrosAsiento;
   if(tipoAux==='proveedor'&&!tiene(d.ivaRetenido)&&ivaRetenido)d.ivaRetenido=ivaRetenido;
 
-  // Neto/exento dependen del tipo de DTE. Antes de elegirlo se conserva sólo
-  // lo inequívoco: total e impuestos. Al seleccionarlo se distribuye la base.
-  if(info&&!tiene(d.neto)&&!tiene(d.exento)){
+  // Base Neto/Exento. El usuario pidió que al abrir el DTE ya aparezca la
+  // base contable, incluso ANTES de escoger el tipo SII. Con IVA presente la
+  // parte afecta puede reconstruirse desde el propio impuesto; cualquier
+  // diferencia material contra la base total se conserva como exenta. Si no
+  // hay IVA y aún no se elige DTE, mostramos provisionalmente la base en
+  // Exento; al seleccionar el tipo, los callers con base automática vuelven a
+  // invocar esta función con Neto/Exento en cero y se reclasifica correctamente.
+  if(!tiene(d.neto)&&!tiene(d.exento)){
     const total=Math.abs(n(d.total));
     const iva=Math.abs(n(d.iva));
     const otros=Math.abs(n(d.otrosImpuestos));
     const base=Math.max(0,total-iva-otros);
-    if(info.afecto)d.neto=base;
-    else d.exento=base;
+    if(base>0){
+      if(iva>0){
+        const netoPorIva=Math.max(0,Math.round(iva/0.19));
+        const residuo=base-netoPorIva;
+        // El redondeo del IVA puede mover 1–2 pesos; en ese caso toda la base
+        // se considera afecta. Sólo tratamos como exento un residuo material.
+        if(residuo>2){
+          d.neto=netoPorIva;
+          d.exento=residuo;
+        }else{
+          d.neto=base;
+          d.exento=0;
+        }
+      }else if(info){
+        if(info.afecto)d.neto=base;
+        else d.exento=base;
+      }else{
+        // Sin tipo aún no existe forma inequívoca de saber si una base sin IVA
+        // es afecta o exenta. La mostramos en Exento como clasificación
+        // provisional; al elegir el DTE se reclasifica si corresponde.
+        d.exento=base;
+      }
+    }
   }
 
   return d;

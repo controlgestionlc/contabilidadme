@@ -965,7 +965,7 @@ async function cmpModalGuardar(){
 //
 // Es un modal secundario que se abre sobre el editor principal.
 
-let CMP_DTE={lineaIdx:-1,dte:null,tipoAux:''};
+let CMP_DTE={lineaIdx:-1,dte:null,tipoAux:'',autoBase:false};
 
 function abrirCmpEdDte(lineaIdx){
   const l=CMP_MODAL.edit.movs[lineaIdx];
@@ -979,7 +979,8 @@ function abrirCmpEdDte(lineaIdx){
     rutCodigo:'', rutDV:'', razonSocial:'',
     neto:0, exento:0, iva:0, otrosImpuestos:0, retencion:0, total:0,
   };
-  CMP_DTE={lineaIdx,tipoAux,dte:inferirDteDesdeAsiento({
+  const autoBase=!(Number(l.dte?.neto)||Number(l.dte?.exento));
+  CMP_DTE={lineaIdx,tipoAux,autoBase,dte:inferirDteDesdeAsiento({
     movs:CMP_MODAL.edit.movs,lineaIdx,tipoAux,tipoDTE:base.tipoDTE,
     actual:base,fecha:CMP_MODAL.edit.fecha||today(),glosa:CMP_MODAL.edit.glosa||''
   })};
@@ -989,7 +990,7 @@ function abrirCmpEdDte(lineaIdx){
 
 function cerrarCmpEdDte(){
   document.getElementById('cmp-dte-modal').classList.remove('open');
-  CMP_DTE={lineaIdx:-1,dte:null,tipoAux:''};
+  CMP_DTE={lineaIdx:-1,dte:null,tipoAux:'',autoBase:false};
 }
 
 function renderCmpDteModal(){
@@ -1071,17 +1072,22 @@ function renderCmpDteModal(){
 
 function setCmpDteCampo(campo,valor){
   if(!CMP_DTE.dte)return;
+  if(campo==='neto'||campo==='exento')CMP_DTE.autoBase=false;
   CMP_DTE.dte[campo]=valor;
 }
 function setCmpDteTipo(valor){
   if(!CMP_DTE.dte)return;
-  CMP_DTE.dte.tipoDTE=+valor||0;
-  // Al elegir el DTE ya sabemos si la base corresponde a Neto o Exento.
-  // Reutilizamos los montos que ya están en el asiento y sólo completamos
-  // campos que todavía no contienen información del documento original.
+  const tipoDTE=+valor||0;
+  CMP_DTE.dte.tipoDTE=tipoDTE;
+  // Si Neto/Exento fueron inferidos automáticamente al abrir el DTE, no los
+  // tratamos como dato definitivo: al escoger el tipo SII los reconstruimos
+  // para que una factura afecta vaya a Neto y una exenta a Exento. Si el
+  // usuario ya editó manualmente alguno de ambos campos, se respeta su valor.
+  const actual={...CMP_DTE.dte,tipoDTE};
+  if(CMP_DTE.autoBase){actual.neto=0;actual.exento=0;}
   CMP_DTE.dte=inferirDteDesdeAsiento({
     movs:CMP_MODAL.edit?.movs||[],lineaIdx:CMP_DTE.lineaIdx,tipoAux:CMP_DTE.tipoAux,
-    tipoDTE:CMP_DTE.dte.tipoDTE,actual:CMP_DTE.dte,
+    tipoDTE,actual,
     fecha:CMP_MODAL.edit?.fecha||today(),glosa:CMP_MODAL.edit?.glosa||''
   });
   renderCmpDteModal();
