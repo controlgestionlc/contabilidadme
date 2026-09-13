@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-0832';
+const APP_VERSION='v2026.09.13-0849';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.22',fecha:'13-09-2026',titulo:'Buscador de Comprobantes estable en móvil',items:[
+    {tipo:'arreglo',txt:'El buscador por glosa o cuenta ya no destruye el campo de texto con cada pulsación en Android, evitando que el teclado se cierre después del primer carácter.'},
+    {tipo:'cambio',txt:'La búsqueda aplica un debounce breve de 220 ms, conserva foco, cursor y posición de desplazamiento mientras actualiza los resultados.'},
+    {tipo:'arreglo',txt:'Cambiar otros filtros o pulsar Limpiar cancela cualquier búsqueda pendiente para evitar reenfoques inesperados.'}
+  ]},
   {version:'V2.16.21',fecha:'13-09-2026',titulo:'Borradores efímeros y Cancelar obligatorio',items:[
     {tipo:'cambio',txt:'Los formularios incompletos viven sólo durante la sesión actual y se eliminan al cerrar la app; ya no se restauran en una ejecución posterior.'},
     {tipo:'cambio',txt:'Se elimina el estado Borrador de la barra superior y del botón Guardar Todo; sólo los cambios ya confirmados muestran estado de sincronización.'},

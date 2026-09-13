@@ -143,7 +143,8 @@ export function renderComprobantes(){
         style="width:100%">
       <div id="cmp-num-list" class="ac-lista" style="display:none;min-width:280px"></div>
     </div>
-    <input type="text" placeholder="Buscar por glosa o cuenta…" value="${CMP_FILTRO.texto.replace(/"/g,'&quot;')}"
+    <input type="search" id="cmp-texto-input" placeholder="Buscar por glosa o cuenta…" autocomplete="off" enterkeyhint="search"
+      value="${CMP_FILTRO.texto.replace(/"/g,'&quot;')}"
       oninput="setCmpFiltro('texto',this.value)" style="min-width:180px">
     <button class="btn btn-g" onclick="limpiarCmpFiltro()">Limpiar</button>
     <span class="doc-count">${entries.length} comprobantes${cntAp?' · '+cntAp+' apertura':''}${cntAuto?' · '+cntAuto+' automáticos':''}${cntMan?' · '+cntMan+' manuales':''}</span>
@@ -284,8 +285,47 @@ function corregirDescuadreCmp(numero){
   cmpNumeroElegir(e.n);
 }
 
+let _cmpTextoTimer=0;
+let _cmpTextoSel={ini:0,fin:0};
+
+function _restaurarFocoCmpTexto(){
+  const el=document.getElementById('cmp-texto-input');
+  if(!el)return;
+  // Volver a enfocar el input recién recreado evita que Android cierre el
+  // teclado al filtrar. preventScroll mantiene estable la lista mientras se
+  // escribe y el cursor vuelve a la misma posición.
+  try{el.focus({preventScroll:true});}catch(_){el.focus();}
+  try{
+    const max=String(el.value||'').length;
+    const ini=Math.min(_cmpTextoSel.ini??max,max);
+    const fin=Math.min(_cmpTextoSel.fin??ini,max);
+    el.setSelectionRange(ini,fin);
+  }catch(_){/* algunos WebView no exponen selectionRange en search */}
+}
+
 function setCmpFiltro(campo,valor){
   CMP_FILTRO[campo]=valor;
+  if(campo==='texto'){
+    const activo=document.activeElement;
+    if(activo&&activo.id==='cmp-texto-input'){
+      _cmpTextoSel={
+        ini:Number.isFinite(activo.selectionStart)?activo.selectionStart:String(valor||'').length,
+        fin:Number.isFinite(activo.selectionEnd)?activo.selectionEnd:String(valor||'').length
+      };
+    }else{
+      const n=String(valor||'').length;
+      _cmpTextoSel={ini:n,fin:n};
+    }
+    clearTimeout(_cmpTextoTimer);
+    // Esperar brevemente permite escribir palabras completas sin reconstruir
+    // el DOM en cada pulsación. Al filtrar se restaura inmediatamente el foco.
+    _cmpTextoTimer=setTimeout(()=>{
+      renderComprobantes();
+      requestAnimationFrame(()=>requestAnimationFrame(_restaurarFocoCmpTexto));
+    },220);
+    return;
+  }
+  clearTimeout(_cmpTextoTimer);
   renderComprobantes();
 }
 
@@ -359,6 +399,7 @@ function abrirComprobantePor(criterio){
 }
 
 function limpiarCmpFiltro(){
+  clearTimeout(_cmpTextoTimer);
   CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
   renderCmpNumeroList([]);
   renderComprobantes();
