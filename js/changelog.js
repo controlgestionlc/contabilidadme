@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.12-2350';
+const APP_VERSION='v2026.09.12-2359';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.13',fecha:'12-09-2026',titulo:'Comprobantes móvil y descuadres RCV pendientes',items:[
+    {tipo:'arreglo',txt:'Comprobantes usa fichas móviles con Debe/Haber legibles, evitando la tabla horizontal que partía los montos.'},
+    {tipo:'arreglo',txt:'Los números de la alerta de descuadre son clicables y abren directamente el documento o asiento que debe corregirse.'},
+    {tipo:'cambio',txt:'La alerta de descuadre se calcula sobre todo el diario y desaparece automáticamente sólo cuando el comprobante vuelve a cuadrar.'},
+    {tipo:'seguridad',txt:'Compras y Ventas separan los DTE descuadrados antes de aplicar el RCV: los cuadrados se guardan y los problemáticos quedan pendientes en el importador.'},
+    {tipo:'nuevo',txt:'Las alertas preventivas del RCV permiten tocar cada DTE pendiente para localizarlo inmediatamente dentro del importador.'}
+  ]},
   {version:'V2.16.12',fecha:'12-09-2026',titulo:'Control preventivo de cuadratura en importadores SII',items:[
     {tipo:'nuevo',txt:'Compras y Ventas simulan el asiento de cada DTE seleccionado antes de guardar.'},
     {tipo:'seguridad',txt:'Si un documento produciría un comprobante descuadrado, el importador muestra tipo, folio y diferencia y bloquea Aplicar.'},

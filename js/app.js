@@ -85,14 +85,14 @@ import {onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerra
         eliminarVenta, VF, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas,
-        initImportListenerV, setBulkCuentaImpV,
+        initImportListenerV, setBulkCuentaImpV, enfocarPendienteImportV,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, IMV} from './ventas.js';
 import {onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
         cfRutInput, cfCheckDup, cfDteChanged, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
         guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal,
         cambiarPeriodoImport, cerrarImportModal, toggleImportDoc, toggleAllImport,
         setImportCuenta, aplicarCuentaATodos, confirmarImportacion,
-        initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos,
+        initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos, enfocarPendienteImportC,
         cambiarModoImport, verDuplicadoC, renderCDupAlert,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF, IM} from './compras.js';
 import {renderHon, setHonCampo, uhon, addHon, delHon, saveHon, abrirHonComprobante, cerrarHonComprobante, actualizarPreviewHon, guardarHonComprobante, anularHonDesdeComprobante, seleccionarPrestadorHon} from './honorarios.js';
@@ -122,7 +122,7 @@ import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBala
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla,
         exportarMayorExcel} from './reportes.js';
-import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir,
+import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, corregirDescuadreCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
         eliminarComprobante, anularComprobante,
         setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
@@ -628,10 +628,10 @@ Object.assign(window,{
   axAcBuscar, axAcTecla, axAcElegir, axAcCerrar, lAuxElegido,
   marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto,
   actualizarBotonGuardar, guardarTodoAhora, setAutoguardado, setIntervaloAutoguardado, confirmarSalida, AG,
-  abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos,
+  abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos, enfocarPendienteImportC, enfocarPendienteImportV,
   toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel,
   abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
-  renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir,
+  renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, corregirDescuadreCmp,
   abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
   eliminarComprobante, anularComprobante,
   setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,

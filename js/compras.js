@@ -26,7 +26,9 @@ function fijarCF(editId,dist){
 }
 
 function validarCuadraturaImportCompras(){
-  return IM.docs.filter(d=>d.incluir).map((d,i)=>{
+  const out=[];
+  IM.docs.forEach((d,i)=>{
+    if(!d.incluir)return;
     const base=(+d.neto||0)+(+d.exento||0);
     const prev=d.dup||null;
     let dist=[{cuenta:d.cuenta||'',monto:base,cc:d.cc||''}];
@@ -40,14 +42,23 @@ function validarCuadraturaImportCompras(){
       ...((+d.tipoDTE===45||+d.tipoDTE===46)?{ivaRetenido:d.ivaRetenido!=null?d.ivaRetenido:d.iva}:{}),
       tratamientoOtrosImpuestos:d.tratamientoOtrosImpuestos||'costo'};
     const a=asientoCompra(doc);
-    return a.cuadre?.ok?null:{tipoDTE:d.tipoDTE,numero:d.numero,diferencia:a.cuadre?.diferencia||0};
-  }).filter(Boolean);
+    if(!a.cuadre?.ok)out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:a.cuadre?.diferencia||0});
+  });
+  return out;
+}
+
+function enfocarPendienteImportC(i){
+  const el=document.getElementById('imp-row-'+i);
+  if(!el)return;
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  el.classList.add('imp-pending-focus');
+  setTimeout(()=>el.classList.remove('imp-pending-focus'),1800);
 }
 
 function alertaCuadraturaImportCompras(lista){
   if(!lista.length)return '';
-  const items=lista.slice(0,8).map(x=>`DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}`).join('<br>');
-  return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--err);border-radius:7px;background:rgba(248,81,73,.08);color:var(--err);font-size:11px;line-height:1.5"><strong>⚠️ No se puede guardar: ${lista.length} comprobante${lista.length===1?' quedaría':'s quedarían'} descuadrado${lista.length===1?'':'s'}.</strong><br>${items}${lista.length>8?`<br>… y ${lista.length-8} más`:''}<br><span style="color:var(--mt)">Corrige cuenta/montos o excluye el documento antes de aplicar.</span></div>`;
+  const items=lista.slice(0,8).map(x=>`<button type="button" class="imp-pending-link" onclick="enfocarPendienteImportC(${x.idx})">DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}</button>`).join('');
+  return `<div class="imp-pending-alert"><strong>⚠️ ${lista.length} documento${lista.length===1?'':'s'} quedarían descuadrado${lista.length===1?'':'s'}.</strong><div class="imp-pending-links">${items}${lista.length>8?`<span>… y ${lista.length-8} más</span>`:''}</div><span>Se avisará antes de guardar. Los documentos cuadrados sí pueden importarse; estos quedarán pendientes en esta ventana para revisión.</span></div>`;
 }
 
 // ═══ CORRELATIVO MENSUAL PERSISTENTE ═══
@@ -886,6 +897,8 @@ function renderImportModal(){
   const cambiados=IM.docs.filter(d=>d.estadoImport==='cambio').length;
   const manuales=IM.docs.filter(d=>d.estadoImport==='manual').length;
   const descuadrados=validarCuadraturaImportCompras();
+  const badIdx=new Set(descuadrados.map(x=>x.idx));
+  const listos=IM.docs.filter((d,i)=>d.incluir&&!badIdx.has(i));
 
   // Info del periodo
   const periodoStr=`${MESES[IM.periodoMes-1]} ${IM.periodoAnio}`;
@@ -931,16 +944,17 @@ function renderImportModal(){
     (cambiados?` · <strong style="color:var(--warn)">${cambiados} con cambios SII</strong>`:'')+
     (manuales?` · <strong style="color:var(--info)">${manuales} ya en asiento manual</strong>`:'')+
     ` · Archivo: <code style="font-family:var(--mono);font-size:11px">${IM.archivo||'-'}</code>`+avisoModo+alertaCuadraturaImportCompras(descuadrados);
-  document.getElementById('imp-count').textContent=`${conCuenta}/${incl} con cuenta asignada`;
+  document.getElementById('imp-count').textContent=descuadrados.length?`${listos.length} listos · ${descuadrados.length} pendientes por cuadratura`:`${conCuenta}/${incl} con cuenta asignada`;
 
   // Botón OK
   const btnOk=document.getElementById('imp-btn-ok');
   const ausentes=sobre?docsLibroDelPeriodo().filter(d=>d.estado!=='anulado'&&!new Set(IM.docs.map(claveDocCompra)).has(claveDocCompra(d))).length:0;
+  const nListos=listos.length;
   btnOk.textContent=sobre
-    ?`♻️ Conciliar ${periodoStr}: ${incl} cambio${incl===1?'':'s'}${ausentes?` + ${ausentes} ausencia${ausentes===1?'':'s'}`:''}`
-    :`💾 Aplicar ${incl} documento${incl===1?'':'s'} al ${periodoStr}`;
-  btnOk.disabled=(incl===0&&ausentes===0)||descuadrados.length>0;
-  btnOk.title=descuadrados.length?'Corrige o excluye los documentos descuadrados antes de guardar':'';
+    ?`♻️ Conciliar ${periodoStr}: ${nListos} cambio${nListos===1?'':'s'}${descuadrados.length?` · ${descuadrados.length} pendiente${descuadrados.length===1?'':'s'}`:''}${ausentes?` + ${ausentes} ausencia${ausentes===1?'':'s'}`:''}`
+    :`💾 Aplicar ${nListos} documento${nListos===1?'':'s'}${descuadrados.length?` · dejar ${descuadrados.length} pendiente${descuadrados.length===1?'':'s'}`:''}`;
+  btnOk.disabled=(nListos===0&&ausentes===0);
+  btnOk.title=descuadrados.length?'Los descuadrados no se guardarán: quedarán pendientes para revisión':'';
 
   // Checkbox "todos"
   const chkAll=document.getElementById('imp-all');
@@ -949,14 +963,17 @@ function renderImportModal(){
 
   // Filas: cada una usa buscador dinámico (compra = gasto + activo)
   document.getElementById('imp-rows').innerHTML=IM.docs.map((d,i)=>{
-    const cls='imp-row'+(d.dup?' dup':'')+(!d.incluir?' excluded':'');
+    const pendiente=badIdx.has(i);
+    const cls='imp-row'+(d.dup?' dup':'')+(!d.incluir?' excluded':'')+(pendiente?' imp-pending-row':'');
     const [y,m]=d.fechaOriginal.split('-');
     const fueraP=+y!==IM.periodoAnio||+m!==IM.periodoMes;
     const fechaShow=fueraP
       ? `<span style="color:var(--err)" title="Fecha documental fuera del período RCV">${d.fechaOriginal}</span><div style="font-size:9px;color:var(--info)">Contab. → ${fechaContabilizacionImport(d)}</div>`
       : d.fechaOriginal;
     const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
-    const estado=d.estadoImport==='manual'
+    const estado=pendiente
+      ?`<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportC(${i})">⚠ PENDIENTE</button>`
+      :d.estadoImport==='manual'
       ?`<span class="dup-badge" style="background:rgba(88,166,255,.12);color:var(--info)" title="Este DTE ya existe dentro de un asiento manual y el importador no lo modificará">YA EN ASIENTO</span>`
       :d.estadoImport==='igual'
       ?`<span class="ok-badge" style="background:rgba(139,148,158,.12);color:var(--mt)" title="Huella RCV idéntica: no se volverá a escribir">SIN CAMBIOS</span>`
@@ -968,7 +985,7 @@ function renderImportModal(){
       placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'compra'});
     // Selector de centro de costo (opcional)
     const ccHtml=`<select onchange="setImportCC(${i},this.value)" style="width:100%;font-size:11px;padding:3px">${ccOpts(d.cc||'')}</select>`;
-    return `<div class="${cls}">
+    return `<div id="imp-row-${i}" class="${cls}">
       <div style="text-align:center"><input type="checkbox" ${d.incluir?'checked':''} ${(d.estadoImport==='igual'||d.estadoImport==='manual')?'disabled':''} onchange="toggleImportDoc(${i},this.checked)"></div>
       <div style="font-family:var(--mono);font-size:10px">${fechaShow}</div>
       <div style="font-family:var(--mono);font-size:10px">${d.tipoDTE}</div>
@@ -1034,24 +1051,31 @@ function aplicarCCATodos(){
 async function confirmarImportacion(){
   const perFecha=`${IM.periodoAnio}-${String(IM.periodoMes).padStart(2,'0')}-01`;
   if(!puedeOperarFecha(perFecha)){toast('🔒 El período RCV seleccionado está cerrado. Reábrelo antes de importar compras.','e');return;}
-  const incluidos=IM.docs.filter(d=>d.incluir);
+  const seleccionados=IM.docs.filter(d=>d.incluir);
+  const descuadrados=validarCuadraturaImportCompras();
+  const badIdx=new Set(descuadrados.map(x=>x.idx));
+  const incluidos=IM.docs.filter((d,i)=>d.incluir&&!badIdx.has(i));
   const modo=IM.modo||'agregar';
   const enPeriodoActivos=modo==='sobrescribir'?docsLibroDelPeriodo().filter(d=>d.estado!=='anulado'):[];
   const clavesFuente=new Set(IM.docs.map(claveDocCompra));
   const ausentesFuente=modo==='sobrescribir'?enPeriodoActivos.filter(d=>!clavesFuente.has(claveDocCompra(d))):[];
-  if(!incluidos.length&&!ausentesFuente.length){
+  if(!seleccionados.length&&!ausentesFuente.length){
     toast(`✅ Importación idempotente: ${IM.docs.filter(d=>d.estadoImport==='igual').length} documento(s) ya estaban idénticos. No se modificó el libro.`);
     cerrarImportModal();return;
+  }
+  if(descuadrados.length){
+    const detalle=descuadrados.slice(0,8).map(x=>`• DTE ${x.tipoDTE} N° ${x.numero}: diferencia ${fmtC(x.diferencia)}`).join('\n');
+    if(!incluidos.length&&!ausentesFuente.length){
+      alert(`⚠️ No hay documentos cuadrados para guardar.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nLos DTE indicados quedan pendientes en el importador para revisión.`);
+      renderImportModal();return;
+    }
+    const ok=confirm(`⚠️ Se detectaron ${descuadrados.length} documento(s) que producirían un comprobante descuadrado.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nEstos NO se guardarán. Se procesarán ${incluidos.length} documento(s) cuadrados y los descuadrados quedarán pendientes en esta ventana para corregir o revisar.\n\n¿Continuar?`);
+    if(!ok){renderImportModal();return;}
   }
   const sinCuenta=incluidos.filter(d=>!d.cuenta);
   if(sinCuenta.length){
     toast(`⚠️ ${sinCuenta.length} documento${sinCuenta.length===1?' no tiene':'s no tienen'} cuenta asignada`,'e');
     return;
-  }
-  const descuadrados=validarCuadraturaImportCompras();
-  if(descuadrados.length){
-    alert(`No se puede guardar. Los siguientes comprobantes quedarían descuadrados:\n\n${descuadrados.slice(0,12).map(x=>`DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}`).join('\n')}${descuadrados.length>12?'\n…':''}`);
-    renderImportModal();return;
   }
   const cambiosSeleccionados=incluidos.filter(d=>d.estadoImport==='cambio');
   if(cambiosSeleccionados.length){
@@ -1298,15 +1322,21 @@ async function confirmarImportacion(){
     guardarFichasAux().catch(e=>console.warn('No se pudo guardar ficha auxiliar:',e));
   }
 
-  cerrarImportModal();
+  const pendientesCuadratura=IM.docs.filter((d,i)=>badIdx.has(i));
+  if(pendientesCuadratura.length){
+    IM.docs=pendientesCuadratura;
+    IM.docs.forEach(d=>{d.incluir=true;d.estadoImport='pendiente_cuadratura';});
+    renderImportModal();
+  }else cerrarImportModal();
   const periodoStr=periodoStrConf;
   const msgProv=proveedoresNuevos.size?` · ${proveedoresNuevos.size} proveedor${proveedoresNuevos.size===1?'':'es'} nuevo${proveedoresNuevos.size===1?'':'s'} detectado${proveedoresNuevos.size===1?'':'s'} en auxiliares`:'';
   const msgFichas=(fichasCreadas||fichasActualizadas)?` · fichas: ${fichasCreadas} nuevas${fichasActualizadas?', '+fichasActualizadas+' completadas':''}`:'';
+  const msgPend=pendientesCuadratura.length?` · ⚠️ ${pendientesCuadratura.length} pendiente${pendientesCuadratura.length===1?'':'s'} por cuadratura`:'';
   if(modo==='sobrescribir'){
-    toast(`♻️ ${periodoStr} reemplazado — ${agregados} documento${agregados===1?'':'s'} · ${reemplazados} conservaron su correlativo${depurados?` · ${depurados} anulado${depurados===1?'':'s'}`:''}${msgFichas}`);
+    toast(`♻️ ${periodoStr} reemplazado — ${agregados} documento${agregados===1?'':'s'} · ${reemplazados} conservaron su correlativo${depurados?` · ${depurados} anulado${depurados===1?'':'s'}`:''}${msgFichas}${msgPend}`);
     logAccion('Sobrescribió compras SII',`${periodoStr}: ${agregados} nuevos/cambiados, ${reemplazados} ya presentes, ${depurados} anulados por ausencia en RCV`);
   }else{
-    toast(`✅ ${agregados} documento${agregados===1?'':'s'} importado${agregados===1?'':'s'} al periodo ${periodoStr}${fueraPeriodoContable?` (${fueraPeriodoContable} con fecha documental distinta del período RCV, conservada sin cambios)`:''}${msgProv}${msgFichas}`);
+    toast(`✅ ${agregados} documento${agregados===1?'':'s'} importado${agregados===1?'':'s'} al periodo ${periodoStr}${fueraPeriodoContable?` (${fueraPeriodoContable} con fecha documental distinta del período RCV, conservada sin cambios)`:''}${msgProv}${msgFichas}${msgPend}`);
     logAccion('Importó compras SII',`${agregados} documentos${msgFichas}`);
   }
   rerender();
@@ -1323,5 +1353,5 @@ function initImportListener(){
 
 
 export {onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
-        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setBulkCuentaImp, confirmarImportacion, initImportListener,
+        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF};

@@ -11,7 +11,7 @@
 import {fmt, fmtC, MESES, pdcNm, today, toast, rutFmt, dteV, dteC, rutParse, DTE_VENTAS, DTE_COMPRAS, IVA} from './core.js';
 import {S} from './state.js';
 import {nav, rerender} from './ui.js';
-import {genDiario, destinoEdicion} from './reportes.js';
+import {genDiario, destinoEdicion, corregirDesdeDiario, editarAsientoRef} from './reportes.js';
 import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux} from './asientos.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {logAccion} from './firebase.js';
@@ -46,6 +46,7 @@ export function renderComprobantes(){
   if(!cont)return;
 
   let entries=genDiario();
+  const entriesGlobal=[...entries];
 
   // Filtros
   if(CMP_FILTRO.mes){
@@ -85,10 +86,14 @@ export function renderComprobantes(){
     const h=e.movs.reduce((s,m)=>s+(m.haber||0),0);
     return Math.abs(d-h)<1;
   };
+  const descuadresGlobal=entriesGlobal.filter(e=>!cuadraE(e));
   if(CMP_FILTRO.origen==='descuadrados'){
     entries=entries.filter(e=>!cuadraE(e));
   }
-  const descuadres=(CMP_FILTRO.origen==='descuadrados'?entries:entries.filter(e=>!cuadraE(e)));
+  // La alerta es global, no depende del filtro visual activo. Así no puede
+  // desaparecer sólo porque el usuario filtró otro mes/origen; se elimina
+  // únicamente cuando el asiento realmente vuelve a cuadrar.
+  const descuadres=descuadresGlobal;
 
   // Resumen
   const totD=entries.reduce((s,e)=>s+e.movs.reduce((ss,m)=>ss+(m.debe||0),0),0);
@@ -102,13 +107,14 @@ export function renderComprobantes(){
   let alerta='';
   if(descuadres.length&&CMP_FILTRO.origen!=='descuadrados'){
     const numeros=descuadres.map(e=>String(e.n??e.numeroContable??'S/N'));
+    const botonNumero=n=>`<button type="button" class="cmp-alert-link" onclick="corregirDescuadreCmp('${attr(n)}')" title="Abrir y corregir comprobante N° ${attr(n)}">N° ${attr(n)}</button>`;
     const detalleNumeros=numeros.length<=6
-      ? numeros.map(n=>`<span style="display:inline-block;border:1px solid rgba(248,81,73,.45);border-radius:6px;padding:3px 7px;font-family:var(--mono);font-weight:700">N° ${attr(n)}</span>`).join(' ')
-      : `${numeros.slice(0,6).map(n=>`<span style="display:inline-block;border:1px solid rgba(248,81,73,.45);border-radius:6px;padding:3px 7px;font-family:var(--mono);font-weight:700">N° ${attr(n)}</span>`).join(' ')} <span style="font-size:11px;color:var(--mt)">y ${numeros.length-6} más</span>`;
+      ? numeros.map(botonNumero).join(' ')
+      : `${numeros.slice(0,6).map(botonNumero).join(' ')} <span style="font-size:11px;color:var(--mt)">y ${numeros.length-6} más</span>`;
     alerta=`<div style="background:rgba(248,81,73,.08);border:1px solid var(--err);border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:16px">⚠️</span>
       <span style="font-weight:700;color:var(--err)">${descuadres.length} comprobante${descuadres.length===1?'':'s'} descuadrado${descuadres.length===1?'':'s'}</span>
-      <span style="font-size:11px;color:var(--mt)">— revisa y corrige el documento origen</span>
+      <span style="font-size:11px;color:var(--mt)">— toca el N° para abrir el origen y corregirlo</span>
       <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1 1 100%;color:var(--err)" aria-label="Números de comprobantes descuadrados">${detalleNumeros}</div>
       <button class="btn btn-d" style="font-size:11px;margin-left:auto" onclick="setCmpFiltro('origen','descuadrados')">Ver solo descuadrados</button>
     </div>`;
@@ -167,8 +173,27 @@ export function renderComprobantes(){
     </div>`;
   }
 
-  // Tabla de comprobantes
-  h+='<div class="card-np" style="margin-bottom:14px"><div class="tw"><table style="font-size:12px">';
+  // En móvil los comprobantes se presentan como fichas: una tabla de siete
+  // columnas obliga a desplazarse horizontalmente y termina partiendo los
+  // montos en varias líneas. Escritorio conserva la tabla completa.
+  h+='<div class="cmp-mobile-list">';
+  entries.forEach((e,i)=>{
+    const o=origenLbl(e);
+    const d=e.movs.reduce((s,m)=>s+(+m.debe||0),0),a=e.movs.reduce((s,m)=>s+(+m.haber||0),0);
+    const desc=Math.abs(d-a)>1;
+    const dst=destinoEdicion(e);
+    const accion=dst?`<button class="btn ${desc?'btn-d':'btn-i'} cmp-mobile-action" onclick="event.stopPropagation();${dst.fn}">${desc?'⚠️ Corregir':dst.ic+' '+dst.lbl}</button>`:`<button class="btn btn-g cmp-mobile-action" onclick="event.stopPropagation();abrirCmpModal(${i})">👁 Ver</button>`;
+    h+=`<article class="cmp-mobile-card${desc?' is-error':''}" onclick="abrirCmpModal(${i})">
+      <div class="cmp-mobile-head"><strong>N° ${e.n}</strong><span>${e.fecha}</span><span class="cmp-mobile-origin" style="--cmp-origin:${o.c}">${o.ic} ${o.nm}</span></div>
+      <div class="cmp-mobile-glosa">${e.glosa||'(sin glosa)'}${desc?`<span class="cmp-mobile-error">⚠ Descuadre ${fmtC(Math.abs(d-a))}</span>`:''}</div>
+      <div class="cmp-mobile-money"><div><small>DEBE</small><strong>${fmtC(d)}</strong></div><div><small>HABER</small><strong>${fmtC(a)}</strong></div></div>
+      <div class="cmp-mobile-foot"><span>${e.movs.length} línea${e.movs.length===1?'':'s'}</span>${accion}</div>
+    </article>`;
+  });
+  h+='</div>';
+
+  // Tabla de comprobantes para escritorio/tablet ancho.
+  h+='<div class="card-np cmp-desktop-wrap" style="margin-bottom:14px"><div class="tw"><table class="cmp-desktop-table" style="font-size:12px">';
   h+=`<thead><tr>
     <th class="tl" style="width:50px">N°</th>
     <th class="tl" style="width:90px">FECHA</th>
@@ -232,6 +257,30 @@ export function renderComprobantes(){
 
   cont.innerHTML=h;
   CMP_ENTRIES=entries;
+}
+
+// La alerta de descuadres es derivada en tiempo real desde genDiario(): no se
+// guarda como estado. Por eso, al corregir el origen y volver a Comprobantes,
+// el aviso desaparece automáticamente si Debe = Haber. El número es un acceso
+// directo al editor correcto, no una etiqueta pasiva.
+function corregirDescuadreCmp(numero){
+  const e=genDiario().find(x=>String(x.n)===String(numero));
+  if(!e){toast('⚠️ El comprobante ya no está descuadrado o fue modificado.','e');renderComprobantes();return;}
+  const debe=(e.movs||[]).reduce((s,m)=>s+(+m.debe||0),0);
+  const haber=(e.movs||[]).reduce((s,m)=>s+(+m.haber||0),0);
+  if(Math.abs(debe-haber)<=1){toast(`✅ El comprobante N°${numero} ya está cuadrado`);renderComprobantes();return;}
+  if((e.fuente==='compras'||e.fuente==='ventas')&&e.docId){
+    corregirDesdeDiario(e.fuente,e.docId);return;
+  }
+  if(e.origen==='manual'){
+    editarAsientoRef(e.ref!=null?e.ref:e.n);return;
+  }
+  if(e.origen==='apertura'){nav('apertura');return;}
+  if(e.fuente==='honorarios'&&e.docId&&window.abrirHonComprobante){
+    window.abrirHonComprobante(e.docId);return;
+  }
+  // Orígenes sin editor específico: abrir el comprobante completo.
+  cmpNumeroElegir(e.n);
 }
 
 function setCmpFiltro(campo,valor){
@@ -1059,7 +1108,7 @@ function guardarCmpEdDte(){
   toast('✅ Datos del documento actualizados');
 }
 
-export {abrirComprobantePor,
+export {abrirComprobantePor, corregirDescuadreCmp,
         setCmpFiltro, limpiarCmpFiltro, toggleCmpDet,
         cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
