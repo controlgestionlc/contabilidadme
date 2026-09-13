@@ -9,7 +9,7 @@ import {mesOpts, mesRango} from './helpers.js';
 import {todosDocsCompras, abrirAsientoDesde, proxFolioComprobante} from './asientos.js';
 import {ccOpts} from './centroscosto.js';
 import {inputCuenta} from './buscadorcuentas.js';
-import {leerArchivo} from './importadorsii.js';
+import {leerArchivo,resolverVencimientoImportado} from './importadorsii.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import './storage.js';
 import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
@@ -622,7 +622,10 @@ async function guardarCompra(){
   if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de registrar o modificar documentos.','e');return;}
   const prevEdit=CF.editId?S.compras.find(x=>x.id===CF.editId):null;
-  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(esFacturaCompra?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{})};
+  const fechaVencimientoOrigen=fechaVencimiento
+    ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
+    :'';
+  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(esFacturaCompra?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{})};
   const editando=!!CF.editId;
   if(editando){
     const i=S.compras.findIndex(x=>x.id===CF.editId); const prev=i>=0?S.compras[i]:null;
@@ -776,6 +779,7 @@ function mostrarDocsImportados(res,nombreArchivo){
       String(x.numero).trim()===String(d.numero).trim()
     );
     d.dup=dup||null;
+    Object.assign(d,resolverVencimientoImportado(d,dup||null));
     d.incluir=!dup;
     d.estadoImport=dup?'igual':'nuevo';
     d.cambiosRCV=[];
@@ -967,9 +971,10 @@ function renderImportModal(){
     const cls='imp-row'+(d.dup?' dup':'')+(!d.incluir?' excluded':'')+(pendiente?' imp-pending-row':'');
     const [y,m]=d.fechaOriginal.split('-');
     const fueraP=+y!==IM.periodoAnio||+m!==IM.periodoMes;
-    const fechaShow=fueraP
+    const vtoShow=d.fechaVencimiento?`<div style="font-size:9px;color:var(--mt);margin-top:2px" title="${d.fechaVencimientoOrigen==='archivo'?'Vencimiento informado por el archivo':'Vencimiento estimado: emisión + 30 días'}">Vence ${d.fechaVencimiento}${d.fechaVencimientoOrigen==='estimado30d'?' · 30d':''}</div>`:'';
+    const fechaShow=(fueraP
       ? `<span style="color:var(--err)" title="Fecha documental fuera del período RCV">${d.fechaOriginal}</span><div style="font-size:9px;color:var(--info)">Contab. → ${fechaContabilizacionImport(d)}</div>`
-      : d.fechaOriginal;
+      : d.fechaOriginal)+vtoShow;
     const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
     const estado=pendiente
       ?`<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportC(${i})">⚠ PENDIENTE</button>`
@@ -1175,7 +1180,8 @@ async function confirmarImportacion(){
       periodoContable,
       fechaContabilizacion,
       origenRegistro:'RCV',
-      fechaVencimiento:prev?.fechaVencimiento||'',
+      fechaVencimiento:d.fechaVencimiento||'',
+      fechaVencimientoOrigen:d.fechaVencimientoOrigen||'',
       tipoDTE:d.tipoDTE,
       numero:d.numero,
       rutCodigo:d.rutCodigo,
@@ -1205,7 +1211,7 @@ async function confirmarImportacion(){
       rcvFingerprint:fingerprintSnapshot(snapshotCompraRCV(d,periodoContable)),
       rcvVersion:2,
       ...(prev?{
-        versionAnterior:{fecha:prev.fecha,tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total},
+        versionAnterior:{fecha:prev.fecha,fechaVencimiento:prev.fechaVencimiento||'',tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total},
         rcvHistorial:[...(Array.isArray(prev.rcvHistorial)?prev.rcvHistorial:[]),{
           fecha:new Date().toISOString(),
           snapshot:snapshotCompraRCV(prev,prev.periodoContable||''),

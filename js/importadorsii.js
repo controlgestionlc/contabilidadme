@@ -40,6 +40,38 @@ export function parseFechaSII(v){
   return '';
 }
 
+// V2.16.24 — vencimiento normalizado para capturadores SII.
+// Si el archivo no informa vencimiento, la política del sistema es emisión + 30 días.
+// Se trabaja en UTC para evitar saltos de fecha por zona horaria/DST.
+export function sumarDiasFechaISO(fecha,dias=30){
+  const m=String(fecha||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m)return '';
+  const d=new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+  if(Number.isNaN(d.getTime()))return '';
+  d.setUTCDate(d.getUTCDate()+(+dias||0));
+  return d.toISOString().slice(0,10);
+}
+
+// Resuelve el vencimiento efectivo durante una reimportación.
+// Prioridad: ajuste manual/legado existente > vencimiento real del archivo >
+// vencimiento real ya guardado > estimación de 30 días. Así una recarga del RCV
+// que no trae vencimiento nunca pisa una fecha real previamente registrada.
+export function resolverVencimientoImportado(entrada,prev=null){
+  const nueva=String(entrada?.fechaVencimiento||'').trim();
+  const origenNueva=String(entrada?.fechaVencimientoOrigen||'').trim();
+  const anterior=String(prev?.fechaVencimiento||'').trim();
+  const origenAnterior=String(prev?.fechaVencimientoOrigen||'').trim();
+  if(anterior){
+    if(!origenAnterior||origenAnterior==='manual')return {fechaVencimiento:anterior,fechaVencimientoOrigen:origenAnterior};
+    if(origenNueva==='archivo')return {fechaVencimiento:nueva,fechaVencimientoOrigen:'archivo'};
+    return {fechaVencimiento:anterior,fechaVencimientoOrigen:origenAnterior};
+  }
+  return {
+    fechaVencimiento:nueva||sumarDiasFechaISO(entrada?.fechaOriginal||entrada?.fecha,30),
+    fechaVencimientoOrigen:origenNueva||'estimado30d'
+  };
+}
+
 // Split de fila CSV respetando comillas
 function splitCSVRow(line,delim=','){
   const out=[];let cur='';let en=false;
@@ -85,7 +117,11 @@ function parseFilas(rows,tipo){
   const cRut    = findCol(headers, tipo==='compra' ? 'rut proveedor' : 'rut cliente' , 'rut receptor','rut emisor','rut');
   const cRazon  = findCol(headers,'razon social','razón social','razonsocial');
   const cNro    = findCol(headers,'nro doc','n° doc','nº doc','folio');
-  const cFecha  = findCol(headers,'fecha docto','fecha documento','fecha emision','fecha emisión','fecha doc','fecha');
+  const cVenc   = findCol(headers,'fecha vencimiento','fecha de vencimiento','fecha vcto','fch vencimiento','fch vcto','fec vencimiento','vencimiento');
+  let cFecha    = findCol(headers,'fecha docto','fecha documento','fecha emision','fecha emisión','fecha doc');
+  // Algunos archivos antiguos usan simplemente "Fecha". Sólo se acepta como
+  // último recurso y nunca puede apuntar a la misma columna de vencimiento.
+  if(cFecha<0)cFecha=headers.findIndex((h,i)=>i!==cVenc&&['fecha','fecha dte','fch fecha'].includes(h));
   const cExento = findCol(headers,'monto exento','exento');
   const cNeto   = findCol(headers,'monto neto','neto');
   const cIvaRec = findCol(headers,'iva recuperable','monto iva recuperable');
@@ -140,6 +176,9 @@ function parseFilas(rows,tipo){
     if(!rutInfo.codigo){descartados++;continue;}
     const fecha=parseFechaSII(r[cFecha]);
     if(!fecha){descartados++;continue;}
+    const vencArchivo=cVenc>=0?parseFechaSII(r[cVenc]):'';
+    const fechaVencimiento=vencArchivo||sumarDiasFechaISO(fecha,30);
+    const fechaVencimientoOrigen=vencArchivo?'archivo':'estimado30d';
 
     // Montos: sumamos IVA recuperable + IVA no recuperable + IVA activo fijo
     // (todos son crédito fiscal según su régimen)
@@ -173,7 +212,7 @@ function parseFilas(rows,tipo){
     claves.set(claveDoc,true);
 
     docs.push({
-      fecha, tipoDTE, numero,
+      fecha, fechaVencimiento, fechaVencimientoOrigen, tipoDTE, numero,
       rutCodigo:rutInfo.codigo, rutDV:rutInfo.dv,
       razonSocial:String(r[cRazon]||'').trim(),
       neto, exento, iva, otrosImpuestos:otrosFinal, total,

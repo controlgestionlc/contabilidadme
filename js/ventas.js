@@ -1,6 +1,6 @@
 // ventas.js — Libro de ventas (documentos individuales)
 import {toast, pn, today, MESES, IVA, DTE_VENTAS, dteV, rutParse, rutFmt, rutDV, fmt, fmtC, CUENTAS_INGRESO} from './core.js';
-import {leerArchivo} from './importadorsii.js';
+import {leerArchivo,resolverVencimientoImportado} from './importadorsii.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import {rerender} from './ui.js';
@@ -428,7 +428,11 @@ async function guardarVenta(){
   const referencia=esNota?{tipoDTE:+document.getElementById('vf-ref-tipo')?.value||33,folio:(document.getElementById('vf-ref-folio')?.value||'').trim(),fecha:document.getElementById('vf-ref-fecha')?.value||'',razon:(document.getElementById('vf-ref-razon')?.value||'').trim()}:null;
   if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
   if(!puedeOperarFecha(fecha)){toast('🔒 El período contable de esta fecha está cerrado. Reabre el período antes de registrar o modificar documentos.','e');return;}
-  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(referencia?{referencia}:{})};
+  const prevEdit=VF.editId?S.ventas.find(x=>x.id===VF.editId):null;
+  const fechaVencimientoOrigen=fechaVencimiento
+    ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
+    :'';
+  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(referencia?{referencia}:{})};
   const editando=!!VF.editId;
   const rSave=await guardarDocumentoContabilizado('ventas',doc,S.ventas,editando);
   if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
@@ -492,6 +496,7 @@ function mostrarVentasImportadas(res,nombreArchivo){
       String(x.numero).trim()===String(d.numero).trim()
     );
     d.dup=dup||null;
+    Object.assign(d,resolverVencimientoImportado(d,dup||null));
     d.incluir=!dup;
     d.estadoImport=dup?'igual':'nuevo';
     d.cambiosRCV=[];
@@ -572,7 +577,8 @@ function renderImportModalVentas(){
 
   const filas=IMV.docs.map((d,i)=>{
     const pendiente=badIdx.has(i);
-    const fechaMostrar=d.fechaOriginal||d.fecha;
+    const fechaBase=d.fechaOriginal||d.fecha;
+    const fechaMostrar=fechaBase+(d.fechaVencimiento?`<div style="font-size:9px;color:var(--mt);margin-top:2px" title="${d.fechaVencimientoOrigen==='archivo'?'Vencimiento informado por el archivo':'Vencimiento estimado: emisión + 30 días'}">Vence ${d.fechaVencimiento}${d.fechaVencimientoOrigen==='estimado30d'?' · 30d':''}</div>`:'');
     const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
     const estado=pendiente
       ? `<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportV(${i})">⚠ pendiente</button>`
@@ -711,7 +717,8 @@ async function confirmarImportacionV(){
       id:prev?.id||('v_imp_'+Date.now()+'_'+i),
       folioComp:prev?.folioComp||folioNext++,   // el existente conserva comprobante
       fecha, tipoDTE:d.tipoDTE, numero:d.numero,
-      fechaVencimiento:prev?.fechaVencimiento||'',
+      fechaVencimiento:d.fechaVencimiento||'',
+      fechaVencimientoOrigen:d.fechaVencimientoOrigen||'',
       rutCodigo:d.rutCodigo, rutDV:d.rutDV, razonSocial:d.razonSocial,
       neto:d.neto, exento:d.exento, iva:d.iva,
       otrosImpuestos:d.otrosImpuestos||0, total:d.total,
@@ -723,7 +730,7 @@ async function confirmarImportacionV(){
       rcvFingerprint:fingerprintSnapshot(snapshotVentaRCV(d)),
       rcvVersion:2,
       ...(prev?{
-        versionAnterior:{fecha:prev.fecha,tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total},
+        versionAnterior:{fecha:prev.fecha,fechaVencimiento:prev.fechaVencimiento||'',tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total},
         rcvHistorial:[...(Array.isArray(prev.rcvHistorial)?prev.rcvHistorial:[]),{
           fecha:new Date().toISOString(),snapshot:snapshotVentaRCV(prev),
           cambios:(d.cambiosRCV||[]).map(c=>({campo:c.campo,anterior:c.anterior,nuevo:c.nuevo}))

@@ -13,6 +13,7 @@ function claveRCV(d){
 function snapshotCompraRCV(d,periodo=''){
   return {
     fecha:s(d?.fechaOriginal||d?.fecha),
+    fechaVencimiento:s(d?.fechaVencimiento),
     periodoContable:s(periodo||d?.periodoContable||(d?.fecha||'').slice(0,7)),
     tipoDTE:n(d?.tipoDTE), numero:s(d?.numero),
     rutCodigo:s(d?.rutCodigo), rutDV:s(d?.rutDV), razonSocial:txt(d?.razonSocial),
@@ -29,6 +30,7 @@ function snapshotCompraRCV(d,periodo=''){
 function snapshotVentaRCV(d){
   return {
     fecha:s(d?.fechaOriginal||d?.fecha),
+    fechaVencimiento:s(d?.fechaVencimiento),
     tipoDTE:n(d?.tipoDTE), numero:s(d?.numero),
     rutCodigo:s(d?.rutCodigo), rutDV:s(d?.rutDV), razonSocial:txt(d?.razonSocial),
     neto:n(d?.neto), exento:n(d?.exento), iva:n(d?.iva),
@@ -43,7 +45,7 @@ function fingerprintSnapshot(obj){
 }
 
 const LABELS={
-  fecha:'Fecha documento',periodoContable:'Período RCV',tipoDTE:'Tipo DTE',numero:'Folio',
+  fecha:'Fecha documento',fechaVencimiento:'Fecha vencimiento',periodoContable:'Período RCV',tipoDTE:'Tipo DTE',numero:'Folio',
   rutCodigo:'RUT',rutDV:'DV',razonSocial:'Razón social',neto:'Neto',exento:'Exento',iva:'IVA',
   ivaRecuperable:'IVA recuperable',ivaNoRecuperable:'IVA no recuperable',ivaUsoComun:'IVA uso común',
   ivaActivoFijo:'IVA activo fijo',ivaRetenido:'IVA retenido',otrosImpuestos:'Otros impuestos',total:'Total'

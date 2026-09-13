@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-1116';
+const APP_VERSION='v2026.09.13-1140';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.24',fecha:'13-09-2026',titulo:'Fecha de vencimiento automática en capturadores SII',items:[
+    {tipo:'nuevo',txt:'Los capturadores de Compras y Ventas leen la fecha de vencimiento cuando viene informada en el archivo RCV/Excel/CSV del SII.'},
+    {tipo:'cambio',txt:'Si el archivo no informa vencimiento, el sistema asigna automáticamente emisión + 30 días y guarda la fecha en el documento para auxiliares, pagos, aging y flujo de caja.'},
+    {tipo:'seguridad',txt:'Una reimportación sin vencimiento no reemplaza una fecha real o manual ya registrada; un vencimiento real del archivo sí puede reemplazar una estimación previa de 30 días.'},
+    {tipo:'cambio',txt:'La vista previa de los importadores muestra la fecha de vencimiento y distingue visualmente cuando fue estimada a 30 días.'}
+  ]},
   {version:'V2.16.23',fecha:'13-09-2026',titulo:'Cierres mensuales operativos para contadores',items:[
     {tipo:'nuevo',txt:'Cierres Mensuales se separa de Auditoría de Integridad y aparece como módulo propio dentro de Cierre de Ejercicio.'},
     {tipo:'cambio',txt:'Administradores y contadores con acceso de edición a la empresa activa pueden cerrar y reabrir períodos mensuales; la reapertura exige motivo y queda auditada.'},
