@@ -607,3 +607,11 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Control de hojas sueltas exportable a CSV.
 - Las hojas inutilizadas permanecen bloqueadas y no vuelven al stock disponible.
 - No se incluye Libro Compras/Ventas dentro del flujo de timbraje, porque el RCV reemplazó esa obligación desde agosto de 2017.
+
+## V2.16.14 — Centros de costo normales / sin capitalización
+- Los subcentros nuevos parten por defecto como **Normal**.
+- Se incorpora **Sin Capitalización** como opción explícita de capitalización/curva.
+- Al seleccionar **Normal** (o un centro Operativo legado) se ocultan fecha de inicio, curva, porcentajes y cuenta de costo vinculados a capitalización.
+- La lógica central fuerza 0% de capitalización para centros normales/operativos, aunque conserven metadatos históricos.
+- Los centros `operativo` existentes siguen siendo compatibles.
+- Plantilla de carga y respaldo Excel de centros de costo preservan la configuración completa de capitalización.

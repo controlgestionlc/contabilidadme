@@ -918,3 +918,6 @@ En Formulario 29, Estado de Resultados y Balance General las columnas monetarias
 
 ## Impresión en hojas foliadas SII
 El sistema incluye un módulo para contribuyentes autorizados a llevar contabilidad computacional en hojas sueltas. Permite registrar rangos de folios físicos previamente autorizados/timbrados, preparar Libro Diario, Mayor, Caja e Inventarios y Balances, calibrar márgenes con una prueba en hoja blanca y reservar folios antes de imprimir. Los folios reservados deben posteriormente confirmarse como usados o inutilizados y nunca se reutilizan automáticamente. El módulo es un control operativo de impresión: no reemplaza la solicitud de autorización de contabilidad computacional ni el timbraje/autorización del SII.
+
+### Centros de costo normales y capitalizables
+Los subcentros pueden utilizarse en empresas comerciales sin ninguna lógica de activación: el tipo **Normal** es el valor por defecto y equivale a **Sin Capitalización**. En ese modo solo se acumulan y analizan costos por centro. Las opciones de fecha de inicio, curva, porcentajes y cuenta de costo para cierre/capitalización se muestran únicamente cuando el tipo es **Inversión en curso**. Se conserva compatibilidad con centros históricos de tipo `operativo` y `capitalizado`.
