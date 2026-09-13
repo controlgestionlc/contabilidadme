@@ -335,6 +335,7 @@ function todosDocsVentas(excluirAsientoLineaActual){
   const base=S.ventas.filter(d=>d.estado!=='anulado').map(d=>({...d,origen:'libro'}));
   S.asientos.forEach(a=>{
     if(a.anulado)return;
+    if(a.referenciaDoc?.fuente==='ventas'&&(S.ventas||[]).some(d=>d.id===a.referenciaDoc.docId&&d.estado!=='anulado'))return;
     (a.movs||[]).forEach((m,li)=>{
       if(m.cd==='1104001'&&m.dte){
         // Excluir la línea que estamos editando actualmente (si aplica)
@@ -349,6 +350,7 @@ function todosDocsCompras(excluirAsientoLineaActual){
   const base=S.compras.filter(d=>d.estado!=='anulado').map(d=>({...d,origen:'libro'}));
   S.asientos.forEach(a=>{
     if(a.anulado)return;
+    if(a.referenciaDoc?.fuente==='compras'&&(S.compras||[]).some(d=>d.id===a.referenciaDoc.docId&&d.estado!=='anulado'))return;
     (a.movs||[]).forEach((m,li)=>{
       if(m.cd==='2102001'&&m.dte){
         if(excluirAsientoLineaActual&&excluirAsientoLineaActual.asId===a.id&&excluirAsientoLineaActual.lineaIdx===li)return;

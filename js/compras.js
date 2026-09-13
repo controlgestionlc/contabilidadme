@@ -630,6 +630,14 @@ async function guardarCompra(){
   const tratamientoOtrosImpuestos=document.getElementById('cf-otros-trat')?.value||'costo';
   const otrosImpuestosDetalle=otrosImpuestos?[{tipo:'otro',nombre:'Otros impuestos',monto:otrosImpuestos,tratamiento:tratamientoOtrosImpuestos}]:[];
   const total=pn(document.getElementById('cf-total').value);
+  const prevEdit=CF.editId?S.compras.find(x=>x.id===CF.editId):null;
+  const esNota=tipoDTE===56||tipoDTE===61;
+  const referencia=esNota?{tipoDTE:+document.getElementById('cf-ref-tipo')?.value||33,folio:(document.getElementById('cf-ref-folio')?.value||'').trim(),fecha:document.getElementById('cf-ref-fecha')?.value||'',razon:(document.getElementById('cf-ref-razon')?.value||'').trim()}:null;
+  const refRegistrada=referencia?_cfRefs.find(d=>+d.tipoDTE===referencia.tipoDTE&&String(d.numero||'')===referencia.folio&&(!referencia.fecha||d.fecha===referencia.fecha)):null;
+  if(refRegistrada){referencia.documentoId=refRegistrada.id;referencia.totalOriginal=refRegistrada.total||0;}
+  const esFacturaCompra=tipoDTE===45||tipoDTE===46;
+  const esNotaFacturaCompra=esNota&&([45,46].includes(+referencia?.tipoDTE)||(+prevEdit?.ivaRetenido||0)>0);
+  const usaIvaRetenido=esFacturaCompra||esNotaFacturaCompra;
 
   if(!fecha){toast('⚠️ Ingresa la fecha de emisión','e');return;}
   if(fechaVencimiento&&fechaVencimiento<fecha){toast('⚠️ La fecha de vencimiento no puede ser anterior a la emisión','e');return;}
@@ -640,10 +648,9 @@ async function guardarCompra(){
   if(!r.valido){toast('⚠️ RUT inválido — dígito verificador no coincide','e');return;}
   if(!razonSocial){toast('⚠️ Ingresa la razón social','e');return;}
   if(total<=0){toast('⚠️ El total debe ser mayor a cero','e');return;}
-  const esFacturaCompra=tipoDTE===45||tipoDTE===46;
-  if(!esFacturaCompra&&Math.abs((neto+exento+iva+otrosImpuestos)-total)>1){toast('⚠️ Neto + Exento + IVA + Otros no coincide con el Total','e');return;}
-  if(esFacturaCompra){
-    const tc=tributacionCompra({tipoDTE,neto,exento,iva,otrosImpuestos,total,ivaRetenido:iva});
+  if(!usaIvaRetenido&&Math.abs((neto+exento+iva+otrosImpuestos)-total)>1){toast('⚠️ Neto + Exento + IVA + Otros no coincide con el Total','e');return;}
+  if(usaIvaRetenido){
+    const tc=tributacionCompra({tipoDTE,neto,exento,iva,otrosImpuestos,total,ivaRetenido:iva,referencia});
     if(tc.diferenciaTotal>1){
       toast(`⚠️ En DTE ${tipoDTE}, el Total debe corresponder al total del documento (${fmtC(tc.totalDocumento)}) o al monto pagadero al proveedor (${fmtC(tc.totalProveedor)}).`,'e');return;
     }
@@ -661,17 +668,12 @@ async function guardarCompra(){
     return;
   }
 
-  const esNota=tipoDTE===56||tipoDTE===61;
-  const referencia=esNota?{tipoDTE:+document.getElementById('cf-ref-tipo')?.value||33,folio:(document.getElementById('cf-ref-folio')?.value||'').trim(),fecha:document.getElementById('cf-ref-fecha')?.value||'',razon:(document.getElementById('cf-ref-razon')?.value||'').trim()}:null;
-  const refRegistrada=referencia?_cfRefs.find(d=>+d.tipoDTE===referencia.tipoDTE&&String(d.numero||'')===referencia.folio&&(!referencia.fecha||d.fecha===referencia.fecha)):null;
-  if(refRegistrada){referencia.documentoId=refRegistrada.id;referencia.totalOriginal=refRegistrada.total||0;}
   if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de registrar o modificar documentos.','e');return;}
-  const prevEdit=CF.editId?S.compras.find(x=>x.id===CF.editId):null;
   const fechaVencimientoOrigen=fechaVencimiento
     ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
     :'';
-  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(esFacturaCompra?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{})};
+  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(usaIvaRetenido?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{})};
   const editando=!!CF.editId;
   if(editando){
     const i=S.compras.findIndex(x=>x.id===CF.editId); const prev=i>=0?S.compras[i]:null;

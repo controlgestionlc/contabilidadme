@@ -104,7 +104,7 @@ export function renderComprobantes(){
   const cuadraE=e=>{
     const d=e.movs.reduce((s,m)=>s+(m.debe||0),0);
     const h=e.movs.reduce((s,m)=>s+(m.haber||0),0);
-    return Math.abs(d-h)<1;
+    return Math.abs(d-h)<0.000001;
   };
   const descuadresGlobal=entriesGlobal.filter(e=>!cuadraE(e));
   if(CMP_FILTRO.origen==='descuadrados'){
@@ -201,7 +201,7 @@ export function renderComprobantes(){
   entries.forEach((e,i)=>{
     const o=origenLbl(e);
     const d=e.movs.reduce((s,m)=>s+(+m.debe||0),0),a=e.movs.reduce((s,m)=>s+(+m.haber||0),0);
-    const desc=Math.abs(d-a)>1;
+    const desc=Math.abs(d-a)>=0.000001;
     const dst=destinoEdicion(e);
     const accion=dst?`<button class="btn ${desc?'btn-d':'btn-i'} cmp-mobile-action" onclick="event.stopPropagation();${dst.fn}">${desc?'⚠️ Corregir':dst.ic+' '+dst.lbl}</button>`:`<button class="btn btn-g cmp-mobile-action" onclick="event.stopPropagation();abrirCmpModal(${i})">👁 Ver</button>`;
     h+=`<article class="cmp-mobile-card${desc?' is-error':''}" onclick="abrirCmpModal(${i})">
@@ -231,7 +231,7 @@ export function renderComprobantes(){
     const totEH=e.movs.reduce((s,m)=>s+(m.haber||0),0);
     const detId='cmp-det-'+i;
     const anulado=e.anulado?' opacity:.5;text-decoration:line-through;':'';
-    const descuadrado=Math.abs(totED-totEH)>1;
+    const descuadrado=Math.abs(totED-totEH)>=0.000001;
     const estiloFila=(anulado||descuadrado)?` style="${anulado}${descuadrado?'background:rgba(248,81,73,.05);':''}"`:'';
     const estiloTotal=descuadrado?'color:var(--err);font-weight:700':'font-family:var(--mono)';
     const badgeDescuadre=descuadrado
@@ -270,8 +270,8 @@ export function renderComprobantes(){
     <td colspan="4" class="tl" style="font-weight:700">TOTALES</td>
     <td style="text-align:right;font-family:var(--mono);font-weight:700">${fmtC(totD)}</td>
     <td style="text-align:right;font-family:var(--mono);font-weight:700">${fmtC(totH)}</td>
-    <td style="text-align:right;font-size:10px;color:${Math.abs(totD-totH)<1?'var(--ach)':'var(--err)'}">
-      ${Math.abs(totD-totH)<1?'✓ cuadra':'⚠️ diff '+fmtC(Math.abs(totD-totH))}
+    <td style="text-align:right;font-size:10px;color:${Math.abs(totD-totH)<0.000001?'var(--ach)':'var(--err)'}">
+      ${Math.abs(totD-totH)<0.000001?'✓ cuadra':'⚠️ diff '+fmtC(Math.abs(totD-totH))}
     </td>
   </tr></tfoot>`;
   h+='</table></div></div>';
@@ -291,7 +291,10 @@ function corregirDescuadreCmp(indice){
   if(!e){toast('⚠️ El comprobante fue modificado o ya no existe.','e');renderComprobantes();return;}
   const debe=(e.movs||[]).reduce((s,m)=>s+(+m.debe||0),0);
   const haber=(e.movs||[]).reduce((s,m)=>s+(+m.haber||0),0);
-  if(Math.abs(debe-haber)<=1){toast(`✅ El comprobante N°${numero} ya está cuadrado`);renderComprobantes();return;}
+  if(Math.abs(debe-haber)<0.000001){toast(`✅ El comprobante N°${numero} ya está cuadrado`);renderComprobantes();return;}
+  if(e.referenciaDoc?.fuente&&e.referenciaDoc?.docId){
+    corregirDesdeDiario(e.referenciaDoc.fuente,e.referenciaDoc.docId);return;
+  }
   if((e.fuente==='compras'||e.fuente==='ventas')&&e.docId){
     corregirDesdeDiario(e.fuente,e.docId);return;
   }
@@ -394,7 +397,7 @@ function cmpNumeroElegir(n){
   const candidatos=genDiario().filter(e=>String(e.n)===String(n));
   // Compatibilidad para llamadas antiguas: si el número está duplicado,
   // priorizar el que realmente está descuadrado.
-  const e=candidatos.find(x=>{const d=x.movs.reduce((s,m)=>s+(+m.debe||0),0),h=x.movs.reduce((s,m)=>s+(+m.haber||0),0);return Math.abs(d-h)>1;})||candidatos[0];
+  const e=candidatos.find(x=>{const d=x.movs.reduce((s,m)=>s+(+m.debe||0),0),h=x.movs.reduce((s,m)=>s+(+m.haber||0),0);return Math.abs(d-h)>=0.000001;})||candidatos[0];
   if(e)abrirEntradaCmp(e);
 }
 
@@ -480,7 +483,7 @@ function renderCmpModal(){
 function renderCmpModalView(box,e,o){
   const totD=e.movs.reduce((s,m)=>s+(m.debe||0),0);
   const totH=e.movs.reduce((s,m)=>s+(m.haber||0),0);
-  const cuadra=Math.abs(totD-totH)<1;
+  const cuadra=Math.abs(totD-totH)<0.000001;
   const editable=e.origen==='manual'||e.origen==='apertura'||e.fuente==='compras'||e.fuente==='ventas';
 
   box.innerHTML=`
@@ -641,7 +644,7 @@ function renderCmpModalEdit(box,e,o){
   const totD=ed.movs.reduce((s,m)=>s+(+m.debe||0),0);
   const totH=ed.movs.reduce((s,m)=>s+(+m.haber||0),0);
   const dif=totD-totH;
-  const cuadra=Math.abs(dif)<1;
+  const cuadra=Math.abs(dif)<0.000001;
 
   const filas=ed.movs.map((m,i)=>{
     const busc=inputCuenta({
@@ -745,6 +748,15 @@ function renderCmpModalEdit(box,e,o){
 function cmpModalEditar(){
   const e=CMP_ENTRIES[CMP_MODAL.idx];
   if(!e)return;
+  // Los documentos se corrigen en su origen y regeneran EL MISMO asiento.
+  // Nunca convertir la edición en un alta manual con otro número.
+  const rd=e.referenciaDoc;
+  const fuente=rd?.fuente||e.fuente,docId=rd?.docId||e.docId;
+  if(['compras','ventas'].includes(fuente)&&docId){
+    cerrarCmpModal();
+    corregirDesdeDiario(fuente,docId);
+    return;
+  }
   CMP_MODAL.mode='edit';
 
   // Si el comprobante viene de un doc de compras/ventas, buscamos ese doc
@@ -878,7 +890,7 @@ function actualizarBarraCuadre(){
   const totD=ed.movs.reduce((s,m)=>s+(+m.debe||0),0);
   const totH=ed.movs.reduce((s,m)=>s+(+m.haber||0),0);
   const dif=totD-totH;
-  const cuadra=Math.abs(dif)<1;
+  const cuadra=Math.abs(dif)<0.000001;
   const barra=box.querySelector('[data-cuadre-bar]');
   if(barra){
     barra.style.background=cuadra?'rgba(46,160,67,.08)':'rgba(248,81,73,.08)';
@@ -912,6 +924,10 @@ async function cmpModalGuardar(){
   if(!ed)return;
   const e=CMP_ENTRIES[CMP_MODAL.idx];
   if(!e)return;
+  if((['compras','ventas'].includes(e.fuente)&&e.docId)||e.referenciaDoc?.docId){
+    toast('Los comprobantes vinculados se guardan desde su documento de origen.','e');
+    return;
+  }
   if(ejercicioCerrado()){
     toast('🔒 El ejercicio está cerrado. Reabre antes de modificar comprobantes.','e');
     return;
@@ -922,7 +938,7 @@ async function cmpModalGuardar(){
   const totD=ed.movs.reduce((s,m)=>s+(+m.debe||0),0);
   const totH=ed.movs.reduce((s,m)=>s+(+m.haber||0),0);
   const dif=totD-totH;
-  if(Math.abs(dif)>1){
+  if(Math.abs(dif)>=0.000001){
     toast(`⚠️ No se puede guardar: falta cuadrar ${fmtC(Math.abs(dif))}. Los cambios permanecen abiertos para corregirlos.`,'e');return;
   }
   // Requerir cuenta en todas las líneas con monto
@@ -968,52 +984,6 @@ async function cmpModalGuardar(){
     }catch(err){S.apertura=JSON.parse(snap);toast('❌ No se pudo guardar la apertura. No se aplicaron cambios.','e');return;}
     logAccion('Editó balance de apertura desde Comprobantes',ed.glosa);
     toast('✅ Balance de apertura actualizado');
-  }else if(e.fuente==='compras'||e.fuente==='ventas'){
-    // Convertir asiento automático a manual: crea un asiento manual con las
-    // líneas actuales y marca el documento origen como excluido de la generación
-    // automática (excluidoAuto:true). El resumen agregado del mes ya no lo tomará.
-    const arr=e.fuente==='compras'?S.compras:S.ventas;
-    const snapArr=JSON.stringify(arr||[]),snapAs=JSON.stringify(S.asientos||[]);
-    const doc=arr.find(x=>x.id===e.docId);
-    try{
-      if(!doc)throw new Error('no se encontró el documento de origen');
-      if(doc){
-        doc.excluidoAuto=true;
-        const movAux=movsClean.find(m=>m.dte&&m.dte.rutCodigo);
-        if(movAux){
-          const d=movAux.dte;
-          if(d.fecha)doc.fecha=d.fecha;
-          if(d.fechaVencimiento)doc.fechaVencimiento=d.fechaVencimiento;
-          if(d.tipoDTE)doc.tipoDTE=+d.tipoDTE;
-          if(d.numero)doc.numero=String(d.numero);
-          if(d.rutCodigo)doc.rutCodigo=d.rutCodigo;
-          if(d.rutDV)doc.rutDV=d.rutDV;
-          if(d.razonSocial)doc.razonSocial=d.razonSocial;
-          if(d.neto!==undefined)doc.neto=+d.neto||0;
-          if(d.exento!==undefined)doc.exento=+d.exento||0;
-          if(d.iva!==undefined)doc.iva=+d.iva||0;
-          if(d.otrosImpuestos!==undefined)doc.otrosImpuestos=+d.otrosImpuestos||0;
-          if(d.total!==undefined)doc.total=+d.total||0;
-        }
-        // El asiento automático persistido debe quedar anulado; de lo contrario
-        // conviviría con el manual y duplicaría el efecto contable.
-        anularAsientoDocumento(e.fuente,doc.id,'convertido a comprobante manual');
-      }
-      if(!S.asientos)S.asientos=[];
-      const n=proxFolioAsiento();
-      S.asientos.push({
-        id:'a_'+Date.now(),n,fecha:ed.fecha,glosa:ed.glosa,movs:movsClean,tipo:'manual',
-        referenciaDoc:{fuente:e.fuente,docId:e.docId,tipoDTE:doc.tipoDTE,folio:doc.numero,rutCodigo:doc.rutCodigo},
-      });
-      const entradas=[{key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos)}];
-      if(doc)entradas.unshift({key:e.fuente+'-'+S.empresa.anio,value:JSON.stringify(arr)});
-      await persistirClavesCritico(entradas);
-      logAccion(`Convertió comprobante auto (${e.fuente}) a manual`,`${e.glosa} → asiento N°${n}`);
-      toast(`✅ Comprobante convertido a asiento manual N°${n}`);
-    }catch(err){
-      arr.splice(0,arr.length,...JSON.parse(snapArr));S.asientos=JSON.parse(snapAs);
-      toast(`❌ No se pudo convertir el comprobante: ${err.message||'validación contable'}. No se aplicaron cambios.`,'e');return;
-    }
   }
   cerrarCmpModal();
   rerender();

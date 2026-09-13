@@ -82,7 +82,8 @@ function genDiario(){
   [...S.asientos].filter(a=>!a.anulado).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(a=>{
     const origen=a.tipo==='manual'?'manual':(a.generadoAutomaticamente||a.origen==='motor-v2')?'auto':'asiento';
     entries.push({n:a.numeroContable||a.folioComp||a.n||n++,fecha:a.fecha,glosa:a.glosa,movs:a.movs,origen,ref:a.n,tipo:a.tipo||'manual',
-      asientoId:a.id,numeroContable:a.numeroContable||null,fuente:a.fuente||'',docId:a.docId||'',subtipo:a.subtipo||'',
+      asientoId:a.id,numeroContable:a.numeroContable||null,fuente:a.fuente||a.referenciaDoc?.fuente||'',docId:a.docId||a.referenciaDoc?.docId||'',subtipo:a.subtipo||'',
+      referenciaDoc:a.referenciaDoc||null,
       cuentaPago:a.cuentaPago||'',documentos:a.documentos||[],generadoAutomaticamente:!!a.generadoAutomaticamente});
   });
   return entries.sort((a,b)=>{
@@ -100,7 +101,7 @@ function renderDiario(){
     const eD=e.movs.reduce((s,m)=>s+m.debe,0);
     const eH=e.movs.reduce((s,m)=>s+m.haber,0);
     const dif=Math.round(eD-eH);
-    if(Math.abs(dif)>1){
+    if(Math.abs(dif)>=0.000001){
       descuadres.push({n:e.n,fecha:e.fecha,glosa:e.glosa,debe:eD,haber:eH,dif,origen:e.origen,fuente:e.fuente,docId:e.docId,ref:e.ref});
     }
   });
@@ -254,7 +255,7 @@ function renderDiarioTabla(){
     <thead><tr><th class="tl">N°</th><th class="tl">FECHA</th><th class="tl">GLOSA / CUENTA</th><th class="tl">CÓD.</th><th>DEBE</th><th>HABER</th><th class="tl">ORIGEN</th><th class="tl no-print">EDITAR</th></tr></thead><tbody>`;
   entries.forEach(e=>{
     const eD=e.movs.reduce((s,m)=>s+m.debe,0),eH=e.movs.reduce((s,m)=>s+m.haber,0);
-    const asDescuadrado=Math.abs(eD-eH)>1;
+    const asDescuadrado=Math.abs(eD-eH)>=0.000001;
     const estiloTotal=asDescuadrado?'color:var(--err);font-weight:700':'';
     const ob=e.origen==='manual'?`<span class="badge bb">Manual</span>`:`<span class="badge" style="background:rgba(130,130,130,.12);color:var(--mt)">Auto</span>`;
     const trStyle=asDescuadrado?' style="background:rgba(248,81,73,.05)"':'';
@@ -273,7 +274,7 @@ function renderDiarioTabla(){
       h+=`<tr><td></td><td></td><td class="cel-trunc" title="${attr(nmC+extra)}" style="${isH?'padding-left:28px;color:var(--mt)':''}">${nmC}${extra?`<span style="color:var(--mt);font-size:11px">${extra}</span>`:''}</td><td class="tl" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${m.cd}</td><td>${m.debe?fmtC(m.debe):''}</td><td>${m.haber?fmtC(m.haber):''}</td><td></td><td class="no-print"></td></tr>`;
     });
   });
-  const ok=Math.abs(tD-tH)<1;
+  const ok=Math.abs(tD-tH)<0.000001;
   h+=`</tbody><tfoot><tr><td class="tl" colspan="4">TOTALES ${hayFiltro?'— '+etiquetaPeriodo(DIA_F):(ocultos?'(todo el diario)':'')}</td><td style="${ok?'':'color:var(--err);font-weight:700'}">${fmtC(tD)}</td><td style="${ok?'':'color:var(--err);font-weight:700'}">${fmtC(tH)}</td><td></td><td class="no-print"></td></tr></tfoot></table></div></div>`;
   h+=`<div style="margin-top:10px;font-size:12px;color:${ok?'var(--ach)':'var(--err)'}">
     ${ok?'✅ Partida doble cuadrada — Debe = Haber = '+fmtC(tD):'⚠️ Descuadre: Debe '+fmtC(tD)+' | Haber '+fmtC(tH)+' | Diferencia '+fmtC(Math.abs(tD-tH))}</div>`;
@@ -354,6 +355,12 @@ async function corregirDesdeDiario(fuente,docId){
 // Comprobantes, para que el botón haga lo mismo en las dos pantallas.
 function destinoEdicion(e){
   if(!e)return null;
+  if((e.fuente==='ventas'||e.referenciaDoc?.fuente==='ventas')&&(e.docId||e.referenciaDoc?.docId))
+    return {ic:'🛒',lbl:'Al doc',hint:'Este asiento está vinculado al Libro de Ventas y debe corregirse en su documento',
+            fn:`corregirDesdeDiario('ventas','${e.docId||e.referenciaDoc.docId}')`};
+  if((e.fuente==='compras'||e.referenciaDoc?.fuente==='compras')&&(e.docId||e.referenciaDoc?.docId))
+    return {ic:'🧾',lbl:'Al doc',hint:'Este asiento está vinculado al Libro de Compras y debe corregirse en su documento',
+            fn:`corregirDesdeDiario('compras','${e.docId||e.referenciaDoc.docId}')`};
   if(e.origen==='manual'&&e.ref!=null)
     return {ic:'✏️',lbl:'Editar',hint:`Editar el asiento manual N°${e.ref}`,fn:`editarAsientoRef(${e.ref})`};
   if(e.origen==='apertura')
@@ -376,6 +383,10 @@ function destinoEdicion(e){
 function editarAsientoRef(n){
   const a=S.asientos.find(x=>String(x.id)===String(n))||S.asientos.find(x=>+x.numeroContable===+n)||S.asientos.find(x=>x.n===n);
   if(!a){toast('⚠️ No se encontró el asiento N°'+n,'e');return;}
+  if(a.referenciaDoc?.fuente&&a.referenciaDoc?.docId){
+    corregirDesdeDiario(a.referenciaDoc.fuente,a.referenciaDoc.docId);
+    return;
+  }
   nav('comprobantes');
   setTimeout(()=>{try{window.editarAsiento&&window.editarAsiento(a.id);}catch(e){}},50);
 }

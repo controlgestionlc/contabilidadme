@@ -8,13 +8,21 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-1700';
+const APP_VERSION='v2026.09.13-1930';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.28',fecha:'13-09-2026',titulo:'Edición segura y redondeo exacto del RCV',items:[
+    {tipo:'seguridad',txt:'Editar un comprobante de Compras o Ventas abre siempre su documento de origen y actualiza el mismo asiento; ya no crea un asiento manual adicional.'},
+    {tipo:'arreglo',txt:'Neto, IVA y Total conservan exactamente los valores informados por el SII; una diferencia tributaria de $1 se absorbe en la línea base del asiento sin alterar el libro.'},
+    {tipo:'arreglo',txt:'Las Notas de Crédito/Débito referidas a DTE 45/46 mantienen el IVA retenido al editarse y cuadran contra el total pagadero correcto.'},
+    {tipo:'seguridad',txt:'Documento y asiento se guardan en una sola transacción, se bloquea el doble clic y se rechazan IDs o vínculos documentales duplicados.'},
+    {tipo:'arreglo',txt:'Los documentos convertidos por versiones anteriores pueden recuperar su vínculo contable; la conversión antigua queda anulada con trazabilidad.'},
+    {tipo:'arreglo',txt:'La alerta, el detalle y la validación usan ahora la misma regla: Debe y Haber deben ser exactamente iguales.'}
+  ]},
   {version:'V2.16.27',fecha:'13-09-2026',titulo:'Corrección directa de comprobantes descuadrados',items:[
     {tipo:'arreglo',txt:'Los botones de la alerta abren el asiento descuadrado exacto mediante su identidad interna, incluso si existen números visibles duplicados en datos heredados.'},
     {tipo:'arreglo',txt:'El buscador por número conserva cada coincidencia y ya no abre silenciosamente el primer comprobante que comparte el mismo correlativo.'},

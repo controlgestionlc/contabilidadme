@@ -94,6 +94,17 @@ function validarMutacionAsientos(antes,despues){
   const nue=new Map(despues.filter(x=>x?.id).map(x=>[String(x.id),x]));
   const ids=new Set([...ant.keys(),...nue.keys()]);
   const cambiados=[];
+  const idsVistos=new Set(),docsActivos=new Map();
+  despues.forEach(a=>{
+    const id=String(a?.id||'');
+    if(id&&idsVistos.has(id))errores.push(`ID de asiento duplicado: ${id}`);
+    if(id)idsVistos.add(id);
+    if(!a?.anulado&&a?.tipo==='documento'&&a?.fuente&&a?.docId){
+      const k=`${a.fuente}:${a.docId}`;
+      if(docsActivos.has(k))errores.push(`Más de un asiento activo para el documento ${k}`);
+      else docsActivos.set(k,id);
+    }
+  });
 
   ids.forEach(id=>{
     const a0=ant.get(id),a1=nue.get(id);

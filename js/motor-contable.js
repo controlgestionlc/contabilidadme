@@ -35,7 +35,7 @@ function fechaContabilizacionCompra(d){
 function cuadratura(movs){
   const debe=movs.reduce((s,m)=>s+n(m.debe),0);
   const haber=movs.reduce((s,m)=>s+n(m.haber),0);
-  return {debe,haber,diferencia:Math.round((debe-haber)*100)/100,ok:Math.abs(debe-haber)<=1};
+  return {debe,haber,diferencia:Math.round((debe-haber)*100)/100,ok:Math.abs(debe-haber)<0.000001};
 }
 
 function asientoVenta(d){
@@ -46,7 +46,11 @@ function asientoVenta(d){
   const movs=[];
   const total=n(d.total)*signo, neto=n(d.neto)*signo, exento=n(d.exento)*signo;
   const otros=n(d.otrosImpuestos)*signo, iva=n(d.iva)*signo;
-  const ingreso=neto+exento+otros;
+  // El RCV/RVE es la fuente de verdad tributaria. Si por redondeo Neto + IVA
+  // difiere $1 del Total informado, el asiento absorbe ese peso en resultado
+  // sin reescribir ninguno de los campos del documento.
+  const ingresoInformado=neto+exento+otros;
+  const ingreso=total?(total-iva):ingresoInformado;
   const cuentaDeb=d.formaPago==='banco'?'1101201':d.formaPago==='deudores'?'1107003':'1104001';
   const aux={desc:`${d.razonSocial||''} · ${nombreDoc} N°${d.numero}`.trim(),rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE,docId:d.id};
   if(total){
@@ -71,7 +75,8 @@ function tributacionCompra(d){
   // Una NC (61) que revierte una factura de compra trae `ivaRetenido`
   // explícito desde el RCV. Debe revertir también la retención, no tratarse
   // como una NC de proveedor corriente.
-  const facturaCompra=tipo===45||tipo===46||(tipo===61&&n(d.ivaRetenido)>0);
+  const notaFacturaCompra=(tipo===61||tipo===56)&&[45,46].includes(+d.referencia?.tipoDTE);
+  const facturaCompra=tipo===45||tipo===46||((tipo===61||tipo===56)&&n(d.ivaRetenido)>0)||notaFacturaCompra;
   const base=n(d.neto)+n(d.exento)+n(d.otrosImpuestos);
   const iva=n(d.iva);
   if(!facturaCompra){
@@ -181,7 +186,7 @@ function asientoCompra(d){
   // Compatibilidad: documentos antiguos distribuían sólo el neto. El exento
   // faltante se lleva a la primera cuenta para que el asiento cuadre, sin
   // inventar una cuenta nueva. Los documentos V2 deben distribuir Neto+Exento.
-  const faltanteBase=Math.abs(sumDist-n(d.neto))<=1 ? n(d.exento) : Math.max(0,baseEsperada-sumDist);
+  const faltanteBase=Math.abs(sumDist-n(d.neto))<0.000001 ? n(d.exento) : 0;
   const otrosClas=clasificacionOtrosImpuestosCompra(d);
   const otros=otrosClas.costo;
   const ivaClas=clasificacionIVACompra(d);
@@ -203,6 +208,7 @@ function asientoCompra(d){
     if(l.tratamientoTributario==='rechazado'){extra.tributario='gasto_rechazado';extra.motivoTributario=l.motivoTributario||'Marcado como gasto rechazado en documento de compra';}
     if(monto>0)movs.push(mov(l.cuenta,monto,0,extra)); else movs.push(mov(l.cuenta,0,-monto,extra));
   });
+  const movAjusteBase=movs.length?movs[movs.length-1]:null;
   const ivaAF=ivaClas.activoFijo*signo;
   const ivaGeneral=(ivaClas.recuperable-ivaClas.activoFijo)*signo;
   if(ivaGeneral){ if(ivaGeneral>0)movs.push(mov('1108002',ivaGeneral,0,{docId:d.id,tributo:'iva_credito'})); else movs.push(mov('1108002',0,-ivaGeneral,{docId:d.id,tributo:'iva_credito'})); }
@@ -211,7 +217,26 @@ function asientoCompra(d){
   if(otrosRec){ if(otrosRec>0)movs.push(mov('1108006',otrosRec,0,{docId:d.id,tributo:'impuesto_adicional_recuperable'})); else movs.push(mov('1108006',0,-otrosRec,{docId:d.id,tributo:'impuesto_adicional_recuperable'})); }
 
   const trib=tributacionCompra(d);
-  const prov=trib.totalProveedor*signo;
+  // Obligación construida desde el Total exacto del RCV. En facturas de compra
+  // el total puede incluir la retención o representar sólo lo pagadero.
+  const totalInfo=Math.abs(trib.totalInformado);
+  const retInfo=trib.facturaCompra?Math.abs(trib.ivaRetenido):0;
+  const provBase=trib.facturaCompra
+    ? (trib.totalIncluyeRetencion?Math.max(0,totalInfo-retInfo):totalInfo)
+    : totalInfo;
+  const obligacion=provBase+retInfo;
+  const netoMovs=movs.reduce((s,m)=>s+n(m.debe)-n(m.haber),0);
+  const ajuste=obligacion*signo-netoMovs;
+  // Sólo un desfase tributario de un peso es redondeo. Diferencias mayores
+  // permanecen descuadradas y son rechazadas por la puerta contable.
+  if(Math.abs(ajuste)>0.000001&&Math.abs(ajuste)<=1&&dist.length){
+    const netoLinea=n(movAjusteBase.debe)-n(movAjusteBase.haber)+ajuste;
+    movAjusteBase.debe=netoLinea>0?netoLinea:0;
+    movAjusteBase.haber=netoLinea<0?-netoLinea:0;
+    movAjusteBase.ajusteRedondeoDte=ajuste;
+    movAjusteBase.desc=[movAjusteBase.desc,`Ajuste redondeo DTE ${ajuste>0?'+':''}${ajuste}`].filter(Boolean).join(' · ');
+  }
+  const prov=provBase*signo;
   const aux={desc:`${d.razonSocial||''} · ${nombreDoc} N°${d.numero}`.trim(),rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE,docId:d.id};
   if(prov){ if(prov>0)movs.push(mov('2102001',0,prov,aux)); else movs.push(mov('2102001',-prov,0,aux)); }
   if(trib.facturaCompra&&trib.ivaRetenido){

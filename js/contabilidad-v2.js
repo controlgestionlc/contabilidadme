@@ -52,6 +52,7 @@ async function persistirClavesCritico(entries){
     if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia-multiple');
     return r;
   }
+  if(entries.length>1)throw new Error('Se requiere almacenamiento transaccional (setMany). Recarga la aplicación antes de guardar.');
   for(const e of entries){
     const r=await window.storage.set(e.key,e.value);
     if(!r||r.ok===false)throw new Error(r?.motivo||`fallo-${e.key}`);
@@ -161,11 +162,17 @@ function asientoDesdeDocumento(fuente,doc){
 }
 function upsertAsientoDocumento(fuente,doc){
   if(!S.asientos)S.asientos=[];
+  if(doc.excluidoAuto||(S.asientos||[]).some(a=>!a.anulado&&a.referenciaDoc?.fuente===fuente&&a.referenciaDoc?.docId===doc.id)){
+    throw new Error('Documento convertido por una versión anterior: abre Editar en su libro para recuperar el vínculo antes de importar o regenerar.');
+  }
   const id=idAsientoDoc(fuente,doc.id);
   const i=S.asientos.findIndex(a=>a.id===id||(a.tipo==='documento'&&a.fuente===fuente&&a.docId===doc.id));
+  const activos=S.asientos.filter(a=>!a.anulado&&a.tipo==='documento'&&a.fuente===fuente&&a.docId===doc.id);
+  if(activos.length>1)throw new Error('Más de un asiento activo vinculado al documento. Requiere revisión de duplicados.');
   const nuevo=asientoDesdeDocumento(fuente,doc);
   if(i>=0){
     // conservar metadatos operativos relevantes
+    nuevo.id=S.asientos[i].id;
     nuevo.n=S.asientos[i].n||S.asientos[i].folioComp||null;
     nuevo.numeroContable=S.asientos[i].numeroContable||null;
     nuevo.numeroContableOrigen=S.asientos[i].numeroContableOrigen||null;
@@ -187,31 +194,49 @@ function anularAsientoDocumento(fuente,docId,motivo='documento anulado'){
 // Guarda documento + asiento como una unidad lógica. Si una de las dos
 // persistencias falla, restaura el estado en memoria y reintenta restaurar nube.
 async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
+  const lock=`${fuente}:${doc.id}`;
+  if(documentosGuardando.has(lock))return {ok:false,motivo:'guardado-en-curso'};
   if(!puedeOperarFecha(fuente==='compras'?fechaContabilizacionCompra(doc):doc.fecha))return {ok:false,motivo:'ejercicio-cerrado'};
   const claveDoc=`${fuente}-${S.empresa.anio}`;
   const claveAs=`asientos-${S.empresa.anio}`;
   const snapArr=JSON.stringify(arr);
   const snapAs=JSON.stringify(S.asientos||[]);
   const anterior=esEdicion?JSON.parse(JSON.stringify(arr.find(x=>x.id===doc.id)||null)):null;
+  if(anterior&&!puedeOperarFecha(fuente==='compras'?fechaContabilizacionCompra(anterior):anterior.fecha))return {ok:false,motivo:'periodo-original-cerrado'};
+  documentosGuardando.add(lock);
   try{
+    if(esEdicion){
+      const convertidos=(S.asientos||[]).filter(a=>!a.anulado&&a.referenciaDoc?.fuente===fuente&&a.referenciaDoc?.docId===doc.id);
+      if(convertidos.length||anterior?.excluidoAuto){
+        if(!confirm('Este documento fue convertido a un asiento manual por una versión anterior. Al guardar se regenerará el comprobante desde estos datos y se anulará la conversión vinculada, conservando su historial. Los cambios manuales no reflejados en el documento no se conservarán. ¿Continuar?'))throw new Error('recuperación cancelada');
+        convertidos.forEach(a=>{a.anulado=true;a.anuladoEn=new Date().toISOString();a.motivoAnulacion='Recuperación de vínculo documental V2.16.28';});
+        doc.excluidoAuto=false;
+      }
+    }
     if(esEdicion){
       const i=arr.findIndex(x=>x.id===doc.id); if(i<0)throw new Error('Documento no encontrado');
       arr[i]=doc;
-    }else arr.push(doc);
-    upsertAsientoDocumento(fuente,doc);
+    }else{
+      if(arr.some(x=>x.id===doc.id))throw new Error('El documento ya existe; use Editar.');
+      arr.push(doc);
+    }
+    const actualizado=upsertAsientoDocumento(fuente,doc);
     await persistirClavesCritico([
       {key:claveDoc,value:JSON.stringify(arr)},
       {key:claveAs,value:JSON.stringify(S.asientos)},
     ]);
-    const asiento=(S.asientos||[]).find(a=>a.id===idAsientoDoc(fuente,doc.id));
+    const asiento=actualizado;
     logCambio(esEdicion?'Editó documento':'Registró documento',{entidad:fuente==='ventas'?'venta':'compra',id:doc.id,antes:anterior,despues:doc,meta:{asientoId:asiento?.id,numeroContable:asiento?.numeroContable,tipoDTE:doc.tipoDTE,folio:doc.numero}});
-    return {ok:true,asiento:idAsientoDoc(fuente,doc.id)};
+    return {ok:true,asiento:asiento.id};
   }catch(e){
     const arrPrev=JSON.parse(snapArr), asPrev=JSON.parse(snapAs);
     arr.splice(0,arr.length,...arrPrev); S.asientos=asPrev;
     return {ok:false,motivo:e.message||String(e)};
+  }finally{
+    documentosGuardando.delete(lock);
   }
 }
+const documentosGuardando=new Set();
 
 async function anularDocumentoContabilizado(fuente,doc,arr){
   if(!puedeOperarFecha(fuente==='compras'?fechaContabilizacionCompra(doc):doc.fecha))return {ok:false,motivo:'ejercicio-cerrado'};
