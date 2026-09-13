@@ -1447,3 +1447,46 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   .imp-pending-links{display:grid;grid-template-columns:1fr;gap:5px}
   .imp-pending-link{text-align:left;width:100%;white-space:normal}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   V2.16.18 — Menú lateral por categorías + gestor de borradores
+   ═══════════════════════════════════════════════════════════════ */
+.nav-home{margin-bottom:4px}
+.nav-group{border-top:1px solid transparent}
+.nav-group-toggle{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 13px;background:transparent;border:0;color:var(--tx);cursor:pointer;
+  font-family:var(--sans);font-size:11px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.055em;text-align:left;user-select:none;
+}
+.nav-group-toggle:hover{background:var(--sf2)}
+.nav-group-toggle>span:first-child{display:flex;align-items:center;min-width:0;gap:7px}
+.nav-cat-icon{font-size:13px;width:18px;text-align:center;flex:0 0 18px}
+.nav-chevron{font-size:20px;line-height:1;color:var(--mt);transition:transform .15s ease}
+.nav-group.open>.nav-group-toggle{background:var(--sf2);color:var(--ac)}
+.nav-group.open>.nav-group-toggle .nav-chevron{transform:rotate(90deg)}
+.nav-group-items{display:none;padding-bottom:4px}
+.nav-group.open>.nav-group-items{display:block}
+.nav-group-items .nav-item{padding-left:21px}
+.nav-group-items .nav-item .nav-icon{opacity:.9}
+
+.draft-list{display:flex;flex-direction:column;gap:8px}
+.draft-item{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border:1px solid var(--bd);background:var(--bg);border-radius:8px;padding:10px 11px;
+}
+.draft-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.draft-main strong{font-size:12px;color:var(--tx)}
+.draft-main span{font-size:10px;color:var(--mt)}
+.draft-main small{font-size:9.5px;color:var(--mt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-actions{display:flex;gap:6px;flex:0 0 auto}
+.draft-actions .btn{padding:6px 9px;font-size:10px}
+
+@media(max-width:768px){
+  .nav-group-toggle{padding:11px 13px;font-size:11px;min-height:42px}
+  .nav-group-items .nav-item{padding-left:27px}
+  .draft-item{align-items:stretch;flex-direction:column}
+  .draft-main small{white-space:normal;overflow:visible}
+  .draft-actions{width:100%}
+  .draft-actions .btn{flex:1}
+}
