@@ -16,6 +16,7 @@ import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux} from './asientos.js
 import {inputCuenta} from './buscadorcuentas.js';
 import {logAccion} from './firebase.js';
 import {ejercicioCerrado,persistirAsientosCritico,persistirClavesCritico,anularDocumentoContabilizado,anularAsientoDocumento} from './contabilidad-v2.js';
+import {inferirDteDesdeAsiento} from './dte-autocompletar.js';
 
 // Filtros
 let CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
@@ -971,17 +972,17 @@ function abrirCmpEdDte(lineaIdx){
   if(!l||!l.cd)return;
   const tipoAux=CUENTAS_AUX[l.cd];
   if(!tipoAux)return;
-  CMP_DTE={
-    lineaIdx,
-    tipoAux,
-    dte:l.dte?{...l.dte}:{
-      fecha:CMP_MODAL.edit.fecha||today(),
-      fechaVencimiento:'',
-      tipoDTE:'', numero:'',
-      rutCodigo:'', rutDV:'', razonSocial:'',
-      neto:0, exento:0, iva:0, otrosImpuestos:0, retencion:0, total:0,
-    },
+  const base=l.dte?{...l.dte}:{
+    fecha:CMP_MODAL.edit.fecha||today(),
+    fechaVencimiento:'',
+    tipoDTE:'', numero:'',
+    rutCodigo:'', rutDV:'', razonSocial:'',
+    neto:0, exento:0, iva:0, otrosImpuestos:0, retencion:0, total:0,
   };
+  CMP_DTE={lineaIdx,tipoAux,dte:inferirDteDesdeAsiento({
+    movs:CMP_MODAL.edit.movs,lineaIdx,tipoAux,tipoDTE:base.tipoDTE,
+    actual:base,fecha:CMP_MODAL.edit.fecha||today(),glosa:CMP_MODAL.edit.glosa||''
+  })};
   document.getElementById('cmp-dte-modal').classList.add('open');
   renderCmpDteModal();
 }
@@ -1032,7 +1033,7 @@ function renderCmpDteModal(){
           <input type="text" id="cmpdte-razon" value="${(d.razonSocial||'').replace(/"/g,'&quot;')}" oninput="setCmpDteCampo('razonSocial',this.value)"></div>
 
         <div class="grp"><label>Tipo de documento</label>
-          <select id="cmpdte-tipo" onchange="setCmpDteCampo('tipoDTE',+this.value)">${dteOpts}</select></div>
+          <select id="cmpdte-tipo" onchange="setCmpDteTipo(+this.value)">${dteOpts}</select></div>
         <div class="grp"><label>Folio / N° documento</label>
           <input type="text" id="cmpdte-numero" value="${d.numero||''}" oninput="setCmpDteCampo('numero',this.value)"></div>
       </div>
@@ -1058,7 +1059,7 @@ function renderCmpDteModal(){
           <div class="grp full"><label style="font-weight:700">Total documento</label>
             <input type="number" id="cmpdte-total" style="font-weight:700;font-size:14px" value="${d.total||''}" oninput="setCmpDteCampo('total',+this.value)"></div>
         </div>
-        ${!esHono?`<div style="font-size:10px;color:var(--mt);margin-top:6px">💡 El total se recalcula automáticamente al editar neto/exento/IVA. Puedes ajustarlo manualmente si hay diferencias con el documento real.</div>`:''}
+        ${!esHono?`<div style="font-size:10px;color:var(--mt);margin-top:6px">💡 Neto, IVA, exento, otros impuestos y total se completan desde las líneas del asiento cuando es posible. Normalmente sólo debes elegir el tipo de DTE y la fecha de vencimiento; puedes ajustar un valor si el documento real tiene una situación especial.</div>`:''}
       </div>
 
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
@@ -1071,6 +1072,19 @@ function renderCmpDteModal(){
 function setCmpDteCampo(campo,valor){
   if(!CMP_DTE.dte)return;
   CMP_DTE.dte[campo]=valor;
+}
+function setCmpDteTipo(valor){
+  if(!CMP_DTE.dte)return;
+  CMP_DTE.dte.tipoDTE=+valor||0;
+  // Al elegir el DTE ya sabemos si la base corresponde a Neto o Exento.
+  // Reutilizamos los montos que ya están en el asiento y sólo completamos
+  // campos que todavía no contienen información del documento original.
+  CMP_DTE.dte=inferirDteDesdeAsiento({
+    movs:CMP_MODAL.edit?.movs||[],lineaIdx:CMP_DTE.lineaIdx,tipoAux:CMP_DTE.tipoAux,
+    tipoDTE:CMP_DTE.dte.tipoDTE,actual:CMP_DTE.dte,
+    fecha:CMP_MODAL.edit?.fecha||today(),glosa:CMP_MODAL.edit?.glosa||''
+  });
+  renderCmpDteModal();
 }
 function setCmpDteRut(txt){
   if(!CMP_DTE.dte)return;
@@ -1114,4 +1128,4 @@ export {abrirComprobantePor, corregirDescuadreCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
         eliminarComprobante, anularComprobante,
         setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
-        abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte};
+        abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte};

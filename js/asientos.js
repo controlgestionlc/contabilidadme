@@ -13,6 +13,7 @@ import {fichaAux} from './importadoraux.js';
 import './storage.js';
 import {ejercicioCerrado,puedeOperarFecha,persistirAsientosCritico} from './contabilidad-v2.js';
 import {reglaCuenta,validarMovimientosPDC} from './pdc-reglas.js';
+import {inferirDteDesdeAsiento} from './dte-autocompletar.js';
 
 // Estado del formulario de asientos (interno del módulo; se reasigna al abrir/editar)
 // AF NUNCA debe reasignarse. app.js expone este objeto con Object.assign(window,{AF})
@@ -388,7 +389,7 @@ function folioPreviewDte(dte,cuenta,lineaIdx){
 }
 
 // ═══ MODAL DTE ═══
-let DM={open:false,lineaIdx:null,dist:[]};
+let DM={open:false,lineaIdx:null,dist:[],autoBase:false};
 
 // Líneas del asiento que representan el gasto: cuentas de resultado con monto,
 // excluyendo la propia línea del proveedor.
@@ -448,8 +449,18 @@ function abrirDteModal(lineaIdx){
   if(lblNeto)lblNeto.textContent=esHon?'Bruto (honorario)':'Neto';
   const lblRet=document.getElementById('dtm-lbl-ret');
   if(lblRet)lblRet.textContent=`Retención ${(retencionHonorarios(S.empresa.anio)*100).toFixed(2)}%`;
-  // Cargar datos existentes o defaults
-  const d=l.dte||{};
+  // Cargar datos existentes y completar automáticamente desde el asiento.
+  // Si la línea aún no tiene DTE, el total, IVA, otros impuestos, RUT, folio
+  // y descripción se reconstruyen desde las líneas ya digitadas. La base
+  // Neto/Exento se completa cuando el usuario elige el tipo de documento.
+  const baseDte=l.dte?{...l.dte}:{};
+  DM.autoBase=!(Number(baseDte.neto)||Number(baseDte.exento));
+  const d=inferirDteDesdeAsiento({
+    movs:AF.lineas,lineaIdx,tipoAux,tipoDTE:baseDte.tipoDTE,
+    actual:baseDte,
+    fecha:document.getElementById('af-fecha')?.value||today(),
+    glosa:document.getElementById('af-glosa')?.value||''
+  });
   document.getElementById('dtm-fecha').value=d.fecha||today();
   document.getElementById('dtm-vence').value=d.fechaVencimiento||'';
   document.getElementById('dtm-num').value=d.numero||'';
@@ -514,6 +525,7 @@ function dtmRutInput(val){
 }
 
 function dtmCalcTotals(changed){
+  if(changed==='neto'||changed==='exento')DM.autoBase=false;
   const lHon=AF.lineas[DM.lineaIdx];
   // Honorarios: bruto − retención = líquido a pagar
   if(lHon&&CUENTAS_AUX[lHon.cd]==='honorario'){
@@ -562,6 +574,45 @@ function dtmCalcTotals(changed){
     totEl.value=neto+exento+iva+otros;
   }
   if(esCompra)dtmUpdDistCheck();
+}
+
+function dtmTipoChanged(){
+  const l=AF.lineas[DM.lineaIdx];if(!l)return;
+  const tipoAux=CUENTAS_AUX[l.cd]||'';
+  const tipoDTE=+document.getElementById('dtm-dte').value||0;
+  const r=rutParse(document.getElementById('dtm-rut').value||'');
+  const actual={
+    fecha:document.getElementById('dtm-fecha').value||'',
+    fechaVencimiento:document.getElementById('dtm-vence').value||'',
+    tipoDTE,
+    numero:document.getElementById('dtm-num').value||'',
+    rutCodigo:r.codigo||'',rutDV:r.dv||'',
+    razonSocial:document.getElementById('dtm-rs').value||'',
+    descripcion:document.getElementById('dtm-desc')?.value||'',
+    neto:DM.autoBase?0:pn(document.getElementById('dtm-neto').value),
+    exento:DM.autoBase?0:pn(document.getElementById('dtm-exento').value),
+    iva:pn(document.getElementById('dtm-iva').value),
+    otrosImpuestos:pn(document.getElementById('dtm-otros').value),
+    total:pn(document.getElementById('dtm-total').value),
+  };
+  const inf=inferirDteDesdeAsiento({
+    movs:AF.lineas,lineaIdx,tipoAux,tipoDTE,actual,
+    fecha:document.getElementById('af-fecha')?.value||today(),
+    glosa:document.getElementById('af-glosa')?.value||''
+  });
+  const poner=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v||'';};
+  poner('dtm-num',inf.numero);poner('dtm-rs',inf.razonSocial);
+  poner('dtm-desc',inf.descripcion);poner('dtm-neto',inf.neto);
+  poner('dtm-exento',inf.exento);poner('dtm-iva',inf.iva);
+  poner('dtm-otros',inf.otrosImpuestos);poner('dtm-total',inf.total);
+  if(!document.getElementById('dtm-rut').value&&inf.rutCodigo){
+    document.getElementById('dtm-rut').value=String(inf.rutCodigo)+(inf.rutDV||'');
+    dtmRutInput(document.getElementById('dtm-rut').value);
+  }
+  // Si la distribución de una compra vino del asiento, ya contiene la base
+  // real por cuentas; sólo actualizamos el indicador de cuadratura.
+  if(l.cd==='2102001')dtmUpdDistCheck();
+  dtmRefresh();
 }
 
 function dtmRefresh(){
@@ -1053,4 +1104,4 @@ async function eliminarAsiento(id){
 
 
 
-export {lAuxElegido, CUENTAS_AUX, esAux, renderAsientos, toggleAs, cuentasOpts, renderLineas, lCd, lRut, lVal, lValFmt, lValFmtBlur, quitarDte, delLinea, addLinea, updCuadre, todosDocsVentas, todosDocsCompras, todosDocsComprasConBorrador, todosDocsVentasConBorrador, folioPreviewDte, DM, abrirDteModal, cerrarDteModal, dtmRutInput, dtmCalcTotals, dtmRefresh, dtmCheckDup, dtmRenderDist, dtmAddDist, dtmDelDist, dtmUpdDistCheck, dtmGuardar, dtmRemover, proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, abrirForm, editarAsiento, cerrarForm, duplicarAsiento, anularAsiento, abrirAsientoDesde, sigAsiento, limpiarFormAsiento, guardarAsiento, eliminarAsiento, AF};
+export {lAuxElegido, CUENTAS_AUX, esAux, renderAsientos, toggleAs, cuentasOpts, renderLineas, lCd, lRut, lVal, lValFmt, lValFmtBlur, quitarDte, delLinea, addLinea, updCuadre, todosDocsVentas, todosDocsCompras, todosDocsComprasConBorrador, todosDocsVentasConBorrador, folioPreviewDte, DM, abrirDteModal, cerrarDteModal, dtmRutInput, dtmCalcTotals, dtmTipoChanged, dtmRefresh, dtmCheckDup, dtmRenderDist, dtmAddDist, dtmDelDist, dtmUpdDistCheck, dtmGuardar, dtmRemover, proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, abrirForm, editarAsiento, cerrarForm, duplicarAsiento, anularAsiento, abrirAsientoDesde, sigAsiento, limpiarFormAsiento, guardarAsiento, eliminarAsiento, AF};

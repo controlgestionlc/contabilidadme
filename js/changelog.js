@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-0015';
+const APP_VERSION='v2026.09.13-0150';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.15',fecha:'12-09-2026',titulo:'DTE autocompletado desde el asiento',items:[
+    {tipo:'nuevo',txt:'Al asociar un DTE desde la edición de un comprobante, el sistema reconstruye automáticamente RUT, razón social, N° de documento, total, IVA, exento, otros impuestos y descripción a partir de las líneas contables disponibles.'},
+    {tipo:'cambio',txt:'Al elegir el tipo de documento SII, la base se asigna automáticamente a Neto o Exento según corresponda, por lo que en el flujo normal sólo resta elegir el DTE y la fecha de vencimiento.'},
+    {tipo:'arreglo',txt:'El autocompletado funciona tanto en el editor unificado de Comprobantes como en el formulario de Asientos Manuales.'},
+    {tipo:'seguridad',txt:'Los valores explícitos del documento original o del RCV siempre tienen prioridad; la inferencia sólo completa campos vacíos para no reemplazar datos tributarios reales.'},
+    {tipo:'cambio',txt:'Facturas de compra 45/46 reconstruyen el total documental considerando el IVA retenido cuando la cuenta 2103005 está presente.'}
+  ]},
   {version:'V2.16.14',fecha:'12-09-2026',titulo:'Centros de costo normales y sin capitalización',items:[
     {tipo:'nuevo',txt:'Los subcentros nuevos parten como tipo Normal, pensado para empresas comerciales y áreas que sólo necesitan acumular costos.'},
     {tipo:'nuevo',txt:'La configuración incorpora la opción explícita Sin Capitalización.'},
