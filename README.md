@@ -2,7 +2,7 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.16.22 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
+> **Estado actual:** V2.16.23 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
 
 ---
 
@@ -962,3 +962,12 @@ En el menú móvil, **Sistema y Respaldos** aparece una sola vez dentro de **Con
 - Cancelar, cerrar con `X` o usar Atrás sobre un formulario elimina sus campos incompletos de la sesión y no escribe en Firebase.
 - Al cerrar la PWA/app, cualquier formulario incompleto restante se descarta automáticamente.
 
+
+
+## V2.16.23 — Cierres mensuales y anuales para contadores
+
+- `Cierres Mensuales` es un módulo propio dentro de `Cierre de Ejercicio`; ya no depende de `Auditoría de Integridad`.
+- Administradores y contadores con permiso de edición pueden cerrar/reabrir meses de las empresas que tienen asignadas o compartidas.
+- La reapertura mensual exige un motivo de al menos 10 caracteres y queda registrada en auditoría.
+- El cierre anual y su reapertura también pueden ser ejecutados por contadores autorizados en la empresa activa, manteniendo las validaciones y trazabilidad existentes.
+- `Auditoría de Integridad` sigue siendo exclusiva de administración. Los cierres continúan ejecutando sus validaciones internas; si existen hallazgos críticos, el contador recibe un bloqueo y debe solicitar revisión al administrador.

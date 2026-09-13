@@ -679,3 +679,12 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Se incorpora una espera de 220 ms y restauración explícita de foco/cursor después del filtrado.
 - En Android/PWA el teclado permanece disponible para seguir escribiendo términos completos.
 - Cambiar otros filtros o pulsar **Limpiar** cancela búsquedas pendientes para evitar reenfoques inesperados.
+
+
+## V2.16.23 — Cierres mensuales operativos
+
+- Se crea `Cierres Mensuales` como sección independiente dentro de `Cierre de Ejercicio`.
+- Se retira el cierre mensual de la pantalla exclusiva de `Auditoría de Integridad`.
+- Rol `contador`: puede cerrar y reabrir períodos mensuales en empresas visibles/asignadas, con permiso de edición y trazabilidad obligatoria.
+- Cierre anual y reapertura: disponibles para administrador/contador autorizado en la empresa activa.
+- Auditoría técnica continúa restringida al administrador.
