@@ -22,9 +22,30 @@ function claveBorrador(){
   try{anio=String(window.S?.empresa?.anio||'');}catch(e){}
   return `${BORRADOR_BASE}:${emp}:${anio||'actual'}`;
 }
+function etiquetaCampo(el){
+  if(!el)return '';
+  try{
+    const lbl=document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+    if(lbl?.textContent)return lbl.textContent.trim();
+  }catch(e){}
+  try{
+    const grp=el.closest('.grp');
+    const lbl=grp?.querySelector('label');
+    if(lbl?.textContent)return lbl.textContent.trim();
+  }catch(e){}
+  return el.getAttribute('aria-label')||el.getAttribute('placeholder')||el.name||el.id||'';
+}
+function contenedorBorrador(el){
+  if(!el)return '';
+  try{
+    const c=el.closest('.modal-bkd,[id$="-form"],form,.section');
+    return c?.id||'';
+  }catch(e){return '';}
+}
 function serializarCampo(el){
   if(!el||!el.id)return null;
   return {id:el.id,tipo:(el.type||el.tagName||'').toLowerCase(),value:el.value??'',checked:!!el.checked,
+    etiqueta:etiquetaCampo(el),contenedor:contenedorBorrador(el),
     seccion:(window.getCurSec&&window.getCurSec())||'',ts:Date.now()};
 }
 function persistirBorradores(){
@@ -75,6 +96,66 @@ export function limpiarBorradoresOcultos(){
   actualizarIndicador();
 }
 export function guardarBorradoresAhora(){return persistirBorradores();}
+
+// Inventario de borradores para Configuración > Sistema y Respaldos.
+// Se agrupan por sección + formulario/modal para que el usuario pueda retomar
+// exactamente el trabajo que dejó pendiente, en vez de ver una lista de campos
+// técnicos sin contexto.
+export function listarBorradoresLocales(){
+  const grupos=new Map();
+  for(const d of borradores.values()){
+    const seccion=d.seccion||'inicio';
+    const contenedor=d.contenedor||'';
+    const clave=`${seccion}::${contenedor}`;
+    if(!grupos.has(clave))grupos.set(clave,{clave,seccion,contenedor,campos:[],ts:0});
+    const g=grupos.get(clave);g.campos.push({...d});g.ts=Math.max(g.ts,+d.ts||0);
+  }
+  return [...grupos.values()].sort((a,b)=>b.ts-a.ts);
+}
+export function descartarBorradorLocal(clave){
+  const g=listarBorradoresLocales().find(x=>x.clave===String(clave));
+  if(!g)return false;
+  for(const d of g.campos){
+    borradores.delete(String(d.id));
+    const el=document.getElementById(String(d.id));
+    if(el)delete el.dataset.borradorRestaurado;
+  }
+  _borrador=borradores.size>0;persistirBorradores();actualizarIndicador();
+  try{toast('🗑 Borrador descartado');}catch(e){}
+  return true;
+}
+export function descartarTodosBorradoresLocales(){
+  if(!borradores.size)return true;
+  borradores.forEach((_,id)=>{const el=document.getElementById(String(id));if(el)delete el.dataset.borradorRestaurado;});
+  borradores.clear();_borrador=false;persistirBorradores();actualizarIndicador();
+  try{toast('🗑 Todos los borradores locales fueron descartados');}catch(e){}
+  return true;
+}
+export function continuarBorradorLocal(clave){
+  const g=listarBorradoresLocales().find(x=>x.clave===String(clave));
+  if(!g)return false;
+  try{window.nav&&window.nav(g.seccion||'inicio');}catch(e){}
+  // Esperar a que la sección se renderice; luego abrir el contenedor si existe
+  // y volver a aplicar los valores del borrador sobre el DOM recién creado.
+  setTimeout(()=>{
+    try{
+      if(g.contenedor){
+        const c=document.getElementById(g.contenedor);
+        if(c){
+          if(c.classList.contains('modal-bkd'))c.classList.add('open');
+          else if(getComputedStyle(c).display==='none'||c.style.display==='none')c.style.display='';
+        }
+      }
+      // Permitir reaplicar aunque ya hubiese sido restaurado antes en otro render.
+      for(const d of g.campos){const el=document.getElementById(d.id);if(el)delete el.dataset.borradorRestaurado;}
+      aplicarBorradoresDOM();
+      const primero=g.campos.map(d=>document.getElementById(d.id)).find(Boolean);
+      if(primero){primero.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>{try{primero.focus({preventScroll:true});}catch(e){}},250);}
+      toast('✏️ Borrador abierto. Revisa y usa el botón Guardar/Registrar del módulo cuando esté listo.');
+    }catch(e){console.warn('No se pudo abrir borrador',e);}
+  },80);
+  return true;
+}
 export const hayBorrador=()=>_borrador||borradores.size>0;
 export const hayCambiosConfirmados=()=>_sucio;
 
@@ -202,7 +283,7 @@ export function initAvisoSalida(){
         return {el,cerrar:e=>{e.style.display='none';}};
     }
     // 3. Menú lateral desplegado en móvil
-    const nav=document.querySelector('nav.abierto,.sidebar.abierto,#sidebar.open');
+    const nav=document.querySelector('nav.open,nav.abierto,.sidebar.abierto,#sidebar.open');
     if(nav)return {el:nav,cerrar:()=>{try{window.cerrarNavMovil&&window.cerrarNavMovil();}catch(e){}}};
     // 4. Formularios en pantalla (nueva venta, compra, asiento…)
     const forms=['vf-form','cf-form','as-form','ap-form','cc-form','rem-form',

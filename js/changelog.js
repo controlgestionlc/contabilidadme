@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-0328';
+const APP_VERSION='v2026.09.13-0049';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.18',fecha:'13-09-2026',titulo:'Gestor de borradores y menú lateral por categorías',items:[
+    {tipo:'nuevo',txt:'Configuración > Sistema y Respaldos incorpora un apartado Borradores locales con fecha, módulo y campos pendientes.'},
+    {tipo:'nuevo',txt:'Cada borrador puede retomarse con Editar para continuar en su módulo y guardarse con las validaciones normales, o descartarse individualmente.'},
+    {tipo:'cambio',txt:'Los borradores se mantienen separados por empresa y ejercicio y siguen siendo exclusivamente locales hasta confirmar Guardar/Registrar.'},
+    {tipo:'cambio',txt:'El menú lateral ahora muestra categorías plegables; al tocar una categoría se despliegan sus módulos y se conserva abierta la categoría activa.'},
+    {tipo:'arreglo',txt:'Inicio queda correctamente identificado como la sección activa inicial del menú.'}
+  ]},
   {version:'V2.16.17',fecha:'13-09-2026',titulo:'Versión y autor visibles en login',items:[
     {tipo:'cambio',txt:'La pantalla de inicio de sesión muestra en su parte inferior la versión funcional de la aplicación y la leyenda Desarrollado por R.A.B.F. · 2026.'},
     {tipo:'arreglo',txt:'La versión del pie de login se obtiene desde la metadata de la publicación para evitar que quede desactualizada en futuras versiones.'}

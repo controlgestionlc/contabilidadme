@@ -13,12 +13,36 @@ import {S, AUTH} from './state.js';
 import {TEMAS} from './tema.js';
 import {AG, OPCIONES_INTERVALO, etiquetaIntervalo} from './autoguardado.js';
 import {DISPOSITIVO} from './dispositivo.js';
+import {listarBorradoresLocales} from './salida.js';
 
 // Lee el texto que los módulos de sincronización dejaron en los indicadores
 function estadoTexto(id,fallback){
   const el=document.getElementById(id);
   const t=(el&&el.textContent||'').trim();
   return t||fallback;
+}
+
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function nombreSeccionBorrador(s){
+  const item=document.querySelector(`[data-s="${String(s||'').replace(/"/g,'')}"]`);
+  return item?.textContent?.trim()||String(s||'Borrador');
+}
+function resumenBorradores(){
+  const grupos=listarBorradoresLocales();
+  if(!grupos.length)return `<div class="info-tip" style="font-size:11px">✅ No hay borradores locales pendientes en esta empresa y ejercicio.</div>`;
+  return `<div class="draft-list">${grupos.map(g=>{
+    const k=encodeURIComponent(g.clave);
+    const fecha=g.ts?new Date(g.ts).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+    const campos=g.campos.slice(0,4).map(d=>esc(d.etiqueta||d.id)).join(' · ')+(g.campos.length>4?` · +${g.campos.length-4}`:'');
+    return `<div class="draft-item">
+      <div class="draft-main"><strong>📝 ${esc(nombreSeccionBorrador(g.seccion))}</strong><span>${g.campos.length} campo${g.campos.length===1?'':'s'} · ${esc(fecha)}</span><small>${campos}</small></div>
+      <div class="draft-actions">
+        <button class="btn btn-i" onclick="continuarBorradorLocal(decodeURIComponent('${k}'))">✏️ Editar</button>
+        <button class="btn btn-g" onclick="if(confirm('¿Descartar este borrador local?')){descartarBorradorLocal(decodeURIComponent('${k}'));renderSistema()}">🗑 Descartar</button>
+      </div>
+    </div>`;
+  }).join('')}</div>
+  <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-g" onclick="if(confirm('¿Descartar TODOS los borradores locales de esta empresa y ejercicio?')){descartarTodosBorradoresLocales();renderSistema()}">🗑 Descartar todos</button></div>`;
 }
 
 function renderSistema(){
@@ -56,6 +80,13 @@ function renderSistema(){
           <button class="btn btn-g" onclick="renderSistema()">🔄 Actualizar</button>
         </div>
         <div style="font-size:10px;color:var(--mt);margin-top:8px">El sistema guarda solo cada vez que registras algo; este botón fuerza un guardado inmediato.</div>`)}
+
+      ${tarjeta('📝','Borradores locales',
+        'Trabajo iniciado pero todavía no confirmado. Puedes retomarlo o descartarlo sin enviarlo a Firebase.',
+        `${resumenBorradores()}
+        <div style="font-size:10px;color:var(--mt);margin-top:10px;line-height:1.55">
+          <strong>Editar</strong> vuelve al módulo y recupera los campos. Para convertir el borrador en un dato real debes usar el botón <strong>Guardar / Registrar</strong> del formulario correspondiente.
+        </div>`)}
 
       ${tarjeta('⏱','Guardado automático',
         'Protege borradores localmente y sincroniza sólo cambios que ya fueron confirmados. La preferencia queda en este dispositivo.',

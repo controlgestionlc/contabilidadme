@@ -43,7 +43,8 @@ import {renderPrevisional, guardarPrevisional, restaurarPrevisional} from './pre
 import {acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
         axAcBuscar, axAcTecla, axAcElegir, axAcCerrar} from './buscadorcuentas.js';
 import {initAvisoSalida, marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados,
-        guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, recordarNav, ultimaSeccion, olvidarNav} from './salida.js';
+        guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, recordarNav, ultimaSeccion, olvidarNav,
+        listarBorradoresLocales, descartarBorradorLocal, descartarTodosBorradoresLocales, continuarBorradorLocal} from './salida.js';
 import {initAutoguardado, actualizarBotonGuardar, guardarTodoAhora, setAutoguardado,
         setIntervaloAutoguardado, confirmarSalida, AG} from './autoguardado.js';
 import {cargarFichasAux, descargarPlantillaAux, abrirImportFichas,
@@ -414,6 +415,7 @@ async function initApp(){
   try{await cargarPreproduccion();await cargarPiloto();}catch(e){console.warn('Preproducción/Piloto init:',e);}
   // Aplicar permisos por si el usuario no puede ver la sección actual
   aplicarPermisosUI();
+  initNavGroups();
   retomarUltimaSeccion();
 }
 
@@ -437,6 +439,10 @@ function toggleNav(){
   const nav=document.querySelector('nav');
   const ov=document.getElementById('nav-overlay');
   const abierto=nav.classList.toggle('open');
+  if(abierto&&!nav.querySelector('.nav-group.open')){
+    const activa=nav.querySelector('.nav-item.active');
+    const g=activa?.closest('.nav-group');if(g)abrirNavGroup(g.dataset.navGroup,false);
+  }
   if(ov)ov.classList.toggle('open',abierto);
 }
 function cerrarNavMovil(){
@@ -445,6 +451,33 @@ function cerrarNavMovil(){
   if(nav)nav.classList.remove('open');
   if(ov)ov.classList.remove('open');
 }
+
+const NAV_GRUPO_KEY='cv:nav-grupo-abierto';
+function abrirNavGroup(id,guardar=true){
+  const grupos=[...document.querySelectorAll('.nav-group')];
+  grupos.forEach(g=>{
+    const abrir=!!id&&g.dataset.navGroup===id;
+    g.classList.toggle('open',abrir);
+    const b=g.querySelector('.nav-group-toggle');if(b)b.setAttribute('aria-expanded',abrir?'true':'false');
+  });
+  if(guardar){try{id?localStorage.setItem(NAV_GRUPO_KEY,id):localStorage.removeItem(NAV_GRUPO_KEY);}catch(e){}}
+}
+function toggleNavGroup(id){
+  const g=document.querySelector(`.nav-group[data-nav-group="${String(id).replace(/"/g,'')}"]`);
+  if(!g)return;
+  abrirNavGroup(g.classList.contains('open')?'':id,true);
+}
+function abrirGrupoDeSeccion(s,guardar=true){
+  const item=document.querySelector(`[data-s="${String(s).replace(/"/g,'')}"]`);
+  const g=item?.closest('.nav-group');
+  if(g)abrirNavGroup(g.dataset.navGroup,guardar);
+}
+function initNavGroups(){
+  let guardado='';try{guardado=localStorage.getItem(NAV_GRUPO_KEY)||'';}catch(e){}
+  const activa=document.querySelector('.nav-item.active');
+  const gid=guardado||activa?.closest('.nav-group')?.dataset.navGroup||'';
+  abrirNavGroup(gid,false);
+}
 function nav(s){
   document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
@@ -452,6 +485,7 @@ function nav(s){
   if(sec)sec.classList.add('active');
   const item=document.querySelector('[data-s="'+s+'"]');
   if(item)item.classList.add('active');   // hay secciones sin ítem de menú
+  if(item)abrirGrupoDeSeccion(s,true);    // el menú recuerda y muestra la categoría actual
   // Contexto móvil: siempre mostrar dónde está el usuario. Preferimos el título
   // visible de la sección y, como respaldo, el texto del menú lateral.
   try{
@@ -608,7 +642,7 @@ Object.assign(window,{
   // utilidades
   toast,
   // navegación y arranque
-  nav, rerender, renderSec, toggleNav, cerrarNavMovil, changeYear, saveAll, init, initApp,
+  nav, rerender, renderSec, toggleNav, cerrarNavMovil, toggleNavGroup, changeYear, saveAll, init, initApp,
   // auth / usuarios
   toggleLoginMode, submitLogin, recuperarPassword, mostrarLogin, logout,
   olvidarNav,
@@ -626,7 +660,7 @@ Object.assign(window,{
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,
   acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
   axAcBuscar, axAcTecla, axAcElegir, axAcCerrar, lAuxElegido,
-  marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto,
+  marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, listarBorradoresLocales, descartarBorradorLocal, descartarTodosBorradoresLocales, continuarBorradorLocal,
   actualizarBotonGuardar, guardarTodoAhora, setAutoguardado, setIntervaloAutoguardado, confirmarSalida, AG,
   abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos, enfocarPendienteImportC, enfocarPendienteImportV,
   toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel,
