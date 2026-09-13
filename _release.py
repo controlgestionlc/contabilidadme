@@ -20,6 +20,16 @@ version=sys.argv[1] if len(sys.argv)>1 else 'v'+time.strftime('%Y.%m.%d-%H%M')
 epoch=str(int(time.time()))
 modulos=sorted(f for f in os.listdir('js') if f.endswith('.js'))
 
+# Versión funcional visible (V2.x.y) tomada de la primera entrada del CHANGELOG.
+# Así el login no depende de editar otro valor manualmente al publicar.
+release='';
+try:
+    ch=open('js/changelog.js',encoding='utf-8').read()
+    m=re.search(r"\{version:'(V[^']+)'",ch)
+    if m: release=m.group(1)
+except Exception:
+    pass
+
 imports={f'./js/{m}':f'./js/{m}?v={epoch}' for m in modulos}
 mapa=('<!-- Cache-busting: sin esto el navegador sirve los módulos viejos aunque\n'
       '     app.js sea nuevo. Lo genera _release.py en cada publicación. -->\n'
@@ -39,13 +49,18 @@ s=s[:anc.start()]+mapa+'\n'+f'<script type="module" src="js/app.js?v={epoch}"></
 # 2. Versión visible en la barra superior
 s=re.sub(r'v20\d\d\.\d\d\.\d\d-\d{4}',version,s)
 s=re.sub(r'(<meta name="app-version" content=")[^"]+(">)',r'\1'+version+r'\2',s)
+if release:
+    if re.search(r'<meta name="app-release" content="[^"]+">',s):
+        s=re.sub(r'(<meta name="app-release" content=")[^"]+(">)',r'\1'+release+r'\2',s)
+    else:
+        s=s.replace('<meta name="app-version" content="'+version+'">','<meta name="app-version" content="'+version+'">\n<meta name="app-release" content="'+release+'">')
 
 open('index.html','w',encoding='utf-8').write(s)
 
 # 2b. Manifiesto de versión para instalaciones PWA ya abiertas. Se consulta
 # con cache:no-store y permite forzar la actualización cuando cambia.
 open('version.json','w',encoding='utf-8').write(json.dumps({
-    'version':version,'revision':epoch,'publicadoEn':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
+    'version':version,'release':release or None,'revision':epoch,'publicadoEn':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
 },ensure_ascii=False,indent=2)+'\n')
 
 # 3. Nombre de la caché del service worker

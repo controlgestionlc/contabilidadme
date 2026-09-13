@@ -938,3 +938,8 @@ Los valores existentes en el documento origen o RCV siempre tienen prioridad. La
 - Se toleran diferencias de hasta 2 pesos producidas por redondeo del IVA, evitando crear montos exentos ficticios por reversión matemática de la tasa 19%.
 - En un caso como Total `$531.243.316` e IVA `$84.820.361`, el sistema completa Neto `$446.422.955` al abrir el documento.
 
+
+
+## Identificación de versión en el login
+
+La pantalla de inicio de sesión muestra en su parte inferior la **versión funcional vigente** de la aplicación y la leyenda **“Desarrollado por R.A.B.F. · 2026”**. La versión visible se sincroniza con la primera entrada del changelog durante el proceso de publicación, evitando mantener textos de versión duplicados.

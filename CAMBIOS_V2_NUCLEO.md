@@ -633,3 +633,9 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Se toleran diferencias de hasta 2 pesos producidas por redondeo del IVA, evitando crear montos exentos ficticios por reversión matemática de la tasa 19%.
 - En un caso como Total `$531.243.316` e IVA `$84.820.361`, el sistema completa Neto `$446.422.955` al abrir el documento.
 
+
+
+## V2.16.17 — Versión y autor en login
+- Se incorpora al pie del login la versión funcional vigente.
+- Se agrega la leyenda `Desarrollado por R.A.B.F. · 2026`.
+- `_release.py` sincroniza automáticamente `app-release` y `version.json` con la primera versión del changelog.
