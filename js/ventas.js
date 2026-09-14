@@ -470,7 +470,7 @@ async function guardarVenta(){
   const fechaVencimientoOrigen=fechaVencimiento
     ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
     :'';
-  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(referencia?{referencia}:{})};
+  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(referencia?{referencia}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||''}:{})};
   const editando=!!VF.editId;
   const rSave=await guardarDocumentoContabilizado('ventas',doc,S.ventas,editando);
   if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
@@ -757,6 +757,8 @@ async function confirmarImportacionV(){
       fecha, tipoDTE:d.tipoDTE, numero:d.numero,
       fechaVencimiento:d.fechaVencimiento||'',
       fechaVencimientoOrigen:d.fechaVencimientoOrigen||'',
+      fechaRecepcionSII:d.fechaRecepcionSII||'',
+      fechaAcuseSII:d.fechaAcuseSII||'',
       rutCodigo:d.rutCodigo, rutDV:d.rutDV, razonSocial:d.razonSocial,
       neto:d.neto, exento:d.exento, iva:d.iva,
       otrosImpuestos:d.otrosImpuestos||0, total:d.total,

@@ -673,7 +673,7 @@ async function guardarCompra(){
   const fechaVencimientoOrigen=fechaVencimiento
     ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
     :'';
-  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(usaIvaRetenido?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{})};
+  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(usaIvaRetenido?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||'',tipoCompra:prevEdit.tipoCompra||'',codigoIvaNoRecuperable:prevEdit.codigoIvaNoRecuperable||'',numeroInternoSII:prevEdit.numeroInternoSII||''}:{})};
   const editando=!!CF.editId;
   if(editando){
     const i=S.compras.findIndex(x=>x.id===CF.editId); const prev=i>=0?S.compras[i]:null;
@@ -1235,6 +1235,8 @@ async function confirmarImportacion(){
       origenRegistro:'RCV',
       fechaVencimiento:d.fechaVencimiento||'',
       fechaVencimientoOrigen:d.fechaVencimientoOrigen||'',
+      fechaRecepcionSII:d.fechaRecepcionSII||'',
+      fechaAcuseSII:d.fechaAcuseSII||'',
       tipoDTE:d.tipoDTE,
       numero:d.numero,
       rutCodigo:d.rutCodigo,
@@ -1245,12 +1247,15 @@ async function confirmarImportacion(){
       iva:d.iva,
       ...(d.ivaRecuperable!=null?{ivaRecuperable:d.ivaRecuperable}:{}),
       ...(d.ivaNoRecuperable!=null?{ivaNoRecuperable:d.ivaNoRecuperable}:{}),
+      ...(d.codigoIvaNoRecuperable?{codigoIvaNoRecuperable:d.codigoIvaNoRecuperable}:{}),
       ...(d.ivaUsoComun?{ivaUsoComun:d.ivaUsoComun}:{}),
       ...(d.ivaActivoFijo?{ivaActivoFijo:d.ivaActivoFijo}:{}),
       ...(d.tratamientoIVA?{tratamientoIVA:d.tratamientoIVA}:{}),
       otrosImpuestos:d.otrosImpuestos||0,
       tratamientoOtrosImpuestos:d.tratamientoOtrosImpuestos||'costo',
       otrosImpuestosDetalle:d.otrosImpuestosDetalle||((d.otrosImpuestos||0)?[{tipo:'otro',nombre:'Otros impuestos RCV',monto:d.otrosImpuestos||0,tratamiento:'costo'}]:[]),
+      ...(d.tipoCompra?{tipoCompra:d.tipoCompra}:{}),
+      ...(d.numeroInternoSII?{numeroInternoSII:d.numeroInternoSII}:{}),
       // DTE 45/46 importados desde RCV históricamente pueden informar el total
       // pagadero al proveedor sin sumar el IVA retenido. El motor usa esta marca
       // para no depender de una excepción dentro de reportes.js.

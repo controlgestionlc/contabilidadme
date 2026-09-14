@@ -50,6 +50,7 @@ const SECCIONES=[
   {id:'auxiliares',lbl:'Auxiliares'},
   {id:'pagos',lbl:'Pagos y Cobros'},
   {id:'diario',lbl:'Libro Diario'},
+  {id:'libroscv',lbl:'Libros mensuales Compra y Venta'},
   {id:'foliossii',lbl:'Hojas foliadas SII'},
   {id:'mayor',lbl:'Libro Mayor'},
   {id:'balance',lbl:'Balance General'},

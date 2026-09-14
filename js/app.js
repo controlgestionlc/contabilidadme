@@ -124,6 +124,7 @@ import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBala
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla,
         exportarMayorExcel} from './reportes.js';
+import {renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV} from './libroscv.js';
 import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
         eliminarComprobante, anularComprobante,
@@ -550,6 +551,7 @@ function renderSec(s){
   else if(s==='asientos')renderComprobantes();
   else if(s==='auxiliares')renderAuxiliares();
   else if(s==='diario')renderDiario();
+  else if(s==='libroscv')renderLibrosCV();
   else if(s==='foliossii')renderFoliosSII();
   else if(s==='mayor')renderMayor();
   else if(s==='balance')renderBalance();
@@ -725,6 +727,7 @@ Object.assign(window,{
   generarProvisionIncobrables, generarProvisionFeriado, renderCorreccion, previewCM,
   // reportes
   renderDiario, setDiarioQ, renderMayor, renderBalance, onCmpYear, renderResultados,
+  renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV,
   onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
   onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel,
   renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,renderCierresMensuales,cerrarMesContableOperativo,reabrirMesContableOperativo,

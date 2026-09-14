@@ -8,13 +8,22 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.13-1930';
+const APP_VERSION='v2026.09.14-0020';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.29',fecha:'14-09-2026',titulo:'Libros mensuales de Compras y Ventas',items:[
+    {tipo:'nuevo',txt:'Reportes incorpora libros mensuales de Compras y Ventas con selector de período y vista independiente por cada tipo de DTE.'},
+    {tipo:'nuevo',txt:'El resumen reproduce las columnas tributarias del RCV: documentos, exento, neto, IVA recuperable/uso común/no recuperable y total; Ventas presenta IVA débito y otros impuestos.'},
+    {tipo:'nuevo',txt:'Cada detalle incluye correlativo interno mensual, folio, fecha, RUT, razón social, montos y documento referenciado.'},
+    {tipo:'nuevo',txt:'La exportación Excel genera Datos, Resumen por DTE, Detalle consolidado y una hoja separada por tipo de documento.'},
+    {tipo:'nuevo',txt:'La descarga CSV sigue el orden de columnas de detalle SII e incorpora Número Interno para facilitar conciliación con el RCV/RVE.'},
+    {tipo:'nuevo',txt:'Imprimir / PDF produce portada del contribuyente, período, resumen y secciones separadas por DTE.'},
+    {tipo:'seguridad',txt:'Antes de exportar se validan duplicados, correlativos repetidos, campos esenciales, cuadratura tributaria, códigos de IVA no recuperable y referencias de notas.'}
+  ]},
   {version:'V2.16.28',fecha:'13-09-2026',titulo:'Edición segura y redondeo exacto del RCV',items:[
     {tipo:'seguridad',txt:'Editar un comprobante de Compras o Ventas abre siempre su documento de origen y actualiza el mismo asiento; ya no crea un asiento manual adicional.'},
     {tipo:'arreglo',txt:'Neto, IVA y Total conservan exactamente los valores informados por el SII; una diferencia tributaria de $1 se absorbe en la línea base del asiento sin alterar el libro.'},
