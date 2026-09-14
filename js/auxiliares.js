@@ -105,12 +105,20 @@ function renderAuxiliares(){
     if(d.razonSocial)bucket[k].razonSocial=d.razonSocial;
   });
 
-  // 3) Movimientos manuales SIN DTE (pagos, ajustes) — solo los que NO tienen .dte
+  // 3) Movimientos contra el auxiliar que NO son el documento en sí: pagos,
+  //    cobros y ajustes manuales.
+  //    Los asientos de DOCUMENTO (facturas, NC/ND, honorarios) ya quedaron
+  //    contados como documento en los pasos 1/2, así que se excluyen aquí. Si no,
+  //    el movimiento de proveedor/cliente de cada factura se contaba dos veces
+  //    (una como DTE y otra como falso "Pago"), duplicando el saldo. El motor V2
+  //    marca esos asientos con tipo 'documento' (antes se detectaban por m.dte,
+  //    que ya no se usa en los asientos automáticos).
   S.asientos.forEach(a=>{
     if(a.anulado)return;
+    if(a.tipo==='documento'||a.tipo==='apertura')return;
     (a.movs||[]).forEach(m=>{
       if(!m.rutCodigo||!esAux(m.cd))return;
-      if(m.dte)return; // ya contado en paso 1/2 como DTE
+      if(m.dte)return; // línea de un asiento manual que representa un DTE ya contado
       const tipo=CUENTAS_AUX[m.cd];
       const bucket=tipo==='cliente'?clientes:proveedores;
       const k=m.rutCodigo;
