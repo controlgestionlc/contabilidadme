@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0020';
+const APP_VERSION='v2026.09.14-0021';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.30',fecha:'14-09-2026',titulo:'Importación RCV resistente a errores por documento',items:[
+    {tipo:'seguridad',txt:'Compras y Ventas validan cada asiento contra el Plan de Cuentas dentro de la vista previa, incluyendo cuentas inexistentes, inactivas, agrupadoras y exigencias de auxiliar o centro de costo.'},
+    {tipo:'arreglo',txt:'Un error al crear el asiento de un documento ya no interrumpe todo el lote: la fila defectuosa se revierte de forma individual y las demás continúan.'},
+    {tipo:'nuevo',txt:'Los documentos que fallen al guardar quedan visibles como pendientes con error, muestran la causa exacta y pueden volver a validarse para reintentar.'},
+    {tipo:'seguridad',txt:'Los resúmenes, fichas auxiliares y auditoría del lote contabilizan solamente los documentos aplicados correctamente.'}
+  ]},
   {version:'V2.16.29',fecha:'14-09-2026',titulo:'Libros mensuales de Compras y Ventas',items:[
     {tipo:'nuevo',txt:'Reportes incorpora libros mensuales de Compras y Ventas con selector de período y vista independiente por cada tipo de DTE.'},
     {tipo:'nuevo',txt:'El resumen reproduce las columnas tributarias del RCV: documentos, exento, neto, IVA recuperable/uso común/no recuperable y total; Ventas presenta IVA débito y otros impuestos.'},

@@ -12,12 +12,14 @@ import './storage.js';
 import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
 import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 import {asientoVenta} from './motor-contable.js';
+import {validarMovimientosPDC} from './pdc-reglas.js';
 
 // Estado del formulario de ventas (interno del módulo)
 // Mismo cuidado que con AF y CF: este objeto se publica en window desde app.js,
 // así que se muta, nunca se reasigna. Hoy sólo lo lee este módulo, pero dejarlo
 // como `let` reasignable es la trampa que ya costó dos bugs silenciosos.
 const VF={editId:null};
+const textoSeguroImportV=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fijarVF=editId=>{VF.editId=editId==null?null:editId;};
 let IMV={docs:[]}; // estado del importador SII de ventas
 
@@ -27,8 +29,20 @@ function validarCuadraturaImportVentas(){
     if(!d.incluir)return;
     const doc={...d,id:d.dup?.id||`preview-v-${i}`,fecha:d.fechaOriginal||d.fecha,
       formaPago:d.dup?.formaPago||d.fp||'clientes',cuentaIngreso:d.dup?.cuentaIngreso||d.cuenta||''};
-    const a=asientoVenta(doc);
-    if(!a.cuadre?.ok)out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:a.cuadre?.diferencia||0});
+    try{
+      const a=asientoVenta(doc);
+      const vp=validarMovimientosPDC(a.movs||[]);
+      if(!a.cuadre?.ok||!vp.ok){
+        const motivos=[];
+        if(!a.cuadre?.ok)motivos.push(`Debe y Haber difieren en ${fmtC(a.cuadre?.diferencia||0)}`);
+        if(!vp.ok)motivos.push(vp.errores[0]);
+        out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:a.cuadre?.diferencia||0,motivo:motivos.join(' · '),tipo:!vp.ok?'pdc':'cuadratura'});
+      }else if(d.errorImport){
+        out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:d.errorImport,tipo:'guardado'});
+      }
+    }catch(err){
+      out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:err?.message||String(err),tipo:'preview'});
+    }
   });
   return out;
 }
@@ -43,8 +57,8 @@ function enfocarPendienteImportV(i){
 
 function alertaCuadraturaImport(lista){
   if(!lista.length)return '';
-  const items=lista.slice(0,8).map(x=>`<button type="button" class="imp-pending-link" onclick="enfocarPendienteImportV(${x.idx})">DTE ${x.tipoDTE} N° ${x.numero} · diferencia ${fmtC(x.diferencia)}</button>`).join('');
-  return `<div class="imp-pending-alert"><strong>⚠️ ${lista.length} documento${lista.length===1?'':'s'} quedarían descuadrado${lista.length===1?'':'s'}.</strong><div class="imp-pending-links">${items}${lista.length>8?`<span>… y ${lista.length-8} más</span>`:''}</div><span>Se avisará antes de guardar. Los documentos cuadrados sí pueden importarse; estos quedarán pendientes en esta ventana para revisión.</span></div>`;
+  const items=lista.slice(0,8).map(x=>`<button type="button" class="imp-pending-link" onclick="enfocarPendienteImportV(${x.idx})">DTE ${x.tipoDTE} N° ${textoSeguroImportV(x.numero)} · ${textoSeguroImportV(x.motivo||`diferencia ${fmtC(x.diferencia)}`)}</button>`).join('');
+  return `<div class="imp-pending-alert"><strong>⚠️ ${lista.length} documento${lista.length===1?'':'s'} no pasarían la validación contable.</strong><div class="imp-pending-links">${items}${lista.length>8?`<span>… y ${lista.length-8} más</span>`:''}</div><span>Se detectaron antes de guardar. Los documentos válidos sí pueden importarse; estos quedarán pendientes para corregir su cuenta, auxiliar, centro de costo o cuadratura.</span></div>`;
 }
 
 function recalcularEstadoImportVentas(){
@@ -604,7 +618,7 @@ function aplicarCuentaATodosV(){
   const cd=_bulkCuentaImpV||(bulkInp?bulkInp.dataset.cd:'')||
     (document.getElementById('impv-bulk')&&document.getElementById('impv-bulk').value)||'';
   if(!cd){toast('⚠️ Elige una cuenta primero','e');return;}
-  IMV.docs.forEach(d=>{if(d.incluir)d.cuenta=cd;});
+  IMV.docs.forEach(d=>{if(d.incluir){d.cuenta=cd;delete d.errorImport;}});
   renderImportModalVentas();
 }
 
@@ -618,7 +632,9 @@ function renderImportModalVentas(){
     const fechaBase=d.fechaOriginal||d.fecha;
     const fechaMostrar=fechaBase+(d.fechaVencimiento?`<div style="font-size:9px;color:var(--mt);margin-top:2px" title="${d.fechaVencimientoOrigen==='archivo'?'Vencimiento informado por el archivo':'Vencimiento estimado: emisión + 30 días'}">Vence ${d.fechaVencimiento}${d.fechaVencimientoOrigen==='estimado30d'?' · 30d':''}</div>`:'');
     const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
-    const estado=pendiente
+    const estado=d.errorImport
+      ? `<button type="button" class="imp-pending-mini" onclick="delete IMV.docs[${i}].errorImport;renderImportModalVentas()" title="${textoSeguroImportV(d.errorImport)} · Toca para volver a validar y reintentar">⛔ error</button>`
+      :pendiente
       ? `<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportV(${i})">⚠ pendiente</button>`
       :d.estadoImport==='manual'
       ? '<span style="color:var(--info);font-size:10px" title="Este DTE ya existe en un asiento manual; el importador no lo modifica">↔ ya en asiento</span>'
@@ -630,7 +646,7 @@ function renderImportModalVentas(){
     // Por defecto todas las ventas van al auxiliar de clientes (cuenta por
     // cobrar). El usuario cambia a "Banco" las que sean realmente al contado.
     if(!d.fp)d.fp='clientes';
-    const fpSel=`<select onchange="IMV.docs[${i}].fp=this.value" style="width:100%;font-size:11px;padding:3px">
+    const fpSel=`<select onchange="IMV.docs[${i}].fp=this.value;delete IMV.docs[${i}].errorImport;renderImportModalVentas()" style="width:100%;font-size:11px;padding:3px">
       <option value="banco" ${d.fp==='banco'?'selected':''}>💵 Banco</option>
       <option value="clientes" ${d.fp==='clientes'?'selected':''}>📇 Cliente</option>
       <option value="deudores" ${d.fp==='deudores'?'selected':''}>📋 Deudor</option>
@@ -646,7 +662,7 @@ function renderImportModalVentas(){
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.iva)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.otrosImpuestos||0)}</div>
       <div style="text-align:right;font-family:var(--mono);font-weight:600">${fmtC(d.total)}</div>
-      <div>${inputCuenta({id:`impv-cd-${i}`,value:d.cuenta||'',onPick:`IMV.docs[${i}].cuenta='%CD%';renderImportModalVentas()`,placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'ingreso'})}</div>
+      <div>${inputCuenta({id:`impv-cd-${i}`,value:d.cuenta||'',onPick:`IMV.docs[${i}].cuenta='%CD%';delete IMV.docs[${i}].errorImport;renderImportModalVentas()`,placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'ingreso'})}</div>
       <div>${fpSel}</div>
       <div>${estado}</div>
     </div>`;
@@ -667,11 +683,11 @@ function renderImportModalVentas(){
     summary.innerHTML=`📄 <strong>${IMV.docs.length}</strong> documentos en <em>${IMV.archivo||''}</em> · <strong style="color:var(--ach)">${nuevos}</strong> nuevos · <strong style="color:var(--mt)">${iguales}</strong> sin cambios${cambiados?` · <strong style="color:var(--warn)">${cambiados}</strong> con cambios SII`:''}${manuales?` · <strong style="color:var(--info)">${manuales}</strong> ya en asiento manual`:''}${IMV.descartados?' · '+IMV.descartados+' descartados':''}${alertaCuadraturaImport(descuadrados)}`;
   }
   const info=document.getElementById('impv-periodo-info');
-  if(info)info.textContent=descuadrados.length?`${listos} listos · ${descuadrados.length} pendientes por cuadratura`:`${incluidos} para importar · ${conCuenta} con cuenta asignada`;
+  if(info)info.textContent=descuadrados.length?`${listos} listos · ${descuadrados.length} pendientes por validación contable`:`${incluidos} para importar · ${conCuenta} con cuenta asignada`;
   const cnt=document.getElementById('impv-count');
   if(cnt)cnt.textContent=`${incluidos} seleccionados`;
   const btn=document.getElementById('impv-btn-ok');
-  if(btn){btn.disabled=listos===0;btn.textContent=`💾 Aplicar ${listos}${descuadrados.length?` · dejar ${descuadrados.length} pendiente${descuadrados.length===1?'':'s'}`:''}`;btn.title=descuadrados.length?'Los descuadrados no se guardarán: quedarán pendientes para revisión':'';}
+  if(btn){btn.disabled=listos===0;btn.textContent=`💾 Aplicar ${listos}${descuadrados.length?` · dejar ${descuadrados.length} pendiente${descuadrados.length===1?'':'s'}`:''}`;btn.title=descuadrados.length?'Los documentos con errores contables no se guardarán: quedarán pendientes para revisión':'';}
 }
 
 async function confirmarImportacionV(){
@@ -686,12 +702,12 @@ async function confirmarImportacionV(){
     cerrarImportModalVentas();return;
   }
   if(descuadrados.length){
-    const detalle=descuadrados.slice(0,8).map(x=>`• DTE ${x.tipoDTE} N° ${x.numero}: diferencia ${fmtC(x.diferencia)}`).join('\n');
+    const detalle=descuadrados.slice(0,8).map(x=>`• DTE ${x.tipoDTE} N° ${x.numero}: ${x.motivo||`diferencia ${fmtC(x.diferencia)}`}`).join('\n');
     if(!incluidos.length){
-      alert(`⚠️ No hay documentos cuadrados para guardar.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nLos DTE indicados quedan pendientes en el importador para revisión.`);
+      alert(`⚠️ No hay documentos que pasen la validación contable.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nLos DTE indicados quedan pendientes en el importador para revisión.`);
       renderImportModalVentas();return;
     }
-    const ok=confirm(`⚠️ Se detectaron ${descuadrados.length} documento(s) que producirían un comprobante descuadrado.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nEstos NO se guardarán. Se procesarán ${incluidos.length} documento(s) cuadrados y los descuadrados quedarán pendientes en esta ventana para corregir o revisar.\n\n¿Continuar?`);
+    const ok=confirm(`⚠️ Se detectaron ${descuadrados.length} documento(s) que no pasan la validación contable.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nEstos NO se guardarán. Se procesarán ${incluidos.length} documento(s) válidos y los demás quedarán pendientes en esta ventana para corregir o revisar.\n\n¿Continuar?`);
     if(!ok){renderImportModalVentas();return;}
   }
   const enPeriodoCerrado=incluidos.filter(d=>!puedeOperarFecha(d.fechaOriginal||d.fecha));
@@ -746,14 +762,16 @@ async function confirmarImportacionV(){
   const snapAsientos=JSON.stringify(S.asientos||[]);
 
   let importados=0;
+  const aplicados=[],pendientesError=[];
   // Reservar rango de folios de comprobante para las ventas.
   let folioNext=proxFolioComprobante();
   incluidos.forEach((d,i)=>{
     const prev=d.dup||null;
     const fecha=d.fechaOriginal||d.fecha; // fecha documental RCV: nunca se fuerza al período
+    const folioCandidato=prev?.folioComp||folioNext;
     const doc={
       id:prev?.id||('v_imp_'+Date.now()+'_'+i),
-      folioComp:prev?.folioComp||folioNext++,   // el existente conserva comprobante
+      folioComp:folioCandidato,   // el existente conserva comprobante
       fecha, tipoDTE:d.tipoDTE, numero:d.numero,
       fechaVencimiento:d.fechaVencimiento||'',
       fechaVencimientoOrigen:d.fechaVencimientoOrigen||'',
@@ -777,10 +795,26 @@ async function confirmarImportacionV(){
         }].slice(-20)
       }: {})
     };
-    if(prev){const idx=S.ventas.findIndex(x=>x.id===prev.id);if(idx>=0)S.ventas[idx]=doc;else S.ventas.push(doc);}
-    else S.ventas.push(doc);
-    upsertAsientoDocumento('ventas',doc);
-    importados++;
+    const idxPrev=S.ventas.findIndex(x=>x.id===doc.id);
+    const docAnterior=idxPrev>=0?JSON.parse(JSON.stringify(S.ventas[idxPrev])):null;
+    const asientosAntes=JSON.stringify(S.asientos||[]);
+    try{
+      if(idxPrev>=0)S.ventas[idxPrev]=doc;else S.ventas.push(doc);
+      upsertAsientoDocumento('ventas',doc);
+      if(!prev)folioNext++;
+      delete d.errorImport;
+      aplicados.push(d);importados++;
+    }catch(err){
+      if(idxPrev>=0)S.ventas[idxPrev]=docAnterior;
+      else{
+        const creado=S.ventas.findIndex(x=>x.id===doc.id);
+        if(creado>=0)S.ventas.splice(creado,1);
+      }
+      S.asientos=JSON.parse(asientosAntes);
+      d.errorImport=err?.message||String(err);
+      d.estadoImport='pendiente_error';d.incluir=true;
+      pendientesError.push(d);
+    }
   });
 
   try{
@@ -793,19 +827,19 @@ async function confirmarImportacionV(){
     toast('❌ No se pudo completar la importación. Se revirtieron ventas y asientos.','e');return;
   }
 
-  incluidos.filter(d=>d.estadoImport==='cambio').forEach(d=>{
+  aplicados.filter(d=>d.estadoImport==='cambio').forEach(d=>{
     const prev=d.dup||null;
     const nuevo=prev?S.ventas.find(x=>x.id===prev.id):null;
     if(nuevo)logCambio('Actualizó venta desde RCV',{entidad:'venta',id:nuevo.id,antes:prev,despues:nuevo,meta:{numeroContable:(S.asientos||[]).find(a=>a.docId===nuevo.id&&a.fuente==='ventas')?.numeroContable,tipoDTE:nuevo.tipoDTE,folio:nuevo.numero}});
   });
-  logCambio('Importó lote RCV ventas',{entidad:'lote-rcv',id:`ventas:${S.empresa.anio}:${Date.now()}`,antes:null,despues:null,meta:{archivo:IMV.archivo||'',nuevos:incluidos.filter(d=>d.estadoImport==='nuevo').length,cambios:incluidos.filter(d=>d.estadoImport==='cambio').length,sinCambios:IMV.docs.filter(d=>d.estadoImport==='igual').length}});
+  logCambio('Importó lote RCV ventas',{entidad:'lote-rcv',id:`ventas:${S.empresa.anio}:${Date.now()}`,antes:null,despues:null,meta:{archivo:IMV.archivo||'',nuevos:aplicados.filter(d=>d.estadoImport==='nuevo').length,cambios:aplicados.filter(d=>d.estadoImport==='cambio').length,conError:pendientesError.length,sinCambios:IMV.docs.filter(d=>d.estadoImport==='igual').length}});
 
   // Crear/completar la ficha del cliente para TODOS los documentos importados,
   // tenga o no cuenta de ingreso asignada. Si el cliente no existe, se crea la
   // ficha con los datos básicos (RUT, razón social) para editarla luego; si el
   // documento trae cuenta, se guarda como cuenta por defecto.
   const asignaciones={};  // rut → {cuenta:{cd→count}, dv, razon}
-  incluidos.forEach(d=>{
+  aplicados.forEach(d=>{
     const key=d.rutCodigo;
     if(!key)return;
     if(!asignaciones[key])asignaciones[key]={cuenta:{},rutDV:d.rutDV,razonSocial:d.razonSocial};
@@ -837,16 +871,18 @@ async function confirmarImportacionV(){
     guardarFichasAux().catch(e=>console.warn('No se pudo guardar ficha auxiliar:',e));
   }
 
-  const pendientesCuadratura=IMV.docs.filter((d,i)=>badIdx.has(i));
+  const pendientesCuadratura=[...new Set([...IMV.docs.filter((d,i)=>badIdx.has(i)),...pendientesError])];
   if(pendientesCuadratura.length){
     IMV.docs=pendientesCuadratura;
-    IMV.docs.forEach(d=>{d.incluir=true;d.estadoImport='pendiente_cuadratura';});
+    IMV.docs.forEach(d=>{d.incluir=true;d.estadoImport=d.errorImport?'pendiente_error':'pendiente_cuadratura';});
     renderImportModalVentas();
   }else cerrarImportModalVentas();
-  const msgClientes=clientesNuevos.size?` · ${clientesNuevos.size} clientes nuevos detectados en auxiliares`:'';
+  const clientesNuevosAplicados=new Set(aplicados.filter(d=>clientesNuevos.has(d.rutCodigo)).map(d=>d.rutCodigo)).size;
+  const msgClientes=clientesNuevosAplicados?` · ${clientesNuevosAplicados} clientes nuevos detectados en auxiliares`:'';
   const msgFichas=(fichasCreadas||fichasActualizadas)?` · fichas: ${fichasCreadas} nuevas${fichasActualizadas?', '+fichasActualizadas+' completadas':''}`:'';
-  const msgPend=pendientesCuadratura.length?` · ⚠️ ${pendientesCuadratura.length} pendiente${pendientesCuadratura.length===1?'':'s'} por cuadratura`:'';
-  toast(`✅ ${importados} venta${importados===1?'':'s'} nueva${importados===1?'':'s'}/actualizada${importados===1?'':'s'}${msgClientes}${msgFichas}${msgPend}`);
+  const msgPend=pendientesCuadratura.length?` · ⚠️ ${pendientesCuadratura.length} pendiente${pendientesCuadratura.length===1?'':'s'} por validación`:'';
+  const msgError=pendientesError.length?` · ⛔ ${pendientesError.length} con error aislado`:'';
+  toast(`✅ ${importados} venta${importados===1?'':'s'} nueva${importados===1?'':'s'}/actualizada${importados===1?'':'s'}${msgClientes}${msgFichas}${msgPend}${msgError}`);
   logAccion('Conciliación RCV ventas',`${importados} documentos nuevos/actualizados${msgFichas}`);
   rerender();
 }
@@ -856,4 +892,4 @@ export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV, enfocarPendienteImportV,
         IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
-        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, VF};
+        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, VF};
