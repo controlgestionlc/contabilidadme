@@ -1,0 +1,1498 @@
+
+/* ═══ TEMAS ═══
+   Se aplican con data-theme en <html>. Todo el CSS usa estas variables. */
+
+/* Tema por defecto: oscuro original (verde) */
+:root,html[data-theme="dark"]{
+  --bg:#0d1117;--sf:#161b22;--sf2:#21262d;--bd:#30363d;
+  --ac:#2ea043;--ach:#3fb950;--tx:#e6edf3;--mt:#8b949e;
+  --err:#f85149;--warn:#d29922;--info:#58a6ff;
+  --acc:#2ea043;  /* alias histórico de --ac */
+  --logo1:#2ea043;--logo2:#56d364;
+  --mono:'IBM Plex Mono',monospace;--sans:'Sora',sans-serif;
+}
+
+/* SAP Fiori claro — fondo neutro, azul corporativo SAP */
+html[data-theme="sap-light"]{
+  --bg:#f5f6f7;      /* fondo aplicación */
+  --sf:#ffffff;      /* tarjetas y paneles */
+  --sf2:#eaecee;     /* encabezados de tabla, hover */
+  --bd:#d9d9d9;      /* bordes */
+  --ac:#0a6ed1;      /* azul SAP (acción principal) */
+  --ach:#0854a0;     /* azul SAP hover */
+  --tx:#32363a;      /* texto principal */
+  --mt:#6a6d70;      /* texto secundario */
+  --err:#bb0000;     /* negativo SAP */
+  --warn:#e9730c;    /* crítico SAP */
+  --info:#0a6ed1;
+  --acc:#0a6ed1;  /* alias histórico de --ac */
+  --logo1:#0a6ed1;--logo2:#0854a0;
+  --mono:'IBM Plex Mono',monospace;--sans:'Sora',sans-serif;
+}
+
+/* SAP oscuro — Fiori Horizon dark */
+html[data-theme="sap-dark"]{
+  --bg:#12171c;
+  --sf:#1c2228;
+  --sf2:#272d33;
+  --bd:#3a4149;
+  --ac:#4db1ff;      /* azul SAP claro sobre oscuro */
+  --ach:#7ac6ff;
+  --tx:#eaecee;
+  --mt:#a9b4be;
+  --err:#ff8081;
+  --warn:#f5a86b;
+  --info:#4db1ff;
+  --acc:#4db1ff;  /* alias histórico de --ac */
+  --logo1:#0a6ed1;--logo2:#4db1ff;
+  --mono:'IBM Plex Mono',monospace;--sans:'Sora',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px;display:flex;flex-direction:column}
+header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;height:54px;display:flex;align-items:center;gap:14px;flex-shrink:0;z-index:10}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;white-space:nowrap}
+.logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--logo1),var(--logo2));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.hdr-empresa{flex:1;text-align:center;color:var(--mt);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Bloque de contexto de la barra lateral: empresa activa + ejercicio */
+.nav-contexto{padding:12px 14px;border-bottom:1px solid var(--bd);background:var(--sf2)}
+.nav-ctx-lbl{font-size:9px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}
+.nav-ctx-nombre{font-size:13px;font-weight:700;color:var(--tx);line-height:1.25;margin-bottom:8px;word-break:break-word}
+.nav-contexto select{width:100%;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:12px;cursor:pointer;outline:none}
+.nav-contexto select:hover{border-color:var(--ac)}
+.nav-ctx-anio{display:flex;align-items:center;gap:8px;margin-top:8px}
+.nav-ctx-anio .nav-ctx-lbl{white-space:nowrap}
+.nav-ctx-anio select{flex:1;font-family:var(--mono)}
+.hdr-empresa span{color:var(--tx);font-weight:600}
+.year-sel{background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 9px;font-family:var(--mono);font-size:13px;cursor:pointer;outline:none}
+.year-sel:hover{border-color:var(--ac)}
+.btn-save-all{background:var(--ac);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:background .15s}
+.btn-save-all:hover{background:var(--ach)}
+.btn-save-all:disabled{opacity:.6;cursor:default}
+/* Sin cambios pendientes el botón se apaga; con cambios pendientes llama la
+   atención en el color de aviso y late suave, para que no se pase por alto. */
+.btn-save-all{background:var(--sf2,rgba(255,255,255,.06));color:var(--mt);border:1px solid var(--bd)}
+.btn-save-all:hover{background:var(--sf);color:var(--tx)}
+.btn-save-all.pendiente{background:var(--warn);color:#1b1200;border-color:var(--warn);animation:latido 2s ease-in-out infinite}
+.btn-save-all.pendiente:hover{filter:brightness(1.08);background:var(--warn);color:#1b1200}
+/* Guardado bloqueado por una lectura fallida: no es un aviso, es un freno */
+.btn-save-all.bloqueado{background:var(--err);color:#fff;border-color:var(--err);cursor:help}
+.btn-save-all.bloqueado:hover{filter:brightness(1.08);background:var(--err);color:#fff}
+@keyframes latido{0%,100%{opacity:1}50%{opacity:.72}}
+@media (prefers-reduced-motion:reduce){.btn-save-all.pendiente{animation:none}}
+.layout{display:flex;flex:1;overflow:hidden}
+nav{width:200px;background:var(--sf);border-right:1px solid var(--bd);overflow-y:auto;flex-shrink:0;padding:10px 0}
+.nav-label{font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.09em;padding:10px 14px 4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;border-left:2px solid transparent;color:var(--mt);font-size:13px;transition:all .12s;user-select:none}
+.nav-item:hover{background:var(--sf2);color:var(--tx)}
+.nav-item.active{border-left-color:var(--ac);color:var(--tx);background:rgba(46,160,67,.09)}
+.nav-icon{font-size:14px;width:18px;text-align:center}
+main{flex:1;overflow-y:auto;overflow-x:hidden;padding:22px 24px;min-width:0}
+/* min-width:0 en los hijos de un grid/flex es lo que les permite encogerse en
+   vez de desbordar: sin esto, un hijo con contenido ancho fija el mínimo. */
+.section,.card,.card-np{min-width:0;max-width:100%}
+.section{display:none}.section.active{display:block}
+.sec-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--bd);gap:12px}
+.sec-title{font-size:17px;font-weight:700}
+.sec-sub{font-size:11px;color:var(--mt);margin-top:3px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:18px;margin-bottom:14px}
+.card-np{background:var(--sf);border:1px solid var(--bd);border-radius:8px;margin-bottom:14px;overflow:hidden}
+.card-title{font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.grp{display:flex;flex-direction:column;gap:3px}
+.grp.full{grid-column:1/-1}
+label{font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em}
+input[type=text],input[type=number],input[type=date],select,textarea{background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:7px 10px;font-family:var(--sans);font-size:13px;width:100%;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ac)}
+input[type=number],input[type=date],input.money-input{font-family:var(--mono)}
+input.money-input{text-align:right;font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--sf2);color:var(--mt);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:7px 9px;text-align:right;border:1px solid var(--bd);white-space:nowrap}
+thead th.tl{text-align:left}
+tbody td{padding:4px 7px;border:1px solid var(--bd);text-align:right;font-family:var(--mono);font-size:12px}
+tbody td.tl{text-align:left;font-family:var(--sans);color:var(--mt);white-space:nowrap;padding:4px 9px}
+tbody td.tnm{text-align:left;font-family:var(--sans);color:var(--tx);padding:4px 9px}
+/* Tablas de ancho fijo: la columna de texto largo (glosa) se trunca con "…"
+   en vez de empujar las columnas de montos fuera de la tarjeta.
+   El max-width:0 es lo que hace funcionar el text-overflow con table-layout:fixed. */
+table.tbl-fija{table-layout:fixed;width:100%}
+table.tbl-fija td,table.tbl-fija th{overflow:hidden}
+td.cel-trunc{text-align:left;font-family:var(--sans);color:var(--tx);padding:4px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0}
+tbody tr:hover td{background:rgba(255,255,255,.02)}
+tfoot td{background:var(--sf2);font-weight:700;padding:7px 9px;border:1px solid var(--bd);text-align:right;font-family:var(--mono);font-size:12px;color:var(--ach)}
+tfoot td.tl{text-align:left;font-family:var(--sans);color:var(--tx)}
+td input[type=number],td input.money-input{background:transparent;border:none;color:var(--tx);text-align:right;padding:3px 4px;width:100%;font-size:12px;min-width:72px}
+td input[type=number]:focus,td input.money-input:focus{background:rgba(46,160,67,.08);outline:none;border-radius:3px}
+td input[type=text]{background:transparent;border:none;color:var(--tx);padding:3px 4px;font-size:12px;width:100%}
+td input[type=text]:focus{background:rgba(46,160,67,.08);outline:none;border-radius:3px}
+td select{background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--sans)}
+td.ac{color:var(--mt);background:rgba(0,0,0,.18)}
+td.ok{color:var(--ach);font-weight:600}
+td.err{color:var(--err);font-weight:600}
+.btn{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:6px;padding:7px 13px;font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-p{background:var(--ac);color:#fff}.btn-p:hover{background:var(--ach)}
+.btn-w{background:#c9a227;color:#fff}.btn-w:hover{background:#b28900}
+/* Quitar los botones de aumentar/disminuir de todos los inputs numéricos.
+   Permite escribir libremente sin interferencia de spinners nativos. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type="number"]{-moz-appearance:textfield;appearance:textfield}
+.btn-s{background:var(--sf2);color:var(--tx);border:1px solid var(--bd)}.btn-s:hover{background:var(--bd)}
+.btn-d{background:transparent;color:var(--err);border:1px solid rgba(248,81,73,.4);padding:4px 9px;font-size:11px}.btn-d:hover{background:rgba(248,81,73,.1);border-color:var(--err)}
+.btn-i{background:transparent;color:var(--info);border:1px solid rgba(88,166,255,.4);padding:4px 9px;font-size:11px}.btn-i:hover{background:rgba(88,166,255,.08)}
+.btn-g{background:transparent;color:var(--mt);border:1px solid var(--bd)}.btn-g:hover{color:var(--tx);border-color:var(--tx)}
+.save-row{display:flex;justify-content:flex-end;margin-top:14px;gap:8px}
+.badge{display:inline-block;padding:2px 7px;border-radius:100px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.bg{background:rgba(46,160,67,.18);color:var(--ach)}
+.br{background:rgba(248,81,73,.18);color:var(--err)}
+.bb{background:rgba(88,166,255,.18);color:var(--info)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:18px}
+.kpi{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:14px}
+.kpi-lbl{font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.kpi-val{font-size:18px;font-weight:700;font-family:var(--mono)}
+.pos{color:var(--ach)}.neg{color:var(--err)}
+/* ASIENTOS FORM */
+.as-form{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:20px;margin-bottom:16px}
+.as-form.editing{border-color:var(--info);box-shadow:0 0 0 2px rgba(88,166,255,.15)}
+.as-meta{display:grid;grid-template-columns:180px 1fr;gap:12px;margin-bottom:16px;align-items:end}
+/* Las líneas del asiento tienen columnas de ancho fijo que suman ~900px. En un
+   contenedor más angosto empujaban la página entera. Ahora scrollean dentro de
+   su propia caja: el resto de la pantalla queda quieto. */
+.lineas-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:14px}
+.lineas-scroll .lineas-hdr,.lineas-scroll .lineas-box{min-width:880px}
+.lineas-scroll .lineas-hdr-6,.lineas-scroll .lineas-hdr-6 ~ .lineas-box{min-width:720px}
+@media (max-width:720px){
+  /* Con la vista apilada de móvil no hace falta scroll horizontal */
+  .lineas-scroll .lineas-hdr,.lineas-scroll .lineas-box,
+  .lineas-scroll .lineas-hdr-6,.lineas-scroll .lineas-hdr-6 ~ .lineas-box{min-width:0}
+  .lineas-scroll{overflow-x:visible}
+}
+.lineas-hdr{display:grid;grid-template-columns:36px 200px 150px 110px 110px minmax(230px,1fr) 36px;gap:6px;padding:7px 10px;background:var(--sf2);border-radius:6px 6px 0 0;font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--bd);border-bottom:none}
+.lineas-hdr-6{grid-template-columns:36px 200px 1fr 110px 110px 36px}
+.lineas-box{border:1px solid var(--bd);border-radius:0 0 6px 6px;margin-bottom:10px;background:var(--bg)}
+.linea-row{display:grid;grid-template-columns:36px 200px 150px 110px 110px minmax(230px,1fr) 36px;gap:6px;padding:6px 10px;border-bottom:1px solid rgba(48,54,61,.7);align-items:center}
+.linea-row:last-child{border-bottom:none}
+.linea-num{font-family:var(--mono);font-size:11px;color:var(--mt);text-align:center;line-height:1}
+.linea-inp{background:var(--sf);border:1px solid var(--bd);border-radius:5px;color:var(--tx);padding:5px 8px;font-family:var(--sans);font-size:12px;width:100%;transition:border-color .12s}
+.linea-inp:focus{outline:none;border-color:var(--ac);background:rgba(46,160,67,.04)}
+.linea-num-inp{background:var(--sf);border:1px solid var(--bd);border-radius:5px;color:var(--tx);padding:5px 8px;font-family:var(--mono);font-size:12px;width:100%;text-align:right;transition:border-color .12s,font-size .12s}
+.linea-num-inp:focus{outline:none;border-color:var(--ac);background:rgba(46,160,67,.04)}
+/* Auto-shrink de fuente para montos largos: hasta 16 chars en el ancho del input */
+.linea-num-inp.digs-10{font-size:11px}
+.linea-num-inp.digs-13{font-size:10px}
+.linea-num-inp.digs-15{font-size:9px}
+.linea-lbl-m{display:none}
+
+/* MÓVIL: cada línea como card vertical con etiquetas */
+@media (max-width:720px){
+  /* Ocultar el encabezado de columnas — las etiquetas van dentro de cada card */
+  .lineas-hdr{display:none}
+  .lineas-box{border-radius:6px;background:transparent;border:none}
+  /* Card por línea con # arriba a la izquierda, ✕ arriba a la derecha */
+  .linea-row{
+    display:grid;
+    grid-template-columns:32px 1fr 1fr 36px;
+    grid-template-areas:
+      "num    cuenta cuenta cuenta"
+      "cc     cc     cc     cc"
+      "debe   debe   haber  haber"
+      "desc   desc   desc   del";
+    gap:8px;
+    padding:12px;
+    background:var(--sf);
+    margin-bottom:10px;
+    border-radius:8px;
+    border:1px solid var(--bd);
+    align-items:stretch;
+  }
+  /* Orden de hijos:
+     1=num, 2=cuenta, 3=cc, 4=debe, 5=haber, 6=descripción, 7=del */
+  .linea-row > *:nth-child(1){grid-area:num;align-self:center;font-size:14px;font-weight:700;color:var(--info);background:var(--sf2);border-radius:6px;padding:6px 0;text-align:center}
+  .linea-row > *:nth-child(2){grid-area:cuenta}
+  .linea-row > *:nth-child(3){grid-area:cc}
+  .linea-row > *:nth-child(4){grid-area:debe;display:flex;flex-direction:column;min-width:0}
+  .linea-row > *:nth-child(5){grid-area:haber;display:flex;flex-direction:column;min-width:0}
+  .linea-row > *:nth-child(6){grid-area:desc}
+  .linea-row > *:nth-child(7){grid-area:del;align-self:center}
+  /* Inputs de debe/haber con label arriba en móvil */
+  .linea-row > *:nth-child(4)::before{content:"DEBE";display:block;font-size:9px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+  .linea-row > *:nth-child(5)::before{content:"HABER";display:block;font-size:9px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+  /* Fuente más chica en debe/haber para que quepa el separador de miles */
+  .linea-row .linea-num-inp{font-size:11px;padding:6px 6px;width:100%;min-width:0;box-sizing:border-box}
+  .linea-row .btn-d{padding:8px 10px !important;min-width:36px;font-size:14px}
+  /* Fecha + glosa apiladas */
+  .as-meta{grid-template-columns:1fr;gap:10px}
+}
+.as-cuadre{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:14px}
+.as-cuadre.ok{background:rgba(46,160,67,.1);border:1px solid rgba(46,160,67,.3);color:var(--ach)}
+.as-cuadre.err{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);color:var(--err)}
+.cuadre-det{font-family:var(--mono);font-size:11px;font-weight:400;margin-left:auto;display:flex;gap:16px;color:var(--mt)}
+/* ASIENTOS LIST */
+.asiento-item{background:var(--sf);border:1px solid var(--bd);border-radius:8px;margin-bottom:9px;overflow:hidden;transition:border-color .15s}
+.asiento-item:hover{border-color:rgba(48,54,61,.9)}
+.asiento-hdr{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;user-select:none}
+.asiento-hdr:hover{background:rgba(255,255,255,.02)}
+.as-num{font-family:var(--mono);font-size:11px;color:var(--mt);background:var(--sf2);padding:2px 8px;border-radius:4px;flex-shrink:0}
+.as-fecha{font-family:var(--mono);font-size:12px;color:var(--mt);flex-shrink:0}
+.as-glosa{flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.as-tot{font-family:var(--mono);font-size:12px;color:var(--ach);flex-shrink:0}
+.as-actions{display:flex;gap:5px;margin-left:6px;flex-shrink:0}
+.asiento-body{display:none;padding:0 16px 14px;border-top:1px solid var(--bd)}
+.asiento-body.open{display:block}
+/* MISC */
+.bal-layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
+/* Las dos columnas del balance se apilan cuando NO CABEN, no cuando la pantalla
+   es chica. Con `1fr 1fr` y un breakpoint, en el móvil en "vista de escritorio"
+   —donde el viewport es ancho pero la pantalla no— la columna de pasivos
+   quedaba cortada fuera de la pantalla. `auto-fit` no depende de eso. */
+.bal-layout > *{min-width:0}
+/* `tbody td.tl` lleva white-space:nowrap para las tablas de listado, pero en el
+   balance eso hacía que el nombre de la cuenta empujara la tabla y sacara los
+   montos fuera de la pantalla. Acá el nombre puede ocupar dos líneas; el monto
+   es el que nunca se parte. */
+.bal-layout table{width:100%;table-layout:auto}
+.bal-layout tbody td.tl{white-space:normal;overflow-wrap:anywhere}
+.bal-layout tbody td:not(.tl){white-space:nowrap;text-align:right}
+.rth{background:rgba(46,160,67,.08)!important;color:var(--ach)!important;font-family:var(--sans)!important;font-weight:700!important;font-size:10px;letter-spacing:.05em;text-transform:uppercase}
+.rtot{background:var(--sf2)!important;font-weight:700!important}
+.empty{text-align:center;padding:40px 20px;color:var(--mt)}
+.empty .ei{font-size:38px;margin-bottom:10px}
+.info-tip{font-size:11px;color:var(--mt);padding:8px 0 2px}
+.toast{position:fixed;bottom:22px;right:22px;background:var(--sf2);border:1px solid var(--ac);color:var(--tx);border-radius:8px;padding:11px 16px;font-size:13px;z-index:9999;animation:slideUp .2s ease;pointer-events:none}
+.toast.te{border-color:var(--err)}
+@keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
+/* DOC FORM (ventas/compras) */
+.doc-form{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:18px;margin-bottom:16px}
+.doc-form.editing{border-color:var(--info);box-shadow:0 0 0 2px rgba(88,166,255,.15)}
+.doc-form-title{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.doc-grid{display:grid;grid-template-columns:130px 130px 170px 130px;gap:10px;margin-bottom:10px}
+.doc-grid-rut{display:grid;grid-template-columns:170px 1fr;gap:10px;margin-bottom:10px}
+.doc-grid-totals{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px}
+.doc-grid-2{grid-template-columns:1fr 1fr}
+.doc-dup-warn{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.35);color:var(--err);padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-weight:600}
+.doc-folio{display:inline-block;background:var(--sf2);color:var(--ac);padding:1px 7px;border-radius:3px;font-family:var(--mono);font-size:10px;font-weight:700}
+.rut-wrap{position:relative}
+.rut-wrap input{padding-right:40px;font-family:var(--mono)}
+.rut-dv{position:absolute;right:10px;top:27px;font-family:var(--mono);font-size:11px;color:var(--mt);pointer-events:none;font-weight:700}
+.rut-dv.ok{color:var(--ach)}
+.rut-dv.bad{color:var(--err)}
+/* DISTRIBUTION (compras)
+   Dos formas de fila comparten estas clases: la del Libro de Compras, que lleva
+   centro de costo (5 celdas, marcada con .cc en el encabezado y en la caja), y
+   la del modal de DTE dentro de un asiento, que no lo lleva (4 celdas). */
+.dist-hdr{display:grid;grid-template-columns:34px minmax(0,1fr) 126px 34px;gap:6px;padding:7px 10px;background:var(--sf2);border-radius:6px 6px 0 0;font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--bd);border-bottom:none}
+.dist-box{border:1px solid var(--bd);border-radius:0 0 6px 6px;margin-bottom:8px;background:var(--bg)}
+.dist-row{display:grid;grid-template-columns:34px minmax(0,1fr) 126px 34px;gap:6px;padding:6px 10px;border-bottom:1px solid rgba(48,54,61,.7);align-items:center}
+.dist-hdr.cc,.dist-box.cc .dist-row{grid-template-columns:34px minmax(0,1fr) 118px 158px 34px}
+/* MONTO va alineado a la derecha sobre su columna de números, así que sin este
+   respiro el rótulo queda pegado al de CENTRO DE COSTO. */
+.dist-hdr.cc>div:nth-child(4){padding-left:8px}
+.dist-row:last-child{border-bottom:none}
+.dist-num{font-family:var(--mono);font-size:11px;color:var(--mt);text-align:center}
+.dist-del{text-align:center}
+.dist-del .btn{padding:3px 7px;font-size:10px}
+.dist-inp{background:var(--sf);border:1px solid var(--bd);border-radius:5px;color:var(--tx);padding:5px 8px;font-family:var(--sans);font-size:12px;width:100%}
+.dist-inp:focus{outline:none;border-color:var(--ac)}
+.dist-num-inp{background:var(--sf);border:1px solid var(--bd);border-radius:5px;color:var(--tx);padding:5px 8px;font-family:var(--mono);font-size:12px;width:100%;text-align:right}
+.dist-check{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px}
+.dist-check.ok{background:rgba(46,160,67,.1);border:1px solid rgba(46,160,67,.3);color:var(--ach)}
+.dist-check.err{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);color:var(--err)}
+.dist-check-det{font-family:var(--mono);font-size:11px;font-weight:400;margin-left:auto;color:var(--mt)}
+/* FILTERS */
+.filter-row{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.filter-row select,.filter-row input{background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 9px;font-size:12px;font-family:var(--sans);
+  /* Sin esto heredan el width:100% global y cada control ocupa una línea entera */
+  width:auto;max-width:100%}
+.filter-row select{min-width:130px;max-width:240px}
+.filter-row input[type=date]{min-width:140px}
+.filter-row input[type=text],.filter-row input[type=search]{flex:1 1 200px;min-width:170px}
+.filter-row .f-lbl{font-size:10px;color:var(--mt);text-transform:uppercase;font-weight:700;letter-spacing:.05em}
+.doc-count{margin-left:auto;font-size:11px;color:var(--mt);font-family:var(--mono)}
+/* AUXILIARES */
+.aux-tabs{display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid var(--bd)}
+.aux-tab{padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;color:var(--mt);border-bottom:2px solid transparent;transition:all .12s;user-select:none}
+.aux-tab:hover{color:var(--tx)}
+.aux-tab.active{color:var(--tx);border-bottom-color:var(--ac)}
+.aux-tab .ct{margin-left:7px;background:var(--sf2);color:var(--mt);padding:1px 7px;border-radius:100px;font-size:10px;font-family:var(--mono)}
+.aux-card{background:var(--sf);border:1px solid var(--bd);border-radius:8px;margin-bottom:9px;overflow:hidden}
+.aux-card:hover{border-color:rgba(48,54,61,.9)}
+.aux-hdr{display:grid;grid-template-columns:140px 1fr 80px 140px 24px;gap:12px;align-items:center;padding:11px 16px;cursor:pointer;user-select:none}
+.aux-hdr:hover{background:rgba(255,255,255,.02)}
+.aux-rut{font-family:var(--mono);font-size:12px;color:var(--tx);font-weight:600}
+.aux-rs{font-size:13px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aux-mov-count{font-size:11px;color:var(--mt);font-family:var(--mono);text-align:right}
+.aux-saldo{font-family:var(--mono);font-weight:700;text-align:right;font-size:13px}
+@media (max-width:720px){
+  /* Layout de 2 filas en móvil: RUT + saldo arriba, razón social + N° mov abajo.
+     El chevrón queda a la derecha ocupando toda la altura. */
+  .aux-hdr{
+    grid-template-columns:1fr auto 20px;
+    grid-template-rows:auto auto;
+    gap:2px 10px;
+    padding:10px 12px;
+    align-items:baseline;
+  }
+  .aux-rut{grid-column:1;grid-row:1;font-size:13px}
+  .aux-saldo{grid-column:2;grid-row:1;font-size:14px}
+  .aux-rs{grid-column:1/3;grid-row:2;font-size:11px;color:var(--mt);white-space:normal;line-height:1.3}
+  .aux-mov-count{grid-column:1/3;grid-row:3;text-align:left;font-size:10px;margin-top:2px}
+  .aux-chev{grid-column:3;grid-row:1/4;align-self:center;font-size:14px}
+}
+.aux-body{display:none;padding:0 16px 14px;border-top:1px solid var(--bd)}
+.aux-body.open{display:block}
+.aux-chev{color:var(--mt);font-size:11px;transition:transform .15s;text-align:center}
+.aux-card.open .aux-chev{transform:rotate(90deg)}
+@media (max-width:720px){
+  /* Tabs de Clientes/Proveedores: apretar y hacer más grandes para tap */
+  .aux-tabs{gap:0;overflow-x:auto;scrollbar-width:none}
+  .aux-tabs::-webkit-scrollbar{display:none}
+  .aux-tab{padding:10px 12px;font-size:12px;white-space:nowrap}
+  .aux-tab .ct{font-size:10px;padding:1px 5px;margin-left:4px}
+  /* Cuerpo expandido: menos padding y tabla más compacta */
+  .aux-body{padding:0 10px 12px}
+  .aux-body table{font-size:10px !important}
+  .aux-body th,.aux-body td{padding:4px 3px !important}
+  /* Info-tip del encabezado del sub-libro: más chica */
+  .info-tip{font-size:10px;padding:6px 10px;line-height:1.4}
+  /* Botones con etiqueta oculta en móvil (solo ícono) para ganar espacio */
+  .btn-icon-mobile .btn-lbl{display:none}
+  .btn-icon-mobile{padding:6px 10px;font-size:14px}
+}
+.info-tip{background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.2);color:var(--info);padding:8px 12px;border-radius:6px;font-size:11px;margin-top:10px}
+/* MODAL */
+.modal-bkd{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+.modal-bkd.open{display:flex}
+.modal-box{background:var(--bg);border:1px solid var(--bd);border-radius:10px;width:100%;max-width:780px;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.4);margin:auto;box-sizing:border-box;overflow-x:hidden}
+/* Tablas dentro de modales: nunca desbordan; scroll horizontal como respaldo */
+.modal-box table{width:100%;table-layout:fixed;border-collapse:collapse}
+.modal-box table td,.modal-box table th{overflow:hidden}
+#cmp-modal-body{overflow-x:auto;-webkit-overflow-scrolling:touch}
+#cmp-modal-body td input,#cmp-modal-body .linea-inp,#cmp-modal-body .linea-num-inp{width:100%;box-sizing:border-box;max-width:100%}
+.modal-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--bd)}
+.modal-title{font-size:15px;font-weight:700}
+.modal-sub{font-size:11px;color:var(--mt);margin-top:3px}
+.modal-close{background:none;border:none;color:var(--mt);font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
+.modal-close:hover{color:var(--tx)}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--bd)}
+.modal-folio{background:linear-gradient(135deg,rgba(46,160,67,.15),rgba(88,166,255,.1));border:1px solid rgba(46,160,67,.3);border-radius:6px;padding:9px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:12px}
+.modal-folio .mf-lbl{color:var(--mt);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.modal-folio .mf-val{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--ach)}
+.linea-dte-badge{display:grid;grid-template-columns:36px 1fr auto;gap:8px;padding:6px 10px;background:rgba(46,160,67,.08);border-left:2px solid var(--ach);margin-top:-1px;font-size:11px;align-items:center}
+.linea-dte-badge .ldb-lbl{font-size:10px;color:var(--ach);font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-align:right}
+.linea-dte-badge .ldb-info{color:var(--tx);font-size:11px}
+.linea-dte-badge .ldb-info b{color:var(--ach)}
+.linea-dte-badge button{padding:3px 8px;font-size:10px}
+/* IMPORT SII */
+.imp-row{display:grid;grid-template-columns:26px 90px 45px 70px 105px 1.5fr 75px 75px 75px 90px 170px 150px 70px;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(48,54,61,.5);align-items:center;font-size:11px}
+.imp-row.dup{background:rgba(248,81,73,.08)}
+.imp-row.excluded{opacity:.4}
+.imp-row-hdr{display:grid;grid-template-columns:26px 90px 45px 70px 105px 1.5fr 75px 75px 75px 90px 170px 150px 70px;gap:6px;padding:8px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
+.imp-row input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
+.imp-row select{background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:3px 5px;border-radius:4px;font-size:11px;width:100%;font-family:var(--sans)}
+.imp-row .dup-badge{display:inline-block;background:rgba(248,81,73,.2);color:var(--err);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:3px}
+.imp-row .ok-badge{display:inline-block;background:rgba(46,160,67,.15);color:var(--ach);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:3px}
+
+/* Línea con auxiliar (RUT + Razón Social en asiento manual) */
+.linea-aux{display:grid;grid-template-columns:36px 140px 1fr 220px;gap:8px;padding:6px 10px 6px 10px;align-items:center;background:rgba(88,166,255,.05);border-left:2px solid var(--info);margin-top:-1px;font-size:11px}
+.linea-aux-lbl{font-size:10px;color:var(--info);font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-align:right;padding-right:4px}
+.linea-aux .rut-wrap{position:relative}
+.linea-aux .rut-wrap input{padding-right:34px;font-family:var(--mono);font-size:11px}
+.linea-aux .rut-dv-ln{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:10px;color:var(--mt);pointer-events:none;font-weight:700}
+
+@media (max-width:720px){
+  /* Modal: usar todo el ancho del viewport sin desbordar */
+  .modal-bkd{padding:20px 8px}
+  .modal-box{max-width:100%;padding:16px 14px}
+  /* Tabla del comprobante: fuente compacta y celdas que no fuerzan ancho */
+  #cmp-modal-body table{font-size:11px}
+  #cmp-modal-body th,#cmp-modal-body td{padding:5px 6px!important;word-break:break-word}
+  /* linea-dte-badge: en móvil apilar info y botones abajo */
+  .linea-dte-badge{
+    grid-template-columns:1fr;
+    padding:10px 12px;
+    margin-top:-6px;
+    margin-bottom:10px;
+    border-left:none;
+    border-top:2px solid var(--ach);
+    border-radius:0 0 8px 8px;
+  }
+  .linea-dte-badge .ldb-lbl{text-align:left;font-size:9px}
+  .linea-dte-badge .ldb-info{font-size:11px;line-height:1.5}
+  .linea-dte-badge > div:last-child{justify-content:flex-end}
+  /* linea-aux: apilar en móvil (RUT arriba, razón social abajo) */
+  .linea-aux{
+    grid-template-columns:1fr;
+    grid-template-areas:"lbl" "rut" "rs";
+    padding:10px 12px;
+    margin-top:-6px;
+    margin-bottom:10px;
+    border-left:none;
+    border-top:2px solid var(--info);
+    border-radius:0 0 8px 8px;
+    gap:6px;
+  }
+  .linea-aux > *:nth-child(1){display:none}   /* espaciador vacío */
+  .linea-aux > *:nth-child(2){grid-area:lbl;text-align:left;font-size:9px}
+  .linea-aux > *:nth-child(3){grid-area:rut}
+  .linea-aux > *:nth-child(4){grid-area:rs}
+}
+.linea-aux .rut-dv-ln.ok{color:var(--ach)}
+.linea-aux .rut-dv-ln.bad{color:var(--err)}
+/* RESPONSIVE MÓVIL */
+
+@media (max-width:768px){
+  #nav-toggle{display:block!important}
+  header{padding:0 12px;gap:8px;height:52px}
+  header .logo span{display:none} /* solo el ícono del logo en móvil */
+  .hdr-empresa{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+  /* Header: ocultar botones de utilidad; quedan accesibles desde el nav */
+  .nav-contexto{padding:10px 12px}
+  .btn-save-all{font-size:11px;padding:6px 10px}
+  #user-badge{display:none!important} /* el usuario/logout vive en el nav en móvil */
+  #nav-user-block-m{margin-top:16px}
+  /* Nav como drawer deslizable */
+  nav{position:fixed;top:0;left:0;height:100vh;width:250px;max-width:82vw;z-index:60;
+    transform:translateX(-100%);transition:transform .25s ease;box-shadow:2px 0 16px rgba(0,0,0,.4);padding-top:14px}
+  nav.open{transform:translateX(0)}
+  #nav-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:55}
+  #nav-overlay.open{display:block!important}
+  .nav-item{padding:11px 16px;font-size:14px} /* táctil más grande */
+  .nav-mobile-only{display:block!important}
+  main{padding:14px 12px}
+  .sec-hdr{flex-direction:column;align-items:stretch;gap:10px}
+  .sec-title{font-size:17px}
+  /* Formularios y grids a una columna */
+  .fg{grid-template-columns:1fr}
+  .kpi-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .bal-layout{grid-template-columns:1fr!important;display:block}
+  /* Botones más táctiles */
+  .btn{padding:8px 12px;font-size:12px}
+  .filter-row{gap:6px}
+  .filter-row input,.filter-row select{font-size:13px}
+  /* Tablas: el scroll horizontal ya existe en .tw; asegurar que no rompan el layout */
+  table{font-size:11px}
+  th,td{padding:6px 8px}
+}
+
+/* ── Autocompletado de cuentas ── */
+.ac-wrap{position:relative}
+.ac-lista{
+  position:absolute;top:100%;left:0;right:0;z-index:120;
+  background:var(--sf);border:1px solid var(--bd);border-radius:8px;
+  max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.35);
+  margin-top:2px;min-width:280px;
+}
+.ac-item{
+  padding:8px 10px;cursor:pointer;font-size:12px;
+  border-bottom:1px solid var(--bd);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover,.ac-item.sel{background:var(--sf2)}
+@media (max-width:768px){
+  .ac-lista{min-width:0;max-height:220px}
+  .ac-item{padding:10px;font-size:13px}
+}
+
+/* PRINT */
+@media print{
+  header,nav,.btn,.save-row,.as-actions,.doc-form,.filter-row,.aux-tabs,#nav-toggle,#nav-overlay,.nav-mobile-only,#search-overlay{display:none!important}
+  body{background:#fff;color:#000;overflow:visible;font-size:11px}
+  html,body{height:auto;overflow:visible}
+  .layout{display:block}
+  main{padding:4px;overflow:visible}
+  /* Solo imprimir la sección activa, no todas */
+  .section{display:none!important}
+  .section.active{display:block!important}
+  .card,.card-np,.asiento-item,.as-form,.aux-card{border:1px solid #ccc}
+  .asiento-body,.aux-body{display:block!important}
+  thead th{background:#eee;color:#333}
+  .bal-layout{display:grid}
+  /* Encabezado oficial de impresión */
+  #print-header{display:block!important}
+  .kpi-grid{display:grid!important}
+  .kpi{border:1px solid #ccc}
+  /* Ocultar controles interactivos dentro de secciones */
+  select,input[type=checkbox],input[type=file],input[type=number],input[type=text]{border:none!important}
+  .sec-hdr .btn{display:none!important}
+  /* Columnas de acción: existen para clicar, no tienen sentido en papel */
+  .no-print{display:none!important}
+}
+#print-header{display:none}
+
+
+/* ── Tabla del modal de Comprobante ───────────────────────────────────────
+   El problema: las columnas iban con anchos fijos en px, así que un monto
+   grande ($ 97.190.625) no cabía en sus 88px y se desbordaba.
+   La solución: `table-layout:auto` para que código, cuenta y montos se
+   dimensionen según su contenido y siempre quepan enteros; la DESCRIPCIÓN
+   absorbe el espacio sobrante y es la única que se corta, con el texto
+   completo disponible en el tooltip (atributo title). */
+.tbl-cmp{width:100%;font-size:12px;table-layout:auto;border-collapse:collapse}
+.tbl-cmp th,.tbl-cmp td{padding:6px 8px}
+.tbl-cmp .c-cod{font-family:var(--mono);color:var(--mt);white-space:nowrap}
+/* La cuenta nunca se corta: si es larga, envuelve en dos líneas en vez de
+   comerse el ancho que necesita la descripción */
+.tbl-cmp .c-cta{white-space:normal;overflow-wrap:anywhere;min-width:190px;max-width:240px}
+/* max-width:1px + width:100% es el truco para que ESTA celda sea la elástica
+   y la que trunca, dejando que las demás tomen su ancho natural */
+.tbl-cmp .c-desc{width:100%;max-width:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mt);font-size:11px;cursor:help}
+.tbl-cmp .c-num{text-align:right;font-family:var(--mono);white-space:nowrap}
+/* Red de seguridad en pantallas muy angostas */
+.cmp-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+@media (max-width:640px){.tbl-cmp{min-width:520px}}
+
+/* ═══ AYUDAS BAJO LA AMPOLLETA ═══
+   Los recuadros .info-tip de cada sección quedan ocultos hasta que el usuario
+   pulsa 💡 en la cabecera. Se hace por CSS y no por JS para que sobreviva a los
+   re-render de cada módulo, que reescriben su contenido completo.
+   Las ayudas dentro de modales no se tocan: se ven al abrir el modal. */
+.section .info-tip{display:none}
+.section.ayuda-on .info-tip{display:block}
+.modal-bkd .info-tip{display:block}
+.btn-ayuda{margin-left:auto;font-size:15px;line-height:1;padding:6px 10px;flex:0 0 auto}
+.btn-ayuda.on{background:rgba(88,166,255,.15);border-color:var(--ac);color:var(--ac)}
+@media(max-width:860px){
+  /* En móvil .sec-hdr apila en columna: el botón no debe estirarse a todo el ancho */
+  .btn-ayuda{margin-left:0;align-self:flex-start}
+}
+
+/* ═══ PORTADA (Inicio) ═══
+   Primera pantalla al entrar: las empresas del usuario. Sin ninguna, queda
+   el panel limpio con el icono de la aplicación como marca de agua. */
+#s-inicio .sec-hdr{display:none}
+.inicio-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}
+.inicio-hola{font-size:22px;font-weight:700}
+.inicio-sub{font-size:12px;color:var(--mt);margin-top:4px}
+.inicio-logo{width:42px;height:42px;flex:0 0 auto;background:linear-gradient(135deg,var(--logo1),var(--logo2));
+  border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;opacity:.9}
+
+.inicio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.inicio-emp{display:flex;flex-direction:column;gap:5px;text-align:left;width:100%;min-width:0;
+  background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px 15px;
+  color:var(--tx);font-family:inherit;cursor:pointer;transition:border-color .15s,transform .1s}
+.inicio-emp:hover{border-color:var(--ac);transform:translateY(-1px)}
+.inicio-emp.activa{border-color:var(--ac);background:rgba(88,166,255,.07)}
+.inicio-emp-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.inicio-emp-nombre{font-size:14px;font-weight:700;overflow-wrap:anywhere}
+.inicio-emp-activa{font-size:10px;color:var(--ac);white-space:nowrap;flex:0 0 auto}
+.inicio-emp-rut{font-family:var(--mono);font-size:11px;color:var(--mt)}
+.inicio-emp-meta{font-size:10px;color:var(--mt);display:flex;gap:5px;flex-wrap:wrap}
+.inicio-emp-pie{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.inicio-pie{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px;padding-top:16px;border-top:1px solid var(--bd)}
+
+/* Panel vacío: sólo la marca de agua */
+.inicio-vacio{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:18px;min-height:58vh;text-align:center}
+.inicio-marca{display:flex;flex-direction:column;align-items:center;gap:12px;
+  opacity:.13;user-select:none;pointer-events:none}
+.inicio-marca-icono{width:104px;height:104px;background:linear-gradient(135deg,var(--logo1),var(--logo2));
+  border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:54px}
+.inicio-marca-nombre{font-size:26px;font-weight:700;letter-spacing:.04em}
+.inicio-vacio-txt{font-size:13px;color:var(--mt);line-height:1.6}
+@media(max-width:640px){
+  .inicio-grid{grid-template-columns:1fr}
+  .inicio-hola{font-size:19px}
+  .inicio-marca-icono{width:84px;height:84px;font-size:44px;border-radius:20px}
+  .inicio-marca-nombre{font-size:22px}
+}
+
+/* ═══ ESTADO DE CUENTA DE UN AUXILIAR ═══ */
+.aux-nota-hija{background:rgba(88,166,255,.04)}
+#aux-rep-body .mono{font-family:var(--mono)}
+#aux-rep-body .mt{color:var(--mt);font-size:10px}
+#aux-rep-body .num{text-align:right;font-family:var(--mono);white-space:nowrap}
+#aux-rep-body .fuerte{font-weight:700}
+.rep-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+  padding-bottom:12px;border-bottom:2px solid var(--bd);margin-bottom:14px;flex-wrap:wrap}
+.rep-emp{font-size:15px;font-weight:700}
+.rep-emp-sub{font-size:11px;color:var(--mt);margin-top:2px}
+.rep-fecha{text-align:right;font-size:12px;font-weight:600}
+.rep-aux{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+  background:var(--sf2);border-radius:8px;padding:12px 14px;margin-bottom:14px;flex-wrap:wrap}
+.rep-aux-nm{font-size:14px;font-weight:700}
+.rep-saldo{text-align:right}
+.rep-saldo-val{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:2px}
+.rep-vista-lbl{font-size:11px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;
+  font-weight:700;margin-bottom:6px}
+.rep-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.rep-tabla{width:100%;font-size:11px;min-width:620px}
+.rep-tabla th{font-size:10px}
+.rep-tabla td{padding:5px 7px}
+.rep-hija td{background:rgba(88,166,255,.05)}
+.rep-hija td:nth-child(2){padding-left:24px}
+.rep-warn{background:rgba(255,193,7,.15);color:var(--warn);padding:1px 6px;border-radius:3px;
+  font-size:9px;font-weight:700;margin-left:6px}
+.rep-nota{font-size:10px;color:var(--mt);margin-top:10px;line-height:1.5;
+  border-left:2px solid var(--bd);padding-left:10px}
+.rep-acciones{display:flex;gap:8px;align-items:center;margin-top:16px;padding-top:14px;
+  border-top:1px solid var(--bd);flex-wrap:wrap}
+@media(max-width:640px){
+  .rep-tabla{font-size:10px;min-width:560px}
+  .rep-tabla td{padding:4px 4px}
+  .rep-fecha{text-align:left}
+  .rep-acciones .btn{flex:1 1 auto}
+}
+
+/* Al imprimir el estado de cuenta, sólo sale el reporte */
+@media print{
+  body.imprimiendo-reporte>*{display:none!important}
+  body.imprimiendo-reporte #aux-rep-modal{display:block!important;position:static!important;
+    background:#fff!important;padding:0!important;overflow:visible!important}
+  body.imprimiendo-reporte #aux-rep-modal .modal-box{max-width:none!important;width:100%!important;
+    border:none!important;box-shadow:none!important;background:#fff!important;color:#000!important;
+    padding:0!important}
+  body.imprimiendo-reporte .no-print{display:none!important}
+  body.imprimiendo-reporte .rep-aux{background:#f4f4f4!important}
+  body.imprimiendo-reporte .rep-scroll{overflow:visible!important}
+  body.imprimiendo-reporte .rep-tabla{min-width:0!important}
+  body.imprimiendo-reporte .rep-hija td{background:#f7f9fc!important}
+}
+
+/* ═══ TABLA DE PAGOS Y COBROS ═══
+   Las cifras chilenas llegan a nueve dígitos más el símbolo ($ 119.000.190),
+   así que las columnas de dinero necesitan ancho fijo y prohibido el corte:
+   antes se apretaban y el encabezado se partía en dos líneas.
+   El folio es lo más corto de la fila y va estrecho; el nombre del documento
+   es la única columna que crece, porque ahí van los avisos de nota de crédito. */
+.tbl-pagos{width:100%;font-size:12px;min-width:940px}
+.tbl-pagos th{white-space:nowrap}
+.tbl-pagos .c-chk{width:34px;text-align:center}
+.tbl-pagos .c-fecha{width:88px}
+.tbl-pagos .c-dte{min-width:170px}
+.tbl-pagos .c-num{width:82px}
+.tbl-pagos .c-money{width:122px;text-align:right;white-space:nowrap;font-family:var(--mono)}
+.tbl-pagos .c-monto{width:124px;text-align:right}
+.tbl-pagos .mono11{font-family:var(--mono);font-size:11px}
+.tbl-pagos .mono10{font-family:var(--mono);font-size:10px;color:var(--mt)}
+.tbl-pagos .pag-vence{font-size:9px;color:var(--mt);margin-top:1px;white-space:nowrap}
+.tbl-pagos .pag-sub{background:rgba(88,166,255,.04)}
+.tbl-pagos .pag-sub .c-fecha{padding-left:20px}
+.tbl-pagos .pag-quitar{font-size:9px;padding:1px 5px;margin-left:4px}
+.pag-monto-inp{width:100%;max-width:112px;text-align:right;font-family:var(--mono);
+  font-size:11px;padding:3px 6px}
+@media(max-width:900px){
+  .tbl-pagos{font-size:11px;min-width:880px}
+  .tbl-pagos .c-money{width:112px}
+  .tbl-pagos .c-monto{width:112px}
+}
+
+/* Botón de edición por asiento en el Libro Diario: compacto, para que la
+   columna no le robe ancho a la glosa. */
+.btn-edit-dia{font-size:10px;padding:2px 7px;white-space:nowrap}
+
+/* ═══ DECLARACIONES JURADAS DE RENTA ═══
+   Cada declaración es una tarjeta: a la izquierda qué es y cuándo vence, a la
+   derecha el estado y los botones. Las que no aplican al régimen de la empresa
+   se muestran apagadas cuando se pide ver todo el catálogo. */
+.dj-card{padding:14px 16px;margin-bottom:10px}
+.dj-ajena{opacity:.5}
+.dj-ajena:hover{opacity:.85}
+.dj-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.dj-titulo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-size:13.5px;font-weight:700;line-height:1.35}
+.dj-num{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--acc);
+  background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.28);
+  border-radius:5px;padding:2px 7px;white-space:nowrap}
+.dj-desc{font-size:11.5px;color:var(--mt);margin-top:5px;line-height:1.5;max-width:74ch}
+.dj-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:10.5px;color:var(--mt);margin-top:7px}
+.dj-meta strong{color:var(--tx);font-weight:600}
+.dj-ctrl{color:var(--mt);opacity:.8}
+.dj-nota{font-size:10.5px;color:var(--warn);margin-top:6px;line-height:1.5;max-width:74ch}
+.dj-acciones{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.dj-estado{font-size:11px;font-weight:600;padding:5px 8px;min-width:118px}
+.dj-badge{font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;
+  color:var(--mt);border:1px solid var(--bd);border-radius:4px;padding:1px 5px;white-space:nowrap}
+.dj-propia{color:var(--acc);border-color:rgba(88,166,255,.4)}
+.dj-alerta{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;
+  border-radius:4px;padding:2px 7px;white-space:nowrap}
+.dj-vencida{color:var(--err);background:rgba(248,81,73,.13);border:1px solid rgba(248,81,73,.35)}
+.dj-pronto{color:var(--warn);background:rgba(210,153,34,.13);border:1px solid rgba(210,153,34,.35)}
+
+/* Datos de la presentación: aparecen sólo cuando la DJ ya está preparada */
+.dj-registro{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--bd)}
+.dj-registro .grp.full{grid-column:1/-1}
+
+/* Cifras de control que el sistema ya conoce */
+.dj-resumen{margin-top:12px;padding:11px 13px;background:var(--sf2);
+  border:1px solid var(--bd);border-radius:8px}
+.dj-resumen-t{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;
+  font-weight:700;color:var(--mt);margin-bottom:7px}
+.dj-tabla{width:100%;font-size:11.5px;border-collapse:collapse}
+.dj-tabla td{padding:3px 0;border:0}
+.dj-tabla .tl{color:var(--mt)}
+.dj-val{text-align:right;font-family:var(--mono);font-weight:600;white-space:nowrap}
+.dj-resumen-p{font-size:10px;color:var(--mt);margin-top:8px;line-height:1.5}
+.dj-resumen-p a{color:var(--acc);text-decoration:none;margin-left:4px}
+.dj-resumen-p a:hover{text-decoration:underline}
+
+/* Casillas de régimen dentro del editor del catálogo */
+.dj-regs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:6px;margin-top:7px}
+.dj-reg{display:flex;align-items:center;gap:7px;font-size:11.5px;cursor:pointer;
+  padding:6px 9px;border:1px solid var(--bd);border-radius:6px;background:var(--sf2)}
+.dj-reg:hover{border-color:var(--acc)}
+.dj-reg input{width:14px;height:14px;flex-shrink:0;margin:0;cursor:pointer}
+.dj-reg:has(input:checked){border-color:var(--acc);background:rgba(88,166,255,.09)}
+
+@media(max-width:760px){
+  .dj-acciones{width:100%;justify-content:flex-start}
+  .dj-estado{flex:1;min-width:0}
+}
+
+/* ═══ ASIGNAR CENTROS DE COSTO ═══
+   Una fila por movimiento de gasto. El selector de centro es la columna que
+   importa, así que se le da ancho fijo generoso y el documento es la única
+   columna elástica. Las filas sin centro se marcan al borde izquierdo para
+   poder barrer la lista de un vistazo. */
+.acc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.acc-kpi{padding:10px 13px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px}
+.acc-kpi-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--mt);font-weight:700}
+.acc-kpi-v{font-family:var(--mono);font-size:21px;font-weight:700;margin:3px 0 2px}
+.acc-kpi-s{font-size:10.5px;color:var(--mt)}
+.acc-barra{height:6px;border-radius:3px;background:var(--bd);overflow:hidden;margin-top:5px}
+.acc-barra span{display:block;height:100%;background:var(--ac);border-radius:3px}
+
+.acc-bulk{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px;
+  padding:10px 13px;border-radius:8px;
+  background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.28)}
+.acc-bulk-n{font-weight:700;font-size:12px;color:var(--info)}
+
+.tbl-asigcc{width:100%;font-size:12px;min-width:1000px}
+.tbl-asigcc th{white-space:nowrap}
+.tbl-asigcc td{vertical-align:top;padding-top:7px;padding-bottom:7px}
+.tbl-asigcc .acc-chk{width:32px;text-align:center;vertical-align:middle}
+.tbl-asigcc .acc-chk input{width:15px;height:15px;margin:0;cursor:pointer}
+.tbl-asigcc .acc-fecha{width:88px;font-family:var(--mono);font-size:11px}
+.tbl-asigcc .acc-cta{width:190px}
+.tbl-asigcc .acc-cod{font-family:var(--mono);font-size:11px;color:var(--mt)}
+.tbl-asigcc .acc-cta-nm{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl-asigcc .acc-doc{min-width:200px}
+.tbl-asigcc .acc-glosa{font-size:10.5px;color:var(--mt);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34ch}
+.tbl-asigcc .acc-monto{width:126px;text-align:right;font-family:var(--mono);white-space:nowrap}
+.tbl-asigcc .acc-cc{width:250px}
+.tbl-asigcc .acc-cc select{width:100%;font-size:11px;padding:4px 6px}
+.tbl-asigcc .acc-hered{font-size:9.5px;color:var(--mt);margin-top:3px}
+.tbl-asigcc .acc-ir{width:44px;text-align:center;vertical-align:middle}
+.tbl-asigcc .acc-ir .btn{padding:3px 8px;font-size:11px}
+.tbl-asigcc .acc-org{display:inline-block;padding:2px 8px;border-radius:100px;
+  font-size:10px;font-weight:600;white-space:nowrap}
+/* Franja al borde de las filas todavía sin centro asignado */
+.tbl-asigcc tbody tr.acc-pend td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+
+/* Aviso de gasto sin costear, en el Estado de Resultados */
+.eerr-aviso{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:rgba(210,153,34,.09);border:1px solid rgba(210,153,34,.35);
+  border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;max-width:720px}
+
+@media(max-width:900px){
+  .tbl-asigcc{min-width:900px;font-size:11px}
+  .tbl-asigcc .acc-cc{width:210px}
+}
+
+/* ═══ FORMULARIO DE DOCUMENTO EN MÓVIL ═══
+   El formulario de compras y ventas estaba pensado para escritorio: .doc-grid
+   con columnas fijas (130+130+170+130) y .doc-grid-totals con cinco columnas
+   iguales. En un teléfono de 412 px eso significaba dos cosas malas a la vez:
+   el grid se salía por la derecha —el rótulo "TIPO DOCUMENTO" quedaba cortado—
+   y los cinco campos de importe se apretaban a unos 60 px, así que $460.000 se
+   veía "4600" y $5.474.000 "5474". Los montos son justamente lo que hay que
+   poder leer al revisar un documento.
+   Aquí se reordena a rejillas que sí caben, se achica la tipografía de los
+   formularios y la fila de distribución se apila con su etiqueta encima de
+   cada campo. */
+@media (max-width:768px){
+  .doc-form{padding:12px}
+  .doc-form-title{flex-wrap:wrap;gap:8px;font-size:13px;margin-bottom:12px}
+  .doc-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .doc-grid-rut{grid-template-columns:1fr;gap:8px}
+  /* Forma de pago y cuenta de ingreso: el nombre de una cuenta del plan pasa
+     los 40 caracteres, así que en móvil van a lo ancho o no se leen enteros. */
+  .doc-grid.doc-grid-2{grid-template-columns:1fr}
+  .doc-grid-totals{grid-template-columns:1fr 1fr 1fr;gap:8px}
+  /* Etiquetas de dos palabras ("Fecha Vencimiento") caben en dos líneas sin
+     empujar el campo: se les da altura fija para que los inputs queden alineados. */
+  .doc-form label{font-size:9px;line-height:1.25;letter-spacing:.04em}
+  .doc-form input,.doc-form select{font-size:12px;padding:6px 8px}
+  .doc-form input[type=number]{text-align:right}
+  .rut-wrap input{padding-right:34px}
+  .rut-dv{top:auto;bottom:8px;right:8px}
+  /* El detalle del cuadre se va abajo en vez de empujar el mensaje */
+  .dist-check{flex-wrap:wrap;gap:4px 10px;font-size:11px;padding:8px 10px}
+  .dist-check-det{margin-left:0;flex-basis:100%}
+}
+
+@media (max-width:380px){
+  /* Cinco importes en tres columnas dejan celdas de ~100 px, que alcanzan para
+     nueve dígitos en mono de 12 px. Por debajo de 380 ya no, y bajan a dos. */
+  .doc-grid-totals{grid-template-columns:1fr 1fr}
+}
+
+@media (max-width:640px){
+  /* La fila de distribución se apila: no hay forma de meter cuenta, monto y
+     centro de costo en 380 px sin cortar los tres. Como el encabezado de la
+     tabla desaparece, cada campo lleva su propio rótulo. */
+  .dist-hdr{display:none}
+  .dist-box{border-radius:6px}
+  .dist-row,.dist-box.cc .dist-row{
+    grid-template-columns:minmax(0,1fr) 34px;
+    gap:4px 8px;
+    padding:10px 10px 12px;
+    align-items:start;
+  }
+  .dist-row>.dist-num{grid-column:1;grid-row:1;text-align:left;align-self:center;
+    font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase}
+  .dist-row>.dist-num::before{content:'Línea '}
+  .dist-row>.dist-del{grid-column:2;grid-row:1;justify-self:end}
+  .dist-row>.dist-del .btn{padding:5px 9px;font-size:12px}
+  .dist-row>.dist-cd{grid-column:1/-1;grid-row:2}
+  .dist-row>.dist-mt{grid-column:1/-1;grid-row:3}
+  .dist-row>.dist-ccc{grid-column:1/-1;grid-row:4}
+  .dist-row>.dist-cd::before,
+  .dist-row>.dist-mt::before,
+  .dist-row>.dist-ccc::before{
+    display:block;margin-bottom:2px;
+    font-size:9px;font-weight:700;color:var(--mt);
+    text-transform:uppercase;letter-spacing:.06em;
+  }
+  .dist-row>.dist-cd::before{content:'Cuenta de costo o gasto'}
+  .dist-row>.dist-mt::before{content:'Monto'}
+  .dist-row>.dist-ccc::before{content:'Centro de costo'}
+  .dist-row .dist-inp,.dist-row .dist-num-inp{font-size:12px;padding:7px 9px}
+}
+
+/* ═══ BALANCE DE APERTURA ═══
+   Las líneas del asiento N°0 eran una rejilla de 36px + 1fr + 110 + 110. En un
+   teléfono el nombre de la cuenta se quedaba con unos 100 px y se partía letra
+   por letra ("BANCO / DE / CHILE / 04"), mientras los importes —que aquí llegan
+   a nueve dígitos— se salían de la tarjeta y quedaban cortados a la derecha.
+   En móvil la línea pasa a dos niveles: cuenta arriba a lo ancho, Debe y Haber
+   abajo con su rótulo. */
+.ap-card{border-left:4px solid var(--ach)}
+.ap-hdr{display:flex;gap:16px;padding:14px 16px;align-items:center}
+.ap-badge{background:var(--ach);color:var(--bg);font-weight:700;padding:4px 12px;
+  border-radius:6px;font-family:var(--mono);font-size:12px;white-space:nowrap}
+.ap-glosa{flex:1;min-width:0}
+.ap-glosa-t{font-weight:600;font-size:13px}
+.ap-glosa-s{color:var(--mt);font-size:11px;margin-top:2px}
+.ap-total{text-align:right}
+.ap-total-v{font-family:var(--mono);font-size:13px;font-weight:700;white-space:nowrap}
+.ap-total-s{font-size:10px}
+.ap-body{display:block;padding:0 16px 14px}
+.ap-linea{display:grid;grid-template-columns:34px minmax(0,1fr) 128px 128px;
+  padding:5px 0;font-size:12px;border-bottom:1px solid var(--bd);align-items:baseline}
+.ap-num{text-align:center;font-family:var(--mono);font-size:10px;color:var(--mt)}
+.ap-cta{padding-left:8px;min-width:0}
+.ap-linea.ap-h .ap-cta{padding-left:20px;color:var(--mt)}
+.ap-cd{font-family:var(--mono);font-size:10px;color:var(--mt)}
+.ap-nm{margin-left:6px}
+.ap-desc{color:var(--mt);font-size:11px}
+.ap-rut{font-size:10px;color:var(--info);margin-top:2px}
+.ap-rut .mono{font-family:var(--mono)}
+.ap-monto{text-align:right;font-family:var(--mono);white-space:nowrap}
+.ap-haber{color:var(--mt)}
+.ap-cero{color:var(--bd)}
+.ap-tot{font-weight:700;border-top:2px solid var(--bd);border-bottom:none;
+  margin-top:6px;padding:8px 0}
+.ap-tot .ap-monto{color:var(--tx)}
+
+/* La tabla de auxiliares de la apertura scrollea dentro de su .tw en vez de
+   apretar las columnas hasta cortar los montos. */
+.tbl-apxres{min-width:620px}
+
+@media (max-width:640px){
+  .ap-linea{
+    grid-template-columns:minmax(0,1fr) 116px 116px;
+    gap:2px 6px;
+    padding:9px 0 10px;
+  }
+  .ap-num{grid-column:1/-1;text-align:left;font-size:9px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;font-family:var(--sans)}
+  .ap-num:not(:empty)::before{content:'Línea '}
+  .ap-cta,.ap-linea.ap-h .ap-cta{grid-column:1/-1;padding-left:0}
+  .ap-nm{margin-left:0;display:block;margin-top:1px}
+  /* Debe y Haber van los dos a la DERECHA, en columnas de ancho fijo, para que
+     los importes queden alineados entre líneas y se lean como en una columna
+     de balance. El ancho fijo es lo que permite comparar de un vistazo; la
+     tipografía se achica lo necesario para que quepan nueve dígitos. */
+  .ap-monto{margin-top:4px;text-align:right;font-size:11px}
+  .ap-debe{grid-column:2;grid-row:3}
+  .ap-haber{grid-column:3;grid-row:3}
+  /* Sin encabezado de columnas, cada importe dice qué es. El rótulo va encima
+     para no robarle ancho a la cifra. */
+  .ap-monto::before{content:attr(data-lbl);display:block;font-family:var(--sans);
+    font-size:8px;font-weight:700;color:var(--mt);text-transform:uppercase;
+    letter-spacing:.06em;line-height:1.2}
+  .ap-tot{padding-top:10px}
+  /* La cabecera del asiento (N°0, glosa, total) también se apila */
+  .ap-hdr{flex-wrap:wrap;gap:8px;padding:12px}
+  .ap-glosa{flex-basis:100%;order:3}
+  .ap-total{margin-left:auto}
+  .ap-body{padding:0 12px 12px}
+  /* Código y nombre en la misma línea: en un bloque de tres renglones, gastar
+     uno sólo en el código es caro. */
+  .ap-nm{display:inline;margin-left:6px}
+}
+
+@media (max-width:390px){
+  /* Nueve dígitos más el símbolo son 13 caracteres: a 10 px de mono son ~78 px
+     y siguen cabiendo en 104. */
+  .ap-linea{grid-template-columns:minmax(0,1fr) 104px 104px}
+  .ap-monto{font-size:10px}
+}
+
+/* Encabezado de sección en móvil: los botones se reparten en una fila que
+   envuelve, en vez de estirarse cada uno a lo ancho de la pantalla. */
+@media (max-width:768px){
+  .sec-hdr{flex-wrap:wrap}
+  .sec-hdr>div{flex-wrap:wrap;min-width:0;max-width:100%}
+  .sec-hdr .btn{flex:0 0 auto}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.2 — EXPERIENCIA MÓVIL PRODUCTIVA
+   Objetivo: que toda la aplicación sea operable desde 320–768 px sin que una
+   tabla, formulario, modal o grupo de botones expulse contenido del viewport.
+   Escritorio mantiene sus reglas previas; este bloque sólo endurece móvil.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#mobile-context{display:none}
+
+@media (max-width:768px){
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{font-size:12px;min-width:0}
+  header{
+    position:relative;z-index:70;min-width:0;height:48px;padding:0 8px;gap:6px;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+  }
+  #nav-toggle{flex:0 0 auto;padding:3px 8px!important;font-size:17px!important}
+  header .logo{flex:0 0 auto;min-width:0;gap:4px}
+  header .logo-icon{width:28px;height:28px;font-size:14px}
+  #entorno-badge{max-width:72px;overflow:hidden;text-overflow:ellipsis;padding:3px 6px!important;font-size:8px!important}
+  #save-indicator{min-width:0;max-width:78px;overflow:hidden;text-overflow:ellipsis;font-size:9px!important;margin-left:auto!important}
+  .btn-save-all{flex:0 0 auto;width:36px;height:34px;padding:0!important;justify-content:center;font-size:15px!important}
+  .btn-save-all .save-lbl{display:none}
+
+  /* Contexto persistente: nombre del módulo + volver + inicio. */
+  #mobile-context{
+    display:flex;align-items:center;gap:8px;min-height:44px;flex:0 0 auto;
+    padding:5px 8px;background:var(--sf);border-bottom:1px solid var(--bd);z-index:45;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+  }
+  #mobile-context button{
+    width:34px;height:34px;flex:0 0 34px;border:1px solid var(--bd);border-radius:8px;
+    background:var(--sf2);color:var(--tx);font-size:23px;line-height:1;display:grid;place-items:center;
+  }
+  #mobile-home{font-size:20px!important}
+  .mobile-context-text{flex:1;min-width:0;text-align:left}
+  #mobile-section-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)}
+  #mobile-section-sub{font-size:9px;color:var(--mt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
+  .layout{min-height:0;min-width:0}
+  main{
+    padding:10px 8px 22px;min-width:0;width:100%;
+    overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+    padding-bottom:max(22px,env(safe-area-inset-bottom));
+  }
+  .section,.card,.card-np,.as-form,.doc-form,.aux-card,.asiento-item{min-width:0;max-width:100%}
+  .card{padding:12px;border-radius:7px;margin-bottom:10px}
+  .card-np{margin-bottom:10px}
+  .card-title{font-size:9px;margin-bottom:10px;letter-spacing:.05em}
+  .sec-hdr{margin-bottom:10px;padding-bottom:9px;gap:7px}
+  .sec-title{font-size:15px;line-height:1.25}
+  .sec-sub{font-size:9.5px;line-height:1.45}
+  .sec-hdr>div:last-child,.save-row,.filter-row,.acc-bulk{max-width:100%;display:flex;flex-wrap:wrap;gap:6px}
+  .save-row{justify-content:flex-end;position:relative}
+
+  /* Formularios: densos, legibles y sin controles fuera de pantalla. */
+  .fg{gap:8px}
+  .grp{min-width:0;gap:2px}
+  label{font-size:8.5px;letter-spacing:.045em;line-height:1.25}
+  input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{
+    max-width:100%;min-width:0;font-size:12px;padding:7px 8px;border-radius:6px;line-height:1.25;
+  }
+  textarea{min-height:72px;resize:vertical}
+  .btn{max-width:100%;font-size:11px;padding:7px 9px;line-height:1.2}
+  .btn:not(.btn-icon-mobile){white-space:normal;text-align:center;justify-content:center}
+  .sec-hdr .btn,.filter-row .btn,.save-row .btn{flex:0 1 auto}
+  .filter-row input,.filter-row select{min-width:0;flex:1 1 130px}
+
+  /* KPIs: 2 columnas; números largos se encogen sin cortar. */
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:10px}
+  .kpi{min-width:0;padding:9px}
+  .kpi-lbl{font-size:8px;margin-bottom:4px;line-height:1.25}
+  .kpi-val{font-size:14px;overflow-wrap:anywhere}
+
+  /* Tablas: nunca agrandar el viewport. Las tablas de muchas columnas se
+     desplazan dentro de su caja, con columnas más densas y scroll táctil. */
+  .tw,.rep-scroll,.cmp-tbl-wrap,.lineas-scroll{
+    width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+    scrollbar-width:thin;border-radius:6px;
+  }
+  .tw{-webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 14px),rgba(0,0,0,.65) 100%)}
+  .tw:focus-within{-webkit-mask-image:none}
+  table{font-size:10px;max-width:none}
+  thead th{font-size:8px;padding:5px 6px;letter-spacing:.035em}
+  tbody td,tfoot td{font-size:10px;padding:5px 6px}
+  tbody td.tl,tbody td.tnm{padding:5px 6px}
+  /* Sólo tablas con muchas columnas fuerzan ancho de trabajo. */
+  .tw table:has(tr > *:nth-child(6)){min-width:620px}
+  .tw table:has(tr > *:nth-child(9)){min-width:820px}
+  .tw table:has(tr > *:nth-child(12)){min-width:1040px}
+  td input[type=number],td input[type=text],td select{font-size:10px;min-width:64px;padding:4px}
+
+  /* Tabs y barras de acciones horizontales: desplazables, no cortadas. */
+  .aux-tabs,.tabs,.tab-row,.toolbar,.action-row{
+    max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;white-space:nowrap;
+  }
+  .aux-tabs::-webkit-scrollbar,.tabs::-webkit-scrollbar,.tab-row::-webkit-scrollbar{display:none}
+
+  /* Modales como hoja de trabajo a pantalla completa: header/footer visibles. */
+  .modal-bkd{padding:0;align-items:stretch;overflow:hidden}
+  .modal-box{
+    max-width:none;width:100%;height:100dvh;max-height:100dvh;margin:0;border-radius:0;border-left:0;border-right:0;
+    padding:12px 10px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;
+    padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom));
+  }
+  .modal-hdr{position:sticky;top:-12px;z-index:20;background:var(--bg);padding-top:8px;padding-bottom:9px;margin-bottom:10px}
+  .modal-title{font-size:13px;line-height:1.3}
+  .modal-sub{font-size:9.5px}
+  .modal-close{font-size:22px;min-width:34px;min-height:34px}
+  .modal-footer{
+    position:sticky;bottom:-12px;z-index:20;background:var(--bg);margin-top:auto;padding:9px 0 8px;
+    flex-wrap:wrap;gap:6px
+  }
+  .modal-footer .btn{flex:1 1 120px}
+
+  /* Drawer: usa alto dinámico y áreas seguras. */
+  nav{height:100dvh;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom));width:276px;max-width:88vw}
+  .nav-label{font-size:8.5px;padding:8px 13px 3px}
+  .nav-item{padding:9px 13px;font-size:12px;gap:8px;min-height:38px}
+  .nav-icon{font-size:13px}
+  .nav-contexto{padding:9px 11px}
+  .nav-ctx-nombre{font-size:11px;margin-bottom:6px}
+  .nav-contexto select{font-size:11px;padding:6px 7px}
+
+  /* Mensajes y bloques informativos: texto compacto pero respirable. */
+  .empty,.info-tip,.eerr-aviso{font-size:10.5px;line-height:1.5}
+  .badge{font-size:8px;padding:2px 6px}
+  .as-glosa,.aux-rs{font-size:11px}
+}
+
+@media (max-width:420px){
+  main{padding-left:6px;padding-right:6px}
+  .card{padding:10px}
+  .sec-title{font-size:14px}
+  .kpi-val{font-size:13px}
+  /* En teléfonos angostos, botones de cabecera quedan compactos por contenido. */
+  .sec-hdr .btn{font-size:10px;padding:6px 8px}
+  .filter-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%}
+  .filter-row>*{min-width:0!important;width:100%!important}
+  .filter-row>.full,.filter-row>button:only-child{grid-column:1/-1}
+  /* Grids genéricos de dos columnas que no tengan semántica especial bajan a una. */
+  .fg{grid-template-columns:1fr}
+  .doc-grid{grid-template-columns:1fr 1fr}
+  .doc-grid-totals{grid-template-columns:1fr 1fr}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+}
+
+@media (max-width:340px){
+  #save-indicator{display:none}
+  #entorno-badge{display:none!important}
+  #mobile-context{min-height:40px;padding-top:3px;padding-bottom:3px}
+  #mobile-context button{width:31px;height:31px;flex-basis:31px}
+  .kpi-grid{grid-template-columns:1fr}
+  .doc-grid,.doc-grid-totals{grid-template-columns:1fr}
+}
+
+@media (max-width:768px){
+  /* Anchos mínimos inline heredados de escritorio que sí pertenecen a filtros
+     y controles (no a tablas): en móvil deben poder encogerse. */
+  #vf-search,#cf-search,#cmp-year-bal,#cmp-year-res,#f29-mes,
+  #imp-bulk-wrap,#impv-bulk-wrap,#imp-bulk-cc,
+  .filter-row .ac-wrap,.sec-hdr .ac-wrap{min-width:0!important;max-width:100%!important}
+  #imp-bulk-wrap,#impv-bulk-wrap{flex-basis:100%!important}
+  #imp-bulk-cc{flex:1 1 180px!important}
+
+  /* Cualquier imagen/canvas/gráfico generado debe respetar la tarjeta. */
+  .section img,.section canvas,.section svg{max-width:100%;height:auto}
+  pre,code{max-width:100%;overflow-wrap:anywhere}
+
+  /* Evitar que textos técnicos, RUT, hashes o nombres largos expandan cards. */
+  .section p,.section div,.section span{overflow-wrap:break-word}
+  .mono,[style*="font-family:var(--mono)"]{overflow-wrap:anywhere}
+
+  /* Importador SII Compras: el contenedor flex del modal comprimía el listado
+     de cientos de DTE hasta dejar visible sólo la barra horizontal. Se reserva
+     una zona táctil estable y cada documento se presenta como ficha vertical. */
+  #imp-modal .card-np{
+    flex:0 0 auto;height:min(52dvh,480px);min-height:280px;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    background:var(--bg);padding:6px
+  }
+  #imp-modal .imp-row-hdr{display:none}
+  #imp-modal .imp-row{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    min-width:0;width:100%;gap:7px 10px;margin:0 0 8px;padding:10px;
+    border:1px solid var(--bd);border-radius:8px;background:var(--sf);
+    align-items:start;font-size:10px;box-sizing:border-box
+  }
+  #imp-modal .imp-row>div{min-width:0;overflow:visible;white-space:normal!important}
+  #imp-modal .imp-row>div:nth-child(1){grid-column:1;grid-row:1}
+  #imp-modal .imp-row>div:nth-child(13){grid-column:2;grid-row:1;text-align:right}
+  #imp-modal .imp-row>div:nth-child(6){grid-column:1/-1;font-size:11px!important;font-weight:700}
+  #imp-modal .imp-row>div:nth-child(11),
+  #imp-modal .imp-row>div:nth-child(12){grid-column:1/-1}
+  #imp-modal .imp-row>div:nth-child(n+2):nth-child(-n+12)::before{
+    display:block;margin-bottom:2px;color:var(--mt);font-size:8px;
+    font-weight:800;letter-spacing:.04em;text-transform:uppercase
+  }
+  #imp-modal .imp-row>div:nth-child(2)::before{content:'Fecha'}
+  #imp-modal .imp-row>div:nth-child(3)::before{content:'DTE'}
+  #imp-modal .imp-row>div:nth-child(4)::before{content:'N° documento'}
+  #imp-modal .imp-row>div:nth-child(5)::before{content:'RUT'}
+  #imp-modal .imp-row>div:nth-child(6)::before{content:'Proveedor'}
+  #imp-modal .imp-row>div:nth-child(7)::before{content:'Neto'}
+  #imp-modal .imp-row>div:nth-child(8)::before{content:'IVA'}
+  #imp-modal .imp-row>div:nth-child(9)::before{content:'Otros'}
+  #imp-modal .imp-row>div:nth-child(10)::before{content:'Total'}
+  #imp-modal .imp-row>div:nth-child(11)::before{content:'Cuenta contable'}
+  #imp-modal .imp-row>div:nth-child(12)::before{content:'Centro de costo'}
+  #imp-modal .imp-row>div:nth-child(7),#imp-modal .imp-row>div:nth-child(8),
+  #imp-modal .imp-row>div:nth-child(9),#imp-modal .imp-row>div:nth-child(10){text-align:left!important}
+  #imp-modal .imp-row .ac-wrap,#imp-modal .imp-row input,#imp-modal .imp-row select{
+    width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box
+  }
+
+  /* El importador de Ventas comparte el mismo patrón y necesita la misma
+     reserva de altura. Sus estilos inline de escritorio se sobreescriben sólo
+     dentro del modal móvil. */
+  #impv-modal .card-np{
+    flex:0 0 auto;height:min(52dvh,480px);min-height:280px;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    background:var(--bg);padding:6px
+  }
+  #impv-modal .imp-row-hdr{display:none!important}
+  #impv-modal .imp-row{
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    min-width:0!important;width:100%!important;gap:7px 10px!important;
+    margin:0 0 8px!important;padding:10px!important;border:1px solid var(--bd)!important;
+    border-radius:8px;background:var(--sf);align-items:start!important;box-sizing:border-box
+  }
+  #impv-modal .imp-row>div{min-width:0;overflow:visible!important;white-space:normal!important}
+  #impv-modal .imp-row>div:nth-child(1){grid-column:1;grid-row:1}
+  #impv-modal .imp-row>div:nth-child(13){grid-column:2;grid-row:1;text-align:right}
+  #impv-modal .imp-row>div:nth-child(6),#impv-modal .imp-row>div:nth-child(11),
+  #impv-modal .imp-row>div:nth-child(12){grid-column:1/-1}
+  #impv-modal .imp-row>div:nth-child(6){font-size:11px!important;font-weight:700}
+  #impv-modal .imp-row>div:nth-child(n+2):nth-child(-n+12)::before{
+    display:block;margin-bottom:2px;color:var(--mt);font-size:8px;
+    font-weight:800;letter-spacing:.04em;text-transform:uppercase
+  }
+  #impv-modal .imp-row>div:nth-child(2)::before{content:'Fecha'}
+  #impv-modal .imp-row>div:nth-child(3)::before{content:'DTE'}
+  #impv-modal .imp-row>div:nth-child(4)::before{content:'N° documento'}
+  #impv-modal .imp-row>div:nth-child(5)::before{content:'RUT'}
+  #impv-modal .imp-row>div:nth-child(6)::before{content:'Cliente'}
+  #impv-modal .imp-row>div:nth-child(7)::before{content:'Neto'}
+  #impv-modal .imp-row>div:nth-child(8)::before{content:'IVA'}
+  #impv-modal .imp-row>div:nth-child(9)::before{content:'Otros'}
+  #impv-modal .imp-row>div:nth-child(10)::before{content:'Total'}
+  #impv-modal .imp-row>div:nth-child(11)::before{content:'Cuenta de ingreso'}
+  #impv-modal .imp-row>div:nth-child(12)::before{content:'Forma de pago'}
+  #impv-modal .imp-row>div:nth-child(7),#impv-modal .imp-row>div:nth-child(8),
+  #impv-modal .imp-row>div:nth-child(9),#impv-modal .imp-row>div:nth-child(10){text-align:left!important}
+  #impv-modal .imp-row .ac-wrap,#impv-modal .imp-row input,#impv-modal .imp-row select{
+    width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box
+  }
+
+  /* Resumen de asientos/auxiliares: metadatos apilables. */
+  .asiento-hdr,.aux-hdr{min-width:0}
+  .asiento-hdr>* ,.aux-hdr>*{min-width:0}
+  .cuadre-det{margin-left:0;flex-wrap:wrap;gap:5px 10px;font-size:9.5px}
+  .as-cuadre{flex-wrap:wrap;padding:8px 10px;font-size:10.5px}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.3 — AJUSTE FINO DE COLUMNAS MONETARIAS EN MÓVIL
+   Requisito: mostrar montos de hasta ~12 caracteres visibles (incluyendo $,
+   signo y separadores de miles) sin partirlos ni colapsar la columna.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.money-cell{
+  white-space:nowrap!important;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+
+@media (max-width:768px){
+  /* Comprobantes tipo: Cuenta/Descripción ocupan fila completa; Debe/Haber
+     comparten exactamente el mismo ancho. */
+  #ct-modal .ct-linea-hdr{display:none!important}
+  #ct-modal .ct-linea-row{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    gap:7px!important;
+    padding:9px!important;
+    margin-bottom:9px!important;
+    border:1px solid var(--bd);
+    border-radius:8px;
+    background:var(--sf2);
+    align-items:end!important;
+  }
+  #ct-modal .ct-linea-row>div{min-width:0}
+  #ct-modal .ct-linea-row>div:nth-child(1),
+  #ct-modal .ct-linea-row>div:nth-child(2){grid-column:1/-1}
+  #ct-modal .ct-linea-row>div:nth-child(3),
+  #ct-modal .ct-linea-row>div:nth-child(4){grid-column:auto}
+  #ct-modal .ct-linea-row>div:nth-child(5){grid-column:1/-1;text-align:right!important}
+  #ct-modal .ct-linea-row>div:nth-child(1)::before,
+  #ct-modal .ct-linea-row>div:nth-child(2)::before,
+  #ct-modal .ct-linea-row>div:nth-child(3)::before,
+  #ct-modal .ct-linea-row>div:nth-child(4)::before{
+    display:block;margin:0 0 3px;font-size:8px;font-weight:700;color:var(--mt);
+    text-transform:uppercase;letter-spacing:.045em
+  }
+  #ct-modal .ct-linea-row>div:nth-child(1)::before{content:"Cuenta"}
+  #ct-modal .ct-linea-row>div:nth-child(2)::before{content:"Descripción"}
+  #ct-modal .ct-linea-row>div:nth-child(3)::before{content:"Debe"}
+  #ct-modal .ct-linea-row>div:nth-child(4)::before{content:"Haber"}
+  #ct-modal .linea-num-inp{width:100%!important;min-width:0!important;text-align:right;font-variant-numeric:tabular-nums}
+
+  /* F29: código estrecho, descripción flexible y monto monetario real. */
+  .f29-table{width:100%!important;table-layout:fixed}
+  .f29-table .f29-cod{width:38px!important;min-width:38px!important;max-width:38px!important;padding-left:4px!important;padding-right:4px!important;text-align:center;font-size:9px!important}
+  .f29-table .f29-desc{width:auto!important;font-size:10px!important;line-height:1.25;padding:7px 7px!important;overflow-wrap:normal!important;word-break:normal}
+  .f29-table .f29-monto{width:118px!important;min-width:118px!important;max-width:118px!important;padding:7px 7px!important;font-size:11px!important;white-space:nowrap!important}
+  .f29-table tr:last-child .f29-desc,.f29-table tr:last-child .f29-monto{font-size:11.5px!important}
+
+  /* PPM: dejar la mayor parte del ancho a los valores, especialmente PPM. */
+  .ppm-table{width:100%!important;table-layout:fixed}
+  .ppm-table .ppm-mes{width:76px!important;min-width:76px!important;max-width:76px!important;font-size:10px!important;padding:6px 5px!important}
+  .ppm-table .ppm-base{width:auto!important;min-width:0!important;font-size:10.5px!important;padding:6px 7px!important;white-space:nowrap!important}
+  .ppm-table .ppm-monto{width:116px!important;min-width:116px!important;max-width:116px!important;font-size:10.5px!important;padding:6px 7px!important;white-space:nowrap!important}
+  .ppm-table thead .ppm-base,.ppm-table thead .ppm-monto{font-size:8px!important;white-space:normal!important;line-height:1.15}
+
+  /* Renta: evitar el scroll que ocultaba el inicio de las descripciones y
+     reservar una columna estable para importes largos. */
+  .renta-table-wrap{overflow-x:hidden!important;width:100%;max-width:100%}
+  .renta-rli-table{width:100%!important;min-width:0!important;table-layout:fixed}
+  .renta-rli-table .renta-cod{width:32px!important;min-width:32px!important;max-width:32px!important;padding:6px 3px!important;text-align:center;font-size:8.5px!important}
+  .renta-rli-table .renta-desc{width:auto!important;font-size:10px!important;line-height:1.25;padding:7px 6px!important;overflow-wrap:normal!important;word-break:normal}
+  .renta-rli-table .renta-monto{width:118px!important;min-width:118px!important;max-width:118px!important;padding:7px 7px!important;font-size:10.5px!important;white-space:nowrap!important}
+  .renta-rli-table tr[style*="background"] .renta-desc,
+  .renta-rli-table tr[style*="background"] .renta-monto{font-size:11px!important}
+}
+
+@media (max-width:380px){
+  .f29-table .f29-cod{width:34px!important;min-width:34px!important;max-width:34px!important}
+  .f29-table .f29-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10.5px!important}
+  .ppm-table .ppm-mes{width:68px!important;min-width:68px!important;max-width:68px!important;font-size:9.5px!important}
+  .ppm-table .ppm-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10px!important}
+  .renta-rli-table .renta-cod{width:28px!important;min-width:28px!important;max-width:28px!important}
+  .renta-rli-table .renta-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10px!important}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.4 — Columnas monetarias F29 / Resultados / Balance
+   - Código F29 reservado sólo para hasta 5 caracteres.
+   - Importes con ancho estable para ~$999.999.999 / -$99.999.999.
+   - La descripción absorbe el ancho restante y envuelve dentro de su celda.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.report-money-table{width:100%;}
+.report-money-table .report-col-desc{width:auto}
+.report-money-table .report-col-money{width:132px}
+.report-money-table td:last-child{
+  white-space:nowrap;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+
+@media (max-width:768px){
+  /* F29: 5 caracteres de código máximo + monto productivo. */
+  .f29-table{table-layout:fixed!important;width:100%!important}
+  .f29-table col.f29-col-cod{width:48px!important}
+  .f29-table col.f29-col-desc{width:auto!important}
+  .f29-table col.f29-col-monto{width:132px!important}
+  .f29-table .f29-cod{
+    width:48px!important;min-width:48px!important;max-width:48px!important;
+    padding-left:3px!important;padding-right:3px!important;
+    font-size:9.5px!important;white-space:nowrap!important;text-align:center!important;
+  }
+  .f29-table .f29-desc{
+    min-width:0!important;width:auto!important;
+    padding:7px 6px!important;font-size:9.8px!important;line-height:1.22!important;
+    white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal!important;
+  }
+  .f29-table .f29-monto{
+    width:132px!important;min-width:132px!important;max-width:132px!important;
+    padding:7px 8px!important;font-size:10.8px!important;white-space:nowrap!important;
+    text-align:right!important;overflow:visible!important;
+  }
+  .f29-table tr:last-child .f29-desc{font-size:10.7px!important}
+  .f29-table tr:last-child .f29-monto{font-size:11.2px!important}
+
+  /* Estado de Resultados y Balance: misma geometría monetaria. */
+  #resultados-content .report-money-table,
+  #balance-content .report-money-table{
+    width:100%!important;table-layout:fixed!important;min-width:0!important;
+  }
+  #resultados-content .report-money-table col.report-col-money,
+  #balance-content .report-money-table col.report-col-money{width:132px!important}
+  #resultados-content .report-money-table td:first-child,
+  #balance-content .report-money-table td:first-child{
+    min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;
+  }
+  #resultados-content .report-money-table td:last-child,
+  #balance-content .report-money-table td:last-child{
+    width:132px!important;min-width:132px!important;max-width:132px!important;
+    padding-left:7px!important;padding-right:8px!important;
+    white-space:nowrap!important;text-align:right!important;
+    font-size:10.8px!important;font-variant-numeric:tabular-nums;
+  }
+  #resultados-content .report-money-table td:first-child{font-size:10.5px!important;line-height:1.25}
+  #balance-content .report-money-table td:first-child{font-size:10.5px!important;line-height:1.25}
+  #resultados-content .report-money-table tr[style*="background"] td:last-child,
+  #balance-content .report-money-table tr[style*="background"] td:last-child,
+  #resultados-content .report-money-table tr.rtot td:last-child,
+  #balance-content .report-money-table tr.rtot td:last-child{font-size:11.2px!important}
+}
+
+@media (max-width:380px){
+  .f29-table col.f29-col-cod{width:44px!important}
+  .f29-table col.f29-col-monto{width:124px!important}
+  .f29-table .f29-cod{width:44px!important;min-width:44px!important;max-width:44px!important;font-size:9px!important}
+  .f29-table .f29-monto{width:124px!important;min-width:124px!important;max-width:124px!important;font-size:10.2px!important}
+  #resultados-content .report-money-table col.report-col-money,
+  #balance-content .report-money-table col.report-col-money{width:124px!important}
+  #resultados-content .report-money-table td:last-child,
+  #balance-content .report-money-table td:last-child{width:124px!important;min-width:124px!important;max-width:124px!important;font-size:10.2px!important}
+}
+
+/* ═══ V2.16.5 — Hojas foliadas SII ═══ */
+.fsii-card{margin-bottom:14px}.fsii-card .card-title{font-size:14px;font-weight:800;margin-bottom:12px}.fsii-range-kpis,.fsii-preview-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.fsii-range-kpis span,.fsii-preview-grid>div{padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg2);display:flex;flex-direction:column;gap:2px}.fsii-range-kpis b,.fsii-preview-grid b{font-family:var(--mono);font-size:13px}.fsii-range-kpis small,.fsii-preview-grid small{font-size:9px;color:var(--mt);text-transform:uppercase}.fsii-actions,.fsii-actions-main{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.fsii-actions-main{margin:12px 0}.check-line{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:var(--tx);margin:8px 0}.check-line input{width:auto!important;margin-top:1px}.badge.warn{background:rgba(210,153,34,.12);color:#b7791f;border:1px solid rgba(210,153,34,.3)}.badge.err{background:rgba(248,81,73,.1);color:var(--err);border:1px solid rgba(248,81,73,.25)}
+
+/* Libros mensuales Compra/Venta — control y conciliación con RCV SII */
+.lcv-portada{display:flex;justify-content:space-between;gap:18px;padding:16px 18px;margin-bottom:12px;border:1px solid var(--bd);border-radius:10px;background:var(--sf);text-transform:uppercase}.lcv-portada>div{display:flex;flex-direction:column;gap:3px}.lcv-portada>div:last-child{text-align:right}.lcv-portada strong{font-size:14px}.lcv-portada span{font-size:10px;color:var(--mt)}.lcv-filtros{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.lcv-filtros select{min-width:180px}.lcv-nota{padding:9px 12px;margin-bottom:12px;border-radius:7px;background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.25);color:var(--info);font-size:11px}.lcv-resumen,.lcv-grupo{margin-bottom:14px}.lcv-resumen .card-title{padding:13px 15px 0;font-size:13px;font-weight:800}.lcv-efecto{display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--bd);font-size:10px;background:var(--sf2)}.lcv-efecto span{font-family:var(--mono)}.lcv-grupo-title{display:flex;justify-content:space-between;gap:12px;padding:12px 15px;border-bottom:1px solid var(--bd);background:var(--sf2)}.lcv-grupo-title span{font-size:11px;color:var(--mt)}.lcv-detalle{font-size:10px;white-space:nowrap}.lcv-detalle th{font-size:9px}.lcv-ok,.lcv-validacion{padding:10px 13px;border-radius:8px;margin:10px 0 14px;font-size:11px;line-height:1.5}.lcv-ok{color:var(--ach);background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3)}.lcv-validacion.warn{color:var(--warn);background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.35)}.lcv-validacion.error{color:var(--err);background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.35)}.lcv-validacion hr{border:0;border-top:1px solid currentColor;opacity:.2;margin:8px 0}
+@media(max-width:700px){.lcv-portada{flex-direction:column}.lcv-portada>div:last-child{text-align:left}.lcv-filtros{display:grid!important;grid-template-columns:1fr 1fr}.lcv-filtros>*{min-width:0!important;width:100%!important}.lcv-filtros select:nth-child(3){grid-column:1/-1}.lcv-grupo-title{flex-direction:column;gap:3px}}
+@media print{#s-libroscv{font-size:9pt}.lcv-portada{border:1px solid #333;background:#fff;color:#000}.lcv-portada span{color:#333}.lcv-ok,.lcv-validacion{display:none}.lcv-grupo{break-before:page;border:0}.lcv-grupo:first-of-type{break-before:auto}.lcv-resumen,.lcv-grupo{box-shadow:none}.lcv-detalle{font-size:7pt}.lcv-detalle th{font-size:6.5pt}}
+#folio-print-root{display:none}
+@media(max-width:768px){.fsii-range-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.fsii-preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fsii-margins{grid-template-columns:repeat(2,minmax(0,1fr))!important}.fsii-actions-main .btn{flex:1 1 190px}.fsii-card .tw{overflow-x:auto}.fsii-card .tw table{min-width:620px}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.13 — Comprobantes móvil + pendientes de cuadratura RCV
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cmp-alert-link{
+  appearance:none;border:1px solid rgba(248,81,73,.45);background:rgba(248,81,73,.04);
+  color:var(--err);border-radius:7px;padding:4px 8px;font-family:var(--mono);
+  font-size:11px;font-weight:800;cursor:pointer;line-height:1.2
+}
+.cmp-alert-link:hover,.cmp-alert-link:focus-visible{background:rgba(248,81,73,.14);outline:2px solid rgba(248,81,73,.18);outline-offset:1px}
+.cmp-mobile-list{display:none}
+
+.imp-pending-alert{
+  margin-top:10px;padding:10px 12px;border:1px solid var(--err);border-radius:8px;
+  background:rgba(248,81,73,.08);color:var(--err);font-size:11px;line-height:1.45
+}
+.imp-pending-alert>span{display:block;color:var(--mt);margin-top:7px}
+.imp-pending-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.imp-pending-link,.imp-pending-mini{
+  appearance:none;border:1px solid rgba(248,81,73,.4);background:var(--sf);color:var(--err);
+  border-radius:6px;padding:4px 7px;font:700 10px/1.2 var(--mono);cursor:pointer
+}
+.imp-pending-mini{padding:3px 5px;font-family:inherit;font-size:9px}
+.imp-pending-row{background:rgba(248,81,73,.055)!important;box-shadow:inset 3px 0 0 var(--err)}
+.imp-pending-focus{animation:impPendingPulse .45s ease-in-out 0s 3 alternate}
+@keyframes impPendingPulse{from{box-shadow:inset 3px 0 0 var(--err),0 0 0 0 rgba(248,81,73,.05)}to{box-shadow:inset 3px 0 0 var(--err),0 0 0 3px rgba(248,81,73,.22)}}
+
+@media (max-width:768px){
+  /* Comprobantes deja de ser una tabla horizontal en teléfonos. */
+  #comprobantes-content .cmp-desktop-wrap{display:none!important}
+  #comprobantes-content .cmp-mobile-list{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px}
+  .cmp-mobile-card{
+    min-width:0;border:1px solid var(--bd);border-radius:9px;background:var(--sf);padding:9px;
+    box-shadow:0 1px 2px rgba(0,0,0,.025);cursor:pointer
+  }
+  .cmp-mobile-card.is-error{border-color:rgba(248,81,73,.55);background:rgba(248,81,73,.035)}
+  .cmp-mobile-head{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:7px;align-items:center;font-size:9.5px;color:var(--mt)}
+  .cmp-mobile-head strong{font:800 11px/1.2 var(--mono);color:var(--tx);white-space:nowrap}
+  .cmp-mobile-origin{justify-self:end;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cmp-origin);background:color-mix(in srgb,var(--cmp-origin) 10%,transparent);padding:2px 6px;border-radius:99px;font-weight:700}
+  .cmp-mobile-glosa{font-size:11px;font-weight:600;line-height:1.3;margin:7px 0;overflow-wrap:anywhere}
+  .cmp-mobile-error{display:inline-block;margin-left:6px;color:var(--err);font-size:9px;font-weight:800;white-space:nowrap}
+  .cmp-mobile-money{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px;margin:7px 0}
+  .cmp-mobile-money>div{min-width:0;border:1px solid var(--bd);border-radius:7px;padding:6px 8px;background:var(--bg2);text-align:right}
+  .cmp-mobile-money small{display:block;font-size:8px;font-weight:800;color:var(--mt);letter-spacing:.05em;margin-bottom:2px}
+  .cmp-mobile-money strong{display:block;font:800 12px/1.15 var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cmp-mobile-card.is-error .cmp-mobile-money strong{color:var(--err)}
+  .cmp-mobile-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--mt);font-size:9px}
+  .cmp-mobile-action{flex:0 0 auto!important;white-space:nowrap!important;font-size:9px!important;padding:5px 8px!important}
+
+  /* Filtros de Comprobantes: dos columnas estables y sin anchos heredados. */
+  #comprobantes-content>.filter-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px!important;width:100%}
+  #comprobantes-content>.filter-row>.f-lbl,
+  #comprobantes-content>.filter-row>.doc-count{grid-column:1/-1;width:100%!important}
+  #comprobantes-content>.filter-row>div,
+  #comprobantes-content>.filter-row>input,
+  #comprobantes-content>.filter-row>select,
+  #comprobantes-content>.filter-row>button{min-width:0!important;width:100%!important;max-width:100%!important}
+  #comprobantes-content>.filter-row .ac-lista{min-width:min(92vw,320px)!important}
+
+  .imp-pending-links{display:grid;grid-template-columns:1fr;gap:5px}
+  .imp-pending-link{text-align:left;width:100%;white-space:normal}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   V2.16.18 — Menú lateral por categorías + gestor de borradores
+   ═══════════════════════════════════════════════════════════════ */
+.nav-home{margin-bottom:4px}
+.nav-group{border-top:1px solid transparent}
+.nav-group-toggle{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 13px;background:transparent;border:0;color:var(--tx);cursor:pointer;
+  font-family:var(--sans);font-size:11px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.055em;text-align:left;user-select:none;
+}
+.nav-group-toggle:hover{background:var(--sf2)}
+.nav-group-toggle>span:first-child{display:flex;align-items:center;min-width:0;gap:7px}
+.nav-cat-icon{font-size:13px;width:18px;text-align:center;flex:0 0 18px}
+.nav-chevron{font-size:20px;line-height:1;color:var(--mt);transition:transform .15s ease}
+.nav-group.open>.nav-group-toggle{background:var(--sf2);color:var(--ac)}
+.nav-group.open>.nav-group-toggle .nav-chevron{transform:rotate(90deg)}
+.nav-group-items{display:none;padding-bottom:4px}
+.nav-group.open>.nav-group-items{display:block}
+.nav-group-items .nav-item{padding-left:21px}
+.nav-group-items .nav-item .nav-icon{opacity:.9}
+
+.draft-list{display:flex;flex-direction:column;gap:8px}
+.draft-item{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border:1px solid var(--bd);background:var(--bg);border-radius:8px;padding:10px 11px;
+}
+.draft-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.draft-main strong{font-size:12px;color:var(--tx)}
+.draft-main span{font-size:10px;color:var(--mt)}
+.draft-main small{font-size:9.5px;color:var(--mt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-actions{display:flex;gap:6px;flex:0 0 auto}
+.draft-actions .btn{padding:6px 9px;font-size:10px}
+
+@media(max-width:768px){
+  .nav-group-toggle{padding:11px 13px;font-size:11px;min-height:42px}
+  .nav-group-items .nav-item{padding-left:27px}
+  .draft-item{align-items:stretch;flex-direction:column}
+  .draft-main small{white-space:normal;overflow:visible}
+  .draft-actions{width:100%}
+  .draft-actions .btn{flex:1}
+}
