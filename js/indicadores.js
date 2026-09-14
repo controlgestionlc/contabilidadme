@@ -1,5 +1,5 @@
 // indicadores.js — UF, UTM, tasas previsionales configurables
-import {toast, fmtC} from './core.js';
+import {toast, fmtC, pn} from './core.js';
 import {S} from './state.js';
 import {logAccion} from './firebase.js';
 import './storage.js';
@@ -160,7 +160,7 @@ function renderIndicadores(){
   const el=document.getElementById('ind-content');
   const campo=(id,lbl,val,step,sufijo,hint)=>`<div class="grp">
     <label>${lbl}${sufijo?' <span style="color:var(--mt)">('+sufijo+')</span>':''}</label>
-    <input type="number" id="ind-${id}" value="${val}" step="${step||'1'}">
+    <input type="number" class="${['utm','uta','ingresoMinimo'].includes(id)?'money-input':''}" id="ind-${id}" value="${val}" step="${step||'1'}">
     ${hint?`<div style="font-size:10px;color:var(--mt);margin-top:2px">${hint}</div>`:''}
   </div>`;
   el.innerHTML=`<div class="card" style="margin-bottom:14px">
@@ -285,12 +285,12 @@ function restaurarIUSCTabla(){
   renderIUSCTabla();
   toast('↺ Tabla oficial restaurada — recuerda Guardar');
 }
-function setIUSCPrueba(v){IUSC_PRUEBA=+v||0;renderIUSCTabla();}
+function setIUSCPrueba(v){IUSC_PRUEBA=pn(v);renderIUSCTabla();}
 
 function renderIUSCTabla(){
   const box=document.getElementById('iusc-tabla-box');if(!box)return;
   if(!IUSC_WORK)IUSC_WORK=getIUSCTabla();
-  const utm=+document.getElementById('ind-utm')?.value||getIndicadores().utm||0;
+  const utm=pn(document.getElementById('ind-utm')?.value)||getIndicadores().utm||0;
   const inf=t=>t.hasta>=1e9;
   // Los tramos deben ser contiguos y crecientes: si no, el impuesto salta o se solapa
   const avisos=[];
@@ -350,7 +350,7 @@ function renderIUSCTabla(){
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
         <div class="grp" style="max-width:220px">
           <label>Base tributable (pesos)</label>
-          <input type="number" step="10000" value="${IUSC_PRUEBA||''}" placeholder="Ej: 1.500.000" onchange="setIUSCPrueba(this.value)">
+          <input type="number" class="money-input" step="10000" value="${IUSC_PRUEBA||''}" placeholder="Ej: 1.500.000" onchange="setIUSCPrueba(this.value)">
         </div>
         ${d?`<div style="font-size:12px;line-height:1.7">
           Base: <strong style="font-family:var(--mono)">${fmtC(IUSC_PRUEBA)}</strong> = <strong>${d.baseUTM.toFixed(2)} UTM</strong> → tramo <strong>${d.idx+1}</strong>
@@ -364,7 +364,9 @@ function renderIUSCTabla(){
 }
 
 async function guardarIndicadores(){
-  const num=id=>+document.getElementById('ind-'+id).value||0;
+  const num=id=>['utm','uta','ingresoMinimo'].includes(id)
+    ?pn(document.getElementById('ind-'+id).value)
+    :+document.getElementById('ind-'+id).value||0;
   const ind={
     uf:num('uf'),utm:num('utm'),uta:num('uta'),dolar:num('dolar'),euro:num('euro'),
     topeAFP_UF:num('topeAFP_UF'),topeCesantia_UF:num('topeCesantia_UF'),

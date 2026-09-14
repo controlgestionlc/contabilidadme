@@ -1,5 +1,5 @@
 // conciliacion.js
-import {toast, PDC, fmtC} from './core.js';
+import {toast, PDC, fmtC, pn} from './core.js';
 import {S} from './state.js';
 import {buildMayor} from './reportes.js';
 import './storage.js';
@@ -89,7 +89,7 @@ function renderConciliacion(){
 }
 function onSaldoBancoChange(){
   const est=getConcEstado();
-  est.saldoBanco=+document.getElementById('conc-saldo-banco').value||0;
+  est.saldoBanco=pn(document.getElementById('conc-saldo-banco').value);
   setConcEstado(est);
   renderConciliacion();
 }

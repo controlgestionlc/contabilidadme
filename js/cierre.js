@@ -1,5 +1,5 @@
 // cierre.js — Cierre de ejercicio, provisiones, corrección monetaria
-import {toast, fmtC, pdcNm} from './core.js';
+import {toast, fmtC, pdcNm, pn} from './core.js';
 import {updateHdr} from './empresa.js';
 import {S,AUTH} from './state.js';
 import {buildMayor} from './reportes.js';
@@ -148,7 +148,7 @@ function renderProvisiones(){
     <div class="card-title">🏖️ Provisión de Feriado Legal (Vacaciones)</div>
     <div class="info-tip" style="margin-bottom:12px">Estima el costo de los días de vacaciones acumulados por el personal. Genera: cargo a <strong>Vacaciones</strong> (gasto) / abono a <strong>Provisión Vacaciones</strong> (pasivo).</div>
     <div class="fg">
-      <div class="grp"><label>Monto a provisionar</label><input type="number" id="prov-fer-monto" placeholder="0" oninput="previewProvFer()"></div>
+      <div class="grp"><label>Monto a provisionar</label><input type="number" class="money-input" id="prov-fer-monto" placeholder="0" oninput="previewProvFer()"></div>
     </div>
     <div style="font-size:11px;color:var(--mt);margin-bottom:8px">Referencia: sueldos del año = ${fmtC(sueldosAnio)}. Regla general: ~1,25 días por mes trabajado por remuneración diaria.</div>
     <div id="prov-fer-preview" style="margin:10px 0"></div>
@@ -165,7 +165,7 @@ function previewProvInc(){
   if(el)el.innerHTML=monto>0?`<div class="info-tip" style="font-size:12px">Provisión: <strong>${fmtC(monto)}</strong> (${pct}% de ${fmtC(saldo)})</div>`:'';
 }
 function previewProvFer(){
-  const monto=+document.getElementById('prov-fer-monto').value||0;
+  const monto=pn(document.getElementById('prov-fer-monto').value);
   const el=document.getElementById('prov-fer-preview');
   if(el)el.innerHTML=monto>0?`<div class="info-tip" style="font-size:12px">Provisión feriado: <strong>${fmtC(monto)}</strong></div>`:'';
 }
@@ -191,7 +191,7 @@ async function generarProvisionIncobrables(){
 async function generarProvisionFeriado(){
   const anio=S.empresa.anio;
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de generar provisiones.','e');return;}
-  const monto=+document.getElementById('prov-fer-monto').value||0;
+  const monto=pn(document.getElementById('prov-fer-monto').value);
   if(monto<=0){toast('⚠️ Ingresa el monto a provisionar','e');return;}
   if(!confirm(`¿Generar provisión de feriado legal por ${fmtC(monto)}?`))return;
   const movs=[

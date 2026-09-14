@@ -1,5 +1,5 @@
 // tributario.js — Formulario 29 (IVA mensual), PPM y asiento de compensación de IVA
-import {fmtC, fmt, MESES, IVA, dteV, dteC, PDC, pdcNm, toast} from './core.js';
+import {fmtC, fmt, MESES, IVA, dteV, dteC, PDC, pdcNm, toast, pn} from './core.js';
 import {retencionHonorarios, getIndicadores} from './indicadores.js';
 import {todosDocsCompras, todosDocsVentas, proxFolioComprobante} from './asientos.js';
 import {inputCuenta} from './buscadorcuentas.js';
@@ -57,7 +57,7 @@ function setF29Declarado(cod,val){
   const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes);
   const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador',declarado:{}});
   if(esF29Presentado(d))return;
-  d.declarado=d.declarado||{};d.declarado[String(cod)]=Math.max(0,Math.round(+val||0));
+  d.declarado=d.declarado||{};d.declarado[String(cod)]=Math.max(0,pn(val));
 }
 function setF29DeclCampo(k,val){
   const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes);
@@ -335,7 +335,7 @@ function renderF29(){
     ${presentado&&difs.length?`<div class="info-tip" style="margin:10px 0;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ El cálculo actual difiere de la declaración presentada en <strong>${difs.length}</strong> código(s). La historia declarada no fue modificada; revisa la conciliación antes de rectificar.</div>`:''}
     <div class="fg" style="margin:10px 0"><div class="grp"><label>Fecha presentación</label><input type="date" value="${decl?.fechaPresentacion||''}" onchange="setF29DeclCampo('fechaPresentacion',this.value)" ${presentado?'disabled':''}></div><div class="grp"><label>Folio / N° declaración</label><input type="text" value="${String(decl?.folio||'').replace(/"/g,'&quot;')}" onchange="setF29DeclCampo('folio',this.value)" ${presentado?'disabled':''}></div></div>
     <div class="card-np"><div class="tw"><table><thead><tr><th class="tl">CÓDIGO</th><th class="tl">CONCEPTO</th><th>CALCULADO</th><th>DECLARADO</th><th>DIF.</th></tr></thead><tbody>
-    ${[[538,'Total débitos'],[39,'IVA retenido'],[504,'Remanente anterior'],[537,'Total créditos'],[77,'Remanente siguiente'],[89,'IVA a pagar'],[62,'PPM'],[151,'Ret. honorarios'],[91,'Total a pagar']].map(([c,l])=>{const cv=Math.round(+d.codigos?.[c]||0),dv=Math.round(+declVal(c)||0),df=dv-cv;return `<tr><td class="tl" style="font-family:var(--mono)">${c}</td><td class="tl">${l}</td><td>${fmtC(cv)}</td><td><input type="number" min="0" value="${dv}" onchange="setF29Declarado(${c},this.value)" ${presentado?'disabled':''} style="text-align:right;font-family:var(--mono);max-width:130px"></td><td style="font-family:var(--mono);color:${df?'var(--warn)':'var(--ach)'}">${df?fmtC(df):'—'}</td></tr>`}).join('')}
+    ${[[538,'Total débitos'],[39,'IVA retenido'],[504,'Remanente anterior'],[537,'Total créditos'],[77,'Remanente siguiente'],[89,'IVA a pagar'],[62,'PPM'],[151,'Ret. honorarios'],[91,'Total a pagar']].map(([c,l])=>{const cv=Math.round(+d.codigos?.[c]||0),dv=Math.round(+declVal(c)||0),df=dv-cv;return `<tr><td class="tl" style="font-family:var(--mono)">${c}</td><td class="tl">${l}</td><td>${fmtC(cv)}</td><td><input type="number" class="money-input" min="0" value="${dv}" onchange="setF29Declarado(${c},this.value)" ${presentado?'disabled':''} style="text-align:right;font-family:var(--mono);max-width:130px"></td><td style="font-family:var(--mono);color:${df?'var(--warn)':'var(--ach)'}">${df?fmtC(df):'—'}</td></tr>`}).join('')}
     </tbody></table></div></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px">${presentado?`<button class="btn btn-g" onclick="reabrirF29()">🔓 Reabrir declaración</button>`:`<button class="btn btn-g" onclick="copiarCalculadoAF29()">↙ Copiar calculado</button><button class="btn btn-s" onclick="guardarBorradorF29()">💾 Guardar borrador</button><button class="btn btn-p" onclick="presentarF29()">✅ Marcar presentado</button>`}</div>
   </div>`;
@@ -523,6 +523,7 @@ function calcularCompensacionIVA(mes){
 function setIvacCuenta(k,cd){IVAC.cuentas[k]=cd;renderCompensacionIVA();}
 function setIvacCampo(k,v){
   if(k==='incluirPPM')IVAC.incluirPPM=!!v;
+  else if(k==='utmOrigen'||k==='utmActual')IVAC[k]=pn(v);
   else IVAC[k]=v;
   renderCompensacionIVA();
 }
@@ -625,9 +626,9 @@ function renderCompensacionIVA(){
     ${d.remanenteAnt>0?`
       <div class="fg" style="margin-bottom:6px">
         <div class="grp"><label>UTM del mes en que se originó</label>
-          <input type="number" value="${IVAC.utmOrigen}" onchange="setIvacCampo('utmOrigen',this.value)"></div>
+          <input type="number" class="money-input" value="${IVAC.utmOrigen}" onchange="setIvacCampo('utmOrigen',this.value)"></div>
         <div class="grp"><label>UTM del mes de imputación</label>
-          <input type="number" value="${IVAC.utmActual}" onchange="setIvacCampo('utmActual',this.value)"></div>
+          <input type="number" class="money-input" value="${IVAC.utmActual}" onchange="setIvacCampo('utmActual',this.value)"></div>
       </div>
       <div style="font-size:11px;color:var(--mt);margin-bottom:14px">
         El remanente se expresa en UTM del mes en que se originó y se reconvierte a la UTM del mes en que se imputa.
@@ -837,7 +838,7 @@ function fechaPagoDefault(anio,mes){
 
 function setPagoF29Cuenta(k,cd){PAGOF29.cuentas[k]=cd;renderPagoF29();}
 function setPagoF29Campo(k,v){PAGOF29[k]=v;renderPagoF29();}
-function setPagoF29Monto(k,v){PAGOF29.montos[k]=Math.max(0,Math.round(+v||0));renderPagoF29();}
+function setPagoF29Monto(k,v){PAGOF29.montos[k]=Math.max(0,pn(v));renderPagoF29();}
 function togglePagoF29(k,on){PAGOF29.incluir[k]=!!on;renderPagoF29();}
 function resetPagoF29(){
   PAGOF29.cuentas={...PAGOF29_DEFAULT};PAGOF29.montos={};
@@ -909,7 +910,7 @@ function renderPagoF29(){
         ${c.nota?`<div style="font-size:10px;color:var(--mt);line-height:1.45;margin-top:2px">${c.nota}</div>`:''}
       </td>
       <td style="width:250px">${inputCuenta({id:'pf29-cd-'+c.k,value:cd||'',onPick:`setPagoF29Cuenta('${c.k}','%CD%')`,placeholder:'Cuenta…',clase:'linea-inp'})}</td>
-      <td style="width:130px"><input type="number" value="${monto||0}" onchange="setPagoF29Monto('${c.k}',this.value)" style="text-align:right;font-family:var(--mono)"></td>
+      <td style="width:130px"><input type="number" class="money-input" value="${monto||0}" onchange="setPagoF29Monto('${c.k}',this.value)" style="text-align:right;font-family:var(--mono)"></td>
       <td style="width:150px;font-size:10px;color:var(--mt);text-align:right">
         ${editado?`<div><button class="btn btn-g" style="padding:1px 6px;font-size:9px" onclick="usarSugeridoF29('${c.k}')">↺ saldo ${fmtC(r.sug[c.k])}</button></div>`:''}
         ${!c.gasto?`<div>Pagado: ${fmtC(r.sug._pagado?.[c.k]||0)} · Saldo: ${fmtC(r.sug[c.k]||0)}</div>`:''}

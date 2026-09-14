@@ -125,6 +125,7 @@ import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBala
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla,
         exportarMayorExcel} from './reportes.js';
 import {renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV} from './libroscv.js';
+import {initMoneyInputs,normalizarMontos} from './money-inputs.js';
 import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
         eliminarComprobante, anularComprobante,
@@ -648,7 +649,7 @@ Object.assign(window,{
 
 Object.assign(window,{
   // utilidades
-  toast,
+  toast, normalizarMontos,
   // navegación y arranque
   nav, rerender, renderSec, toggleNav, cerrarNavMovil, toggleNavGroup, changeYear, saveAll, init, initApp,
   // auth / usuarios
@@ -777,6 +778,7 @@ function abrirImportFichasActual(){abrirImportFichas(tipoAuxActual());}
 // ═══ ARRANQUE ═══
 initActualizador(); // bloquea y actualiza obligatoriamente si el servidor publica otra versión
 initTema();
+initMoneyInputs();   // montos enteros con separador de miles en toda la aplicación
 initAyuda();         // ampolleta 💡 por sección: las ayudas quedan plegadas
 initAvisoSalida();   // aviso si se cierra con cambios sin guardar
 initAutoguardado();  // temporizador + guardado al dejar la pestaña o cerrar

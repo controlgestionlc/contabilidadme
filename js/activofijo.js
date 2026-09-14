@@ -1,5 +1,5 @@
 // activofijo.js — Activos fijos y depreciación
-import {toast, fmtC, fmt, today, pdcNm, PDC} from './core.js';
+import {toast, fmtC, fmt, today, pdcNm, PDC, pn} from './core.js';
 import {updateHdr} from './empresa.js';
 import {S} from './state.js';
 import {logAccion} from './firebase.js';
@@ -159,12 +159,12 @@ function previewAF(){
   const bien={
     cat:document.getElementById('afb-cat').value,
     fecha:document.getElementById('afb-fecha').value,
-    valor:+document.getElementById('afb-valor').value||0,
-    valorContable:+document.getElementById('afb-valor').value||0,
-    valorTributario:+document.getElementById('afb-valor-tributario').value||(+document.getElementById('afb-valor').value||0),
-    residual:+document.getElementById('afb-residual').value||0,
-    residualContable:+document.getElementById('afb-residual').value||0,
-    residualTributario:+document.getElementById('afb-residual-tributario').value||0,
+    valor:pn(document.getElementById('afb-valor').value),
+    valorContable:pn(document.getElementById('afb-valor').value),
+    valorTributario:pn(document.getElementById('afb-valor-tributario').value)||pn(document.getElementById('afb-valor').value),
+    residual:pn(document.getElementById('afb-residual').value),
+    residualContable:pn(document.getElementById('afb-residual').value),
+    residualTributario:pn(document.getElementById('afb-residual-tributario').value),
     vidaContable:+document.getElementById('afb-vida-contable').value||0,
     vidaTributaria:+document.getElementById('afb-vida-tributaria').value||0,
     metodoContable:document.getElementById('afb-metodo-contable').value,
@@ -190,10 +190,10 @@ async function guardarAF(){
   const desc=document.getElementById('afb-desc').value.trim();
   const cat=document.getElementById('afb-cat').value;
   const fecha=document.getElementById('afb-fecha').value;
-  const valor=+document.getElementById('afb-valor').value||0;
-  const residual=+document.getElementById('afb-residual').value||0;
-  const valorTributario=+document.getElementById('afb-valor-tributario').value||valor;
-  const residualTributario=+document.getElementById('afb-residual-tributario').value||0;
+  const valor=pn(document.getElementById('afb-valor').value);
+  const residual=pn(document.getElementById('afb-residual').value);
+  const valorTributario=pn(document.getElementById('afb-valor-tributario').value)||valor;
+  const residualTributario=pn(document.getElementById('afb-residual-tributario').value);
   const fechaInicioDepContable=document.getElementById('afb-inicio-contable').value||fecha;
   const fechaInicioDepTributaria=document.getElementById('afb-inicio-tributario').value||fecha;
   const vidaContable=+document.getElementById('afb-vida-contable').value||0;

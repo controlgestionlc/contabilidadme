@@ -10,7 +10,7 @@
 // con una línea por documento (proveedor DEBE) y una única línea de banco/caja
 // (HABER). Esto refleja la realidad de una transferencia consolidada.
 
-import {toast, fmtC, MESES, pdcNm, PDC, today, dteV, dteC, rutFmt} from './core.js';
+import {toast, fmtC, MESES, pdcNm, PDC, today, dteV, dteC, rutFmt, pn} from './core.js';
 import {S} from './state.js';
 import {proxFolioAsiento, CUENTAS_AUX} from './asientos.js';
 import {logAccion,logCambio} from './firebase.js';
@@ -379,7 +379,7 @@ function renderPagosTabla(){
         <td class="c-money" style="color:${d.pagosSum?'var(--ach)':'var(--mt)'}">${d.pagosSum?fmtC(d.pagosSum):'—'}</td>
         <td class="c-money" style="font-weight:700;color:${d.saldo<0?'var(--err)':'var(--tx)'}">${fmtC(d.saldo)}</td>
         <td class="c-monto">
-          <input type="number" class="pag-monto-inp"
+          <input type="number" class="pag-monto-inp money-input"
             value="${montoDef}" oninput="setPagMontoParcial('${d.id}',this.value)"
             ${sel?'':'disabled style="opacity:.4"'}>
         </td>
@@ -444,8 +444,8 @@ function togglePagAll(checked){
   renderPagos();
 }
 function setPagMontoParcial(docId,valor){
-  const v=+valor;
-  if(!v||isNaN(v))delete PAG.montoParcial[docId];
+  const v=pn(valor);
+  if(!v)delete PAG.montoParcial[docId];
   else PAG.montoParcial[docId]=v;
   // No re-renderiza para no perder foco
 }

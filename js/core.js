@@ -391,7 +391,25 @@ function rutFmt(codigo,dv){
 // ═══ FORMATO ═══
 const fmt=n=>{const v=Math.round(+n||0);return v===0?'\u2013':new Intl.NumberFormat('es-CL').format(v);};
 const fmtC=n=>'$\u00a0'+new Intl.NumberFormat('es-CL').format(Math.round(+n||0));
-const pn=v=>Math.round(+(String(v).replace(/[^\d.-]/g,''))||0);
+// Parsea montos enteros visibles en formato chileno. Un punto es separador de
+// miles, nunca decimal: "31.681" debe producir 31681 y no 32.
+const pn=v=>{
+  if(typeof v==='number')return Number.isFinite(v)?Math.round(v):0;
+  const s=String(v??'').trim();if(!s)return 0;
+  const negativo=/^-/.test(s),limpio=s.replace(/[^\d.,]/g,'');if(!limpio)return 0;
+  const puntos=(limpio.match(/\./g)||[]).length,comas=(limpio.match(/,/g)||[]).length;
+  let canonico;
+  if(puntos&&comas){
+    const decimal=limpio.lastIndexOf('.')>limpio.lastIndexOf(',')?'.':',';
+    const miles=decimal==='.'?',':'.';
+    canonico=limpio.split(miles).join('').replace(decimal,'.');
+  }else if(comas){
+    canonico=limpio.replace(/\./g,'').replace(',','.');
+  }else if(puntos===1&&limpio.split('.')[1].length!==3){
+    canonico=limpio;
+  }else canonico=limpio.replace(/\./g,'');
+  const n=Math.round(Number(canonico));return Number.isFinite(n)?(negativo?-n:n):0;
+};
 const today=()=>new Date().toISOString().slice(0,10);
 
 

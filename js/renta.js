@@ -21,7 +21,7 @@
 // Año Tributario 2026 (Recuadro N°17 para Pro Pyme 14 D N°3, Recuadro N°12 para
 // contabilidad completa del régimen general). Se muestran como referencia para
 // el traspaso manual al formulario en sii.cl.
-import {toast, fmtC, pdcNm} from './core.js';
+import {toast, fmtC, pdcNm, pn} from './core.js';
 import {S} from './state.js';
 import {buildMayor} from './reportes.js';
 import {calcularF29Anual} from './tributario.js';
@@ -385,7 +385,7 @@ function bloquePresuncion(R){
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
       <div class="grp" style="min-width:250px">
         <label>${esc(p.lbl)}</label>
-        <input type="number" min="0" value="${p.valor}" onchange="setRentaParam('basePresunta',this.value)">
+        <input type="number" class="money-input" min="0" value="${p.valor}" onchange="setRentaParam('basePresunta',this.value)">
       </div>
       <div class="grp" style="min-width:150px">
         <label>% de presunción</label>
@@ -526,7 +526,7 @@ function bloqueAjustes(R){
 
   const listaManual=(arr,tipo)=>arr.length?arr.map((x,i)=>`<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
       <input type="text" value="${esc(x.lbl||'')}" placeholder="Concepto" style="flex:1;min-width:180px" onchange="setRentaLinea('${tipo}',${i},'lbl',this.value)">
-      <input type="number" value="${+x.monto||0}" placeholder="0" style="width:140px" onchange="setRentaLinea('${tipo}',${i},'monto',this.value)">
+      <input type="number" class="money-input" value="${+x.monto||0}" placeholder="0" style="width:140px" onchange="setRentaLinea('${tipo}',${i},'monto',this.value)">
       <button class="btn btn-g" onclick="delRentaLinea('${tipo}',${i})">🗑</button>
     </div>`).join('')
     :`<div style="font-size:11px;color:var(--mt);margin-bottom:6px">Sin líneas manuales.</div>`;
@@ -534,7 +534,7 @@ function bloqueAjustes(R){
   const c=RENTA.creditos||{};
   const credito=(k,lbl,cod)=>`<div class="grp" style="min-width:220px">
     <label>${esc(lbl)}${cod?` <span style="font-family:var(--mono);color:var(--acc)">${cod}</span>`:''}</label>
-    <input type="number" min="0" value="${+c[k]||0}" onchange="setRentaCredito('${k}',this.value)">
+    <input type="number" class="money-input" min="0" value="${+c[k]||0}" onchange="setRentaCredito('${k}',this.value)">
   </div>`;
 
   return `<div class="card" style="margin-bottom:14px">
@@ -571,11 +571,11 @@ function bloqueAjustes(R){
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
       <div class="grp" style="min-width:220px">
         <label>Pérdida tributaria de ejercicios anteriores</label>
-        <input type="number" min="0" value="${+RENTA.perdidaArrastre||0}" onchange="setRentaParam('perdidaArrastre',this.value)">
+        <input type="number" class="money-input" min="0" value="${+RENTA.perdidaArrastre||0}" onchange="setRentaParam('perdidaArrastre',this.value)">
       </div>
       <div class="grp" style="min-width:220px">
         <label>PPM del ejercicio (calculado: ${fmtC(R.ppmF29)})</label>
-        <input type="number" min="0" value="${RENTA.ppmManual!=null?+RENTA.ppmManual:R.ppmF29}" onchange="setRentaParam('ppmManual',this.value)">
+        <input type="number" class="money-input" min="0" value="${RENTA.ppmManual!=null?+RENTA.ppmManual:R.ppmF29}" onchange="setRentaParam('ppmManual',this.value)">
       </div>
       <div class="grp" style="min-width:160px">
         <label>Reajuste PPM al 31/dic (%)</label>
@@ -603,7 +603,9 @@ function setRentaParam(k,v){
   }else if(k==='pctPresuncion'){
     RENTA.pctPresuncion=(v===''||v==null)?null:+v;
   }else if(k==='ppmManual'){
-    RENTA.ppmManual=(v===''||v==null)?null:+v;
+    RENTA.ppmManual=(v===''||v==null)?null:pn(v);
+  }else if(k==='basePresunta'||k==='perdidaArrastre'){
+    RENTA[k]=pn(v);
   }else if(k==='notas'){
     RENTA.notas=String(v||'');
   }else{
@@ -625,7 +627,7 @@ function addRentaLinea(tipo){
 }
 function setRentaLinea(tipo,i,campo,v){
   if(!RENTA[tipo]||!RENTA[tipo][i])return;
-  RENTA[tipo][i][campo]=campo==='monto'?(+v||0):String(v||'');
+  RENTA[tipo][i][campo]=campo==='monto'?pn(v):String(v||'');
   guardarRenta();
   if(campo==='monto')renderRenta();
 }
@@ -636,7 +638,7 @@ function delRentaLinea(tipo,i){
 }
 function setRentaCredito(k,v){
   if(!RENTA.creditos)RENTA.creditos={};
-  RENTA.creditos[k]=+v||0;
+  RENTA.creditos[k]=pn(v);
   guardarRenta();renderRenta();
 }
 

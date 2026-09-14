@@ -128,8 +128,8 @@ function apRenderLineas(){
       <div class="linea-num">${i+1}</div>
       <div>${inputCuenta({id:`ap-cd-${i}`,value:l.cd,onPick:`apLCd(${i},'%CD%')`,placeholder:'Código o nombre…'})}</div>
       <div><input type="text" class="linea-inp" placeholder="Observación" value="${l.desc||''}" oninput="APF.lineas[${i}].desc=this.value"></div>
-      <div><input type="number" class="linea-num-inp" min="0" placeholder="0" value="${l.debe||''}" oninput="apLVal(${i},'debe',this.value)"></div>
-      <div><input type="number" class="linea-num-inp" min="0" placeholder="0" value="${l.haber||''}" oninput="apLVal(${i},'haber',this.value)"></div>
+      <div><input type="number" class="linea-num-inp money-input" min="0" placeholder="0" value="${l.debe||''}" oninput="apLVal(${i},'debe',this.value)"></div>
+      <div><input type="number" class="linea-num-inp money-input" min="0" placeholder="0" value="${l.haber||''}" oninput="apLVal(${i},'haber',this.value)"></div>
       <div style="text-align:center"><button class="btn btn-d" onclick="apDelLinea(${i})">✕</button></div>
     </div>${auxHtml}`;
   }).join('');

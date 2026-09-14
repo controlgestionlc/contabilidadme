@@ -1,5 +1,5 @@
 // remuneraciones.js — Liquidaciones de sueldo (AFP, salud, cesantía, IUSC)
-import {toast, fmtC, MESES, pdcNm} from './core.js';
+import {toast, fmtC, MESES, pdcNm, pn} from './core.js';
 import {updateHdr} from './empresa.js';
 import {S} from './state.js';
 import {logAccion} from './firebase.js';
@@ -34,7 +34,7 @@ function calcularIUSC(baseTributable,utm){
 }
 // UF/UTM del mes: guardadas en empresa (editables). Defaults referenciales.
 function getUF(){return +document.getElementById('rem-uf')?.value||IND('uf');}
-function getUTM(){return +document.getElementById('rem-utm')?.value||IND('utm');}
+function getUTM(){return pn(document.getElementById('rem-utm')?.value)||IND('utm');}
 
 // Calcula la liquidación completa de un trabajador con UF/UTM dados
 // Modo de gratificación de un trabajador. Los registros antiguos (sin
@@ -179,13 +179,13 @@ function leerFormTrabajador(){
     nombre:document.getElementById('remf-nombre').value.trim(),
     rut:document.getElementById('remf-rut').value.trim(),
     cargo:document.getElementById('remf-cargo').value.trim(),
-    base:+document.getElementById('remf-base').value||0,
+    base:pn(document.getElementById('remf-base').value),
     gratifModo:document.getElementById('remf-gratmodo')?.value||'pct',
     gratifPct:+document.getElementById('remf-gratpct')?.value||0,
-    grat:+document.getElementById('remf-grat').value||0,
-    otros:+document.getElementById('remf-otros').value||0,
-    colacion:+document.getElementById('remf-colacion').value||0,
-    movilizacion:+document.getElementById('remf-movilizacion').value||0,
+    grat:pn(document.getElementById('remf-grat').value),
+    otros:pn(document.getElementById('remf-otros').value),
+    colacion:pn(document.getElementById('remf-colacion').value),
+    movilizacion:pn(document.getElementById('remf-movilizacion').value),
     afp:document.getElementById('remf-afp').value,
     salud:document.getElementById('remf-salud').value,
     plan:+document.getElementById('remf-plan').value||0,

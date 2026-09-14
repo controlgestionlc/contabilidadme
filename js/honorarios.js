@@ -107,7 +107,7 @@ function abrirHonComprobante(id=null,soloPago=false){
     <div class="grp"><label>N° de boleta</label><input id="honf-numero" type="text" inputmode="numeric" value="${esc(h.numero||'')}" ${bloqueado}></div>
     <div class="grp"><label>Prestador</label><input id="honf-nombre" type="text" list="honf-prestadores" value="${esc(h.nombre||'')}" onchange="seleccionarPrestadorHon()" ${bloqueado}><datalist id="honf-prestadores">${prestadoresDisponibles().map(p=>`<option value="${esc(p.nombre)}">${esc(p.rut)}</option>`).join('')}</datalist></div>
     <div class="grp"><label>RUT prestador</label><input id="honf-rut" type="text" value="${esc(h.rut||'')}" ${bloqueado}></div>
-    <div class="grp"><label>Monto bruto</label><input id="honf-bruto" type="number" min="0" value="${h.bruto||''}" oninput="actualizarPreviewHon()" ${bloqueado}></div>
+    <div class="grp"><label>Monto bruto</label><input id="honf-bruto" type="number" class="money-input" min="0" value="${h.bruto||''}" oninput="actualizarPreviewHon()" ${bloqueado}></div>
     <div class="grp"><label>Tratamiento de retención</label><select id="honf-tipo-retencion" onchange="actualizarPreviewHon()" ${bloqueado}><option value="con_retencion"${h.tipoRetencion!=='sin_retencion'?' selected':''}>Con retención</option><option value="sin_retencion"${h.tipoRetencion==='sin_retencion'?' selected':''}>Sin retención (no afecta/exenta)</option></select></div>
     <div class="grp"><label>Centro de costo</label><select id="honf-cc" ${bloqueado}>${ccOpts(h.cc||'')}</select></div>
     <div class="grp" style="grid-column:1/-1"><label>Cuenta de gasto</label><select id="honf-gasto" ${bloqueado}>${cuentasGastoOpts(h.cuentaGasto||'3202019')}</select></div>
@@ -124,7 +124,7 @@ function abrirHonComprobante(id=null,soloPago=false){
 }
 function cerrarHonComprobante(){document.getElementById('cmp-hon-modal')?.classList.remove('open');HON_FORM={id:null,soloPago:false};}
 function actualizarPreviewHon(){
-  const bruto=+(document.getElementById('honf-bruto')?.value||0),sinRet=document.getElementById('honf-tipo-retencion')?.value==='sin_retencion',tasa=sinRet?0:retencionHonorarios(S.empresa.anio),ret=Math.round(bruto*tasa),liq=bruto-ret,pagar=!!document.getElementById('honf-pagar')?.checked;
+  const bruto=pn(document.getElementById('honf-bruto')?.value),sinRet=document.getElementById('honf-tipo-retencion')?.value==='sin_retencion',tasa=sinRet?0:retencionHonorarios(S.empresa.anio),ret=Math.round(bruto*tasa),liq=bruto-ret,pagar=!!document.getElementById('honf-pagar')?.checked;
   const detalle=sinRet?'sin retención':`retención ${(tasa*100).toFixed(2).replace('.',',')}% ${fmt(ret)}`;
   const p=document.getElementById('honf-preview');if(p)p.innerHTML=`<strong>Reconocimiento:</strong> gasto ${fmt(bruto)} · ${detalle} · honorario por pagar ${fmt(liq)}${pagar?`<br><strong>Pago separado:</strong> honorarios por pagar ${fmt(liq)} contra Banco/Caja`:''}`;
   const campos=document.getElementById('honf-pago-campos');if(campos)campos.style.display=pagar?'grid':'none';

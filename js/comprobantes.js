@@ -8,7 +8,7 @@
 // automáticos llevan al origen (Libro de Ventas/Compras/Honorarios) para
 // que se corrijan los documentos que los generaron.
 
-import {fmt, fmtC, MESES, pdcNm, today, toast, rutFmt, dteV, dteC, rutParse, DTE_VENTAS, DTE_COMPRAS, IVA} from './core.js';
+import {fmt, fmtC, MESES, pdcNm, today, toast, rutFmt, dteV, dteC, rutParse, DTE_VENTAS, DTE_COMPRAS, IVA, pn} from './core.js';
 import {S} from './state.js';
 import {nav, rerender} from './ui.js';
 import {genDiario, destinoEdicion, corregirDesdeDiario, editarAsientoRef} from './reportes.js';
@@ -1077,21 +1077,21 @@ function renderCmpDteModal(){
         <div class="fg">
           ${esHono?`
           <div class="grp"><label>Bruto (base honorarios)</label>
-            <input type="number" id="cmpdte-neto" value="${d.neto||''}" oninput="setCmpDteCampo('neto',+this.value)"></div>
+            <input type="number" class="money-input" id="cmpdte-neto" value="${d.neto||''}" oninput="setCmpDteCampo('neto',pn(this.value))"></div>
           <div class="grp"><label>Retención</label>
-            <input type="number" id="cmpdte-ret" value="${d.retencion||''}" oninput="setCmpDteCampo('retencion',+this.value)"></div>
+            <input type="number" class="money-input" id="cmpdte-ret" value="${d.retencion||''}" oninput="setCmpDteCampo('retencion',pn(this.value))"></div>
           `:`
           <div class="grp"><label>Neto</label>
-            <input type="number" id="cmpdte-neto" value="${d.neto||''}" oninput="setCmpDteCampo('neto',+this.value);cmpDteAutoTotal()"></div>
+            <input type="number" class="money-input" id="cmpdte-neto" value="${d.neto||''}" oninput="setCmpDteCampo('neto',pn(this.value));cmpDteAutoTotal()"></div>
           <div class="grp"><label>Exento</label>
-            <input type="number" id="cmpdte-exento" value="${d.exento||''}" oninput="setCmpDteCampo('exento',+this.value);cmpDteAutoTotal()"></div>
+            <input type="number" class="money-input" id="cmpdte-exento" value="${d.exento||''}" oninput="setCmpDteCampo('exento',pn(this.value));cmpDteAutoTotal()"></div>
           <div class="grp"><label>IVA</label>
-            <input type="number" id="cmpdte-iva" value="${d.iva||''}" oninput="setCmpDteCampo('iva',+this.value);cmpDteAutoTotal()"></div>
+            <input type="number" class="money-input" id="cmpdte-iva" value="${d.iva||''}" oninput="setCmpDteCampo('iva',pn(this.value));cmpDteAutoTotal()"></div>
           <div class="grp"><label>Otros impuestos / Retención</label>
-            <input type="number" id="cmpdte-otros" value="${d.otrosImpuestos||d.retencion||''}" oninput="setCmpDteCampo('otrosImpuestos',+this.value);cmpDteAutoTotal()"></div>
+            <input type="number" class="money-input" id="cmpdte-otros" value="${d.otrosImpuestos||d.retencion||''}" oninput="setCmpDteCampo('otrosImpuestos',pn(this.value));cmpDteAutoTotal()"></div>
           `}
           <div class="grp full"><label style="font-weight:700">Total documento</label>
-            <input type="number" id="cmpdte-total" style="font-weight:700;font-size:14px" value="${d.total||''}" oninput="setCmpDteCampo('total',+this.value)"></div>
+            <input type="number" class="money-input" id="cmpdte-total" style="font-weight:700;font-size:14px" value="${d.total||''}" oninput="setCmpDteCampo('total',pn(this.value))"></div>
         </div>
         ${!esHono?`<div style="font-size:10px;color:var(--mt);margin-top:6px">💡 Neto, IVA, exento, otros impuestos y total se completan desde las líneas del asiento cuando es posible. Normalmente sólo debes elegir el tipo de DTE y la fecha de vencimiento; puedes ajustar un valor si el documento real tiene una situación especial.</div>`:''}
       </div>

@@ -598,7 +598,7 @@ function renderDist(){
   box.innerHTML=CF.dist.map((l,i)=>`<div class="dist-row">
     <div class="dist-num">${i+1}</div>
     <div class="dist-cd">${inputCuenta({id:`dist-cd-${i}`,value:l.cuenta,onPick:`CF.dist[${i}].cuenta='%CD%';updCfCheck()`,placeholder:'Cuenta de gasto…',clase:'dist-inp'})}<select class="dist-inp" style="margin-top:4px;font-size:10px" title="Tratamiento tributario" onchange="CF.dist[${i}].tratamientoTributario=this.value"><option value="aceptado" ${(l.tratamientoTributario||'aceptado')==='aceptado'?'selected':''}>Tributario: gasto aceptado</option><option value="rechazado" ${l.tratamientoTributario==='rechazado'?'selected':''}>Tributario: gasto rechazado</option></select></div>
-    <div class="dist-mt"><input type="number" class="dist-num-inp" min="0" placeholder="0" value="${l.monto||''}" oninput="CF.dist[${i}].monto=pn(this.value);updCfCheck()"></div>
+    <div class="dist-mt"><input type="number" class="dist-num-inp money-input" min="0" placeholder="0" value="${l.monto||''}" oninput="CF.dist[${i}].monto=pn(this.value);updCfCheck()"></div>
     <div class="dist-ccc"><select class="dist-inp" title="Centro de costo" onchange="CF.dist[${i}].cc=this.value">${ccOpts(l.cc||'')}</select></div>
     <div class="dist-del"><button class="btn btn-d" onclick="delDist(${i})" title="Quitar esta línea">✕</button></div>
   </div>`).join('');
@@ -633,7 +633,7 @@ async function guardarCompra(){
   const exento=pn(document.getElementById('cf-exento').value);
   const iva=pn(document.getElementById('cf-iva').value);
   const tratamientoIVA=document.getElementById('cf-iva-tipo')?.value||'recuperable';
-  let porcentajeIvaRecuperable=pn(document.getElementById('cf-iva-pct')?.value||100);
+  let porcentajeIvaRecuperable=parseFloat(String(document.getElementById('cf-iva-pct')?.value||100).replace(',','.'))||0;
   porcentajeIvaRecuperable=Math.max(0,Math.min(100,porcentajeIvaRecuperable));
   if(tratamientoIVA==='recuperable'||tratamientoIVA==='activo_fijo')porcentajeIvaRecuperable=100;
   if(tratamientoIVA==='no_recuperable')porcentajeIvaRecuperable=0;

@@ -104,7 +104,8 @@ main{flex:1;overflow-y:auto;overflow-x:hidden;padding:22px 24px;min-width:0}
 label{font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em}
 input[type=text],input[type=number],input[type=date],select,textarea{background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:7px 10px;font-family:var(--sans);font-size:13px;width:100%;transition:border-color .15s}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ac)}
-input[type=number],input[type=date]{font-family:var(--mono)}
+input[type=number],input[type=date],input.money-input{font-family:var(--mono)}
+input.money-input{text-align:right;font-variant-numeric:tabular-nums}
 .tw{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead th{background:var(--sf2);color:var(--mt);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:7px 9px;text-align:right;border:1px solid var(--bd);white-space:nowrap}
@@ -121,8 +122,8 @@ td.cel-trunc{text-align:left;font-family:var(--sans);color:var(--tx);padding:4px
 tbody tr:hover td{background:rgba(255,255,255,.02)}
 tfoot td{background:var(--sf2);font-weight:700;padding:7px 9px;border:1px solid var(--bd);text-align:right;font-family:var(--mono);font-size:12px;color:var(--ach)}
 tfoot td.tl{text-align:left;font-family:var(--sans);color:var(--tx)}
-td input[type=number]{background:transparent;border:none;color:var(--tx);text-align:right;padding:3px 4px;width:100%;font-size:12px;min-width:72px}
-td input[type=number]:focus{background:rgba(46,160,67,.08);outline:none;border-radius:3px}
+td input[type=number],td input.money-input{background:transparent;border:none;color:var(--tx);text-align:right;padding:3px 4px;width:100%;font-size:12px;min-width:72px}
+td input[type=number]:focus,td input.money-input:focus{background:rgba(46,160,67,.08);outline:none;border-radius:3px}
 td input[type=text]{background:transparent;border:none;color:var(--tx);padding:3px 4px;font-size:12px;width:100%}
 td input[type=text]:focus{background:rgba(46,160,67,.08);outline:none;border-radius:3px}
 td select{background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--sans)}

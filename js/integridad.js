@@ -1,6 +1,6 @@
 import {auditoriaIntegridad,migrarDocumentosAAsientos,ejercicioCerrado,periodoCerrado} from './contabilidad-v2.js';
 import {estadoPreparacionProductiva,ejecutarPruebasProductivas,ejecutarRegresionContableCompleta,iniciarPruebaConcurrencia,prepararPruebaConcurrencia,escribirPruebaConcurrencia,verificarPruebaConcurrencia,ejecutarSimulacroRestauracion} from './hardening.js';
-import {toast,MESES} from './core.js';
+import {toast,MESES,pn} from './core.js';
 import {S,AUTH} from './state.js';
 import {RECOVERY,estadoRecuperacion,crearSnapshotRecuperacion,verificarSnapshotRecuperacion,restaurarSnapshotRecuperacion} from './recovery.js';
 import {estadoPreproduccion,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion} from './preproduccion.js';
@@ -226,12 +226,12 @@ function renderPilotoUI(){
   const el=document.getElementById('piloto-contenido');if(!el)return;
   const periodo=document.getElementById('piloto-periodo')?.value||periodoActualUI();
   const c=compararPeriodo(periodo), est=estadoPiloto(), cert=est.periodos?.[periodo];
-  const filas=c.filas.map(f=>`<tr><td class="tl">${f.nombre}</td><td><input data-piloto="${f.id}" type="number" step="1" value="${f.tiene?f.esperado:''}" placeholder="Referencia externa" style="width:150px"></td><td style="text-align:right">${Math.round(f.actual).toLocaleString('es-CL')}</td><td style="text-align:right">${f.tiene?Math.round(f.diferencia).toLocaleString('es-CL'):'—'}</td><td>${!f.tiene?'⚪':f.ok?'✅':'❌'}</td></tr>`).join('');
+  const filas=c.filas.map(f=>`<tr><td class="tl">${f.nombre}</td><td><input data-piloto="${f.id}" type="number" class="money-input" step="1" value="${f.tiene?f.esperado:''}" placeholder="Referencia externa" style="width:150px"></td><td style="text-align:right">${Math.round(f.actual).toLocaleString('es-CL')}</td><td style="text-align:right">${f.tiene?Math.round(f.diferencia).toLocaleString('es-CL'):'—'}</td><td>${!f.tiene?'⚪':f.ok?'✅':'❌'}</td></tr>`).join('');
   el.innerHTML=`<div class="tw" style="max-height:430px;overflow:auto"><table><thead><tr><th class="tl">CONTROL</th><th>REFERENCIA EXTERNA</th><th>SISTEMA</th><th>DIFERENCIA</th><th></th></tr></thead><tbody>${filas}</tbody></table></div><div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="badge ${c.ok?'bg':'br'}">${c.ok?'SIN DIFERENCIAS':'PENDIENTE / CON DIFERENCIAS'}</span><span class="badge ${cert?.certificado?'bg':''}">${cert?.certificado?'CERTIFICADO':'NO CERTIFICADO'}</span><span style="font-size:11px;color:var(--mt)">Campos informados: ${c.informados}/15 · mínimos requeridos: Ventas docs/total, Compras docs/total, F29 538/537</span>${cert?.certificado?`<span style="font-size:11px;color:var(--mt)">Certificado ${new Date(cert.certificadoEn).toLocaleString('es-CL')} · ${cert.certificadoPor||''}</span>`:''}</div>`;
 }
 async function guardarPilotoUI(){
   const periodo=document.getElementById('piloto-periodo')?.value||periodoActualUI();
-  const ref={};document.querySelectorAll('[data-piloto]').forEach(i=>{if(String(i.value).trim()!=='')ref[i.dataset.piloto]=Number(i.value);});
+  const ref={};document.querySelectorAll('[data-piloto]').forEach(i=>{if(String(i.value).trim()!=='')ref[i.dataset.piloto]=pn(i.value);});
   try{const c=await guardarReferenciaPiloto(periodo,ref);toast(c.ok?'✅ Referencias guardadas · sin diferencias':'💾 Referencias guardadas · revisa las diferencias',c.ok?undefined:'e');renderIntegridad();}catch(e){toast('❌ '+e.message,'e');}
 }
 async function certificarPilotoUI(){

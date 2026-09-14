@@ -1,6 +1,6 @@
 // comprobantestipo-ui.js — Buscador y editor de comprobantes tipo.
 
-import {toast, fmtC, pdcNm, PDC} from './core.js';
+import {toast, fmtC, pdcNm, PDC, pn} from './core.js';
 import {S} from './state.js';
 import {logAccion} from './firebase.js';
 import {inputCuenta} from './buscadorcuentas.js';
@@ -125,8 +125,8 @@ export function renderCTModal(){
     <div class="linea-row ct-linea-row" style="display:grid;grid-template-columns:1fr 1fr 110px 110px 40px;gap:6px;margin-bottom:6px;align-items:start">
       <div>${inputCuenta({id:`ct-cd-${i}`,value:l.cd,onPick:`setCTCuenta(${i},'%CD%')`,placeholder:'Cuenta…'})}</div>
       <div><input type="text" class="linea-inp" placeholder="Descripción" value="${(l.desc||'').replace(/"/g,'&quot;')}" oninput="setCTCampo(${i},'desc',this.value)"></div>
-      <div><input type="number" class="linea-num-inp" placeholder="Debe" value="${l.debe||''}" oninput="setCTCampo(${i},'debe',this.value)"></div>
-      <div><input type="number" class="linea-num-inp" placeholder="Haber" value="${l.haber||''}" oninput="setCTCampo(${i},'haber',this.value)"></div>
+      <div><input type="number" class="linea-num-inp money-input" placeholder="Debe" value="${l.debe||''}" oninput="setCTCampo(${i},'debe',this.value)"></div>
+      <div><input type="number" class="linea-num-inp money-input" placeholder="Haber" value="${l.haber||''}" oninput="setCTCampo(${i},'haber',this.value)"></div>
       <div style="text-align:center"><button class="btn btn-d" style="padding:4px 8px;font-size:11px" onclick="delCTLinea(${i})">✕</button></div>
     </div>`).join('');
 
@@ -233,7 +233,7 @@ function bloqueDistribucion(){
       ${CTF.guardaMontos?`
       <div class="grp" style="max-width:260px;margin-bottom:10px">
         <label>Monto a distribuir</label>
-        <input type="number" min="0" value="${CTF.distBase||''}" placeholder="0" oninput="setCTHeader('distBase',this.value)">
+        <input type="number" class="money-input" min="0" value="${CTF.distBase||''}" placeholder="0" oninput="setCTHeader('distBase',this.value)">
       </div>`:`
       <div style="font-size:11px;color:var(--mt);margin-bottom:10px">
         Como la plantilla no guarda montos, sólo se guardan los porcentajes: al aplicarla escribes el monto y se reparte solo.
@@ -320,7 +320,7 @@ function actualizarCuadreDist(){
 export function setCTHeader(campo,valor){
   if(!(campo in CTF))return;
   if(campo==='guardaMontos'){CTF.guardaMontos=!!valor;renderCTModal();return;}
-  if(campo==='distBase'){CTF.distBase=+valor||0;return;}
+  if(campo==='distBase'){CTF.distBase=pn(valor);return;}
   CTF[campo]=String(valor||'');
 }
 
@@ -329,10 +329,11 @@ export function setCTCuenta(i,cd){
 }
 export function setCTCampo(i,campo,valor){
   if(!CTF.lineas[i])return;
-  CTF.lineas[i][campo]=(campo==='debe'||campo==='haber')?(+valor||0):valor;
+  const monto=(campo==='debe'||campo==='haber')?pn(valor):0;
+  CTF.lineas[i][campo]=(campo==='debe'||campo==='haber')?monto:valor;
   // Debe y haber son excluyentes
-  if(campo==='debe'&&+valor)CTF.lineas[i].haber=0;
-  if(campo==='haber'&&+valor)CTF.lineas[i].debe=0;
+  if(campo==='debe'&&monto)CTF.lineas[i].haber=0;
+  if(campo==='haber'&&monto)CTF.lineas[i].debe=0;
   if(campo==='debe'||campo==='haber')actualizarCuadreCT();
 }
 
