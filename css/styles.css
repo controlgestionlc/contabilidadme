@@ -155,6 +155,14 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 /* ASIENTOS FORM */
 .as-form{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:20px;margin-bottom:16px}
 .as-form.editing{border-color:var(--info);box-shadow:0 0 0 2px rgba(88,166,255,.15)}
+/* El formulario de asiento se muestra como ventana flotante sobre la lista de
+   comprobantes. z-index 900: por debajo de los modales .modal-bkd (1000) para
+   que "+ Comprobante tipo" y el modal de DTE se abran por encima. */
+#as-form{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);overflow-y:auto;padding:24px 14px;margin:0;border:0;border-radius:0;display:none}
+#as-form .as-modal-panel{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px;max-width:960px;margin:0 auto;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+#as-form.editing{box-shadow:none}
+#as-form.editing .as-modal-panel{border-color:var(--info);box-shadow:0 24px 70px rgba(0,0,0,.45),0 0 0 2px rgba(88,166,255,.18)}
+@media(max-width:640px){#as-form{padding:12px 8px}#as-form .as-modal-panel{padding:14px}}
 .as-meta{display:grid;grid-template-columns:180px 1fr;gap:12px;margin-bottom:16px;align-items:end}
 /* Las líneas del asiento tienen columnas de ancho fijo que suman ~900px. En un
    contenedor más angosto empujaban la página entera. Ahora scrollean dentro de
@@ -1388,7 +1396,43 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 /* Libros mensuales Compra/Venta — control y conciliación con RCV SII */
 .lcv-portada{display:flex;justify-content:space-between;gap:18px;padding:16px 18px;margin-bottom:12px;border:1px solid var(--bd);border-radius:10px;background:var(--sf);text-transform:uppercase}.lcv-portada>div{display:flex;flex-direction:column;gap:3px}.lcv-portada>div:last-child{text-align:right}.lcv-portada strong{font-size:14px}.lcv-portada span{font-size:10px;color:var(--mt)}.lcv-filtros{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.lcv-filtros select{min-width:180px}.lcv-nota{padding:9px 12px;margin-bottom:12px;border-radius:7px;background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.25);color:var(--info);font-size:11px}.lcv-resumen,.lcv-grupo{margin-bottom:14px}.lcv-resumen .card-title{padding:13px 15px 0;font-size:13px;font-weight:800}.lcv-efecto{display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--bd);font-size:10px;background:var(--sf2)}.lcv-efecto span{font-family:var(--mono)}.lcv-grupo-title{display:flex;justify-content:space-between;gap:12px;padding:12px 15px;border-bottom:1px solid var(--bd);background:var(--sf2)}.lcv-grupo-title span{font-size:11px;color:var(--mt)}.lcv-detalle{font-size:10px;white-space:nowrap}.lcv-detalle th{font-size:9px}.lcv-ok,.lcv-validacion{padding:10px 13px;border-radius:8px;margin:10px 0 14px;font-size:11px;line-height:1.5}.lcv-ok{color:var(--ach);background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3)}.lcv-validacion.warn{color:var(--warn);background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.35)}.lcv-validacion.error{color:var(--err);background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.35)}.lcv-validacion hr{border:0;border-top:1px solid currentColor;opacity:.2;margin:8px 0}
 @media(max-width:700px){.lcv-portada{flex-direction:column}.lcv-portada>div:last-child{text-align:left}.lcv-filtros{display:grid!important;grid-template-columns:1fr 1fr}.lcv-filtros>*{min-width:0!important;width:100%!important}.lcv-filtros select:nth-child(3){grid-column:1/-1}.lcv-grupo-title{flex-direction:column;gap:3px}}
-@media print{#s-libroscv{font-size:9pt}.lcv-portada{border:1px solid #333;background:#fff;color:#000}.lcv-portada span{color:#333}.lcv-ok,.lcv-validacion{display:none}.lcv-grupo{break-before:page;border:0}.lcv-grupo:first-of-type{break-before:auto}.lcv-resumen,.lcv-grupo{box-shadow:none}.lcv-detalle{font-size:7pt}.lcv-detalle th{font-size:6.5pt}}
+/* Impresión de Libros de Compras/Ventas: hoja CARTA HORIZONTAL. El detalle tiene
+   hasta 14 columnas y en vertical se desbordaba. En horizontal, con table-layout
+   fijo al 100% del ancho y fuente reducida, todas las columnas caben en la hoja. */
+@page libroscv{size:letter landscape;margin:8mm}
+@media print{
+  #s-libroscv{page:libroscv;font-size:8pt}
+  .lcv-portada{border:1px solid #333;background:#fff;color:#000}
+  .lcv-portada span{color:#333}
+  .lcv-ok,.lcv-validacion{display:none}
+  .lcv-grupo{break-before:page;border:0}
+  .lcv-grupo:first-of-type{break-before:auto}
+  .lcv-resumen,.lcv-grupo{box-shadow:none}
+  /* Impresión siempre en blanco y negro, sea cual sea el tema de pantalla. */
+  #s-libroscv,#s-libroscv .card-np,#s-libroscv .lcv-grupo,#s-libroscv .lcv-resumen,#s-libroscv .lcv-grupo-title{background:#fff!important;color:#000!important}
+  #s-libroscv .lcv-detalle td,#s-libroscv .lcv-resumen td{background:#fff!important;color:#000!important}
+  #s-libroscv .lcv-detalle th,#s-libroscv .lcv-resumen th,#s-libroscv tfoot td{background:#eee!important;color:#000!important}
+  /* El envoltorio no debe recortar ni desplazar: a ancho completo, sin scroll ni
+     máscara de degradado. */
+  #s-libroscv .tw{overflow:visible!important;-webkit-mask-image:none!important;mask-image:none!important}
+  #s-libroscv table{width:100%!important;border-collapse:collapse}
+  /* Detalle: layout fijo para que el ancho total nunca supere la hoja. Fuente
+     sans e interletra ajustada para que hasta los montos de 9 dígitos entren
+     completos en su celda sin recortarse (validado con Chromium a 6pt). */
+  .lcv-detalle{table-layout:fixed;width:100%;font-size:6pt}
+  .lcv-detalle th{font-size:5.8pt;white-space:normal;word-break:break-word}
+  .lcv-detalle th,.lcv-detalle td{padding:1px 1.5px;border:.4pt solid #999;overflow:hidden}
+  /* Números en una línea, fuente proporcional y algo condensada para que quepan;
+     el texto largo (razón social, referencia) envuelve. */
+  .lcv-detalle td{white-space:nowrap;font-family:var(--sans);letter-spacing:-.2px}
+  .lcv-detalle td.tl{white-space:normal;word-break:break-word;letter-spacing:normal}
+  /* Anchos: correlativo angosto, razón social más ancha; el resto reparte parejo. */
+  .lcv-detalle th:nth-child(1),.lcv-detalle td:nth-child(1){width:3.2%}
+  .lcv-detalle th:nth-child(5),.lcv-detalle td:nth-child(5){width:12%}
+  /* Resumen: cabe holgado, sólo se achica la fuente. */
+  .lcv-resumen table{font-size:7pt}
+  .lcv-resumen th{font-size:6.5pt}
+}
 #folio-print-root{display:none}
 @media(max-width:768px){.fsii-range-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.fsii-preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fsii-margins{grid-template-columns:repeat(2,minmax(0,1fr))!important}.fsii-actions-main .btn{flex:1 1 190px}.fsii-card .tw{overflow-x:auto}.fsii-card .tw table{min-width:620px}}
 
