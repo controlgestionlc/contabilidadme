@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0032';
+const APP_VERSION='v2026.09.14-0045';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.33',fecha:'14-09-2026',titulo:'Combustibles: cuadre definitivo contra el Total del RCV (recuperación de específico)',items:[
+    {tipo:'arreglo',txt:'Las compras de combustible cuyo Total del RCV es menor que Neto + IVA (recuperación o descuento de impuesto específico diésel, típico de estaciones de servicio y distribuidoras como NAZAL) ya cuadran: esa diferencia rebaja el costo del combustible y el crédito fiscal de IVA se mantiene íntegro. Ejemplos: DTE 33 N° 164619, 164750, 164803.'},
+    {tipo:'arreglo',txt:'El asiento automático de compras se reconcilia siempre contra el Total informado por el SII, en ambos sentidos: si el Total supera a Neto + IVA + otros, el excedente es impuesto que integra el costo; si es menor, es una recuperación que lo rebaja. La línea de costo muestra la etiqueta "Ajuste a Total RCV" para trazabilidad.'},
+    {tipo:'arreglo',txt:'También quedan cuadrados los documentos donde el impuesto específico venía informado por partida doble en el RCV y superaba al Total (ej. DTE 33 N° 173421 y su nota de crédito).'},
+  ]},
   {version:'V2.16.32',fecha:'14-09-2026',titulo:'Importación RCV: impuesto específico, sin crédito y NC de factura de compra',items:[
     {tipo:'arreglo',txt:'Las compras cuyo Total del RCV supera a Neto + IVA por impuesto específico (diésel/petróleo) o "Impto. sin derecho a crédito" ya cuadran: ese excedente se incorpora al costo, no bloquea la importación. Ejemplos: DTE 33 N° 169590 y N° 171426.'},
     {tipo:'arreglo',txt:'Las notas de crédito sobre facturas de compra (DTE 61 con IVA retenido) conservan la retención al guardarse desde el importador; antes el asiento descuadraba justo por el monto retenido (ej. DTE 61 N° 249).'},

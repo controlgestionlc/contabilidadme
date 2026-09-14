@@ -2,7 +2,7 @@
 // Mantiene un asiento persistido por documento y protege operaciones críticas.
 import {S,AUTH} from './state.js';
 import {logAccion,logCambio} from './firebase.js';
-import {asientoVenta,asientoCompra,cuadratura,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,periodoContableCompra,fechaContabilizacionCompra} from './motor-contable.js';
+import {asientoVenta,asientoCompra,cuadratura,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,residualTotalCompra,periodoContableCompra,fechaContabilizacionCompra} from './motor-contable.js';
 import {validarMovimientosPDC,reglaCuenta} from './pdc-reglas.js';
 import {dteV,dteC} from './core.js';
 import {asegurarNumerosContables} from './correlativo-contable.js';
@@ -360,7 +360,11 @@ function auditoriaIntegridad(){
     const cuentasCosto=new Set((d.dist||[]).map(l=>l.cuenta).filter(Boolean));
     const costoAs=Math.abs((a.movs||[]).filter(m=>cuentasCosto.has(m.cd)).reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
     const oi=clasificacionOtrosImpuestosCompra(d);
-    const costoEsperado=Math.abs(n(d.neto)+n(d.exento)+oi.costo+ci.noRecuperable);
+    // El costo incorpora, además de Neto+Exento+otros+IVA no recuperable, el
+    // residual reconciliado contra el Total del RCV (impuesto específico no
+    // informado o recuperación/descuento de específico diésel). Mismo criterio
+    // que el motor, para no reportar un falso descuadre de costo.
+    const costoEsperado=Math.abs(n(d.neto)+n(d.exento)+oi.costo+ci.noRecuperable+residualTotalCompra(d));
     if(cuentasCosto.size&&Math.abs(costoAs-costoEsperado)>1)agregar('critica','iva_no_recuperable_costo_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: costo esperado con IVA no recuperable ${Math.round(costoEsperado)} ≠ asiento ${Math.round(costoAs)}`,d.id);
     if(Math.abs((ci.recuperable+ci.noRecuperable)-ci.total)>1)agregar('critica','clasificacion_iva_invalida',`Compra DTE ${d.tipoDTE} N°${d.numero}: clasificación IVA no suma el IVA total`,d.id);
     const otrosRecAs=Math.abs((a.movs||[]).filter(m=>m.cd==='1108006'&&m.tributo==='impuesto_adicional_recuperable').reduce((t,m)=>t+n(m.debe)-n(m.haber),0));

@@ -175,6 +175,23 @@ function clasificacionIVACompra(d){
   return {total,recuperable,noRecuperable,activoFijo,usoComun,porcentajeRecuperable:porcentaje};
 }
 
+// V2.16.33 — Reconciliación definitiva contra el Total del RCV.
+// El Total informado por el SII es la fuente de verdad tributaria y la
+// obligación real con el proveedor. Cuando Neto + Exento + IVA + Otros no lo
+// alcanza, la diferencia es otro impuesto que integra el costo (impuesto
+// específico diésel/petróleo, "sin derecho a crédito"). Cuando lo supera, el
+// documento trae una recuperación/descuento de impuesto específico que rebaja
+// el costo (típico de combustibles: NAZAL, estaciones de servicio). En ambos
+// casos el residual se lleva al costo para que el asiento cuadre EXACTO contra
+// el Total, sin tocar el crédito fiscal de IVA. En facturas de compra el Total
+// tiene semántica de retención y no se reconcilia aquí (retorna 0).
+function residualTotalCompra(d){
+  if(tributacionCompra(d).facturaCompra)return 0;
+  const iva=Math.abs(n(d.iva));
+  const otros=clasificacionOtrosImpuestosCompra(d).total;
+  return Math.round(n(d.total)-(n(d.neto)+n(d.exento)+iva+otros));
+}
+
 function asientoCompra(d){
   const signo=(dteC(d.tipoDTE)?.signo)||1;
   const dteInfo=dteC(d.tipoDTE);
@@ -232,14 +249,26 @@ function asientoCompra(d){
   const obligacion=provBase+retInfo;
   const netoMovs=movs.reduce((s,m)=>s+n(m.debe)-n(m.haber),0);
   const ajuste=obligacion*signo-netoMovs;
-  // Sólo un desfase tributario de un peso es redondeo. Diferencias mayores
-  // permanecen descuadradas y son rechazadas por la puerta contable.
-  if(Math.abs(ajuste)>0.000001&&Math.abs(ajuste)<=1&&dist.length){
+  // El Total del RCV es la obligación real. En compras corrientes el residual
+  // (impuesto específico no informado, "sin derecho a crédito", o recuperación/
+  // descuento de específico diésel) se lleva al costo para que el asiento cuadre
+  // exacto contra el Total, mientras eso no deje la línea de costo negativa. En
+  // facturas de compra sólo se admite el redondeo de $1 (su Total tiene
+  // semántica de retención); un desfase mayor permanece descuadrado y lo rechaza
+  // la puerta contable.
+  if(Math.abs(ajuste)>0.000001&&dist.length){
     const netoLinea=n(movAjusteBase.debe)-n(movAjusteBase.haber)+ajuste;
-    movAjusteBase.debe=netoLinea>0?netoLinea:0;
-    movAjusteBase.haber=netoLinea<0?-netoLinea:0;
-    movAjusteBase.ajusteRedondeoDte=ajuste;
-    movAjusteBase.desc=[movAjusteBase.desc,`Ajuste redondeo DTE ${ajuste>0?'+':''}${ajuste}`].filter(Boolean).join(' · ');
+    const dentroDeRedondeo=Math.abs(ajuste)<=1;
+    const reconciliaContraTotal=!trib.facturaCompra&&netoLinea*signo>=0;
+    if(dentroDeRedondeo||reconciliaContraTotal){
+      movAjusteBase.debe=netoLinea>0?netoLinea:0;
+      movAjusteBase.haber=netoLinea<0?-netoLinea:0;
+      movAjusteBase.ajusteRedondeoDte=ajuste;
+      const etiqueta=dentroDeRedondeo
+        ?`Ajuste redondeo DTE ${ajuste>0?'+':''}${ajuste}`
+        :`Ajuste a Total RCV ${ajuste>0?'+':''}${ajuste}`;
+      movAjusteBase.desc=[movAjusteBase.desc,etiqueta].filter(Boolean).join(' · ');
+    }
   }
   const prov=provBase*signo;
   const aux={desc:`${d.razonSocial||''} · ${nombreDoc} N°${d.numero}`.trim(),rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE,docId:d.id};
@@ -315,4 +344,4 @@ function pagosDocumento(doc,tipo,asientos){
   return actuales.length?actuales:(doc.pagos||[]); // compatibilidad histórica
 }
 
-export {asientoVenta,asientoCompra,asientoHonorario,asientoPagoHonorario,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,periodoContableCompra,fechaContabilizacionCompra,cuadratura,pagosDesdeAsientos,pagosDocumento};
+export {asientoVenta,asientoCompra,asientoHonorario,asientoPagoHonorario,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,residualTotalCompra,periodoContableCompra,fechaContabilizacionCompra,cuadratura,pagosDesdeAsientos,pagosDocumento};
