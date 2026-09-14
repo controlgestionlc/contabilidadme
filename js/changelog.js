@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0340';
+const APP_VERSION='v2026.09.14-0400';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.42',fecha:'14-09-2026',titulo:'Pagos: bandera roja para documentos vencidos sin pagar',items:[
+    {tipo:'nuevo',txt:'En Pagos y Cobros, los documentos con saldo pendiente cuya fecha de vencimiento ya pasó se marcan con una bandera roja "🔴 VENCIDA" que indica los días de atraso. La fila queda con un fondo rojo tenue y la fecha de vencimiento se resalta en rojo para que salten a la vista.'},
+  ]},
   {version:'V2.16.41',fecha:'14-09-2026',titulo:'Auxiliares: se corrige el saldo duplicado por falsos "Pago"',items:[
     {tipo:'arreglo',txt:'En el sub-libro de clientes y proveedores, cada factura y nota aparecía dos veces: una como el documento y otra como un falso "Pago — Asiento N°" con el mismo monto, lo que duplicaba el saldo por pagar/cobrar. Ahora cada documento se cuenta una sola vez.'},
     {tipo:'arreglo',txt:'Los pagos y cobros reales (registrados en Pagos y Cobros) siguen apareciendo y descuentan el saldo como corresponde. El arreglo también corrige el Aging y el Estado de cuenta, que usaban el mismo cálculo.'},

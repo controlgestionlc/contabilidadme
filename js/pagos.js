@@ -333,6 +333,8 @@ function renderPagosTabla(){
     <th class="c-monto">MONTO ${accionLbl.toUpperCase()}</th>
   </tr></thead><tbody>`;
 
+  const hoy=today();
+  const diasVencido=fv=>{const a=Date.parse(fv+'T00:00:00Z'),b=Date.parse(hoy+'T00:00:00Z');return (isNaN(a)||isNaN(b))?0:Math.round((b-a)/86400000);};
   Object.values(porRut).sort((a,b)=>(a.razonSocial||'').localeCompare(b.razonSocial||'')).forEach(aux=>{
     // Encabezado del auxiliar
     h+=`<tr style="background:var(--sf2)">
@@ -348,6 +350,15 @@ function renderPagosTabla(){
       const sel=PAG.seleccionados.has(d.id);
       const dteNm=d.dteInfo?.nm||`DTE ${d.tipoDTE}`;
       const montoDef=PAG.montoParcial[d.id]!=null?PAG.montoParcial[d.id]:d.saldo;
+
+      // Documento vencido: pendiente (saldo > 0) con fecha de vencimiento ya
+      // pasada. Se marca en rojo para que salte a la vista en la lista de pagos.
+      const vencida=d.saldo>0&&d.fechaVencimiento&&d.fechaVencimiento<hoy;
+      const diasV=vencida?diasVencido(d.fechaVencimiento):0;
+      const badgeVencida=vencida?`
+        <span style="background:rgba(248,81,73,.15);color:var(--err);padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700;margin-left:6px">
+          🔴 VENCIDA ${diasV} día${diasV===1?'':'s'}
+        </span>`:'';
 
       // Badge de huérfana: NC/ND sin referencia
       const badgeHuerfana=d.huerfana?`
@@ -370,10 +381,10 @@ function renderPagosTabla(){
       // Los avisos de nota de crédito van en la celda del documento, que es la
       // que crece: en la del folio obligaban a esa columna a ser ancha para
       // nada, y el N° es lo más corto de la fila.
-      h+=`<tr ${sel?'style="background:rgba(46,160,67,.04)"':''}>
+      h+=`<tr ${vencida?'style="background:rgba(248,81,73,.05)"':(sel?'style="background:rgba(46,160,67,.04)"':'')}>
         <td class="c-chk"><input type="checkbox" ${sel?'checked':''} onchange="togglePagSel('${d.id}',this.checked)"></td>
-        <td class="tl c-fecha mono11">${d.fecha}${d.fechaVencimiento?`<div class="pag-vence">Vence ${d.fechaVencimiento}</div>`:''}</td>
-        <td class="tl c-dte">${dteNm}${badgeHuerfana}${badgeNotaAuto}</td>
+        <td class="tl c-fecha mono11">${d.fecha}${d.fechaVencimiento?`<div class="pag-vence"${vencida?' style="color:var(--err);font-weight:700"':''}>Vence ${d.fechaVencimiento}</div>`:''}</td>
+        <td class="tl c-dte">${dteNm}${badgeVencida}${badgeHuerfana}${badgeNotaAuto}</td>
         <td class="tl c-num mono11">${d.numero}</td>
         <td class="c-money">${fmtC(d.totalSigno)}</td>
         <td class="c-money" style="color:${d.pagosSum?'var(--ach)':'var(--mt)'}">${d.pagosSum?fmtC(d.pagosSum):'—'}</td>
