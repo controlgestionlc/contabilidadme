@@ -1,5 +1,13 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.16.31 — Montos enteros con separador de miles
+
+- Las casillas de importes monetarios se normalizan en pantalla a pesos enteros con separador de miles chileno (`31.681`) y sin decimales.
+- Compras, Ventas y Comprobantes leen el monto formateado completo antes de calcular o guardar.
+- El mismo criterio se aplica a distribuciones, apertura, pagos, honorarios, remuneraciones, activo fijo, conciliación, F29, Renta e indicadores monetarios enteros.
+- Se mantienen sin esta conversión los identificadores y parámetros cuya semántica exige otro formato: RUT, folios, códigos, años, días, porcentajes, tasas, UF y tipos de cambio.
+- Se incorpora una regresión automática para puntos de miles, redondeo de valores pegados y protección de campos con decimales válidos.
+
 ## V2.16.13 — Comprobantes móvil y descuadres RCV pendientes
 
 - Comprobantes deja de usar una tabla horizontal de siete columnas en teléfonos y presenta cada asiento como una ficha compacta con Debe/Haber del mismo ancho.
@@ -697,4 +705,3 @@ La regla de diseño móvil queda definida así: **la página principal nunca deb
 - Una estimación nunca pisa una fecha real/manual ya existente; un vencimiento real puede reemplazar una estimación anterior.
 - El vencimiento queda disponible para auxiliares, pagos/cobros, aging y flujo de caja.
 - La vista previa del importador muestra el vencimiento y marca los estimados a 30 días.
-
