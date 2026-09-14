@@ -4,14 +4,19 @@ import assert from 'node:assert/strict';
 
 const ctx=vm.createContext({console});
 const core=new vm.SourceTextModule(`
+  export const PDC=[];
   export const pdcNm=x=>x;
   export const dteV=x=>({signo:+x===61?-1:1,nm:'DTE',cuenta:'4101002'});
   export const dteC=x=>({signo:[56,61].includes(+x)?-1:1,nm:'DTE'});
 `,{context:ctx});
 await core.link(()=>{});await core.evaluate();
+const pdcSrc=fs.readFileSync(new URL('../js/pdc-reglas.js',import.meta.url),'utf8');
+const pdc=new vm.SourceTextModule(pdcSrc,{context:ctx});
+await pdc.link(s=>{if(s==='./core.js')return core;throw new Error(s);});
+await pdc.evaluate();
 const src=fs.readFileSync(new URL('../js/motor-contable.js',import.meta.url),'utf8');
 const motor=new vm.SourceTextModule(src,{context:ctx});
-await motor.link(s=>{if(s==='./core.js')return core;throw new Error(s);});
+await motor.link(s=>{if(s==='./core.js')return core;if(s==='./pdc-reglas.js')return pdc;throw new Error(s);});
 await motor.evaluate();
 const {asientoCompra,asientoVenta}=motor.namespace;
 

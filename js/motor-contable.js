@@ -3,6 +3,7 @@
 // qué movimientos contables corresponden. Reportes sólo consume el resultado.
 
 import {pdcNm, dteV, dteC} from './core.js';
+import {reglaCuenta} from './pdc-reglas.js';
 
 const n=v=>Number(v)||0;
 const mov=(cd,debe,haber,extra={})=>({cd,nm:pdcNm(cd),debe:n(debe),haber:n(haber),...extra});
@@ -204,7 +205,11 @@ function asientoCompra(d){
     }
     monto*=signo;
     if(!monto)return;
-    const extra={docId:d.id}; if(l.cc)extra.desc=`CC: ${l.cc}`; if(l.cc)extra.cc=l.cc;
+    // El centro de costo sólo se adjunta si la cuenta lo admite. Cuentas de
+    // activo/existencias (ej. 1210002) no aceptan CC; una asignación masiva en el
+    // importador no debe bloquear el asiento: el CC inaplicable se ignora.
+    const extra={docId:d.id};
+    if(l.cc&&reglaCuenta(l.cuenta)?.aceptaCentroCosto){extra.desc=`CC: ${l.cc}`;extra.cc=l.cc;}
     if(l.tratamientoTributario==='rechazado'){extra.tributario='gasto_rechazado';extra.motivoTributario=l.motivoTributario||'Marcado como gasto rechazado en documento de compra';}
     if(monto>0)movs.push(mov(l.cuenta,monto,0,extra)); else movs.push(mov(l.cuenta,0,-monto,extra));
   });

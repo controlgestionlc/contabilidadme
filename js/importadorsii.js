@@ -9,6 +9,8 @@
 
 import {dteC, dteV, rutParse} from './core.js';
 
+const num=v=>Number(v)||0;
+
 // Convierte un número con formato chileno (miles con . o , separador miles)
 export function parseNumSII(v){
   if(v==null)return 0;
@@ -144,6 +146,9 @@ function parseFilas(rows,tipo){
   const cOtro   = findCol(headers,'valor otro impuesto','valor otros impuestos','otros impuestos');
   const cCodOtro= findCol(headers,'codigo otro impuesto','código otro impuesto');
   const cTasaOtro=findCol(headers,'tasa otro impuesto');
+  // "Impto. Sin Derecho a Credito": impuesto que NO da crédito fiscal (parte del
+  // impuesto específico diésel/petróleo, etc.). Integra el costo, no el crédito.
+  const cSinDerecho=findCol(headers,'impto. sin derecho a credito','impto sin derecho a credito','impuesto sin derecho a credito','sin derecho a credito');
   const cTipoCompra=findCol(headers,'tipo compra','tipo de compra');
   const cNumeroInterno=findCol(headers,'numero interno','número interno');
   const cNetoAF = findCol(headers,'monto neto activo fijo','neto activo fijo');
@@ -228,6 +233,7 @@ function parseFilas(rows,tipo){
     if(!iva&&cIva>=0)iva=Math.abs(parseNumSII(r[cIva]));
     const total=Math.abs(parseNumSII(r[cTotal]));
     const otrosImpuestos=cOtro>=0?Math.abs(parseNumSII(r[cOtro])):0;
+    const impuestoSinDerechoCredito=cSinDerecho>=0?Math.abs(parseNumSII(r[cSinDerecho])):0;
 
     if(!numero||total===0){descartados++;continue;}
 
@@ -264,12 +270,42 @@ function parseFilas(rows,tipo){
       tratamientoOtrosImpuestos:'costo',
       otrosImpuestosDetalle:otrosFinal?[{tipo:String(cCodOtro>=0?r[cCodOtro]||'otro':'otro'),nombre:'Otro impuesto RCV',monto:otrosFinal,tasa:cTasaOtro>=0?Math.abs(parseNumSII(r[cTasaOtro])):0,tratamiento:'costo'}]:[],
       total,
+      ...(impuestoSinDerechoCredito?{impuestoSinDerechoCredito}:{}),
       ...((facturaCompra||ncFacturaCompra)?{ivaRetenido:iva,totalSII:total,totalIncluyeRetencion:false}:{}),
       netoAF,   // porción de neto que es activo fijo (guía para asignar cuenta)
       ...(cTipoCompra>=0&&String(r[cTipoCompra]||'').trim()?{tipoCompra:String(r[cTipoCompra]).trim()}:{}),
       ...(cNumeroInterno>=0&&String(r[cNumeroInterno]||'').trim()?{numeroInternoSII:String(r[cNumeroInterno]).trim()}:{}),
     });
   }
+
+  // ── V2.16.32 · Reconciliación contra el Total del RCV ──
+  // El "Detalle de Compras" del SII no siempre expone en columnas todo el impuesto
+  // que integra el Total: el impuesto específico diésel/petróleo y el "Impto. sin
+  // derecho a crédito" pueden quedar parcialmente fuera de "Valor Otro Impuesto".
+  // Para una compra corriente (no factura de compra) el Total es la fuente de
+  // verdad: lo que supera a Neto + Exento + IVA es, por definición, otro impuesto
+  // que forma parte del costo. Se completa aquí para que el asiento automático
+  // cuadre exactamente contra el Total informado, sin inventar créditos fiscales.
+  if(tipo==='compra'){
+    for(const d of docs){
+      if(d.ivaRetenido!=null)continue; // facturas de compra y sus NC: Total con semántica propia
+      const objetivo=Math.round(num(d.total)-num(d.neto)-num(d.exento)-num(d.iva));
+      const actual=num(d.otrosImpuestos);
+      if(objetivo>actual+1){
+        const faltante=objetivo-actual;
+        if(!Array.isArray(d.otrosImpuestosDetalle))d.otrosImpuestosDetalle=[];
+        const esSinDerecho=num(d.impuestoSinDerechoCredito)>0&&Math.abs(num(d.impuestoSinDerechoCredito)-faltante)<=1;
+        d.otrosImpuestosDetalle.push({
+          tipo:esSinDerecho?'14':'sincredito',
+          nombre:esSinDerecho?'Impto. sin derecho a crédito (RCV)':'Impuesto sin crédito fiscal (ajuste a Total RCV)',
+          monto:faltante,tasa:0,tratamiento:'costo'
+        });
+        d.otrosImpuestos=objetivo;
+        d.tratamientoOtrosImpuestos='costo';
+      }
+    }
+  }
+
   return {docs, descartados, continuaciones};
 }
 

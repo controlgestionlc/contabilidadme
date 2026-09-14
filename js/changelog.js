@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0022';
+const APP_VERSION='v2026.09.14-0032';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.32',fecha:'14-09-2026',titulo:'Importación RCV: impuesto específico, sin crédito y NC de factura de compra',items:[
+    {tipo:'arreglo',txt:'Las compras cuyo Total del RCV supera a Neto + IVA por impuesto específico (diésel/petróleo) o "Impto. sin derecho a crédito" ya cuadran: ese excedente se incorpora al costo, no bloquea la importación. Ejemplos: DTE 33 N° 169590 y N° 171426.'},
+    {tipo:'arreglo',txt:'Las notas de crédito sobre facturas de compra (DTE 61 con IVA retenido) conservan la retención al guardarse desde el importador; antes el asiento descuadraba justo por el monto retenido (ej. DTE 61 N° 249).'},
+    {tipo:'arreglo',txt:'Al asignar un centro de costo de forma masiva en el importador, las cuentas que no admiten centro de costo (por ejemplo cuentas de existencias como 1210002) simplemente lo ignoran en el asiento, en lugar de quedar como error pendiente.'},
+  ]},
   {version:'V2.16.31',fecha:'14-09-2026',titulo:'Montos enteros con separador de miles',items:[
     {tipo:'cambio',txt:'Las casillas monetarias muestran los importes como enteros con separador de miles chileno mientras se escriben, por ejemplo 31.681.'},
     {tipo:'arreglo',txt:'Compras, Ventas y Comprobantes interpretan el valor visible completo al calcular y guardar; el punto ya no puede confundirse con una fracción decimal.'},

@@ -21,7 +21,7 @@ const auth=await modulo(`export const puedeEditar=()=>true;`);
 const empresas=await modulo(`export const empresaActiva=()=>({}); export const puedeVerEmpresa=()=>true;`);
 const motorSrc=fs.readFileSync(new URL('../js/motor-contable.js',import.meta.url),'utf8');
 const motor=new vm.SourceTextModule(motorSrc,{context:ctx});
-await motor.link(s=>{if(s==='./core.js')return core;throw new Error(s);});await motor.evaluate();
+await motor.link(s=>{if(s==='./core.js')return core;if(s==='./pdc-reglas.js')return pdc;throw new Error(s);});await motor.evaluate();
 const orqSrc=fs.readFileSync(new URL('../js/contabilidad-v2.js',import.meta.url),'utf8');
 const orq=new vm.SourceTextModule(orqSrc,{context:ctx});
 await orq.link(s=>({

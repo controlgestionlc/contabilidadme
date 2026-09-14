@@ -1278,8 +1278,15 @@ async function confirmarImportacion(){
       // DTE 45/46 importados desde RCV históricamente pueden informar el total
       // pagadero al proveedor sin sumar el IVA retenido. El motor usa esta marca
       // para no depender de una excepción dentro de reportes.js.
-      totalIncluyeRetencion:(+d.tipoDTE===45||+d.tipoDTE===46)?false:undefined,
-      ...((+d.tipoDTE===45||+d.tipoDTE===46)?{ivaRetenido:d.ivaRetenido!=null?d.ivaRetenido:d.iva,totalSII:d.totalSII!=null?d.totalSII:d.total}:{}),
+      // La retención de IVA se propaga tanto en facturas de compra (45/46) como en
+      // sus notas de crédito (DTE 61 sobre factura de compra), donde el lector del
+      // RCV ya fijó `ivaRetenido`. Sin esto, la NC pierde la retención y el asiento
+      // descuadra exactamente en el monto del IVA retenido.
+      ...((+d.tipoDTE===45||+d.tipoDTE===46||d.ivaRetenido!=null)?{
+        ivaRetenido:d.ivaRetenido!=null?d.ivaRetenido:d.iva,
+        totalSII:d.totalSII!=null?d.totalSII:d.total,
+        totalIncluyeRetencion:(+d.tipoDTE===45||+d.tipoDTE===46)?false:(d.totalIncluyeRetencion!=null?d.totalIncluyeRetencion:false)
+      }:{}),
       total:d.total,
       dist,
       estado:'activo',
