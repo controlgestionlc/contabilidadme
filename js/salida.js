@@ -368,7 +368,10 @@ export function initAvisoSalida(){
                  'af-form-bien','pdc-form','emp-form','us-form'];
     for(const id of forms){
       const el=document.getElementById(id);
-      if(el&&el.style.display!=='none'&&el.offsetParent!==null)
+      // getClientRects detecta visibilidad real y funciona también con formularios
+      // que se muestran como ventana flotante (position:fixed), donde offsetParent
+      // siempre es null aunque estén a la vista.
+      if(el&&el.style.display!=='none'&&el.getClientRects().length>0)
         return {el,cerrar:e=>{descartarBorradorContenedor(e);e.style.display='none';}};
     }
     return null;

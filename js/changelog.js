@@ -8,13 +8,21 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0045';
+const APP_VERSION='v2026.09.14-0135';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.35',fecha:'14-09-2026',titulo:'Impresión de Libros de Compras/Ventas en hoja horizontal',items:[
+    {tipo:'arreglo',txt:'Al imprimir o exportar a PDF los Libros de Compras y Ventas, la hoja sale en formato carta horizontal y todas las columnas se ajustan al ancho de la página. Antes el detalle se desbordaba y no se alcanzaba a imprimir completo.'},
+    {tipo:'cambio',txt:'El detalle usa una fuente compacta validada para que hasta los montos de 9 dígitos se impriman completos sin recortarse, y la impresión sale siempre en blanco y negro aunque la pantalla esté en modo oscuro.'},
+  ]},
+  {version:'V2.16.34',fecha:'14-09-2026',titulo:'Nuevo asiento en ventana flotante y 3 líneas por defecto',items:[
+    {tipo:'cambio',txt:'En Comprobantes, "+ Nuevo Asiento" ahora abre el formulario en una ventana flotante centrada sobre la lista, en vez de mostrarse dentro de la misma pantalla de los últimos comprobantes. Se cierra con la ✕, con Cancelar o haciendo clic fuera.'},
+    {tipo:'cambio',txt:'El formulario de asiento manual parte con 3 líneas de cuenta en blanco en lugar de 2, para el ingreso más habitual.'},
+  ]},
   {version:'V2.16.33',fecha:'14-09-2026',titulo:'Combustibles: cuadre definitivo contra el Total del RCV (recuperación de específico)',items:[
     {tipo:'arreglo',txt:'Las compras de combustible cuyo Total del RCV es menor que Neto + IVA (recuperación o descuento de impuesto específico diésel, típico de estaciones de servicio y distribuidoras como NAZAL) ya cuadran: esa diferencia rebaja el costo del combustible y el crédito fiscal de IVA se mantiene íntegro. Ejemplos: DTE 33 N° 164619, 164750, 164803.'},
     {tipo:'arreglo',txt:'El asiento automático de compras se reconcilia siempre contra el Total informado por el SII, en ambos sentidos: si el Total supera a Neto + IVA + otros, el excedente es impuesto que integra el costo; si es menor, es una recuperación que lo rebaja. La línea de costo muestra la etiqueta "Ajuste a Total RCV" para trazabilidad.'},

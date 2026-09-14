@@ -27,7 +27,7 @@ function fijarAF(editId,lineas){
   AF.editId=editId==null?null:editId;
   AF.lineas=lineas||[];
 }
-const lineasEnBlanco=()=>[{cd:'',nm:'',desc:'',debe:0,haber:0},{cd:'',nm:'',desc:'',debe:0,haber:0}];
+const lineasEnBlanco=()=>[{cd:'',nm:'',desc:'',debe:0,haber:0},{cd:'',nm:'',desc:'',debe:0,haber:0},{cd:'',nm:'',desc:'',debe:0,haber:0}];
 
 // ═══ ASIENTOS MANUALES ═══
 // Cuentas que requieren sub-auxiliar (RUT + razón social): clientes, proveedores
