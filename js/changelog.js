@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0150';
+const APP_VERSION='v2026.09.14-0210';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.37',fecha:'14-09-2026',titulo:'Importador RCV: columna Referencia para notas de crédito/débito',items:[
+    {tipo:'nuevo',txt:'El importador de Compras desde SII tiene una nueva columna "Referencia". En las notas de crédito y débito (DTE 61 y 56) permite asociar la nota a una factura del mismo proveedor, ya sea que esté en el mismo RCV que se está cargando o registrada de períodos anteriores. Cada opción muestra tipo, folio, fecha y monto, e indica si el documento viene en este RCV.'},
+    {tipo:'nuevo',txt:'Si la factura referenciada no está disponible en el sistema, se puede ingresar el folio manualmente con la opción "Otro folio". La referencia elegida queda guardada con la nota y se conserva al reimportar el período.'},
+    {tipo:'arreglo',txt:'Al asociar la referencia, la observación "nota sin folio de documento referenciado" del Libro de Compras desaparece para esa nota.'},
+  ]},
   {version:'V2.16.36',fecha:'14-09-2026',titulo:'Libro de Compras: combustibles con específico ya no figuran como error',items:[
     {tipo:'arreglo',txt:'En el reporte del Libro de Compras, las facturas de combustible con impuesto específico o recuperación de diésel dejaron de marcarse como "errores que deben corregirse". El RCV no informa toda esa partida por columnas, así que Neto+Exento+IVA+Otros no da el Total, pero el asiento lo reconoce en el costo y cuadra contra el Total. Ahora aparecen como una única observación informativa, no como error.'},
   ]},

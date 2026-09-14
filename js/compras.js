@@ -852,6 +852,8 @@ function mostrarDocsImportados(res,nombreArchivo){
     const distPrev=dup&&Array.isArray(dup.dist)?dup.dist[0]:null;
     d.cuenta=distPrev?.cuenta||ficha?.cuentaDefault||'';
     d.cc=distPrev?.cc||ficha?.ccDefault||'';
+    // Conservar la referencia de nota ya asignada si es una recarga del documento.
+    if(dup?.referencia?.folio&&!d.referencia)d.referencia={...dup.referencia};
     d.fechaOriginal=d.fecha;
   });
 
@@ -1058,6 +1060,9 @@ function renderImportModal(){
       placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'compra'});
     // Selector de centro de costo (opcional)
     const ccHtml=`<select onchange="setImportCC(${i},this.value)" style="width:100%;font-size:11px;padding:3px">${ccOpts(d.cc||'')}</select>`;
+    // Referencia: sólo para notas de crédito/débito (56/61). Permite asociar la
+    // nota a una factura del mismo proveedor, esté en este RCV o ya registrada.
+    const refHtml=refImportHtml(d,i);
     return `<div id="imp-row-${i}" class="${cls}">
       <div style="text-align:center"><input type="checkbox" ${d.incluir?'checked':''} ${(d.estadoImport==='igual'||d.estadoImport==='manual')?'disabled':''} onchange="toggleImportDoc(${i},this.checked)"></div>
       <div style="font-family:var(--mono);font-size:10px">${fechaShow}</div>
@@ -1071,9 +1076,59 @@ function renderImportModal(){
       <div style="text-align:right;font-family:var(--mono);font-weight:600">${fmt(d.total)}</div>
       <div>${selHtml}</div>
       <div>${ccHtml}</div>
+      <div>${refHtml}</div>
       <div>${estado}</div>
     </div>`;
   }).join('');
+}
+
+// ── Referencia de notas (56/61) en el importador ──
+// Candidatos = facturas/notas de débito del mismo proveedor, tanto del archivo
+// que se está importando como de las ya registradas en el libro (cualquier mes).
+function referenciasImportDisponibles(d){
+  const rut=d.rutCodigo;
+  const tiposRef=[33,34,43,46,56];
+  const vistos=new Set(), cand=[];
+  const agregar=(tipoDTE,folio,fecha,total,origen)=>{
+    const t=+tipoDTE, f=String(folio||'').trim();
+    if(!tiposRef.includes(t)||!f)return;
+    const k=`${t}|${f}`; if(vistos.has(k))return; vistos.add(k);
+    cand.push({tipoDTE:t,folio:f,fecha:fecha||'',total:+total||0,origen});
+  };
+  (IM.docs||[]).forEach(x=>{ if(x!==d&&x.rutCodigo===rut)agregar(x.tipoDTE,x.numero,x.fechaOriginal||x.fecha,x.total,'archivo'); });
+  (S.compras||[]).forEach(x=>{ if(x.estado!=='anulado'&&x.rutCodigo===rut)agregar(x.tipoDTE,x.numero,x.fecha,x.total,'libro'); });
+  cand.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  return cand;
+}
+function refImportHtml(d,i){
+  const esNota=+d.tipoDTE===56||+d.tipoDTE===61;
+  if(!esNota)return '<span style="color:var(--mt);font-size:10px">—</span>';
+  const cand=referenciasImportDisponibles(d);
+  const ref=d.referencia||null;
+  const selVal=ref&&ref.folio?`${+ref.tipoDTE||33}|${ref.folio}`:'';
+  const enLista=ref&&ref.folio&&cand.some(c=>`${c.tipoDTE}|${c.folio}`===selVal);
+  const opts=['<option value="">— sin referencia —</option>'];
+  cand.forEach(c=>{
+    const v=`${c.tipoDTE}|${c.folio}`;
+    opts.push(`<option value="${v}::${textoSeguroImport(c.fecha)}" ${v===selVal?'selected':''}>DTE ${c.tipoDTE} N°${textoSeguroImport(c.folio)}${c.fecha?' · '+textoSeguroImport(c.fecha):''}${c.total?' · $'+fmt(c.total):''}${c.origen==='archivo'?' · en este RCV':''}</option>`);
+  });
+  // Referencia manual previa que no está entre los candidatos disponibles.
+  if(ref&&ref.folio&&!enLista)opts.push(`<option value="${+ref.tipoDTE||33}|${textoSeguroImport(ref.folio)}::${textoSeguroImport(ref.fecha||'')}" selected>DTE ${+ref.tipoDTE||33} N°${textoSeguroImport(ref.folio)} · manual</option>`);
+  opts.push(`<option value="__manual__">✎ Otro folio (manual)…</option>`);
+  return `<select onchange="setImportReferencia(${i},this.value)" style="width:100%;font-size:11px;padding:3px">${opts.join('')}</select>`;
+}
+function setImportReferencia(i,val){
+  const d=IM.docs[i]; if(!d)return;
+  if(val==='__manual__'){
+    const folio=prompt('Folio de la factura del proveedor que referencia esta nota:',d.referencia?.folio||'');
+    if(folio&&String(folio).trim())d.referencia={tipoDTE:+d.referencia?.tipoDTE||33,folio:String(folio).trim(),...(d.referencia?.fecha?{fecha:d.referencia.fecha}:{})};
+    renderImportModal();return;
+  }
+  if(!val){delete d.referencia;renderImportModal();return;}
+  const [tf,fecha]=val.split('::');
+  const [t,f]=tf.split('|');
+  d.referencia={tipoDTE:+t||33,folio:f,...(fecha?{fecha}:{})};
+  renderImportModal();
 }
 
 function toggleImportDoc(i,checked){
@@ -1289,6 +1344,8 @@ async function confirmarImportacion(){
       }:{}),
       total:d.total,
       dist,
+      // Referencia de nota (56/61) asociada en el importador a una factura del proveedor.
+      ...(d.referencia&&d.referencia.folio?{referencia:{tipoDTE:+d.referencia.tipoDTE||33,folio:String(d.referencia.folio),...(d.referencia.fecha?{fecha:d.referencia.fecha}:{}),...(d.referencia.razon?{razon:d.referencia.razon}:{razon:d.razonSocial||''})}}:{}),
       estado:'activo',
       importadoEn:prev?.importadoEn||new Date().toISOString(),
       ...(prev?{reimportadoEn:new Date().toISOString()}:{}),
@@ -1462,5 +1519,5 @@ function initImportListener(){
 
 
 export {onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
-        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
+        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setImportReferencia, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, validarCuadraturaImportCompras, CF};

@@ -93,7 +93,7 @@ import {onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cer
         cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
         guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal,
         cambiarPeriodoImport, cerrarImportModal, toggleImportDoc, toggleAllImport,
-        setImportCuenta, aplicarCuentaATodos, confirmarImportacion,
+        setImportCuenta, aplicarCuentaATodos, confirmarImportacion, setImportReferencia,
         initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos, enfocarPendienteImportC,
         cambiarModoImport, verDuplicadoC, renderCDupAlert,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF, IM} from './compras.js';
@@ -704,7 +704,7 @@ Object.assign(window,{
   cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
   guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal, cambiarPeriodoImport,
   cerrarImportModal, toggleImportDoc, toggleAllImport, setImportCuenta,
-  aplicarCuentaATodos, confirmarImportacion, renderImportModal, pn,
+  aplicarCuentaATodos, confirmarImportacion, setImportReferencia, renderImportModal, pn,
   cambiarModoImport, verDuplicadoC, renderCDupAlert,
   // honorarios
   renderHon, setHonCampo, uhon, addHon, delHon, saveHon, abrirHonComprobante, cerrarHonComprobante, actualizarPreviewHon, guardarHonComprobante, anularHonDesdeComprobante, seleccionarPrestadorHon,
