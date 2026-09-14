@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Contabilidad – Sistema Contable</title>
-<meta name="app-version" content="v2026.09.13-1930">
-<meta name="app-release" content="V2.16.28">
+<meta name="app-version" content="v2026.09.14-0020">
+<meta name="app-release" content="V2.16.29">
 
 <!-- ═══ APLICACIÓN INSTALABLE (PWA) ═══
      Con el manifiesto y el service worker, el navegador ofrece «Instalar» y la
@@ -88,7 +88,7 @@
 
 <header>
   <button id="nav-toggle" onclick="toggleNav()" title="Menú" style="display:none;background:none;border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-size:18px;cursor:pointer;padding:4px 10px;line-height:1">☰</button>
-  <div class="logo"><div class="logo-icon">📊</div><span>Contabilidad</span><span style="font-size:9px;color:var(--mt);margin-left:6px;font-weight:400" title="Versión desplegada">v2026.09.13-1930</span></div>
+  <div class="logo"><div class="logo-icon">📊</div><span>Contabilidad</span><span style="font-size:9px;color:var(--mt);margin-left:6px;font-weight:400" title="Versión desplegada">v2026.09.14-0020</span></div>
   <span id="entorno-badge" style="display:none;align-items:center;border:1px solid var(--bd);border-radius:100px;padding:4px 9px;font-size:9px;font-weight:800;letter-spacing:.06em;white-space:nowrap;margin-left:auto"></span>
   <span id="save-indicator" style="font-size:10px;color:var(--mt);white-space:nowrap;margin-left:6px"></span>
   <button class="btn-save-all" id="btn-guardar-todo" onclick="guardarTodoAhora()" title="Guardar todo"><span aria-hidden="true">💾</span><span class="save-lbl">Guardar</span></button>
@@ -149,6 +149,7 @@
     <button class="nav-group-toggle" type="button" onclick="toggleNavGroup('reportes')" aria-expanded="false"><span><span class="nav-cat-icon">📚</span>Reportes</span><span class="nav-chevron">›</span></button>
     <div class="nav-group-items">
       <div class="nav-item" onclick="nav('diario')" data-s="diario"><span class="nav-icon">📖</span>Libro Diario</div>
+      <div class="nav-item" onclick="nav('libroscv')" data-s="libroscv"><span class="nav-icon">📚</span>Libros Compra y Venta</div>
       <div class="nav-item" onclick="nav('foliossii')" data-s="foliossii"><span class="nav-icon">🖨️</span>Hojas foliadas SII</div>
       <div class="nav-item" onclick="nav('mayor')" data-s="mayor"><span class="nav-icon">📊</span>Libro Mayor</div>
       <div class="nav-item" onclick="nav('balance')" data-s="balance"><span class="nav-icon">⚖️</span>Balance General</div>
@@ -814,6 +815,14 @@
   <div id="diario-content"></div>
 </section>
 
+<!-- LIBROS MENSUALES DE COMPRAS Y VENTAS -->
+<section class="section" id="s-libroscv">
+  <div class="sec-hdr">
+    <div><div class="sec-title">Libros mensuales de Compras y Ventas</div><div class="sec-sub">Resumen y detalle por tipo de documento · estructura de control RCV SII</div></div>
+  </div>
+  <div id="libroscv-content"></div>
+</section>
+
 <!-- HOJAS FOLIADAS SII -->
 <section class="section" id="s-foliossii">
   <div class="sec-hdr"><div><div class="sec-title">Hojas foliadas SII</div><div class="sec-sub">Impresión y control de libros en hojas sueltas previamente autorizadas</div></div></div>
@@ -1420,92 +1429,93 @@
 <script type="importmap">
 {
   "imports": {
-    "./js/acl.js": "./js/acl.js?v=1789342726",
-    "./js/activofijo.js": "./js/activofijo.js?v=1789342726",
-    "./js/actualizador.js": "./js/actualizador.js?v=1789342726",
-    "./js/apertura.js": "./js/apertura.js?v=1789342726",
-    "./js/aperturaaux.js": "./js/aperturaaux.js?v=1789342726",
-    "./js/app.js": "./js/app.js?v=1789342726",
-    "./js/asiento-validacion.js": "./js/asiento-validacion.js?v=1789342726",
-    "./js/asientos.js": "./js/asientos.js?v=1789342726",
-    "./js/asigcc.js": "./js/asigcc.js?v=1789342726",
-    "./js/audit.js": "./js/audit.js?v=1789342726",
-    "./js/auth.js": "./js/auth.js?v=1789342726",
-    "./js/autoguardado.js": "./js/autoguardado.js?v=1789342726",
-    "./js/auxdocs.js": "./js/auxdocs.js?v=1789342726",
-    "./js/auxiliares.js": "./js/auxiliares.js?v=1789342726",
-    "./js/auxreporte.js": "./js/auxreporte.js?v=1789342726",
-    "./js/ayuda.js": "./js/ayuda.js?v=1789342726",
-    "./js/backup.js": "./js/backup.js?v=1789342726",
-    "./js/buscadorcuentas.js": "./js/buscadorcuentas.js?v=1789342726",
-    "./js/busqueda.js": "./js/busqueda.js?v=1789342726",
-    "./js/cargadatos.js": "./js/cargadatos.js?v=1789342726",
-    "./js/centroscosto-ui.js": "./js/centroscosto-ui.js?v=1789342726",
-    "./js/centroscosto.js": "./js/centroscosto.js?v=1789342726",
-    "./js/changelog-ui.js": "./js/changelog-ui.js?v=1789342726",
-    "./js/changelog.js": "./js/changelog.js?v=1789342726",
-    "./js/cierre.js": "./js/cierre.js?v=1789342726",
-    "./js/cierres-mensuales.js": "./js/cierres-mensuales.js?v=1789342726",
-    "./js/compras.js": "./js/compras.js?v=1789342726",
-    "./js/comprobantes.js": "./js/comprobantes.js?v=1789342726",
-    "./js/comprobantestipo-ui.js": "./js/comprobantestipo-ui.js?v=1789342726",
-    "./js/comprobantestipo.js": "./js/comprobantestipo.js?v=1789342726",
-    "./js/conciliacion.js": "./js/conciliacion.js?v=1789342726",
-    "./js/contabilidad-v2.js": "./js/contabilidad-v2.js?v=1789342726",
-    "./js/core.js": "./js/core.js?v=1789342726",
-    "./js/correlativo-contable.js": "./js/correlativo-contable.js?v=1789342726",
-    "./js/dispositivo.js": "./js/dispositivo.js?v=1789342726",
-    "./js/djcatalogo.js": "./js/djcatalogo.js?v=1789342726",
-    "./js/djrenta.js": "./js/djrenta.js?v=1789342726",
-    "./js/dte-autocompletar.js": "./js/dte-autocompletar.js?v=1789342726",
-    "./js/empresa.js": "./js/empresa.js?v=1789342726",
-    "./js/empresas-ui.js": "./js/empresas-ui.js?v=1789342726",
-    "./js/empresas.js": "./js/empresas.js?v=1789342726",
-    "./js/firebase-config.js": "./js/firebase-config.js?v=1789342726",
-    "./js/firebase.js": "./js/firebase.js?v=1789342726",
-    "./js/flujocaja.js": "./js/flujocaja.js?v=1789342726",
-    "./js/folios-sii.js": "./js/folios-sii.js?v=1789342726",
-    "./js/hardening.js": "./js/hardening.js?v=1789342726",
-    "./js/helpers.js": "./js/helpers.js?v=1789342726",
-    "./js/honorarios.js": "./js/honorarios.js?v=1789342726",
-    "./js/importadoraux.js": "./js/importadoraux.js?v=1789342726",
-    "./js/importadorsii.js": "./js/importadorsii.js?v=1789342726",
-    "./js/impresion.js": "./js/impresion.js?v=1789342726",
-    "./js/indicadores.js": "./js/indicadores.js?v=1789342726",
-    "./js/inicio.js": "./js/inicio.js?v=1789342726",
-    "./js/integridad.js": "./js/integridad.js?v=1789342726",
-    "./js/libroremuneraciones.js": "./js/libroremuneraciones.js?v=1789342726",
-    "./js/lre-dt.js": "./js/lre-dt.js?v=1789342726",
-    "./js/motor-contable.js": "./js/motor-contable.js?v=1789342726",
-    "./js/pagos.js": "./js/pagos.js?v=1789342726",
-    "./js/pdc-reglas.js": "./js/pdc-reglas.js?v=1789342726",
-    "./js/pdc.js": "./js/pdc.js?v=1789342726",
-    "./js/piloto.js": "./js/piloto.js?v=1789342726",
-    "./js/preproduccion.js": "./js/preproduccion.js?v=1789342726",
-    "./js/previsional-ui.js": "./js/previsional-ui.js?v=1789342726",
-    "./js/previsional.js": "./js/previsional.js?v=1789342726",
-    "./js/rcv-control.js": "./js/rcv-control.js?v=1789342726",
-    "./js/recovery.js": "./js/recovery.js?v=1789342726",
-    "./js/regimenes.js": "./js/regimenes.js?v=1789342726",
-    "./js/regresion-contable.js": "./js/regresion-contable.js?v=1789342726",
-    "./js/remuneraciones.js": "./js/remuneraciones.js?v=1789342726",
-    "./js/renta.js": "./js/renta.js?v=1789342726",
-    "./js/reportes.js": "./js/reportes.js?v=1789342726",
-    "./js/salida.js": "./js/salida.js?v=1789342726",
-    "./js/seguridad.js": "./js/seguridad.js?v=1789342726",
-    "./js/sistema.js": "./js/sistema.js?v=1789342726",
-    "./js/state.js": "./js/state.js?v=1789342726",
-    "./js/storage.js": "./js/storage.js?v=1789342726",
-    "./js/tema.js": "./js/tema.js?v=1789342726",
-    "./js/tributario.js": "./js/tributario.js?v=1789342726",
-    "./js/ui.js": "./js/ui.js?v=1789342726",
-    "./js/usuarios.js": "./js/usuarios.js?v=1789342726",
-    "./js/ventas.js": "./js/ventas.js?v=1789342726",
-    "./js/xmlsii.js": "./js/xmlsii.js?v=1789342726"
+    "./js/acl.js": "./js/acl.js?v=1789376893",
+    "./js/activofijo.js": "./js/activofijo.js?v=1789376893",
+    "./js/actualizador.js": "./js/actualizador.js?v=1789376893",
+    "./js/apertura.js": "./js/apertura.js?v=1789376893",
+    "./js/aperturaaux.js": "./js/aperturaaux.js?v=1789376893",
+    "./js/app.js": "./js/app.js?v=1789376893",
+    "./js/asiento-validacion.js": "./js/asiento-validacion.js?v=1789376893",
+    "./js/asientos.js": "./js/asientos.js?v=1789376893",
+    "./js/asigcc.js": "./js/asigcc.js?v=1789376893",
+    "./js/audit.js": "./js/audit.js?v=1789376893",
+    "./js/auth.js": "./js/auth.js?v=1789376893",
+    "./js/autoguardado.js": "./js/autoguardado.js?v=1789376893",
+    "./js/auxdocs.js": "./js/auxdocs.js?v=1789376893",
+    "./js/auxiliares.js": "./js/auxiliares.js?v=1789376893",
+    "./js/auxreporte.js": "./js/auxreporte.js?v=1789376893",
+    "./js/ayuda.js": "./js/ayuda.js?v=1789376893",
+    "./js/backup.js": "./js/backup.js?v=1789376893",
+    "./js/buscadorcuentas.js": "./js/buscadorcuentas.js?v=1789376893",
+    "./js/busqueda.js": "./js/busqueda.js?v=1789376893",
+    "./js/cargadatos.js": "./js/cargadatos.js?v=1789376893",
+    "./js/centroscosto-ui.js": "./js/centroscosto-ui.js?v=1789376893",
+    "./js/centroscosto.js": "./js/centroscosto.js?v=1789376893",
+    "./js/changelog-ui.js": "./js/changelog-ui.js?v=1789376893",
+    "./js/changelog.js": "./js/changelog.js?v=1789376893",
+    "./js/cierre.js": "./js/cierre.js?v=1789376893",
+    "./js/cierres-mensuales.js": "./js/cierres-mensuales.js?v=1789376893",
+    "./js/compras.js": "./js/compras.js?v=1789376893",
+    "./js/comprobantes.js": "./js/comprobantes.js?v=1789376893",
+    "./js/comprobantestipo-ui.js": "./js/comprobantestipo-ui.js?v=1789376893",
+    "./js/comprobantestipo.js": "./js/comprobantestipo.js?v=1789376893",
+    "./js/conciliacion.js": "./js/conciliacion.js?v=1789376893",
+    "./js/contabilidad-v2.js": "./js/contabilidad-v2.js?v=1789376893",
+    "./js/core.js": "./js/core.js?v=1789376893",
+    "./js/correlativo-contable.js": "./js/correlativo-contable.js?v=1789376893",
+    "./js/dispositivo.js": "./js/dispositivo.js?v=1789376893",
+    "./js/djcatalogo.js": "./js/djcatalogo.js?v=1789376893",
+    "./js/djrenta.js": "./js/djrenta.js?v=1789376893",
+    "./js/dte-autocompletar.js": "./js/dte-autocompletar.js?v=1789376893",
+    "./js/empresa.js": "./js/empresa.js?v=1789376893",
+    "./js/empresas-ui.js": "./js/empresas-ui.js?v=1789376893",
+    "./js/empresas.js": "./js/empresas.js?v=1789376893",
+    "./js/firebase-config.js": "./js/firebase-config.js?v=1789376893",
+    "./js/firebase.js": "./js/firebase.js?v=1789376893",
+    "./js/flujocaja.js": "./js/flujocaja.js?v=1789376893",
+    "./js/folios-sii.js": "./js/folios-sii.js?v=1789376893",
+    "./js/hardening.js": "./js/hardening.js?v=1789376893",
+    "./js/helpers.js": "./js/helpers.js?v=1789376893",
+    "./js/honorarios.js": "./js/honorarios.js?v=1789376893",
+    "./js/importadoraux.js": "./js/importadoraux.js?v=1789376893",
+    "./js/importadorsii.js": "./js/importadorsii.js?v=1789376893",
+    "./js/impresion.js": "./js/impresion.js?v=1789376893",
+    "./js/indicadores.js": "./js/indicadores.js?v=1789376893",
+    "./js/inicio.js": "./js/inicio.js?v=1789376893",
+    "./js/integridad.js": "./js/integridad.js?v=1789376893",
+    "./js/libroremuneraciones.js": "./js/libroremuneraciones.js?v=1789376893",
+    "./js/libroscv.js": "./js/libroscv.js?v=1789376893",
+    "./js/lre-dt.js": "./js/lre-dt.js?v=1789376893",
+    "./js/motor-contable.js": "./js/motor-contable.js?v=1789376893",
+    "./js/pagos.js": "./js/pagos.js?v=1789376893",
+    "./js/pdc-reglas.js": "./js/pdc-reglas.js?v=1789376893",
+    "./js/pdc.js": "./js/pdc.js?v=1789376893",
+    "./js/piloto.js": "./js/piloto.js?v=1789376893",
+    "./js/preproduccion.js": "./js/preproduccion.js?v=1789376893",
+    "./js/previsional-ui.js": "./js/previsional-ui.js?v=1789376893",
+    "./js/previsional.js": "./js/previsional.js?v=1789376893",
+    "./js/rcv-control.js": "./js/rcv-control.js?v=1789376893",
+    "./js/recovery.js": "./js/recovery.js?v=1789376893",
+    "./js/regimenes.js": "./js/regimenes.js?v=1789376893",
+    "./js/regresion-contable.js": "./js/regresion-contable.js?v=1789376893",
+    "./js/remuneraciones.js": "./js/remuneraciones.js?v=1789376893",
+    "./js/renta.js": "./js/renta.js?v=1789376893",
+    "./js/reportes.js": "./js/reportes.js?v=1789376893",
+    "./js/salida.js": "./js/salida.js?v=1789376893",
+    "./js/seguridad.js": "./js/seguridad.js?v=1789376893",
+    "./js/sistema.js": "./js/sistema.js?v=1789376893",
+    "./js/state.js": "./js/state.js?v=1789376893",
+    "./js/storage.js": "./js/storage.js?v=1789376893",
+    "./js/tema.js": "./js/tema.js?v=1789376893",
+    "./js/tributario.js": "./js/tributario.js?v=1789376893",
+    "./js/ui.js": "./js/ui.js?v=1789376893",
+    "./js/usuarios.js": "./js/usuarios.js?v=1789376893",
+    "./js/ventas.js": "./js/ventas.js?v=1789376893",
+    "./js/xmlsii.js": "./js/xmlsii.js?v=1789376893"
   }
 }
 </script>
-<script type="module" src="js/app.js?v=1789342726"></script>
+<script type="module" src="js/app.js?v=1789376893"></script>
 
 <!-- Registro del service worker. Va después de app.js para no competir con la
      carga de los módulos. Si falla —file://, navegador antiguo, sin HTTPS— la
