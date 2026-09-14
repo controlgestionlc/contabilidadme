@@ -1178,10 +1178,52 @@ function aplicarCCATodos(){
     : `✅ Centro de costo quitado de ${n} documento${n===1?'':'s'}`);
 }
 
+// Recuerda, por proveedor, la cuenta y el centro de costo asignados en el
+// importador, guardándolos como default en su ficha auxiliar. Se llama ANTES de
+// persistir los documentos, de modo que ese trabajo manual quede recordado
+// aunque el guardado del lote falle (p. ej. por red): al reimportar, cada
+// proveedor ya viene con su cuenta/CC pre-cargados y no hay que reasignarlos.
+// Sólo completa campos vacíos: nunca pisa una configuración previa del usuario.
+async function recordarFichasProveedor(docs){
+  const asignaciones={};
+  (docs||[]).forEach(d=>{
+    const key=d.rutCodigo;if(!key||(!d.cuenta&&!d.cc))return;
+    if(!asignaciones[key])asignaciones[key]={cuenta:{},cc:{},rutDV:d.rutDV,razonSocial:d.razonSocial};
+    if(d.cuenta)asignaciones[key].cuenta[d.cuenta]=(asignaciones[key].cuenta[d.cuenta]||0)+1;
+    if(d.cc)asignaciones[key].cc[d.cc]=(asignaciones[key].cc[d.cc]||0)+1;
+    if(!asignaciones[key].razonSocial&&d.razonSocial)asignaciones[key].razonSocial=d.razonSocial;
+  });
+  let creadas=0,actualizadas=0;
+  const proveedoresF=fichasAux('proveedor');
+  Object.entries(asignaciones).forEach(([rut,a])=>{
+    const cuentaTop=Object.entries(a.cuenta).sort((x,y)=>y[1]-x[1])[0]?.[0]||'';
+    const ccTop=Object.entries(a.cc).sort((x,y)=>y[1]-x[1])[0]?.[0]||'';
+    const ficha=proveedoresF[rut];
+    if(!ficha){
+      if(!cuentaTop&&!ccTop)return;
+      proveedoresF[rut]={rutCodigo:rut,rutDV:a.rutDV,razonSocial:a.razonSocial||'',cuentaDefault:cuentaTop,ccDefault:ccTop,giro:'',direccion:'',comuna:'',ciudad:'',email:'',telefono:'',notas:''};
+      creadas++;
+    }else{
+      let cambio=false;
+      if(!ficha.cuentaDefault&&cuentaTop){ficha.cuentaDefault=cuentaTop;cambio=true;}
+      if(!ficha.ccDefault&&ccTop){ficha.ccDefault=ccTop;cambio=true;}
+      if(!ficha.razonSocial&&a.razonSocial){ficha.razonSocial=a.razonSocial;cambio=true;}
+      if(!ficha.rutDV&&a.rutDV){ficha.rutDV=a.rutDV;cambio=true;}
+      if(cambio)actualizadas++;
+    }
+  });
+  if(creadas||actualizadas){try{await guardarFichasAux();}catch(e){console.warn('No se pudo guardar ficha auxiliar:',e);}}
+  return {creadas,actualizadas};
+}
+
 async function confirmarImportacion(){
   const perFecha=`${IM.periodoAnio}-${String(IM.periodoMes).padStart(2,'0')}-01`;
   if(!puedeOperarFecha(perFecha)){toast('🔒 El período RCV seleccionado está cerrado. Reábrelo antes de importar compras.','e');return;}
   const seleccionados=IM.docs.filter(d=>d.incluir);
+  // Recordar la clasificación por proveedor ANTES de guardar, para no perderla
+  // si el guardado del lote falla. Captura todo lo asignado (incluye los que
+  // tengan error contable o queden pendientes).
+  const {creadas:fichasCreadas,actualizadas:fichasActualizadas}=await recordarFichasProveedor(IM.docs.filter(d=>d.incluir&&(d.cuenta||d.cc)));
   const descuadrados=validarCuadraturaImportCompras();
   const badIdx=new Set(descuadrados.map(x=>x.idx));
   const sinCuenta=IM.docs.map((d,idx)=>({...d,idx})).filter(d=>d.incluir&&!d.cuenta);
@@ -1437,51 +1479,9 @@ async function confirmarImportacion(){
   });
   logCambio('Importó lote RCV compras',{entidad:'lote-rcv',id:`compras:${periodoStrConf}:${Date.now()}`,antes:null,despues:null,meta:{periodo:periodoStrConf,archivo:IM.archivo||'',nuevos:aplicados.filter(d=>d.estadoImport==='nuevo').length,cambios:aplicados.filter(d=>d.estadoImport==='cambio').length,conError:pendientesError.length,sinCambios:IM.docs.filter(d=>d.estadoImport==='igual').length,modo}});
 
-  // Guardar cuenta y CC como default en la ficha del proveedor.
-  // Reglas:
-  //  - Si el proveedor NO tiene ficha, se crea con los datos actuales.
-  //  - Si tiene ficha pero SIN cuentaDefault/ccDefault, se completan.
-  //  - Si ya tiene cuentaDefault/ccDefault configurados por el usuario,
-  //    NO se sobreescriben (respetamos su configuración).
-  //  - Cuando un proveedor tiene documentos con distinta cuenta en el mismo
-  //    batch, se usa la más frecuente.
-  const asignaciones={};  // rut → { cuenta:{cd→count}, cc:{cd→count}, dv, razon }
-  aplicados.forEach(d=>{
-    const key=d.rutCodigo;
-    if(!key)return;
-    if(!asignaciones[key])asignaciones[key]={cuenta:{},cc:{},rutDV:d.rutDV,razonSocial:d.razonSocial};
-    if(d.cuenta)asignaciones[key].cuenta[d.cuenta]=(asignaciones[key].cuenta[d.cuenta]||0)+1;
-    if(d.cc)asignaciones[key].cc[d.cc]=(asignaciones[key].cc[d.cc]||0)+1;
-    if(!asignaciones[key].razonSocial&&d.razonSocial)asignaciones[key].razonSocial=d.razonSocial;
-  });
-  let fichasCreadas=0, fichasActualizadas=0;
-  const proveedoresF=fichasAux('proveedor');
-  Object.entries(asignaciones).forEach(([rut,a])=>{
-    const cuentaTop=Object.entries(a.cuenta).sort((x,y)=>y[1]-x[1])[0]?.[0]||'';
-    const ccTop=Object.entries(a.cc).sort((x,y)=>y[1]-x[1])[0]?.[0]||'';
-    const ficha=proveedoresF[rut];
-    if(!ficha){
-      // Ficha nueva con datos básicos (se completa el resto luego)
-      proveedoresF[rut]={
-        rutCodigo:rut, rutDV:a.rutDV, razonSocial:a.razonSocial||'',
-        cuentaDefault:cuentaTop, ccDefault:ccTop,
-        giro:'', direccion:'', comuna:'', ciudad:'', email:'', telefono:'', notas:'',
-      };
-      fichasCreadas++;
-    }else{
-      // Completar solo los campos vacíos, respetando lo que el usuario ya haya
-      // configurado manualmente
-      let cambio=false;
-      if(!ficha.cuentaDefault&&cuentaTop){ficha.cuentaDefault=cuentaTop;cambio=true;}
-      if(!ficha.ccDefault&&ccTop){ficha.ccDefault=ccTop;cambio=true;}
-      if(!ficha.razonSocial&&a.razonSocial){ficha.razonSocial=a.razonSocial;cambio=true;}
-      if(!ficha.rutDV&&a.rutDV){ficha.rutDV=a.rutDV;cambio=true;}
-      if(cambio)fichasActualizadas++;
-    }
-  });
-  if(fichasCreadas||fichasActualizadas){
-    guardarFichasAux().catch(e=>console.warn('No se pudo guardar ficha auxiliar:',e));
-  }
+  // Las fichas de proveedor (cuenta/CC por defecto) ya se recordaron al inicio,
+  // antes de persistir (ver recordarFichasProveedor), para no perder ese trabajo
+  // aunque el guardado falle. fichasCreadas/fichasActualizadas se calcularon ahí.
 
   // Mantener abierta la ventana con todo lo que todavía requiere acción:
   // descuadre real o falta de cuenta. Antes, los sin cuenta desaparecían de la

@@ -8,13 +8,21 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0230';
+const APP_VERSION='v2026.09.14-0320';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.40',fecha:'14-09-2026',titulo:'El importador recuerda la cuenta y centro de costo por proveedor',items:[
+    {tipo:'arreglo',txt:'Al presionar "Aplicar", la cuenta y el centro de costo que asignaste a cada proveedor se guardan en su ficha ANTES de grabar los documentos. Así, si el guardado falla o reimportas el período, cada proveedor ya viene con su cuenta y centro de costo pre-cargados y no hay que reasignarlos de nuevo.'},
+    {tipo:'nuevo',txt:'La próxima vez que importes documentos de un proveedor ya clasificado (de cualquier mes), su cuenta y centro de costo se completan solos. Solo completa lo que falte; nunca pisa lo que ya tenías configurado.'},
+  ]},
+  {version:'V2.16.39',fecha:'14-09-2026',titulo:'Se corrige el límite de 1 MB de la nube (importaciones grandes ya no fallan)',items:[
+    {tipo:'arreglo',txt:'Al acumular varios meses de documentos, el guardado en la nube fallaba con "The value of property value is longer than 1048487 bytes" y revertía toda la importación (le pasaba a abril). Ahora los datos se comprimen antes de subir a la nube, quedando muy por debajo del tope de 1 MB por documento de Firestore.'},
+    {tipo:'arreglo',txt:'La compresión es transparente y compatible: los datos ya guardados se siguen leyendo sin cambios y, al primer guardado, quedan comprimidos automáticamente. Un año de asientos que pesaba ~860 KB pasa a ~180 KB, dejando holgura para varios años.'},
+  ]},
   {version:'V2.16.38',fecha:'14-09-2026',titulo:'Importador RCV: se corrige la alineación y la razón social oculta',items:[
     {tipo:'arreglo',txt:'En la tabla del importador de Compras, la razón social vuelve a verse (antes se comprimía y quedaba en blanco al agregar la columna Referencia). Las columnas tienen ancho fijo y la tabla hace scroll horizontal, de modo que cada encabezado queda alineado con sus valores.'},
   ]},

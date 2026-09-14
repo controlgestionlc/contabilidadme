@@ -3,6 +3,7 @@
 
 import {FS, fsStatusSet} from './firebase.js';
 import {DISPOSITIVO, initDispositivo} from './dispositivo.js';
+import {compressToBase64, decompressFromBase64} from './lzstring.js';
 initDispositivo();
 
 // ═══ SHIM DE STORAGE — Firestore + localStorage fallback ═══
@@ -14,6 +15,30 @@ initDispositivo();
   const prefix='cv:';
   const COLL='contabilidad_data'; // colección Firestore
 
+  // ── Compresión del valor guardado en Firestore ──
+  // Un documento Firestore no puede superar 1 MB. El libro de asientos del año
+  // crecía como un único string JSON y al pasar ~1 MB la escritura fallaba con
+  // "The value of property value is longer than 1048487 bytes". Comprimimos los
+  // valores grandes con lz-string (base64, ASCII) SÓLO en la frontera con
+  // Firestore: en memoria y en localStorage el valor sigue siendo JSON plano.
+  // El prefijo LZ1| marca un valor comprimido; sin él se lee tal cual (los
+  // documentos antiguos, sin comprimir, se siguen leyendo sin cambios).
+  const LZ_PREFIJO='LZ1|';
+  const LZ_UMBRAL=100000; // sólo comprimir strings grandes (>~100 KB)
+  function comprimirValor(v){
+    const s=v==null?'':String(v);
+    if(s.length<LZ_UMBRAL||s.slice(0,LZ_PREFIJO.length)===LZ_PREFIJO)return s;
+    try{
+      const c=LZ_PREFIJO+compressToBase64(s);
+      return c.length<s.length?c:s; // por seguridad, nunca crecer
+    }catch(e){console.warn('LZ compress falló, se guarda plano',e);return s;}
+  }
+  function descomprimirValor(v){
+    if(typeof v!=='string'||v.slice(0,LZ_PREFIJO.length)!==LZ_PREFIJO)return v;
+    try{return decompressFromBase64(v.slice(LZ_PREFIJO.length))||'';}
+    catch(e){console.error('LZ decompress falló',e);return v;}
+  }
+
   function getLocal(key){try{const v=localStorage.getItem(prefix+key);return v!==null?{key,value:v}:null;}catch(e){return null;}}
   function setLocal(key,value){try{localStorage.setItem(prefix+key,value);return true;}catch(e){return false;}}
   function delLocal(key){try{localStorage.removeItem(prefix+key);}catch(e){}}
@@ -24,6 +49,7 @@ initDispositivo();
       const doc=await FS.db.collection(COLL).doc(key).get();
       if(doc.exists){
         const d=doc.data();
+        if(d&&typeof d.value==='string')d.value=descomprimirValor(d.value);
         revs.set(key,+((d||{}).rev)||0);
         if(d&&d.borrados)tumbas.set(key,{...(tumbas.get(key)||{}),...d.borrados});
         if(d&&d.value!==undefined)fijarBaseline(key,d.value);
@@ -48,7 +74,7 @@ initDispositivo();
     if(!FS.enabled||!FS.db)return false;
     try{
       FS.pendingWrites++;fsStatusSet('syncing');
-      await FS.db.collection(COLL).doc(key).set({value,empresa:empresaDeClave(key),ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+      await FS.db.collection(COLL).doc(key).set({value:comprimirValor(value),empresa:empresaDeClave(key),ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
       FS.pendingWrites--;FS.lastSaveTs=Date.now();
       if(FS.pendingWrites===0)fsStatusSet('saved');
       return true;
@@ -73,6 +99,7 @@ initDispositivo();
         const snap=await t.get(ref);
         if(!snap.exists)return;
         const actual=snap.data()||{};
+        if(actual&&typeof actual.value==='string')actual.value=descomprimirValor(actual.value);
         const revNube=+actual.rev||0;
         let revMia=revs.has(k)?revs.get(k):null;
         if(revMia===null){
@@ -227,6 +254,7 @@ initDispositivo();
       await FS.db.runTransaction(async t=>{
         const snap=await t.get(ref);
         const actual=snap.exists?(snap.data()||{}):null;
+        if(actual&&typeof actual.value==='string')actual.value=descomprimirValor(actual.value);
         const revNube=actual?(+actual.rev||0):0;
         let revMia=revs.has(k)?revs.get(k):null;
         let aGuardar=value;
@@ -282,7 +310,7 @@ initDispositivo();
           throw new Error('__VALIDACION_CONTABLE__');
         }
         const nuevaRev=revNube+1;
-        t.set(ref,{value:aGuardar,empresa:empresaDeClave(k),rev:nuevaRev,
+        t.set(ref,{value:comprimirValor(aGuardar),empresa:empresaDeClave(k),rev:nuevaRev,
           borrados:lapidas,
           dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
           ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
@@ -468,6 +496,7 @@ initDispositivo();
           for(let i=0;i<lista.length;i++){
             const e=lista[i],k=K(e.key),snap=snaps[i];
             const actual=snap.exists?(snap.data()||{}):null;
+            if(actual&&typeof actual.value==='string')actual.value=descomprimirValor(actual.value);
             const revNube=actual?(+actual.rev||0):0;
             let revMia=revs.has(k)?revs.get(k):null;
 
@@ -505,7 +534,7 @@ initDispositivo();
             const vgFinal=validarAsientosAntesDeEscribir(e.key,e.value,actual&&actual.value!==undefined?actual.value:null);
             if(vgFinal.ok===false)throw new Error('__VALIDACION_MULTI__:'+e.key+':'+(vgFinal.errores?.[0]||vgFinal.motivo||'validación contable'));
             const nuevaRev=revNube+1;
-            t.set(refs[i],{value:e.value,empresa:empresaDeClave(k),rev:nuevaRev,borrados:lapidas,
+            t.set(refs[i],{value:comprimirValor(e.value),empresa:empresaDeClave(k),rev:nuevaRev,borrados:lapidas,
               dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
               ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
             nuevos.push({k,value:e.value,rev:nuevaRev,lapidas});
@@ -564,6 +593,7 @@ initDispositivo();
         const doc=await FS.db.collection(COLL).doc(k).get();
         if(doc.exists){
           const d=doc.data();
+          if(d&&typeof d.value==='string')d.value=descomprimirValor(d.value);
           revs.set(k,+((d||{}).rev)||0);   // versión sobre la que trabajamos
           if(d&&d.borrados)tumbas.set(k,{...(tumbas.get(k)||{}),...d.borrados});
           if(d&&d.value!==undefined){
@@ -619,7 +649,7 @@ initDispositivo();
           let ultimo=0;
           if(snap.exists){
             const d=snap.data()||{};
-            try{ultimo=Math.max(0,+((JSON.parse(d.value||'{}')||{}).ultimo)||0);}catch(_e){ultimo=0;}
+            try{ultimo=Math.max(0,+((JSON.parse(descomprimirValor(d.value)||'{}')||{}).ultimo)||0);}catch(_e){ultimo=0;}
           }
           ultimo=Math.max(ultimo,minimo);
           inicio=ultimo+1;fin=ultimo+cantidad;
@@ -653,6 +683,7 @@ initDispositivo();
         const doc=await FS.db.collection(COLL).doc(key).get();
         if(doc.exists){
           const d=doc.data();
+          if(d&&typeof d.value==='string')d.value=descomprimirValor(d.value);
           revs.set(key,+((d||{}).rev)||0);
           if(d&&d.borrados)tumbas.set(key,{...(tumbas.get(key)||{}),...d.borrados});
           if(d&&d.value!==undefined){
@@ -732,7 +763,7 @@ initDispositivo();
     // Si no se pasan ids se cae a la consulta antigua (reglas permisivas).
     async syncAllFromRemote(ids){
       if(!FS.enabled||!FS.db)return {count:0};
-      const guardar=snap=>{let n=0;snap.forEach(doc=>{const d=doc.data();if(d&&d.value!==undefined){setLocal(doc.id,d.value);n++;}});return n;};
+      const guardar=snap=>{let n=0;snap.forEach(doc=>{const d=doc.data();if(d&&d.value!==undefined){setLocal(doc.id,descomprimirValor(d.value));n++;}});return n;};
       try{
         if(Array.isArray(ids)&&ids.length){
           let count=0;
