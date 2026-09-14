@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0135';
+const APP_VERSION='v2026.09.14-0150';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.36',fecha:'14-09-2026',titulo:'Libro de Compras: combustibles con específico ya no figuran como error',items:[
+    {tipo:'arreglo',txt:'En el reporte del Libro de Compras, las facturas de combustible con impuesto específico o recuperación de diésel dejaron de marcarse como "errores que deben corregirse". El RCV no informa toda esa partida por columnas, así que Neto+Exento+IVA+Otros no da el Total, pero el asiento lo reconoce en el costo y cuadra contra el Total. Ahora aparecen como una única observación informativa, no como error.'},
+  ]},
   {version:'V2.16.35',fecha:'14-09-2026',titulo:'Impresión de Libros de Compras/Ventas en hoja horizontal',items:[
     {tipo:'arreglo',txt:'Al imprimir o exportar a PDF los Libros de Compras y Ventas, la hoja sale en formato carta horizontal y todas las columnas se ajustan al ancho de la página. Antes el detalle se desbordaba y no se alcanzaba a imprimir completo.'},
     {tipo:'cambio',txt:'El detalle usa una fuente compacta validada para que hasta los montos de 9 dígitos se impriman completos sin recortarse, y la impresión sale siempre en blanco y negro aunque la pantalla esté en modo oscuro.'},

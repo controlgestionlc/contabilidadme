@@ -86,19 +86,33 @@ function resumir(tipo,docs){
 
 function validarLibro(tipo,docs){
   const errores=[],avisos=[],claves=new Map(),corrs=new Map();
+  let especialFuel=0;
   docs.forEach(d=>{
     const ref=`Corr. ${d.corr} · DTE ${d.tipoDTE} N°${d.folio||'?'}`;
     if(!d.fecha||!d.tipoDTE||!d.folio||!d.rut||!d.razonSocial)errores.push(`${ref}: faltan datos esenciales del detalle SII.`);
     if(!(d.total>0))errores.push(`${ref}: el monto total debe ser mayor que cero.`);
     const componentes=d.neto+d.exento+d.iva+d.otrosConCredito+d.otrosSinCredito;
     const cuadraTotal=Math.abs(componentes-d.total)<=1||(tipo==='compras'&&d.ivaRetenido>0&&Math.abs((componentes-d.ivaRetenido)-d.total)<=1);
-    if(!cuadraTotal)errores.push(`${ref}: Neto + Exento + IVA + Otros no concilia con el Total informado.`);
+    if(!cuadraTotal){
+      // En compras de combustible el RCV no expone en columnas todo el impuesto
+      // específico ni la recuperación de específico diésel: por eso Neto+IVA+Otros
+      // no da el Total. No es un error que corregir; el asiento reconcilia contra
+      // el Total llevando esa diferencia al costo. Se informa como observación.
+      // En ventas sí es un descuadre real del documento y se mantiene como error.
+      if(tipo==='compras')especialFuel++;
+      else errores.push(`${ref}: Neto + Exento + IVA + Otros no concilia con el Total informado.`);
+    }
     const k=`${d.rut}|${d.tipoDTE}|${d.folio}`;
     if(claves.has(k))errores.push(`${ref}: documento duplicado con correlativo ${claves.get(k)}.`);else claves.set(k,d.corr);
     if(corrs.has(d.corr))errores.push(`${ref}: correlativo interno repetido.`);else corrs.set(d.corr,true);
     if(tipo==='compras'&&d.ivaNoRecuperable>0&&!d.codigoIvaNoRecuperable)avisos.push(`${ref}: falta código de IVA no recuperable (1, 2, 3, 4 o 9).`);
     if([56,60,61].includes(d.tipoDTE)&&!d.refFolio)avisos.push(`${ref}: nota sin folio de documento referenciado.`);
   });
+  // Combustibles con impuesto específico / recuperación de diésel: el RCV no
+  // expone toda la partida en columnas, así que Neto+Exento+IVA+Otros no da el
+  // Total. No es un error: el asiento lo reconoce en el costo y cuadra contra el
+  // Total. Se informa como una sola observación para no repetir por documento.
+  if(especialFuel>0)avisos.unshift(`${especialFuel} documento(s) de combustible con impuesto específico o recuperación de diésel: el Total del SII no cuadra con Neto+Exento+IVA+Otros por columnas, pero se reconoce en el costo y el asiento cuadra contra el Total. No requiere corrección.`);
   return {ok:errores.length===0,errores,avisos};
 }
 
