@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.14-0400';
+const APP_VERSION='v2026.09.15-0100';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.43',fecha:'15-09-2026',titulo:'Pagos: "seleccionar todos" respeta el filtro y los pagos se pueden anular/eliminar',items:[
+    {tipo:'arreglo',txt:'"Seleccionar todos" ahora marca SOLO los documentos del mes/búsqueda filtrados, no todos los pendientes. Antes, si filtrabas enero y marcabas todos, se seleccionaban también los demás meses y se pagaban por error.'},
+    {tipo:'arreglo',txt:'Al cambiar el mes en el filtro se limpia la selección, para que no queden marcados documentos de un mes que ya no estás viendo.'},
+    {tipo:'nuevo',txt:'El comprobante de un pago/cobro ya se puede Anular o Eliminar desde Comprobantes. Al hacerlo, los documentos incluidos vuelven a quedar pendientes automáticamente. Anular conserva el N° correlativo; Eliminar lo borra por completo.'},
+  ]},
   {version:'V2.16.42',fecha:'14-09-2026',titulo:'Pagos: bandera roja para documentos vencidos sin pagar',items:[
     {tipo:'nuevo',txt:'En Pagos y Cobros, los documentos con saldo pendiente cuya fecha de vencimiento ya pasó se marcan con una bandera roja "🔴 VENCIDA" que indica los días de atraso. La fila queda con un fondo rojo tenue y la fecha de vencimiento se resalta en rojo para que salten a la vista.'},
   ]},

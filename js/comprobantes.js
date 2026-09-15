@@ -524,7 +524,7 @@ function renderCmpModalView(box,e,o){
       <div style="display:flex;justify-content:space-between;gap:8px;margin-top:16px;flex-wrap:wrap">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${borrable(e)?`<button class="btn btn-d" onclick="eliminarComprobante()">🗑 Eliminar</button>`:''}
-          ${e.origen==='manual'?`<button class="btn btn-g" onclick="anularComprobante()" title="Mantiene el N° correlativo pero excluye sus efectos">🚫 Anular</button>`:''}
+          ${(e.origen==='manual'||e.tipo==='pago')?`<button class="btn btn-g" onclick="anularComprobante()" title="Mantiene el N° correlativo pero excluye sus efectos">🚫 Anular</button>`:''}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-g" onclick="cerrarCmpModal()">Cerrar</button>
@@ -542,6 +542,7 @@ function renderCmpModalView(box,e,o){
 // Cada comprobante automático de honorarios queda vinculado a una boleta
 // individual; anularlo deriva al flujo de anulación documental con trazabilidad.
 function borrable(e){
+  if(e.tipo==='pago')return true;   // pagos/cobros agrupados: eliminables (restauran saldos)
   if(e.origen==='manual'||e.origen==='apertura')return true;
   return e.origen==='auto'&&['ventas','compras','honorarios'].includes(e.fuente)&&!!e.docId;
 }
@@ -549,6 +550,29 @@ function borrable(e){
 async function eliminarComprobante(){
   const e=CMP_ENTRIES[CMP_MODAL.idx];
   if(!e)return;
+
+  // ── Pago / Cobro agrupado ──
+  // El asiento de pago es el registro maestro: los saldos de cada documento se
+  // DERIVAN de él. Al eliminarlo, esos documentos vuelven a quedar pendientes
+  // solos, sin tocar nada más. Es la forma de deshacer un pago mal registrado.
+  if(e.tipo==='pago'){
+    const a=S.asientos.find(x=>x.id===e.asientoId)||S.asientos.find(x=>x.n===e.ref);
+    if(!a){toast('⚠️ No se encontró el asiento de pago','e');return;}
+    if(ejercicioCerrado()){toast('🔒 No se puede eliminar el pago con el ejercicio cerrado.','e');return;}
+    const nDocs=(a.documentos||[]).length;
+    const nComp=a.numeroContable||a.n||'?';
+    if(!confirm(
+      `¿Eliminar "${a.glosa||'pago/cobro'}"?\n\n`+
+      `Se borra por completo y ${nDocs} documento${nDocs===1?'':'s'} vuelve${nDocs===1?'':'n'} a quedar pendiente${nDocs===1?'':'s'}.\n`+
+      `El N° ${nComp} queda libre y el correlativo pierde continuidad.\n`+
+      `Si prefieres conservar el N°, usa "Anular" en vez de eliminar.\n\n`+
+      `Esta acción no se puede deshacer.`))return;
+    const r=await persistirAsientosCritico(()=>{S.asientos=S.asientos.filter(x=>x!==a);});
+    if(!r.ok){toast('❌ No se pudo eliminar el pago. No se realizaron cambios.','e');return;}
+    logAccion('Eliminó pago/cobro',`${a.glosa||''} — ${nDocs} doc · N°${nComp}`);
+    cerrarCmpModal();rerender();toast('🗑 Pago eliminado — los documentos vuelven a quedar pendientes');
+    return;
+  }
 
   // ── Manual ──
   if(e.origen==='manual'){
@@ -621,22 +645,33 @@ async function eliminarComprobante(){
 // contabilidad, donde el correlativo no debería tener huecos.
 async function anularComprobante(){
   const e=CMP_ENTRIES[CMP_MODAL.idx];
-  if(!e||e.origen!=='manual')return;
-  const a=S.asientos.find(x=>x.n===e.ref)||S.asientos.find(x=>x.folioComp===e.n);
+  if(!e||(e.origen!=='manual'&&e.tipo!=='pago'))return;
+  const a=S.asientos.find(x=>x.id===e.asientoId)||S.asientos.find(x=>x.n===e.ref)||S.asientos.find(x=>x.folioComp===e.n);
   if(!a){toast('⚠️ No se encontró el asiento de origen','e');return;}
-  if(!confirm(
-    `¿Anular el asiento N°${a.n}?\n\n`+
-    `"${a.glosa||'(sin glosa)'}"\n\n`+
-    `NO borra el N° ${a.n} — el correlativo queda intacto — pero sus montos\n`+
-    `dejan de sumar en el Mayor, el Balance y los auxiliares.\n\n`+
-    `Como el libro diario excluye los anulados, el comprobante deja de\n`+
-    `aparecer en esta lista. Queda visible y se puede reactivar desde\n`+
-    `"Asientos Manuales".`))return;
+  const nComp=a.numeroContable||a.n||'';
+  const esPago=a.tipo==='pago';
+  const nDocs=(a.documentos||[]).length;
+  const msg=esPago
+    ? `¿Anular "${a.glosa||'pago/cobro'}"?\n\n`+
+      `NO borra el N° ${nComp} — el correlativo queda intacto y sin huecos —\n`+
+      `pero deja de afectar la contabilidad y ${nDocs} documento${nDocs===1?'':'s'} vuelve${nDocs===1?'':'n'} a\n`+
+      `quedar pendiente${nDocs===1?'':'s'} de pago/cobro.\n\n`+
+      `Si en cambio quieres borrarlo por completo, usa "Eliminar".`
+    : `¿Anular el asiento N°${a.n}?\n\n`+
+      `"${a.glosa||'(sin glosa)'}"\n\n`+
+      `NO borra el N° ${a.n} — el correlativo queda intacto — pero sus montos\n`+
+      `dejan de sumar en el Mayor, el Balance y los auxiliares.\n\n`+
+      `Como el libro diario excluye los anulados, el comprobante deja de\n`+
+      `aparecer en esta lista. Queda visible y se puede reactivar desde\n`+
+      `"Asientos Manuales".`;
+  if(!confirm(msg))return;
   const r=await persistirAsientosCritico(()=>{a.anulado=true;a.anuladoEn=new Date().toISOString();});
   if(!r.ok){toast('❌ No se pudo anular el asiento. No se realizaron cambios.','e');return;}
-  logAccion('Anuló asiento',`N°${a.n} — ${a.glosa}`);
+  logAccion(esPago?'Anuló pago/cobro':'Anuló asiento',`N°${nComp||a.n} — ${a.glosa}`);
   cerrarCmpModal();rerender();
-  toast('🚫 Asiento N°'+a.n+' anulado — reactivable desde Asientos Manuales');
+  toast(esPago
+    ?'🚫 Pago anulado — los documentos vuelven a quedar pendientes'
+    :'🚫 Asiento N°'+a.n+' anulado — reactivable desde Asientos Manuales');
 }
 
 function renderCmpModalEdit(box,e,o){

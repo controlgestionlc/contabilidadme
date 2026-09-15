@@ -120,6 +120,27 @@ function docsPendientes(tipo){
   return resultado;
 }
 
+// Documentos pendientes DESPUÉS de aplicar los filtros de mes y texto.
+// Es la única fuente de verdad de "lo que se ve": la usan el render, el
+// contador y —clave— el "seleccionar todos", que antes tomaba TODOS los
+// documentos ignorando el filtro y por eso pagaba meses que no estaban a la
+// vista.
+function docsFiltrados(tipo){
+  let arr=docsPendientes(tipo);
+  if(PAG.filtro.mes){
+    arr=arr.filter(d=>+String(d.fecha).slice(5,7)===+PAG.filtro.mes);
+  }
+  if(PAG.filtro.texto){
+    const t=PAG.filtro.texto.toLowerCase();
+    arr=arr.filter(d=>
+      (d.razonSocial||'').toLowerCase().includes(t)||
+      (d.rutCodigo||'').includes(t)||
+      String(d.numero||'').includes(t)
+    );
+  }
+  return arr;
+}
+
 // Auxiliares cuyo saldo quedó DEUDOR (se pagó más de lo que se debía).
 // Es la huella que deja un documento pagado dos veces o un pago sobre una
 // factura que ya estaba anulada por una nota de crédito.
@@ -199,20 +220,7 @@ function renderPagos(){
   const cont=document.getElementById('pagos-content');
   if(!cont)return;
 
-  const docs=docsPendientes(PAG.tipo);
-  // Filtros
-  let filtrados=docs;
-  if(PAG.filtro.mes){
-    filtrados=filtrados.filter(d=>+d.fecha.slice(5,7)===+PAG.filtro.mes);
-  }
-  if(PAG.filtro.texto){
-    const t=PAG.filtro.texto.toLowerCase();
-    filtrados=filtrados.filter(d=>
-      (d.razonSocial||'').toLowerCase().includes(t)||
-      (d.rutCodigo||'').includes(t)||
-      String(d.numero||'').includes(t)
-    );
-  }
+  const filtrados=docsFiltrados(PAG.tipo);
 
   // Totales de selección (para el panel superior)
   let totSel=0, cntSel=0;
@@ -282,19 +290,7 @@ function renderPagosTabla(){
   const accionLbl=PAG.tipo==='proveedor'?'Pagar':'Cobrar';
   const sustantivo=PAG.tipo==='proveedor'?'pago':'cobro';
 
-  const docs=docsPendientes(PAG.tipo);
-  let filtrados=docs;
-  if(PAG.filtro.mes){
-    filtrados=filtrados.filter(d=>+d.fecha.slice(5,7)===+PAG.filtro.mes);
-  }
-  if(PAG.filtro.texto){
-    const t=PAG.filtro.texto.toLowerCase();
-    filtrados=filtrados.filter(d=>
-      (d.razonSocial||'').toLowerCase().includes(t)||
-      (d.rutCodigo||'').includes(t)||
-      String(d.numero||'').includes(t)
-    );
-  }
+  const filtrados=docsFiltrados(PAG.tipo);
 
   const porRut={};
   filtrados.forEach(d=>{
@@ -435,6 +431,11 @@ function setPagCampo(campo,valor){
 }
 function setPagFiltro(campo,valor){
   PAG.filtro[campo]=valor;
+  // Al cambiar de MES se limpia la selección: si no, quedarían marcados
+  // documentos de otro mes que ya no se ven y se pagarían por error (justo el
+  // problema de "pagué enero y también se pagó lo demás"). El filtro de texto
+  // solo acota lo visible del mismo mes, así que no borra la selección.
+  if(campo==='mes'){PAG.seleccionados=new Set();PAG.montoParcial={};renderPagos();return;}
   // Solo re-renderiza la tabla (no el contenedor completo), así el input de
   // búsqueda conserva el foco y no se cierra el teclado en móvil.
   renderPagosTabla();
@@ -449,9 +450,14 @@ function togglePagSel(docId,checked){
   renderPagos();
 }
 function togglePagAll(checked){
-  const docs=docsPendientes(PAG.tipo);
-  if(checked)docs.forEach(d=>PAG.seleccionados.add(d.id));
-  else{PAG.seleccionados=new Set();PAG.montoParcial={};}
+  // "Seleccionar todos" opera SOLO sobre lo filtrado y REEMPLAZA la selección
+  // (no acumula), para que nunca queden marcados documentos de un mes que no
+  // se está viendo.
+  if(checked){
+    PAG.seleccionados=new Set(docsFiltrados(PAG.tipo).map(d=>d.id));
+  }else{
+    PAG.seleccionados=new Set();PAG.montoParcial={};
+  }
   renderPagos();
 }
 function setPagMontoParcial(docId,valor){
