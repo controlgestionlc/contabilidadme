@@ -133,6 +133,7 @@ import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNum
         abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte} from './comprobantes.js';
 import {renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago, abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia} from './pagos.js';
 import {abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo, hdProvBuscar, hdProvElegir, hdProvCerrar, hdProvTecla, hdNuevoAuxiliar} from './honorariodoc.js';
+import {abrirEditorPago, cerrarEditorPago, guardarEditorPago, peCampo, peLineaCampo, peDelLinea, pePickBuscar, pePickAdd, pePickCerrar} from './pagoeditor.js';
 import {setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux, renderAuxiliares, calcularAging,
         toggleAgingDetalle, AUX_TAB,
         abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
@@ -683,6 +684,7 @@ Object.assign(window,{
   renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago,
   abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia,
   abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo, hdProvBuscar, hdProvElegir, hdProvCerrar, hdProvTecla, hdNuevoAuxiliar,
+  abrirEditorPago, cerrarEditorPago, guardarEditorPago, peCampo, peLineaCampo, peDelLinea, pePickBuscar, pePickAdd, pePickCerrar,
   corregirDesdeDiario, editarAsientoRef,
   descargarPlantillaAux, abrirImportFichas, descargarPlantillaAuxActual, abrirImportFichasActual,
   renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas,

@@ -17,6 +17,7 @@ import {inputCuenta} from './buscadorcuentas.js';
 import {logAccion} from './firebase.js';
 import {ejercicioCerrado,persistirAsientosCritico,persistirClavesCritico,anularDocumentoContabilizado,anularAsientoDocumento} from './contabilidad-v2.js';
 import {inferirDteDesdeAsiento} from './dte-autocompletar.js';
+import {abrirEditorPago} from './pagoeditor.js';
 
 // Filtros
 let CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
@@ -487,7 +488,7 @@ function renderCmpModalView(box,e,o){
   const totD=e.movs.reduce((s,m)=>s+(m.debe||0),0);
   const totH=e.movs.reduce((s,m)=>s+(m.haber||0),0);
   const cuadra=Math.abs(totD-totH)<0.000001;
-  const editable=e.origen==='manual'||e.origen==='apertura'||e.fuente==='compras'||e.fuente==='ventas';
+  const editable=e.origen==='manual'||e.origen==='apertura'||e.fuente==='compras'||e.fuente==='ventas'||e.tipo==='pago';
 
   box.innerHTML=`
     <div style="padding:16px 20px">
@@ -786,6 +787,9 @@ function renderCmpModalEdit(box,e,o){
 function cmpModalEditar(){
   const e=CMP_ENTRIES[CMP_MODAL.idx];
   if(!e)return;
+  // Los comprobantes de pago/cobro tienen su propio editor dedicado, que
+  // mantiene la referencia documento↔pago y recalcula el banco.
+  if(e.tipo==='pago'){cerrarCmpModal();abrirEditorPago(e.asientoId||e.ref);return;}
   // Los documentos se corrigen en su origen y regeneran EL MISMO asiento.
   // Nunca convertir la edición en un alta manual con otro número.
   const rd=e.referenciaDoc;

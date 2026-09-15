@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-0800';
+const APP_VERSION='v2026.09.15-0900';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.18.0',fecha:'15-09-2026',titulo:'Comprobantes de pago editables',items:[
+    {tipo:'nuevo',txt:'Los comprobantes de pago y cobro ahora se pueden editar desde Comprobantes con un editor dedicado: cambiar la fecha, la cuenta de banco/caja y la glosa.'},
+    {tipo:'nuevo',txt:'Se puede agregar (o quitar) documentos al comprobante, buscándolos por razón social, RUT o folio; cada documento queda referenciado y se refleja en su estado de cuenta.'},
+    {tipo:'nuevo',txt:'Cada línea define su tipo de movimiento: Abono (reduce el saldo, ej. un pago) o Cargo (lo aumenta, ej. un ajuste). La línea de banco/caja se recalcula sola como el neto que cuadra el asiento.'},
+  ]},
   {version:'V2.17.4',fecha:'15-09-2026',titulo:'Arreglo: el editor de ficha ahora aparece sobre el formulario de honorario',items:[
     {tipo:'arreglo',txt:'Al pulsar "Crear ficha de auxiliar", el editor de ficha quedaba por debajo del formulario de honorario y solo se veía al cerrar este. Ahora se muestra por encima, como corresponde.'},
   ]},
