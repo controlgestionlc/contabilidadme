@@ -119,7 +119,7 @@ import {renderCierre, generarAsientoCierre, reabrirEjercicio, renderProvisiones,
         renderCorreccion, previewCM} from './cierre.js';
 
 // Reportes
-import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBalance,
+import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBalance, renderBalance8, exportarBalance8Excel,
         poblarCmpSelect, onCmpYear, renderResultados, corregirDesdeDiario, editarAsientoRef,
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla,
@@ -477,7 +477,7 @@ function toggleNavGroup(id){
   abrirNavGroup(g.classList.contains('open')?'':id,true);
 }
 function abrirGrupoDeSeccion(s,guardar=true){
-  const item=document.querySelector(`[data-s="${String(s).replace(/"/g,'')}"]`);
+  const item=document.querySelector(`.nav-item[data-s="${String(s).replace(/"/g,'')}"]`);
   const g=item?.closest('.nav-group');
   if(g)abrirNavGroup(g.dataset.navGroup,guardar);
 }
@@ -492,9 +492,11 @@ function nav(s){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   const sec=document.getElementById('s-'+s);
   if(sec)sec.classList.add('active');
-  const item=document.querySelector('[data-s="'+s+'"]');
+  const item=document.querySelector('.nav-item[data-s="'+s+'"]');
   if(item)item.classList.add('active');   // hay secciones sin ítem de menú
   if(item)abrirGrupoDeSeccion(s,true);    // el menú recuerda y muestra la categoría actual
+  // Resaltar el acceso directo de la barra superior que corresponda
+  document.querySelectorAll('.qn-btn').forEach(b=>b.classList.toggle('active',b.getAttribute('data-s')===s));
   // Contexto móvil: siempre mostrar dónde está el usuario. Preferimos el título
   // visible de la sección y, como respaldo, el texto del menú lateral.
   try{
@@ -558,6 +560,7 @@ function renderSec(s){
   else if(s==='foliossii')renderFoliosSII();
   else if(s==='mayor')renderMayor();
   else if(s==='balance')renderBalance();
+  else if(s==='balance8')renderBalance8();
   else if(s==='resultados')renderResultados();
   else if(s==='flujocaja')renderFlujoCaja();
   else if(s==='conciliacion')renderConciliacion();
@@ -731,7 +734,7 @@ Object.assign(window,{
   renderCierre, generarAsientoCierre, reabrirEjercicio, renderProvisiones, previewProvInc, previewProvFer,
   generarProvisionIncobrables, generarProvisionFeriado, renderCorreccion, previewCM,
   // reportes
-  renderDiario, setDiarioQ, renderMayor, renderBalance, onCmpYear, renderResultados,
+  renderDiario, setDiarioQ, renderMayor, renderBalance, renderBalance8, exportarBalance8Excel, onCmpYear, renderResultados,
   renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV,
   onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
   onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel,

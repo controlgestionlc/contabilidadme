@@ -930,6 +930,127 @@ async function renderResultados(){
 }
 
 
-export {genDiario, renderDiario, setDiarioQ, buildMayor, buildMayorAnio, totalesDeMayor, CMP_YEAR, fmtVar, renderMayor, renderBalance, poblarCmpSelect, onCmpYear, renderComparativo, renderResultados, corregirDesdeDiario, editarAsientoRef, destinoEdicion,
+// ═══ BALANCE TABULAR DE 8 COLUMNAS (hoja de trabajo, tipo IFRS) ═══
+// Por cada cuenta imputable: Sumas (Debe/Haber), Saldos (Deudor/Acreedor),
+// Balance (Activo/Pasivo+Patrimonio) y Resultado (Pérdida/Ganancia). El
+// resultado del ejercicio cuadra ambos pares finales.
+function calcularBalance8(){
+  const M=buildMayor();
+  const filas=[];
+  const T={sd:0,sh:0,dd:0,da:0,act:0,pas:0,per:0,gan:0};
+  Object.keys(M).filter(cd=>cd.length===7&&(Math.abs(M[cd].debe)>=0.5||Math.abs(M[cd].haber)>=0.5))
+    .sort().forEach(cd=>{
+      const debe=M[cd].debe, haber=M[cd].haber, saldo=debe-haber;
+      const deudor=saldo>0?saldo:0, acreedor=saldo<0?-saldo:0;
+      const esResultado=cd.startsWith('3')||cd.startsWith('4');
+      const act=(!esResultado)?deudor:0, pas=(!esResultado)?acreedor:0;
+      const per=esResultado?deudor:0, gan=esResultado?acreedor:0;
+      filas.push({cd,nm:M[cd].nm||pdcNm(cd),debe,haber,deudor,acreedor,act,pas,per,gan});
+      T.sd+=debe;T.sh+=haber;T.dd+=deudor;T.da+=acreedor;T.act+=act;T.pas+=pas;T.per+=per;T.gan+=gan;
+    });
+  // Resultado del ejercicio: cuadra Pérdida/Ganancia y Activo/Pasivo.
+  const resultado=T.gan-T.per;   // >0 utilidad · <0 pérdida
+  return {filas,T,resultado};
+}
+
+async function renderBalance8(){
+  const cont=document.getElementById('balance8-content');
+  if(!cont)return;
+  const {filas,T,resultado}=calcularBalance8();
+  const num=v=>v?fmt(Math.round(v)):'–';
+  if(!filas.length){cont.innerHTML=`<div class="empty"><div class="ei">📋</div>No hay movimientos para armar el balance tabular.</div>`;return;}
+
+  const rows=filas.map(f=>`<tr>
+    <td class="tl" style="font-family:var(--mono);font-size:10px;color:var(--mt)">${f.cd}</td>
+    <td class="tl" style="font-size:11px">${f.nm}</td>
+    <td class="c-num">${num(f.debe)}</td><td class="c-num">${num(f.haber)}</td>
+    <td class="c-num">${num(f.deudor)}</td><td class="c-num">${num(f.acreedor)}</td>
+    <td class="c-num">${num(f.act)}</td><td class="c-num">${num(f.pas)}</td>
+    <td class="c-num">${num(f.per)}</td><td class="c-num">${num(f.gan)}</td>
+  </tr>`).join('');
+
+  // Fila del resultado del ejercicio (cuadra los dos últimos pares).
+  // La UTILIDAD cierra las cuentas de resultado por el DEBE (columna Pérdida) y
+  // aumenta el patrimonio (columna Pasivo). La PÉRDIDA hace lo inverso.
+  // Orden de las 4 últimas columnas: Activo · Pasivo · Pérdida · Ganancia.
+  const utilidad=resultado>=0, p=Math.abs(resultado);
+  const resRow=`<tr style="background:rgba(88,166,255,.06);font-weight:600">
+    <td class="tl" colspan="6" style="text-align:right;padding-right:10px">${utilidad?'Utilidad del ejercicio':'Pérdida del ejercicio'}</td>
+    <td class="c-num">${utilidad?'–':num(p)}</td>
+    <td class="c-num">${utilidad?num(p):'–'}</td>
+    <td class="c-num">${utilidad?num(p):'–'}</td>
+    <td class="c-num">${utilidad?'–':num(p)}</td>
+  </tr>`;
+  // Totales finales (ya cuadrados con el resultado)
+  const actF=T.act+(utilidad?0:p), pasF=T.pas+(utilidad?p:0);
+  const perF=T.per+(utilidad?p:0), ganF=T.gan+(utilidad?0:p);
+  const cuadra=Math.abs(T.sd-T.sh)<2&&Math.abs(T.dd-T.da)<2&&Math.abs(actF-pasF)<2&&Math.abs(perF-ganF)<2;
+  const totRow=`<tr class="rtot" style="font-weight:700;background:var(--sf2)">
+    <td class="tl" colspan="2" style="padding:8px 10px">TOTALES</td>
+    <td class="c-num">${num(T.sd)}</td><td class="c-num">${num(T.sh)}</td>
+    <td class="c-num">${num(T.dd)}</td><td class="c-num">${num(T.da)}</td>
+    <td class="c-num">${num(actF)}</td><td class="c-num">${num(pasF)}</td>
+    <td class="c-num">${num(perF)}</td><td class="c-num">${num(ganF)}</td>
+  </tr>`;
+
+  cont.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--mt)">Hoja de trabajo · Balance de 8 columnas · Ejercicio ${S.empresa.anio}</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button>
+        <button class="btn btn-g" onclick="exportarBalance8Excel()">📊 Excel</button>
+      </div>
+    </div>
+    <div class="card-np"><div class="tw"><table class="tbl-bal8" style="font-size:11px">
+      <thead>
+        <tr>
+          <th rowspan="2" class="tl">CÓD</th><th rowspan="2" class="tl">CUENTA</th>
+          <th colspan="2" style="text-align:center">SUMAS</th>
+          <th colspan="2" style="text-align:center">SALDOS</th>
+          <th colspan="2" style="text-align:center">BALANCE (INVENTARIO)</th>
+          <th colspan="2" style="text-align:center">RESULTADO (P y G)</th>
+        </tr>
+        <tr>
+          <th class="c-num">Debe</th><th class="c-num">Haber</th>
+          <th class="c-num">Deudor</th><th class="c-num">Acreedor</th>
+          <th class="c-num">Activo</th><th class="c-num">Pasivo</th>
+          <th class="c-num">Pérdida</th><th class="c-num">Ganancia</th>
+        </tr>
+      </thead>
+      <tbody>${rows}${resRow}</tbody>
+      <tfoot>${totRow}</tfoot>
+    </table></div></div>
+    <div style="margin-top:10px;font-size:12px;color:${cuadra?'var(--ach)':'var(--warn)'}">
+      ${cuadra?'✅ Balance tabular cuadrado':'⚠️ Revisa: alguna columna no cuadra'}
+      <span style="color:var(--mt);margin-left:10px">Resultado del ejercicio: <strong style="color:${utilidad?'var(--ach)':'var(--err)'}">${fmtC(resultado)}</strong></span>
+    </div>`;
+}
+
+function exportarBalance8Excel(){
+  try{
+    if(typeof XLSX==='undefined'){toast('⚠️ No se pudo cargar el generador de Excel','e');return;}
+    const {filas,T,resultado}=calcularBalance8();
+    const utilidad=resultado>=0, p=Math.abs(resultado);
+    const rows=[];
+    rows.push(['BALANCE DE 8 COLUMNAS (HOJA DE TRABAJO)']);
+    rows.push([S.empresa.nombre||'', S.empresa.rut||'', 'Ejercicio', S.empresa.anio]);
+    rows.push([]);
+    rows.push(['Código','Cuenta','Debe','Haber','Deudor','Acreedor','Activo','Pasivo','Pérdida','Ganancia']);
+    filas.forEach(f=>rows.push([f.cd,f.nm,f.debe,f.haber,f.deudor,f.acreedor,f.act,f.pas,f.per,f.gan]));
+    rows.push(['', utilidad?'Utilidad del ejercicio':'Pérdida del ejercicio','','','','',
+      utilidad?0:p, utilidad?p:0, utilidad?p:0, utilidad?0:p]);
+    rows.push(['','TOTALES',T.sd,T.sh,T.dd,T.da,
+      T.act+(utilidad?0:p), T.pas+(utilidad?p:0),
+      T.per+(utilidad?p:0), T.gan+(utilidad?0:p)]);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:10},{wch:34},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Balance 8 columnas');
+    XLSX.writeFile(wb,`balance_8_columnas_${S.empresa.anio}.xlsx`);
+    toast('📊 Balance de 8 columnas exportado');
+  }catch(e){toast('❌ No se pudo exportar: '+e.message,'e');}
+}
+
+export {genDiario, renderDiario, setDiarioQ, buildMayor, buildMayorAnio, totalesDeMayor, CMP_YEAR, fmtVar, renderMayor, renderBalance, renderBalance8, calcularBalance8, exportarBalance8Excel, poblarCmpSelect, onCmpYear, renderComparativo, renderResultados, corregirDesdeDiario, editarAsientoRef, destinoEdicion,
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel};

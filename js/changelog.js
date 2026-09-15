@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-0900';
+const APP_VERSION='v2026.09.15-1000';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.0',fecha:'15-09-2026',titulo:'Accesos directos en la barra superior y Balance de 8 columnas',items:[
+    {tipo:'nuevo',txt:'En la barra superior (escritorio) hay botones tipo icono de acceso rápido a los módulos más usados: Comprobantes, Libro Diario, Libro Mayor, Balance General y Estado de Resultados.'},
+    {tipo:'nuevo',txt:'Nuevo reporte "Balance de 8 columnas" (hoja de trabajo tipo IFRS): por cada cuenta muestra Sumas (Debe/Haber), Saldos (Deudor/Acreedor), Balance (Activo/Pasivo) y Resultado (Pérdida/Ganancia), con el resultado del ejercicio cuadrando ambos pares. Se puede imprimir y exportar a Excel.'},
+  ]},
   {version:'V2.18.0',fecha:'15-09-2026',titulo:'Comprobantes de pago editables',items:[
     {tipo:'nuevo',txt:'Los comprobantes de pago y cobro ahora se pueden editar desde Comprobantes con un editor dedicado: cambiar la fecha, la cuenta de banco/caja y la glosa.'},
     {tipo:'nuevo',txt:'Se puede agregar (o quitar) documentos al comprobante, buscándolos por razón social, RUT o folio; cada documento queda referenciado y se refleja en su estado de cuenta.'},

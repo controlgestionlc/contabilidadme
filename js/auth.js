@@ -94,6 +94,8 @@ function permisosDeRol(rol){
 
 // Retorna el permiso efectivo del usuario para una sección: 'none' | 'read' | 'write'
 function permiso(seccion){
+  // El Balance de 8 columnas es una vista del Balance: comparte su permiso.
+  if(seccion==='balance8')seccion='balance';
   if(!AUTH.user||!AUTH.user.activo)return 'none';
   // Permisos custom sobrescriben rol
   if(AUTH.user.permisos&&AUTH.user.permisos[seccion])return AUTH.user.permisos[seccion];
@@ -516,6 +518,10 @@ function aplicarPermisosUI(){
     const clave=Object.keys(SECCION_POR_REGIMEN).find(k=>SECCION_POR_REGIMEN[k]===s);
     if(clave&&!seccionAplica(S.empresa&&S.empresa.regimen,clave)){item.style.display='none';return;}
     item.style.display='';
+  });
+  // Accesos directos de la barra superior: mismos permisos que el menú.
+  document.querySelectorAll('.qn-btn[data-s]').forEach(b=>{
+    b.style.display=puedeVer(b.getAttribute('data-s'))?'':'none';
   });
   ocultarGruposVacios();
 }
