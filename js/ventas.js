@@ -657,7 +657,10 @@ function renderImportModalVentas(){
       <div>${d.tipoDTE}</div>
       <div>${d.numero}</div>
       <div>${rutFmt(d.rutCodigo,d.rutDV)}</div>
-      <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${(d.razonSocial||'').replace(/"/g,'&quot;')}" onclick="toast('${(d.razonSocial||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}')">${d.razonSocial}</div>
+      <div title="${(d.razonSocial||'').replace(/"/g,'&quot;')}">
+        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="toast('${(d.razonSocial||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}')">${d.razonSocial}</div>
+        <input type="text" value="${(d.glosa||'').replace(/"/g,'&quot;')}" placeholder="Descripción (glosa)…" onclick="event.stopPropagation()" oninput="IMV.docs[${i}].glosa=this.value" style="width:100%;font-size:10px;margin-top:3px;padding:2px 5px;border:1px solid var(--bd);border-radius:3px;background:var(--sf);color:var(--tx)">
+      </div>
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.neto)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.iva)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.otrosImpuestos||0)}</div>
@@ -782,6 +785,7 @@ async function confirmarImportacionV(){
       otrosImpuestos:d.otrosImpuestos||0, total:d.total,
       formaPago:prev?.formaPago||d.fp||'clientes',
       cuentaIngreso:prev?.cuentaIngreso||d.cuenta||'',
+      ...((d.glosa||prev?.glosa)?{glosa:d.glosa||prev.glosa}:{}),
       estado:'activo',
       importadoEn:prev?.importadoEn||new Date().toISOString(),
       ...(prev?{reimportadoEn:new Date().toISOString()}:{}),

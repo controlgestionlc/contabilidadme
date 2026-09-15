@@ -94,7 +94,7 @@ import {onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cer
         guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal,
         cambiarPeriodoImport, cerrarImportModal, toggleImportDoc, toggleAllImport,
         setImportCuenta, aplicarCuentaATodos, confirmarImportacion, setImportReferencia,
-        initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos, enfocarPendienteImportC,
+        initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos, setImportGlosa, enfocarPendienteImportC,
         cambiarModoImport, verDuplicadoC, renderCDupAlert,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF, IM} from './compras.js';
 import {renderHon, setHonCampo, uhon, addHon, delHon, saveHon, abrirHonComprobante, cerrarHonComprobante, actualizarPreviewHon, guardarHonComprobante, anularHonDesdeComprobante, seleccionarPrestadorHon} from './honorarios.js';
@@ -676,7 +676,7 @@ Object.assign(window,{
   axAcBuscar, axAcTecla, axAcElegir, axAcCerrar, lAuxElegido,
   marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, listarBorradoresLocales, descartarBorradorLocal, descartarTodosBorradoresLocales, continuarBorradorLocal,
   actualizarBotonGuardar, guardarTodoAhora, setAutoguardado, setIntervaloAutoguardado, confirmarSalida, AG,
-  abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos, enfocarPendienteImportC, enfocarPendienteImportV,
+  abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos, setImportGlosa, enfocarPendienteImportC, enfocarPendienteImportV,
   toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel,
   abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
   renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,

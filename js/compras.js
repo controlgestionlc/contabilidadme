@@ -1071,7 +1071,10 @@ function renderImportModal(){
       <div style="font-family:var(--mono);font-size:10px">${d.tipoDTE}</div>
       <div style="font-family:var(--mono);font-size:10px">${d.numero}</div>
       <div style="font-family:var(--mono);font-size:10px">${rutFmt(d.rutCodigo,d.rutDV)}</div>
-      <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${(d.razonSocial||'').replace(/"/g,'&quot;')}" onclick="toast('${(d.razonSocial||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}')">${d.razonSocial}</div>
+      <div style="font-size:11px" title="${(d.razonSocial||'').replace(/"/g,'&quot;')}">
+        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="toast('${(d.razonSocial||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}')">${d.razonSocial}</div>
+        <input type="text" value="${(d.glosa||'').replace(/"/g,'&quot;')}" placeholder="Descripción (glosa)…" onclick="event.stopPropagation()" oninput="setImportGlosa(${i},this.value)" style="width:100%;font-size:10px;margin-top:3px;padding:2px 5px;border:1px solid var(--bd);border-radius:3px;background:var(--sf);color:var(--tx)">
+      </div>
       <div style="text-align:right;font-family:var(--mono)">${fmt(d.neto)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmt(d.iva)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmt(d.otrosImpuestos)}</div>
@@ -1167,6 +1170,12 @@ function aplicarCuentaATodos(){
 function setImportCC(i,cc){
   IM.docs[i].cc=cc;
   delete IM.docs[i].errorImport;
+}
+// Descripción/glosa de la compra: se guarda en el documento y se refleja en el
+// asiento (glosa y descripción de las líneas de gasto). No re-renderiza para no
+// perder el foco mientras se escribe.
+function setImportGlosa(i,val){
+  if(IM.docs[i])IM.docs[i].glosa=val;
 }
 function aplicarCCATodos(){
   const sel=document.getElementById('imp-bulk-cc');
@@ -1388,6 +1397,8 @@ async function confirmarImportacion(){
       }:{}),
       total:d.total,
       dist,
+      // Descripción/glosa de la compra ingresada en el importador (se muestra en el asiento).
+      ...((d.glosa||prev?.glosa)?{glosa:d.glosa||prev.glosa}:{}),
       // Referencia de nota (56/61) asociada en el importador a una factura del proveedor.
       ...(d.referencia&&d.referencia.folio?{referencia:{tipoDTE:+d.referencia.tipoDTE||33,folio:String(d.referencia.folio),...(d.referencia.fecha?{fecha:d.referencia.fecha}:{}),...(d.referencia.razon?{razon:d.referencia.razon}:{razon:d.razonSocial||''})}}:{}),
       estado:'activo',
@@ -1521,5 +1532,5 @@ function initImportListener(){
 
 
 export {onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
-        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setImportReferencia, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
+        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setImportGlosa, setImportReferencia, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, validarCuadraturaImportCompras, CF};

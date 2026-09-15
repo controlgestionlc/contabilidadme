@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-1000';
+const APP_VERSION='v2026.09.15-1100';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.1',fecha:'15-09-2026',titulo:'Importador RCV: casilla de descripción (glosa) que aparece en el asiento',items:[
+    {tipo:'nuevo',txt:'En la carga del RCV del SII (Compras y Ventas), cada documento tiene una casilla "Descripción (glosa)" bajo la razón social. Lo que escribas ahí se usa como glosa del asiento y como descripción de las líneas de gasto/ingreso (antes salían con "—").'},
+    {tipo:'cambio',txt:'Si no ingresas descripción, la glosa mantiene el formato automático de antes (Documento N° — Razón social).'},
+  ]},
   {version:'V2.19.0',fecha:'15-09-2026',titulo:'Accesos directos en la barra superior y Balance de 8 columnas',items:[
     {tipo:'nuevo',txt:'En la barra superior (escritorio) hay botones tipo icono de acceso rápido a los módulos más usados: Comprobantes, Libro Diario, Libro Mayor, Balance General y Estado de Resultados.'},
     {tipo:'nuevo',txt:'Nuevo reporte "Balance de 8 columnas" (hoja de trabajo tipo IFRS): por cada cuenta muestra Sumas (Debe/Haber), Saldos (Deudor/Acreedor), Balance (Activo/Pasivo) y Resultado (Pérdida/Ganancia), con el resultado del ejercicio cuadrando ambos pares. Se puede imprimir y exportar a Excel.'},
