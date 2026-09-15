@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-2038';
+const APP_VERSION='v2026.09.15-2054';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.7',fecha:'15-09-2026',titulo:'Nueva identidad visual RABF en iconos y pantalla de Inicio',items:[
+    {tipo:'cambio',txt:'El icono de la aplicación, favicon, acceso de iPhone/iPad e iconos PWA fueron reemplazados por el logotipo cuadrado RABF Contabilidad.'},
+    {tipo:'cambio',txt:'La cabecera y la portada de empresas muestran el nuevo icono RABF en lugar del pictograma genérico.'},
+    {tipo:'arreglo',txt:'La marca de agua RABF queda centrada respecto del área visible de Inicio en escritorio y móvil, con baja opacidad para no interferir con las empresas.'},
+  ]},
   {version:'V2.19.6',fecha:'15-09-2026',titulo:'Correcciones tributarias críticas: IUSC, remanente UTM, depreciación y RLI',items:[
     {tipo:'arreglo',txt:'El Formulario 29 incorpora el IUSC de trabajadores en el código 48 y lo suma al total a pagar del código 91, tomando el importe desde el asiento de remuneraciones del período.'},
     {tipo:'arreglo',txt:'El remanente de crédito fiscal del código 504 se reajusta con la UTM del mes de origen y la del mes de imputación. Si falta una UTM, el F29 muestra una advertencia y permite registrarla por período.'},
