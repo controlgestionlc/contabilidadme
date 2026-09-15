@@ -124,7 +124,11 @@ function renderAuxiliares(){
       const k=m.rutCodigo;
       if(!bucket[k])bucket[k]={rutCodigo:k,rutDV:m.rutDV,razonSocial:m.razonSocial||'',docs:[],total:0};
       const mov=tipo==='cliente'?(m.debe||0)-(m.haber||0):(m.haber||0)-(m.debe||0);
-      bucket[k].docs.push({tipo:'manual',fecha:a.fecha,glosa:a.glosa,asientoId:a.id,asientoN:a.n,desc:m.desc||'',debe:m.debe||0,haber:m.haber||0,montoSigno:mov});
+      // Si el movimiento es un pago/cobro que referencia un documento (el asiento
+      // de pago guarda docId y folio en cada línea), se etiqueta para colgarlo
+      // bajo su factura en el auxiliar, en vez de mostrarlo como línea suelta.
+      bucket[k].docs.push({tipo:'manual',fecha:a.fecha,glosa:a.glosa,asientoId:a.id,asientoN:a.n,desc:m.desc||'',debe:m.debe||0,haber:m.haber||0,montoSigno:mov,
+        esPago:a.tipo==='pago',refDocId:m.docId||'',refFolio:(m.folio!=null&&m.folio!=='')?String(m.folio):''});
       bucket[k].total+=mov;
       if(m.razonSocial)bucket[k].razonSocial=m.razonSocial;
     });
@@ -284,10 +288,13 @@ function renderAuxDetalle(data,el){
           <td style="font-weight:600;color:${saldo>=0?'var(--ach)':'var(--err)'}">${fmtC(saldo)}</td>
         </tr>`;
       }else{
-        // Movimiento manual sin DTE (pagos, ajustes)
-        return `<tr style="background:rgba(88,166,255,.04)">
+        // Movimiento manual sin DTE (pagos, ajustes). Si es un pago colgado de
+        // su factura (nivel 1), se indenta para que se lea junto a ella.
+        const hijaPago=d.__nivel===1;
+        const lbl=d.esPago?(AUX_TAB==='c'?'Cobro recibido':'Pago realizado'):'💰 Movimiento';
+        return `<tr style="background:rgba(88,166,255,.04)"${hijaPago?' class="aux-nota-hija"':''}>
           <td class="tl" style="font-family:var(--mono);font-size:10px">${d.fecha}</td>
-          <td class="tl" style="font-size:11px"><span style="color:var(--info);font-weight:600;cursor:pointer" onclick="abrirAsientoDesde('${d.asientoId}')">💰 Pago — Asiento N°${d.asientoN||''}</span><div style="color:var(--mt);font-size:10px;margin-top:1px">${d.glosa||''}${d.desc?' — '+d.desc:''}</div></td>
+          <td class="tl" style="font-size:11px${hijaPago?';padding-left:22px':''}"><span style="color:var(--info);font-weight:600;cursor:pointer" onclick="abrirAsientoDesde('${d.asientoId}')">${hijaPago?'↳ ':''}${lbl} — Asiento N°${d.asientoN||''}</span><div style="color:var(--mt);font-size:10px;margin-top:1px">${d.glosa||''}${d.desc?' — '+d.desc:''}</div></td>
           <td>${d.debe?fmt(d.debe):'–'}</td>
           <td>${d.haber?fmt(d.haber):'–'}</td>
           <td style="font-weight:600;color:${saldo>=0?'var(--ach)':'var(--err)'}">${fmtC(saldo)}</td>

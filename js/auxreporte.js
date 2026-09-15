@@ -71,15 +71,19 @@ export function renderReporteAux(){
   const filasHtml=filas.length?filas.map(d=>{
     const hija=d.__nivel===1;
     if(d.tipo!=='doc'){
-      // Pago, ajuste o movimiento manual sin documento
-      return `<tr>
+      // Pago/cobro o ajuste manual. Si es un pago colgado de su factura
+      // (nivel 1) se muestra con sangría y sin saldo propio: su efecto ya está
+      // reflejado en el saldo del documento del que cuelga.
+      const hijaPago=d.__nivel===1;
+      const concepto=d.esPago?(esCliente?'Cobro recibido':'Pago realizado'):(d.glosa||'Movimiento');
+      return `<tr${hijaPago?' class="rep-hija"':''}>
         <td class="tl mono">${esc(d.fecha)}</td>
-        <td class="tl">${esc(d.glosa||'Movimiento')}${d.desc?` <span class="mt">— ${esc(d.desc)}</span>`:''}
+        <td class="tl">${hijaPago?'↳ ':''}${esc(concepto)}${d.desc?` <span class="mt">— ${esc(d.desc)}</span>`:''}
           ${d.asientoN?`<span class="mt"> · Asiento N°${esc(d.asientoN)}</span>`:''}</td>
         <td class="num">${d.debe?fmt(d.debe):'–'}</td>
         <td class="num">${d.haber?fmt(d.haber):'–'}</td>
         <td class="num">–</td>
-        <td class="num fuerte">${fmtC(d.montoSigno||0)}</td>
+        <td class="num fuerte">${hijaPago?'':fmtC(d.montoSigno||0)}</td>
       </tr>`;
     }
     const orig=docOriginal(d,tipo);

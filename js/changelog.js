@@ -8,13 +8,27 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-0200';
+const APP_VERSION='v2026.09.15-0500';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.17.1',fecha:'15-09-2026',titulo:'Honorarios: el gasto se puede repartir en varias cuentas',items:[
+    {tipo:'nuevo',txt:'En "Nuevo honorario" el gasto ya no va a una sola cuenta: se puede distribuir en varias (asesorías, gastos notariales, servicios personales, etc.), igual que en una compra. Cada línea tiene su cuenta, monto y centro de costo, y el total debe igualar el bruto (con verificación en tiempo real).'},
+    {tipo:'cambio',txt:'La retención se sigue calculando sobre el bruto total y el líquido a Honorarios por Pagar es lo que se paga al prestador, sin importar cómo se reparta el gasto. Cada cuenta lleva el auxiliar del prestador solo si lo requiere.'},
+  ]},
+  {version:'V2.17.0',fecha:'15-09-2026',titulo:'Honorarios como documento de proveedor (pagables y con estado de cuenta)',items:[
+    {tipo:'nuevo',txt:'Los honorarios ahora se tratan como un documento del proveedor. Se ingresan desde Comprobantes con el botón "📝 Nuevo honorario", eligiendo el prestador (misma ficha de proveedor), el monto bruto y si lleva retención. Se contabilizan a Honorarios por Pagar (2102006), con la retención (2103002) y el gasto (3202019).'},
+    {tipo:'nuevo',txt:'Dos tipos de documento nuevos: Boleta de Honorarios con retención (70) y sin retención (71). La retención se calcula automática con la tasa del año (15,25% en 2026).'},
+    {tipo:'nuevo',txt:'Cada honorario queda pagable desde "Pagos y Cobros" junto a los demás proveedores (el saldo por pagar es el líquido) y aparece en el estado de cuenta y aging del prestador, compartiendo su ficha.'},
+    {tipo:'cambio',txt:'Los honorarios no llevan IVA: no entran al Libro de Compras ni al F29 de compras. Se retiró el botón de "nueva boleta" del módulo Honorarios anterior; el ingreso ahora es desde Comprobantes.'},
+  ]},
+  {version:'V2.16.45',fecha:'15-09-2026',titulo:'Estado de cuenta: los pagos se muestran junto a su factura y el saldo cuadra',items:[
+    {tipo:'arreglo',txt:'En el estado de cuenta y en el detalle del auxiliar, cada pago/cobro ahora cuelga de la factura que abona (usando el documento que referencia el asiento de pago), en lugar de aparecer como una línea suelta. Así la factura muestra su saldo neto y las facturas totalmente pagadas dejan de aparecer en "Sólo con saldo".'},
+    {tipo:'arreglo',txt:'Se corrige el descuadre donde el "total pendiente" no coincidía con el saldo contable del auxiliar: los pagos ya no se contaban dos veces (una dentro del saldo del documento y otra como movimiento suelto). Aplica a clientes y proveedores.'},
+  ]},
   {version:'V2.16.44',fecha:'15-09-2026',titulo:'Pagos: el error de guardado ahora dice la causa y qué hacer',items:[
     {tipo:'arreglo',txt:'Cuando falla el guardado de un pago/cobro, el mensaje ya no es genérico: indica la causa concreta (sin conexión, otro dispositivo guardó primero, datos aún sincronizando, ejercicio cerrado o validación contable) y qué hacer en cada caso. El detalle técnico queda entre paréntesis para diagnóstico.'},
   ]},

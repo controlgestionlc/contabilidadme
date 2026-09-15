@@ -283,6 +283,41 @@ function asientoCompra(d){
 
 
 
+// Asiento de una boleta de honorarios tratada como documento de proveedor
+// (DTE 70 con retención / 71 sin retención). El bruto va a gasto (Honorarios
+// Profesionales), la retención a 2103002 y el líquido a Honorarios por Pagar
+// (2102006), que es la cuenta del auxiliar y el saldo que se paga al prestador.
+function asientoHonorarioDoc(d){
+  const bruto=n(d.bruto!=null?d.bruto:d.total);
+  const sinRet=+d.tipoDTE===71||d.tipoRetencion==='sin_retencion'||d.retencion===0;
+  const ret=sinRet?0:n(d.retencion!=null?d.retencion:Math.round(bruto*n(d.tasaRetencion)));
+  const liquido=bruto-ret;
+  const fecha=fechaContabilizacionCompra(d);
+  const nombreDoc=dteC(d.tipoDTE)?.nm||'Boleta de honorarios';
+  const desc=`${d.razonSocial||''} · ${nombreDoc} N°${d.numero||''}`.trim();
+  const auxProv={rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE,docId:d.id,desc};
+  const movs=[];
+  // El gasto puede repartirse en varias cuentas (asesorías, notariales, etc.),
+  // igual que en una compra. Cada línea lleva el auxiliar sólo si la cuenta lo
+  // requiere (ej. 3202019 Honorarios Profesionales) y el CC si lo admite.
+  const lineaGasto=(cuenta,monto,cc)=>{
+    if(!cuenta||!monto)return;
+    const r=reglaCuenta(cuenta);
+    const extra={docId:d.id};
+    if(!r||r.requiereAuxiliar){extra.rutCodigo=d.rutCodigo;extra.rutDV=d.rutDV;extra.folio=d.numero;extra.tipoDTE=d.tipoDTE;extra.desc=desc;}
+    if(cc&&(!r||r.aceptaCentroCosto))extra.cc=cc;
+    movs.push(mov(cuenta,monto,0,extra));
+  };
+  const dist=(d.dist||[]).filter(l=>l&&l.cuenta&&n(l.monto));
+  if(dist.length)dist.forEach(l=>lineaGasto(l.cuenta,n(l.monto),l.cc));
+  else lineaGasto(d.cuentaGasto||'3202019',bruto,d.cc);
+  if(ret)movs.push(mov('2103002',0,ret,{docId:d.id,desc:'Retención honorarios',tributo:'retencion_honorarios'}));
+  if(liquido)movs.push(mov('2102006',0,liquido,auxProv));
+  return {fecha,glosa:`${nombreDoc}${d.numero?' N°'+d.numero:''} — ${d.razonSocial||'prestador'}`,
+    movs,fuente:'compras',docId:d.id,tipoDTE:d.tipoDTE,folio:d.numero,rutCodigo:d.rutCodigo,
+    tributacion:{honorario:true,bruto,retencion:ret,liquido},cuadre:cuadratura(movs)};
+}
+
 function rutPartes(rut){
   const limpio=String(rut||'').replace(/[^0-9kK]/g,'').toUpperCase();
   if(limpio.length<2)return {rutCodigo:'',rutDV:''};
@@ -344,4 +379,4 @@ function pagosDocumento(doc,tipo,asientos){
   return actuales.length?actuales:(doc.pagos||[]); // compatibilidad histórica
 }
 
-export {asientoVenta,asientoCompra,asientoHonorario,asientoPagoHonorario,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,residualTotalCompra,periodoContableCompra,fechaContabilizacionCompra,cuadratura,pagosDesdeAsientos,pagosDocumento};
+export {asientoVenta,asientoCompra,asientoHonorario,asientoHonorarioDoc,asientoPagoHonorario,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,residualTotalCompra,periodoContableCompra,fechaContabilizacionCompra,cuadratura,pagosDesdeAsientos,pagosDocumento};

@@ -357,9 +357,15 @@ const DTE_COMPRAS=[
   {cod:46,nm:'Factura de Compra Electrónica',afecto:true},
   {cod:56,nm:'Nota de Débito',afecto:true,signo:1},
   {cod:61,nm:'Nota de Crédito',afecto:true,signo:-1},
+  // Honorarios tratados como documento de proveedor. No llevan IVA ni van al
+  // F29 de compras; se contabilizan contra Honorarios por Pagar (2102006).
+  {cod:70,nm:'Boleta de Honorarios (con retención)',afecto:false,signo:1,honorario:true,retencion:true},
+  {cod:71,nm:'Boleta de Honorarios (sin retención)',afecto:false,signo:1,honorario:true,retencion:false},
 ];
 const dteV=cod=>DTE_VENTAS.find(d=>d.cod===+cod)||null;
 const dteC=cod=>DTE_COMPRAS.find(d=>d.cod===+cod)||null;
+// ¿El tipo de documento de compra es una boleta de honorarios? (70 / 71)
+const esDteHonorario=cod=>{const d=dteC(cod);return !!(d&&d.honorario);};
 
 
 // ═══ RUT — Utilidades Chilenas ═══
@@ -421,4 +427,4 @@ function toast(msg,tipo='ok'){
 }
 
 
-export {MESES, MC, IVA, CCOLS, PDC, CUENTAS_SEL, CUENTAS_GASTO, CUENTAS_INGRESO, CUENTAS_COMPRA, recalcDerivadasPDC, pdcNm, DTE_VENTAS, DTE_COMPRAS, dteV, dteC, rutDV, rutParse, rutFmt, fmt, fmtC, pn, today, toast};
+export {MESES, MC, IVA, CCOLS, PDC, CUENTAS_SEL, CUENTAS_GASTO, CUENTAS_INGRESO, CUENTAS_COMPRA, recalcDerivadasPDC, pdcNm, DTE_VENTAS, DTE_COMPRAS, dteV, dteC, esDteHonorario, rutDV, rutParse, rutFmt, fmt, fmtC, pn, today, toast};

@@ -140,7 +140,10 @@ export function renderComprobantes(){
     </div>`;
   }
 
-  let h=alerta+`<div class="filter-row" style="margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+  let h=alerta+`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-p" onclick="abrirNuevoHonorario()" title="Registrar una boleta de honorarios como documento del prestador (proveedor)">📝 Nuevo honorario</button>
+  </div>
+  <div class="filter-row" style="margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
     <span class="f-lbl">Filtrar:</span>
     <select onchange="setCmpFiltro('mes',this.value)">${mesOptsCmp()}</select>
     <select onchange="setCmpFiltro('origen',this.value)">

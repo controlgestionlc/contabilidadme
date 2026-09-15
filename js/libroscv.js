@@ -2,7 +2,7 @@
 // Replica las dimensiones de resumen/detalle del RCV del SII, sin presentarse
 // como sustituto del Registro oficial ni como archivo de carga directa.
 import {S} from './state.js';
-import {MESES,fmtC,rutFmt,dteC,dteV} from './core.js';
+import {MESES,fmtC,rutFmt,dteC,dteV,esDteHonorario} from './core.js';
 import {todosDocsCompras,todosDocsVentas} from './asientos.js';
 import {periodoContableCompra} from './motor-contable.js';
 import {foliosMensuales} from './helpers.js';
@@ -16,7 +16,7 @@ const rutDoc=d=>rutFmt(d.rutCodigo||'',d.rutDV||'');
 let LCV={tipo:'compras',mes:'',dte:''};
 
 function mesInicial(){
-  const todos=[...(S.compras||[]).map(d=>periodoContableCompra(d)),...(S.ventas||[]).map(d=>String(d.fecha||'').slice(0,7))]
+  const todos=[...(S.compras||[]).filter(d=>!esDteHonorario(d.tipoDTE)).map(d=>periodoContableCompra(d)),...(S.ventas||[]).map(d=>String(d.fecha||'').slice(0,7))]
     .filter(p=>String(p).startsWith(`${S.empresa.anio}-`)).sort();
   return todos.length?String(+todos[todos.length-1].slice(5,7)):String(new Date().getMonth()+1);
 }
@@ -24,7 +24,7 @@ function mesInicial(){
 function documentosMes(tipo,mes){
   const per=periodo(mes);
   const arr=tipo==='compras'?todosDocsCompras():todosDocsVentas();
-  return arr.filter(d=>d.estado!=='anulado'&&(tipo==='compras'?periodoContableCompra(d)===per:String(d.fecha||'').slice(0,7)===per));
+  return arr.filter(d=>d.estado!=='anulado'&&!(tipo==='compras'&&esDteHonorario(d.tipoDTE))&&(tipo==='compras'?periodoContableCompra(d)===per:String(d.fecha||'').slice(0,7)===per));
 }
 
 function correlativos(tipo,docs){

@@ -1,5 +1,5 @@
 // tributario.js — Formulario 29 (IVA mensual), PPM y asiento de compensación de IVA
-import {fmtC, fmt, MESES, IVA, dteV, dteC, PDC, pdcNm, toast, pn} from './core.js';
+import {fmtC, fmt, MESES, IVA, dteV, dteC, esDteHonorario, PDC, pdcNm, toast, pn} from './core.js';
 import {retencionHonorarios, getIndicadores} from './indicadores.js';
 import {todosDocsCompras, todosDocsVentas, proxFolioComprobante} from './asientos.js';
 import {inputCuenta} from './buscadorcuentas.js';
@@ -152,7 +152,7 @@ function calcularF29Anual(){
     });
 
     const per=`${anio}-${String(m).padStart(2,'0')}`;
-    const cs=todosDocsCompras().filter(d=>periodoContableCompra(d)===per);
+    const cs=todosDocsCompras().filter(d=>!esDteHonorario(d.tipoDTE)&&periodoContableCompra(d)===per);
     const cdet=_f29CompraDetalle(cs);
     let comprasNetas=0,credito=0,creditoActivoFijo=0,ivaNoRecuperable=0,ivaRetenido=0;
     cs.forEach(d=>{

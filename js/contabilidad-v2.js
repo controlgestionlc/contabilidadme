@@ -2,9 +2,9 @@
 // Mantiene un asiento persistido por documento y protege operaciones críticas.
 import {S,AUTH} from './state.js';
 import {logAccion,logCambio} from './firebase.js';
-import {asientoVenta,asientoCompra,cuadratura,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,residualTotalCompra,periodoContableCompra,fechaContabilizacionCompra} from './motor-contable.js';
+import {asientoVenta,asientoCompra,asientoHonorarioDoc,cuadratura,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,residualTotalCompra,periodoContableCompra,fechaContabilizacionCompra} from './motor-contable.js';
 import {validarMovimientosPDC,reglaCuenta} from './pdc-reglas.js';
-import {dteV,dteC} from './core.js';
+import {dteV,dteC,esDteHonorario} from './core.js';
 import {asegurarNumerosContables} from './correlativo-contable.js';
 import {validarAsientoCentral,validarMutacionAsientos,leerAsientosPersistidosLocal} from './asiento-validacion.js';
 import {puedeEditar} from './auth.js';
@@ -137,7 +137,8 @@ async function persistirAsientosCritico(mutacion){
   }
 }
 function asientoDesdeDocumento(fuente,doc){
-  const base=fuente==='ventas'?asientoVenta(doc):asientoCompra(doc);
+  const base=fuente==='ventas'?asientoVenta(doc)
+    :(esDteHonorario(doc.tipoDTE)?asientoHonorarioDoc(doc):asientoCompra(doc));
   if(!base.cuadre?.ok)throw new Error(`El asiento automático de ${fuente} no cuadra (${base.cuadre?.diferencia||0})`);
   const vp=validarMovimientosPDC(base.movs||[]);
   if(!vp.ok)throw new Error(vp.errores[0]);

@@ -1,7 +1,7 @@
 import {tributacionCompra,periodoContableCompra,fechaContabilizacionCompra,asientoCompra} from './motor-contable.js';
 import {claveRCV,compararCompraRCV,snapshotCompraRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 // compras.js — Libro de compras + importador SII
-import {toast, fmt, pn, today, MESES, IVA, DTE_COMPRAS, dteC, rutParse, rutFmt, rutDV, pdcNm, CCOLS, CUENTAS_GASTO, CUENTAS_COMPRA, fmtC} from './core.js';
+import {toast, fmt, pn, today, MESES, IVA, DTE_COMPRAS, dteC, esDteHonorario, rutParse, rutFmt, rutDV, pdcNm, CCOLS, CUENTAS_GASTO, CUENTAS_COMPRA, fmtC} from './core.js';
 import {rerender} from './ui.js';
 import {S} from './state.js';
 import {logAccion,logCambio} from './firebase.js';
@@ -219,7 +219,7 @@ function limpiarFiltrosC(){
 
 // ═══ COMPRAS — Documentos individuales ═══
 function dteComprasOpts(sel=''){
-  return '<option value="">— Seleccionar —</option>'+DTE_COMPRAS.map(d=>`<option value="${d.cod}" ${+sel===d.cod?'selected':''}>${d.cod} — ${d.nm}</option>`).join('');
+  return '<option value="">— Seleccionar —</option>'+DTE_COMPRAS.filter(d=>!d.honorario).map(d=>`<option value="${d.cod}" ${+sel===d.cod?'selected':''}>${d.cod} — ${d.nm}</option>`).join('');
 }
 function cuentasGastoOpts(sel=''){
   // Ahora incluye gastos + activos (para compras que son inversión, no gasto)
@@ -278,7 +278,7 @@ function renderCompras(){
   const selMes=document.getElementById('cf-mes');
   if(selMes&&selMes.options.length<=1)selMes.innerHTML=mesOpts(selMes.value);
   const selDteFlt=document.getElementById('cf-dte-flt');
-  if(selDteFlt&&selDteFlt.options.length<=1)selDteFlt.innerHTML='<option value="">Todos los DTE</option>'+DTE_COMPRAS.map(d=>`<option value="${d.cod}">${d.cod} — ${d.nm}</option>`).join('');
+  if(selDteFlt&&selDteFlt.options.length<=1)selDteFlt.innerHTML='<option value="">Todos los DTE</option>'+DTE_COMPRAS.filter(d=>!d.honorario).map(d=>`<option value="${d.cod}">${d.cod} — ${d.nm}</option>`).join('');
 
   // Aviso de documentos duplicados (se calcula sobre todo el libro, con o sin filtro)
   renderCDupAlert();
@@ -288,7 +288,9 @@ function renderCompras(){
   const fHasta=(document.getElementById('cf-hasta')?.value||'');
   const fDte=+(document.getElementById('cf-dte-flt')?.value||0);
   const fQ=(document.getElementById('cf-search')?.value||'').toLowerCase().trim();
-  const todos=todosDocsCompras();
+  // Los honorarios (DTE 70/71) son documentos de proveedor pero no son compras
+  // con IVA: se registran y ven desde Comprobantes / auxiliar, no en este libro.
+  const todos=todosDocsCompras().filter(d=>!esDteHonorario(d.tipoDTE));
   const docs=[...todos].sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.numero||'').localeCompare(b.numero||''));
   // Correlativo mensual: los del libro traen su corrMes fijo; los que vienen de
   // asientos manuales continúan la secuencia del mes (máximo del libro + N).

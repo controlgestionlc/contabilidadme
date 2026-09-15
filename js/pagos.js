@@ -10,7 +10,7 @@
 // con una línea por documento (proveedor DEBE) y una única línea de banco/caja
 // (HABER). Esto refleja la realidad de una transferencia consolidada.
 
-import {toast, fmtC, MESES, pdcNm, PDC, today, dteV, dteC, rutFmt, pn} from './core.js';
+import {toast, fmtC, MESES, pdcNm, PDC, today, dteV, dteC, esDteHonorario, rutFmt, pn} from './core.js';
 import {S} from './state.js';
 import {proxFolioAsiento, CUENTAS_AUX} from './asientos.js';
 import {logAccion,logCambio} from './firebase.js';
@@ -505,8 +505,11 @@ async function ejecutarPago(){
     const dteNm=d.dteInfo?.nm||`DTE ${d.tipoDTE}`;
     const descLinea=`${d.razonSocial||''} · ${dteNm} N°${d.numero}`.trim();
     if(PAG.tipo==='proveedor'){
+      // Los honorarios se cargan contra Honorarios por Pagar (2102006), no
+      // contra Proveedores Nacionales, para saldar la cuenta correcta.
+      const cuentaDoc=esDteHonorario(d.tipoDTE)?'2102006':cuentaAux;
       movs.push({
-        cd:cuentaAux, nm:nomAux, desc:descLinea,
+        cd:cuentaDoc, nm:pdcNm(cuentaDoc), desc:descLinea,
         debe:monto, haber:0,
         rutCodigo:d.rutCodigo, rutDV:d.rutDV, folio:d.numero, tipoDTE:d.tipoDTE, docId:d.id,
       });
