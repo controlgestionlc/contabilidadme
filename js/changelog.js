@@ -1,20 +1,28 @@
 // changelog.js — Historial de versiones de la aplicación
 //
 // Este módulo es la FUENTE ÚNICA de la versión: el badge del encabezado se
-// rellena desde aquí al arrancar, así que al publicar una versión nueva solo
-// hay que tocar este archivo (y el `?v=` del importmap en index.html, que es
-// cache-busting del navegador y no puede leerse desde JS).
+// rellena desde aquí al arrancar. Al publicar una versión nueva también deben
+// sincronizarse version.json, las etiquetas de index.html, su import map y la
+// caché de sw.js, porque el cache-busting del navegador no puede leerse desde JS.
 //
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-1500';
+const APP_VERSION='v2026.09.15-2038';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.6',fecha:'15-09-2026',titulo:'Correcciones tributarias críticas: IUSC, remanente UTM, depreciación y RLI',items:[
+    {tipo:'arreglo',txt:'El Formulario 29 incorpora el IUSC de trabajadores en el código 48 y lo suma al total a pagar del código 91, tomando el importe desde el asiento de remuneraciones del período.'},
+    {tipo:'arreglo',txt:'El remanente de crédito fiscal del código 504 se reajusta con la UTM del mes de origen y la del mes de imputación. Si falta una UTM, el F29 muestra una advertencia y permite registrarla por período.'},
+    {tipo:'arreglo',txt:'Los asientos de remuneraciones se fechan el último día real del mes; febrero ya no puede generar una fecha 30 inexistente.'},
+    {tipo:'arreglo',txt:'La depreciación acelerada general usa un tercio de la vida normal con piso de un año. El régimen especial del Art. 31 N°5 bis queda expresamente separado y no se aplica automáticamente.'},
+    {tipo:'arreglo',txt:'En Pro Pyme, la reversa de corrección monetaria deudora se trata como agregado y la acreedora como deducción de la RLI.'},
+    {tipo:'cambio',txt:'Los selectores de documentos referenciados incorporan el DTE 61 y la jornada LRE 101 se rotula como Ordinaria general (Art. 21 / 22 inc. 1°).'},
+  ]},
   {version:'V2.19.5',fecha:'15-09-2026',titulo:'Marca RABF: logo como marca de agua en la pantalla de inicio',items:[
     {tipo:'nuevo',txt:'Se incorporó el logo RABF Contabilidad como marca de agua sutil detrás de la pantalla de inicio, donde se seleccionan las empresas.'},
   ]},

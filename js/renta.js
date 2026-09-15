@@ -205,9 +205,9 @@ function calcularRenta(){
     ag.push({cod:'982', lbl:'Depreciación financiera del ejercicio (reversa tributaria)', monto:depFin, auto:true,
              nota:reg.deprInstantanea?'Se reversa la depreciación financiera porque el régimen aplica depreciación tributaria instantánea.':'Se reversa la depreciación financiera para sustituirla por la depreciación tributaria determinada según la ficha de activo fijo.'});
   // 4. Corrección monetaria: las Pymes 14 D están liberadas de aplicarla
-  if(!reg.correccionMonetaria&&Math.abs(correccMon)>=0.5)
+  if(!reg.correccionMonetaria&&correccMon>=0.5)
     ag.push({cod:'1146', lbl:'Corrección monetaria contabilizada (se reversa)', monto:correccMon, auto:true,
-             nota:'Las empresas acogidas al Art. 14 D están liberadas de aplicar corrección monetaria a su capital propio.'});
+             nota:'Pérdida/deudora contabilizada: se agrega para reversarla porque el régimen no aplica corrección monetaria tributaria.'});
   // 5. Agregados manuales
   RENTA.agregados.forEach((a,i)=>{
     if(Math.abs(+a.monto||0)<0.5)return;
@@ -216,6 +216,11 @@ function calcularRenta(){
 
   // ── Deducciones ──
   const de=[];
+  // Una CM acreedora ya aumentó el resultado financiero. En un régimen que no
+  // la aplica, su reversa es deducción, no agregado.
+  if(!reg.correccionMonetaria&&correccMon<=-0.5)
+    de.push({cod:'1146', lbl:'Corrección monetaria acreedora contabilizada (se reversa)', monto:-correccMon, auto:true,
+             nota:'Ganancia/acreedora contabilizada: se deduce para reversarla porque el régimen no aplica corrección monetaria tributaria.'});
   // 1. Depreciación tributaria: instantánea en Pro Pyme o cuota tributaria
   //    según ficha en los regímenes que no usan depreciación instantánea.
   if(depConc.tributaria>=0.5&&Math.abs(depFin-depConc.tributaria)>0.5)

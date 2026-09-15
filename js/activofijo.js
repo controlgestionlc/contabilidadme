@@ -21,8 +21,11 @@ const AF_CATEGORIAS=[
   {k:'equipos_ofic',  lbl:'Equipos de oficina / muebles',   activo:'1201006', deprAcum:'1201206', gasto:'3301006', vida:7},
 ];
 const afCat=k=>AF_CATEGORIAS.find(c=>c.k===k)||AF_CATEGORIAS[0];
-// Vida útil acelerada SII: 1/3 de la normal, mínimo 3 años (se descarta la fracción)
-const vidaAcelerada=vidaNormal=>Math.max(3,Math.floor(vidaNormal/3));
+// Depreciación acelerada general, Art. 31 N°5 LIR: 1/3 de la vida normal,
+// descartando la fracción. Como sólo procede desde 3 años, el piso es 1 año.
+// El régimen especial del N°5 bis (1/10, si se cumplen sus requisitos) no se
+// confunde con este método y debe modelarse como una opción tributaria aparte.
+const vidaAcelerada=vidaNormal=>Math.max(1,Math.floor(vidaNormal/3));
 
 // Calcula depreciación separando política financiera y base tributaria.
 // Los registros antiguos siguen siendo compatibles mediante los fallbacks vida/metodo.
@@ -337,7 +340,7 @@ function renderActivoFijo(){
     <button class="btn btn-p" onclick="generarAsientoDepreciacion()">📝 Generar asiento de depreciación ${anio}</button>
     <span style="font-size:11px;color:var(--mt)">Crea el asiento al 31/dic/${anio} por ${fmtC(totDeprAnio)} (cargo a gasto, abono a depreciación acumulada).</span>
   </div>`:''}
-  <div style="margin-top:10px;font-size:10px;color:var(--mt)">La depreciación financiera y tributaria se calculan por separado. En fichas V2.9 cada ámbito usa su propia base, residual y fecha de inicio, con prorrateo mensual; los activos históricos sin fecha específica conservan el cálculo legado. El método acelerado usa 1/3 de la vida configurada (mínimo 3 años).</div>`;
+  <div style="margin-top:10px;font-size:10px;color:var(--mt)">La depreciación financiera y tributaria se calculan por separado. En fichas V2.9 cada ámbito usa su propia base, residual y fecha de inicio, con prorrateo mensual; los activos históricos sin fecha específica conservan el cálculo legado. El método acelerado general usa 1/3 de la vida configurada (mínimo 1 año). El régimen especial del Art. 31 N°5 bis no se aplica automáticamente.</div>`;
 }
 
 

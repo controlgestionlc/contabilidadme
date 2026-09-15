@@ -382,7 +382,10 @@ async function generarAsientoRemuneraciones(){
     totPatronal+=l.patronal.total;
   });
   if(totSueldo<=0){toast('⚠️ No hay montos','e');return;}
-  const fecha=`${anio}-${String(mesNum).padStart(2,'0')}-30`;
+  // Último día calendario real del mes: evita fechas inexistentes como
+  // 2026-02-30 y mantiene el asiento dentro del período de remuneraciones.
+  const ultimoDia=new Date(anio,mesNum,0).getDate();
+  const fecha=`${anio}-${String(mesNum).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
   if(!confirm(`¿Generar asiento de remuneraciones de ${MESES[mesNum-1]} ${anio}?\n\n${S.trabajadores.length} trabajadores\nLíquido a pagar: ${fmtC(totLiq)}\nAporte patronal: ${fmtC(totPatronal)}`))return;
   const movs=[];
   // DEBE: gasto en sueldos (imponible + no imponible)
@@ -400,7 +403,7 @@ async function generarAsientoRemuneraciones(){
     movs.push({cd:'2104001',nm:pdcNm('2104001'),debe:0,haber:totPatronal,desc:'Aporte patronal por pagar'});
   }
   const folio=proxFolioAsiento();
-  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha,glosa:`Remuneraciones ${MESES[mesNum-1]} ${anio}`,movs,tipo:'remuneraciones',periodo:`${anio}-${String(mesNum).padStart(2,'0')}`});});
+  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha,glosa:`Remuneraciones ${MESES[mesNum-1]} ${anio}`,movs,tipo:'remuneraciones',periodo:`${anio}-${String(mesNum).padStart(2,'0')}`,indicadoresLiquidacion:{uf,utm}});});
   if(!r.ok){toast('❌ No se pudo guardar el asiento de remuneraciones. La operación NO se contabilizó.','e');return;}
   toast('✅ Asiento N°'+folio+' de remuneraciones ('+fmtC(totLiq)+' líquido)');
   renderRemuneraciones();updateHdr();

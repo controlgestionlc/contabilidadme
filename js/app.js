@@ -143,7 +143,7 @@ import {renderF29, renderPPM, IVAC, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente,
         PAGOF29, renderPagoF29, generarAsientoPagoF29, setPagoF29Cuenta, setPagoF29Campo,
         setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29, cargarDeclaracionesF29,
-        setF29Declarado, setF29DeclCampo, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29} from './tributario.js';
+        setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29} from './tributario.js';
 import {DJ, renderDJ, cargarDJ, resetDJ, setDJVerTodas, setDJEstado, editarDJ, nuevaDJ,
         cerrarEditorDJ, guardarDJ, borrarDJ, restaurarCatalogoDJ, exportarDJExcel} from './djrenta.js';
 import {renderRenta, setRentaTab, setRentaParam, restaurarTasaLegal, toggleRechazada,
@@ -749,7 +749,7 @@ Object.assign(window,{
   setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux, renderAuxiliares, toggleAgingDetalle,
   auxPorRut, abrirReporteAuxDe, abrirReporteAux, cerrarReporteAux, setReporteAuxVista,
   renderReporteAux, imprimirReporteAux, exportarReporteAuxExcel,
-  renderF29, renderPPM, setF29Declarado, setF29DeclCampo, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29, setFCView, renderFlujoCaja,
+  renderF29, renderPPM, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29, setFCView, renderFlujoCaja,
   // asignación manual de centros de costo
   renderAsigCC, resetAsigCC, setAsigCC, limpiarFiltrosCC, setCCMov, toggleSelCC, selTodosCC,
   limpiarSelCC, setBulkCC, asignarSelCC, exportarAsigCCExcel, pendientesCC,
