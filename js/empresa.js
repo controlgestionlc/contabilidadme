@@ -72,13 +72,17 @@ function fillEmpresaForm(){
   const e=S.empresa;
   ['nombre','rut','domicilio','giro','codigo','ciudad','comuna','rep','rutrep'].forEach(f=>{const el=document.getElementById('e-'+f);if(el)el.value=e[f]||'';});
   const ea=document.getElementById('e-anio');if(ea)ea.value=e.anio;
-  const tr=document.getElementById('e-tasarenta');if(tr)tr.value=e.tasaRenta!=null?e.tasaRenta:25;
+  const tr=document.getElementById('e-tasarenta');if(tr)tr.value=e.regimen==='14D8'?0:(e.tasaRenta!=null?e.tasaRenta:tasaIDPC(e.regimen||REGIMEN_DEFAULT,e.anio));
   const tp=document.getElementById('e-tasappm');if(tp)tp.value=e.tasaPPM!=null?e.tasaPPM:'';
   pintarRegimen();
 }
 async function saveEmpresa(){
   try{
-    S.empresa={anio:+document.getElementById('e-anio').value||new Date().getFullYear(),nombre:document.getElementById('e-nombre').value.trim(),rut:document.getElementById('e-rut').value.trim(),domicilio:document.getElementById('e-domicilio').value.trim(),giro:document.getElementById('e-giro').value.trim(),codigo:document.getElementById('e-codigo').value.trim(),ciudad:document.getElementById('e-ciudad').value.trim(),comuna:document.getElementById('e-comuna').value.trim(),rep:document.getElementById('e-rep').value.trim(),rutrep:document.getElementById('e-rutrep').value.trim(),tasaRenta:+document.getElementById('e-tasarenta').value||25,tasaPPM:+document.getElementById('e-tasappm').value||0,regimen:(document.getElementById('e-regimen')||{}).value||S.empresa.regimen||REGIMEN_DEFAULT};
+    const anio=+document.getElementById('e-anio').value||new Date().getFullYear();
+    const regimen=(document.getElementById('e-regimen')||{}).value||S.empresa.regimen||REGIMEN_DEFAULT;
+    const tasaRentaRaw=String(document.getElementById('e-tasarenta')?.value??'').trim();
+    const tasaRenta=regimen==='14D8'?0:(tasaRentaRaw!==''?+tasaRentaRaw:tasaIDPC(regimen,anio));
+    S.empresa={anio,nombre:document.getElementById('e-nombre').value.trim(),rut:document.getElementById('e-rut').value.trim(),domicilio:document.getElementById('e-domicilio').value.trim(),giro:document.getElementById('e-giro').value.trim(),codigo:document.getElementById('e-codigo').value.trim(),ciudad:document.getElementById('e-ciudad').value.trim(),comuna:document.getElementById('e-comuna').value.trim(),rep:document.getElementById('e-rep').value.trim(),rutrep:document.getElementById('e-rutrep').value.trim(),tasaRenta,tasaPPM:+document.getElementById('e-tasappm').value||0,regimen};
     const ys=document.getElementById('year-sel');if(ys)ys.value=S.empresa.anio;
     updateHdr();
     const r=await window.storage.set('empresa',JSON.stringify(S.empresa));

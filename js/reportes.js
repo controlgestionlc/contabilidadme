@@ -9,6 +9,7 @@ import {pendientesCC} from './asigcc.js';
 import {S} from './state.js';
 import './storage.js';
 import {asientoVenta, asientoCompra} from './motor-contable.js';
+import {tasaIDPC} from './regimenes.js';
 
 // ═══ LIBRO DIARIO (auto + manuales) ═══
 let DIARIO_Q='';   // texto de búsqueda del libro diario
@@ -846,7 +847,11 @@ async function renderResultados(){
 
   // Impuesto a la renta: si hay cuenta contabilizada (36) se usa; si no, se estima con tasa del régimen
   const impContab=sumaPref('36');
-  const TASA_RENTA=(S.empresa.tasaRenta!=null?+S.empresa.tasaRenta:25)/100; // 14D N°3 Pro-Pyme General: 25%
+  // 0 es una tasa válida (14 D N°8). Además se protege a las empresas que
+  // pudieron quedar históricamente guardadas con 25 por el antiguo `0 || 25`.
+  const regimen=S.empresa.regimen||'14D3';
+  const tasaGuardada=S.empresa.tasaRenta!=null?+S.empresa.tasaRenta:null;
+  const TASA_RENTA=(regimen==='14D8'?0:(tasaGuardada!=null?tasaGuardada:tasaIDPC(regimen,S.empresa.anio)))/100;
   const impEstimado=resAntesImp>0?Math.round(resAntesImp*TASA_RENTA):0;
   const usaEstimado=impContab<0.5&&resAntesImp>0;
   const impuesto=impContab>=0.5?impContab:impEstimado;

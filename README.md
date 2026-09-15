@@ -2,7 +2,7 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.19.7 · compilación `v2026.09.15-2054`, publicada el 15-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, pagos y cobros editables, honorarios integrados como documentos de proveedor, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
+> **Estado actual:** V2.19.8 · compilación `v2026.09.15-2124`, publicada el 15-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, pagos y cobros editables, honorarios integrados como documentos de proveedor, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
 
 La fuente funcional de la versión es `js/changelog.js`. `version.json`, las etiquetas visibles de `index.html`, el import map y la caché de `sw.js` deben conservar la misma revisión en cada publicación.
 
@@ -772,7 +772,7 @@ Flujo recomendado:
 8. Revisar Preparación Productiva.
 9. Generar Acta de Habilitación y activar PRODUCCIÓN.
 
-El paquete V2.19.7 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
+El paquete V2.19.8 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
 
 - `APP_VERSION` y la primera entrada de `CHANGELOG` en `js/changelog.js`;
 - `meta[name="app-version"]`, `meta[name="app-release"]`, versión del login e import map en `index.html`;
@@ -854,7 +854,7 @@ El sistema está diseñado para bloquear o advertir cuando alguno de estos contr
 
 ## 38. Versión documentada
 
-**V2.19.7 · `v2026.09.15-2054`**  
+**V2.19.8 · `v2026.09.15-2124`**  
 Documentación actualizada el 15-09-2026 a partir de los módulos, metadatos de publicación y changelog incluidos en este ZIP.
 
 Cambios funcionales recientes incorporados a esta documentación:
@@ -885,6 +885,12 @@ Cambios funcionales recientes incorporados a esta documentación:
 - Nuevo icono RABF Contabilidad para la aplicación instalada, favicon, Apple Touch y variantes PWA normal y maskable.
 - La cabecera y la portada de selección de empresas utilizan el nuevo logotipo.
 - La marca de agua RABF se centra en el área visible de Inicio y adapta su tamaño a escritorio y móvil.
+
+### V2.19.8 — Tasa IDPC 0% en Pro Pyme Transparente
+
+- El guardado de la empresa conserva correctamente una tasa `0%` y sólo usa la tasa legal predeterminada cuando el campo está realmente vacío.
+- Para el régimen 14 D N°8, la tasa se normaliza obligatoriamente a `0%`.
+- Estado de Resultados ignora cualquier `25%` histórico erróneo guardado en una empresa 14 D N°8 y no descuenta IDPC.
 
 
 ## Navegación móvil y botón Atrás

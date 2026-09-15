@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-2054';
+const APP_VERSION='v2026.09.15-2124';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.8',fecha:'15-09-2026',titulo:'Pro Pyme Transparente conserva correctamente la tasa IDPC de 0%',items:[
+    {tipo:'arreglo',txt:'Al guardar la ficha Empresa, una tasa de 0% deja de convertirse en 25% por evaluación falsy de JavaScript.'},
+    {tipo:'seguridad',txt:'El régimen 14 D N°8 fuerza su tasa legal de IDPC a 0%, incluso si un registro antiguo quedó almacenado erróneamente con 25%.'},
+    {tipo:'arreglo',txt:'Estado de Resultados ya no estima ni descuenta impuesto de Primera Categoría para empresas Pro Pyme Transparente.'},
+  ]},
   {version:'V2.19.7',fecha:'15-09-2026',titulo:'Nueva identidad visual RABF en iconos y pantalla de Inicio',items:[
     {tipo:'cambio',txt:'El icono de la aplicación, favicon, acceso de iPhone/iPad e iconos PWA fueron reemplazados por el logotipo cuadrado RABF Contabilidad.'},
     {tipo:'cambio',txt:'La cabecera y la portada de empresas muestran el nuevo icono RABF en lugar del pictograma genérico.'},
