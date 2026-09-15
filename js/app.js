@@ -132,7 +132,7 @@ import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNum
         setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
         abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte} from './comprobantes.js';
 import {renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago, abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia} from './pagos.js';
-import {abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo} from './honorariodoc.js';
+import {abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo, hdProvBuscar, hdProvElegir, hdProvCerrar, hdProvTecla} from './honorariodoc.js';
 import {setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux, renderAuxiliares, calcularAging,
         toggleAgingDetalle, AUX_TAB,
         abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
@@ -682,7 +682,7 @@ Object.assign(window,{
   abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte,
   renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago,
   abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia,
-  abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo,
+  abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo, hdProvBuscar, hdProvElegir, hdProvCerrar, hdProvTecla,
   corregirDesdeDiario, editarAsientoRef,
   descargarPlantillaAux, abrirImportFichas, descargarPlantillaAuxActual, abrirImportFichasActual,
   renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas,

@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-0500';
+const APP_VERSION='v2026.09.15-0600';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.17.2',fecha:'15-09-2026',titulo:'Nuevo honorario: buscadores dinámicos de prestador y de cuentas',items:[
+    {tipo:'nuevo',txt:'El prestador ahora se elige con un buscador dinámico: escribe parte de la razón social, el RUT o el código del auxiliar y se filtran los prestadores registrados. Se navega con flechas y Enter. Si es nuevo, se ingresa el RUT abajo.'},
+    {tipo:'nuevo',txt:'Cada cuenta de gasto de la distribución usa el mismo buscador de cuentas del resto del sistema (filtra por código o nombre mientras escribes), en vez de una lista larga.'},
+  ]},
   {version:'V2.17.1',fecha:'15-09-2026',titulo:'Honorarios: el gasto se puede repartir en varias cuentas',items:[
     {tipo:'nuevo',txt:'En "Nuevo honorario" el gasto ya no va a una sola cuenta: se puede distribuir en varias (asesorías, gastos notariales, servicios personales, etc.), igual que en una compra. Cada línea tiene su cuenta, monto y centro de costo, y el total debe igualar el bruto (con verificación en tiempo real).'},
     {tipo:'cambio',txt:'La retención se sigue calculando sobre el bruto total y el líquido a Honorarios por Pagar es lo que se paga al prestador, sin importar cómo se reparta el gasto. Cada cuenta lleva el auxiliar del prestador solo si lo requiere.'},

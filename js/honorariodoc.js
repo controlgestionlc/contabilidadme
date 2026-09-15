@@ -14,31 +14,23 @@
 // Libro de Compras / F29 de compras.
 
 import {S} from './state.js';
-import {toast, fmtC, pn, today, rutParse, rutFmt, PDC} from './core.js';
+import {toast, fmtC, pn, today, rutParse, rutFmt} from './core.js';
 import {retencionHonorarios} from './indicadores.js';
 import {guardarDocumentoContabilizado} from './contabilidad-v2.js';
 import {fichasAux, guardarFichasAux} from './importadoraux.js';
 import {ccOpts} from './centroscosto.js';
+import {inputCuenta} from './buscadorcuentas.js';
 import {rerender} from './ui.js';
 import {logAccion} from './firebase.js';
+
+const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 
 const uid=()=>`hon_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 
 // Distribución del gasto en edición: [{cuenta, monto, cc}]
 let HD_DIST=[];
 
-function cuentasGastoOpts(sel=''){
-  // Cuentas de resultado que aceptan movimiento (gastos/costos, prefijo 3).
-  const cs=PDC.filter(c=>c.cd&&String(c.cd).startsWith('3')&&c.tp!=='T'&&c.tp!=='S'&&c.activa!==false);
-  return '<option value="">— cuenta —</option>'+cs.map(c=>`<option value="${c.cd}"${sel===c.cd?' selected':''}>${c.cd} — ${c.nm}</option>`).join('');
-}
 
-function proveedoresOpts(){
-  const f=fichasAux('proveedor')||{};
-  const arr=Object.values(f).sort((a,b)=>(a.razonSocial||'').localeCompare(b.razonSocial||''));
-  return '<option value="">— prestador nuevo (ingresar RUT) —</option>'+
-    arr.map(x=>`<option value="${x.rutCodigo}">${rutFmt(x.rutCodigo,x.rutDV)} · ${(x.razonSocial||'').replace(/</g,'&lt;')}</option>`).join('');
-}
 
 // Crea el modal en el DOM una sola vez.
 function asegurarModal(){
@@ -75,9 +67,12 @@ export function abrirNuevoHonorario(){
       </div>
 
       <div style="margin-top:6px;padding-top:10px;border-top:1px dashed var(--bd)">
-        <div class="grp full"><label>Prestador registrado</label>
-          <select id="hd-provsel" onchange="hdProvSel(this.value)">${proveedoresOpts()}</select></div>
-        <div class="fg" style="margin-top:8px">
+        <div class="grp full" style="position:relative"><label>Prestador (busca por razón social, RUT o código)</label>
+          <input type="text" id="hd-prov-search" autocomplete="off" placeholder="Escribe para buscar un prestador registrado…"
+            oninput="hdProvBuscar(this.value)" onfocus="hdProvBuscar(this.value)" onkeydown="hdProvTecla(event)" onblur="setTimeout(hdProvCerrar,160)">
+          <div id="hd-prov-ac" class="ac-lista" style="display:none"></div></div>
+        <div style="font-size:11px;color:var(--mt);margin:6px 0 8px">O ingresa un prestador nuevo con su RUT:</div>
+        <div class="fg">
           <div class="grp rut-wrap"><label>RUT prestador</label>
             <input type="text" id="hd-rut" placeholder="12.345.678-9" oninput="hdRutInput(this.value)">
             <span class="rut-dv" id="hd-rutdv"></span></div>
@@ -121,14 +116,16 @@ function renderDistRows(){
   const box=document.getElementById('hd-dist-rows');
   if(!box)return;
   box.innerHTML=HD_DIST.map((l,i)=>`
-    <div class="fg" style="align-items:flex-end;gap:6px;margin-bottom:6px">
-      <div class="grp full" style="margin:0"><label style="font-size:10px">Cuenta</label>
-        <select onchange="hdDistCampo(${i},'cuenta',this.value)">${cuentasGastoOpts(l.cuenta)}</select></div>
-      <div class="grp" style="margin:0;max-width:140px"><label style="font-size:10px">Monto</label>
-        <input type="number" min="0" value="${l.monto||''}" placeholder="0" oninput="hdDistCampo(${i},'monto',this.value)"></div>
-      <div class="grp" style="margin:0;max-width:150px"><label style="font-size:10px">Centro costo</label>
-        <select onchange="hdDistCampo(${i},'cc',this.value)">${ccOpts(l.cc||'')}</select></div>
-      <button class="btn btn-d" style="padding:6px 9px" onclick="hdDelDist(${i})" ${HD_DIST.length<=1?'disabled':''} title="Quitar línea">✕</button>
+    <div style="border:1px solid var(--bd);border-radius:6px;padding:8px;margin-bottom:6px">
+      <div class="grp full" style="margin:0"><label style="font-size:10px">Cuenta de gasto</label>
+        ${inputCuenta({id:'hd-cta-'+i,value:l.cuenta||'',onPick:`hdDistCampo(${i},'cuenta','%CD%')`,placeholder:'Buscar por código o nombre…',filtro:'gasto',clase:'linea-inp'})}</div>
+      <div class="fg" style="align-items:flex-end;gap:6px;margin-top:6px">
+        <div class="grp" style="margin:0;max-width:150px"><label style="font-size:10px">Monto</label>
+          <input type="number" min="0" value="${l.monto||''}" placeholder="0" oninput="hdDistCampo(${i},'monto',this.value)"></div>
+        <div class="grp full" style="margin:0"><label style="font-size:10px">Centro de costo</label>
+          <select onchange="hdDistCampo(${i},'cc',this.value)">${ccOpts(l.cc||'')}</select></div>
+        <button class="btn btn-d" style="padding:6px 9px" onclick="hdDelDist(${i})" ${HD_DIST.length<=1?'disabled':''} title="Quitar línea">✕</button>
+      </div>
     </div>`).join('');
   hdDistTotales();
 }
@@ -174,8 +171,53 @@ export function hdProvSel(rutCodigo){
   if(rut)rut.value=rutFmt(f.rutCodigo,f.rutDV);
   hdRutInput(rutFmt(f.rutCodigo,f.rutDV));
   if(rs)rs.value=f.razonSocial||'';
-  if(f.ccDefault&&HD_DIST[0]){HD_DIST[0].cc=f.ccDefault;renderDistRows();}
-  if(f.cuentaDefault&&HD_DIST[0]){HD_DIST[0].cuenta=f.cuentaDefault;renderDistRows();}
+  if(f.ccDefault&&HD_DIST[0])HD_DIST[0].cc=f.ccDefault;
+  if(f.cuentaDefault&&HD_DIST[0])HD_DIST[0].cuenta=f.cuentaDefault;
+  if(f.ccDefault||f.cuentaDefault)renderDistRows();
+}
+
+// ── Buscador dinámico de prestador (razón social, RUT o código del auxiliar) ──
+let HD_PROV_RES=[], HD_PROV_SEL=0;
+export function hdProvBuscar(q){
+  const box=document.getElementById('hd-prov-ac');if(!box)return;
+  const t=norm(q).trim();
+  const f=fichasAux('proveedor')||{};
+  let arr=Object.values(f);
+  if(t){
+    const palabras=t.split(/\s+/);
+    arr=arr.filter(x=>{
+      const hay=norm(`${x.rutCodigo||''} ${rutFmt(x.rutCodigo,x.rutDV)} ${x.razonSocial||''}`);
+      return palabras.every(p=>hay.includes(p));
+    });
+  }
+  arr=arr.sort((a,b)=>(a.razonSocial||'').localeCompare(b.razonSocial||'')).slice(0,30);
+  HD_PROV_RES=arr; HD_PROV_SEL=0;
+  if(!arr.length){
+    box.innerHTML=`<div class="ac-item" style="color:var(--mt)">Sin coincidencias · ingresa el RUT abajo para un prestador nuevo</div>`;
+    box.style.display='';return;
+  }
+  box.innerHTML=arr.map((x,i)=>`<div class="ac-item${i===0?' sel':''}" onmousedown="hdProvElegir('${x.rutCodigo}')">
+    <b>${(x.razonSocial||'(sin nombre)').replace(/</g,'&lt;')}</b>
+    <span style="color:var(--mt);font-family:var(--mono);font-size:11px;margin-left:6px">${rutFmt(x.rutCodigo,x.rutDV)}</span></div>`).join('');
+  box.style.display='';
+}
+export function hdProvElegir(rutCodigo){
+  hdProvSel(rutCodigo);
+  const s=document.getElementById('hd-prov-search');
+  const f=fichasAux('proveedor')[rutCodigo];
+  if(s&&f)s.value=`${f.razonSocial||''} · ${rutFmt(f.rutCodigo,f.rutDV)}`;
+  hdProvCerrar();
+}
+export function hdProvCerrar(){const b=document.getElementById('hd-prov-ac');if(b)b.style.display='none';}
+export function hdProvTecla(e){
+  const box=document.getElementById('hd-prov-ac');
+  if(!box||box.style.display==='none'||!HD_PROV_RES.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();HD_PROV_SEL=Math.min(HD_PROV_RES.length-1,HD_PROV_SEL+1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();HD_PROV_SEL=Math.max(0,HD_PROV_SEL-1);}
+  else if(e.key==='Enter'){e.preventDefault();const x=HD_PROV_RES[HD_PROV_SEL];if(x)hdProvElegir(x.rutCodigo);return;}
+  else if(e.key==='Escape'){hdProvCerrar();return;}
+  else return;
+  [...box.querySelectorAll('.ac-item')].forEach((el,i)=>el.classList.toggle('sel',i===HD_PROV_SEL));
 }
 
 export function hdRecalc(){
