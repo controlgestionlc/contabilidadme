@@ -20,6 +20,7 @@ import {guardarDocumentoContabilizado} from './contabilidad-v2.js';
 import {fichasAux, guardarFichasAux} from './importadoraux.js';
 import {ccOpts} from './centroscosto.js';
 import {inputCuenta} from './buscadorcuentas.js';
+import {abrirFichaAuxNueva} from './auxiliares.js';
 import {rerender} from './ui.js';
 import {logAccion} from './firebase.js';
 
@@ -71,7 +72,10 @@ export function abrirNuevoHonorario(){
           <input type="text" id="hd-prov-search" autocomplete="off" placeholder="Escribe para buscar un prestador registrado…"
             oninput="hdProvBuscar(this.value)" onfocus="hdProvBuscar(this.value)" onkeydown="hdProvTecla(event)" onblur="setTimeout(hdProvCerrar,160)">
           <div id="hd-prov-ac" class="ac-lista" style="display:none"></div></div>
-        <div style="font-size:11px;color:var(--mt);margin:6px 0 8px">O ingresa un prestador nuevo con su RUT:</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 8px;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--mt)">O ingresa un prestador nuevo con su RUT:</span>
+          <button class="btn btn-i" style="font-size:11px;padding:3px 8px" onclick="hdNuevoAuxiliar()" title="Crear la ficha del auxiliar (proveedor) con todos sus datos">➕ Crear ficha de auxiliar</button>
+        </div>
         <div class="fg">
           <div class="grp rut-wrap"><label>RUT prestador</label>
             <input type="text" id="hd-rut" placeholder="12.345.678-9" oninput="hdRutInput(this.value)">
@@ -209,6 +213,21 @@ export function hdProvElegir(rutCodigo){
   hdProvCerrar();
 }
 export function hdProvCerrar(){const b=document.getElementById('hd-prov-ac');if(b)b.style.display='none';}
+
+// Abre el editor de ficha auxiliar (proveedor) para crear el prestador si no
+// existe, precargando lo que ya escribió. Al guardar vuelve al honorario con
+// el prestador seleccionado.
+export function hdNuevoAuxiliar(){
+  const rutInput=(document.getElementById('hd-rut')?.value||'').trim();
+  const rs=(document.getElementById('hd-rs')?.value||'').trim();
+  abrirFichaAuxNueva({tipo:'proveedor',rutInput,razonSocial:rs,onSaved:(ficha)=>{
+    hdProvSel(ficha.rutCodigo);
+    const s=document.getElementById('hd-prov-search');
+    if(s)s.value=`${ficha.razonSocial||''} · ${rutFmt(ficha.rutCodigo,ficha.rutDV)}`;
+    hdProvCerrar();
+    toast('✅ Auxiliar creado y seleccionado');
+  }});
+}
 export function hdProvTecla(e){
   const box=document.getElementById('hd-prov-ac');
   if(!box||box.style.display==='none'||!HD_PROV_RES.length)return;

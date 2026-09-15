@@ -474,12 +474,16 @@ function renderAuxAging(data,elArg){
 // Permite editar la ficha de un cliente/proveedor desde el mismo listado,
 // para asignar cuenta y CC por defecto sin salir a Excel.
 let FICHA_EDIT={rutCodigo:'',rutDV:'',razonSocial:'',tipo:'',esNueva:false};
+let FICHA_ON_SAVED=null;   // callback opcional tras crear una ficha (ej. desde honorarios)
 
 // Abre el editor para crear un auxiliar manualmente desde cero (RUT editable).
-function abrirFichaAuxNueva(){
-  const tipo=AUX_TAB==='c'?'cliente':'proveedor';
+// opts (opcional): {tipo, rutInput, razonSocial, onSaved} para abrirlo desde
+// otro flujo (ej. "Nuevo honorario") forzando el tipo y precargando datos.
+function abrirFichaAuxNueva(opts={}){
+  const tipo=opts.tipo||(AUX_TAB==='c'?'cliente':'proveedor');
   FICHA_EDIT={rutCodigo:'',rutDV:'',razonSocial:'',tipo,esNueva:true};
-  renderFichaModal({},tipo,true);
+  FICHA_ON_SAVED=typeof opts.onSaved==='function'?opts.onSaved:null;
+  renderFichaModal({},tipo,true,{rut:opts.rutInput||'',rs:opts.razonSocial||''});
 }
 
 function abrirFichaAux(rutCodigo,rutDV,razonSocial){
@@ -488,12 +492,14 @@ function abrirFichaAux(rutCodigo,rutDV,razonSocial){
   renderFichaModal(ficha,FICHA_EDIT.tipo,false);
 }
 
-function renderFichaModal(ficha,tipo,esNueva){
+function renderFichaModal(ficha,tipo,esNueva,prefill={}){
   const modal=document.getElementById('ficha-modal');
   const cont=document.getElementById('ficha-modal-body');
   if(!modal||!cont)return;
   const tipoLbl=tipo==='cliente'?'cliente':'proveedor';
   const filtroCta=tipo==='cliente'?'ingreso':'compra';
+  const preRut=(prefill.rut||'').replace(/"/g,'&quot;');
+  const preRs=(prefill.rs||'').replace(/"/g,'&quot;');
 
   // Bloque de identificación: editable si es nueva, fijo si se está editando.
   const identBlock=esNueva
@@ -501,10 +507,10 @@ function renderFichaModal(ficha,tipo,esNueva){
         <div style="font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:8px">Nuevo ${tipoLbl}</div>
         <div class="fg">
           <div class="grp rut-wrap"><label>RUT</label>
-            <input type="text" id="ficha-rut" placeholder="Ej: 76.543.210-8" value="" oninput="fichaRutInput(this.value)">
+            <input type="text" id="ficha-rut" placeholder="Ej: 76.543.210-8" value="${preRut}" oninput="fichaRutInput(this.value)">
             <span class="rut-dv" id="ficha-rut-dv"></span>
           </div>
-          <div class="grp full"><label>Razón social</label><input type="text" id="ficha-rs" placeholder="Nombre del ${tipoLbl}" value=""></div>
+          <div class="grp full"><label>Razón social</label><input type="text" id="ficha-rs" placeholder="Nombre del ${tipoLbl}" value="${preRs}"></div>
         </div>
         <div id="ficha-rut-warn" style="font-size:11px;color:var(--err);margin-top:2px;display:none"></div>
       </div>`
@@ -610,6 +616,9 @@ async function guardarFichaAuxUI(){
   cerrarFichaAux();
   toast(`✅ Ficha de ${razonSocial} ${esNueva?'creada':'actualizada'}`);
   logAccion(`${esNueva?'Creó':'Editó'} ficha de ${tipo}`,`${razonSocial} (${rutFmt(rutCodigo,rutDV)})`);
+  // Si se abrió desde otro flujo (ej. "Nuevo honorario"), devolver el control
+  // ahí con la ficha recién creada, sin recargar la vista de auxiliares.
+  if(FICHA_ON_SAVED){const cb=FICHA_ON_SAVED;FICHA_ON_SAVED=null;cb(ficha);return;}
   // Si es nueva, dejarla visible buscándola por su RUT
   if(esNueva)AUX_Q=rutCodigo;
   rerender();
