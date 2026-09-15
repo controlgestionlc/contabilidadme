@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-0100';
+const APP_VERSION='v2026.09.15-0200';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.16.44',fecha:'15-09-2026',titulo:'Pagos: el error de guardado ahora dice la causa y qué hacer',items:[
+    {tipo:'arreglo',txt:'Cuando falla el guardado de un pago/cobro, el mensaje ya no es genérico: indica la causa concreta (sin conexión, otro dispositivo guardó primero, datos aún sincronizando, ejercicio cerrado o validación contable) y qué hacer en cada caso. El detalle técnico queda entre paréntesis para diagnóstico.'},
+  ]},
   {version:'V2.16.43',fecha:'15-09-2026',titulo:'Pagos: "seleccionar todos" respeta el filtro y los pagos se pueden anular/eliminar',items:[
     {tipo:'arreglo',txt:'"Seleccionar todos" ahora marca SOLO los documentos del mes/búsqueda filtrados, no todos los pendientes. Antes, si filtrabas enero y marcabas todos, se seleccionaban también los demás meses y se pagaban por error.'},
     {tipo:'arreglo',txt:'Al cambiar el mes en el filtro se limpia la selección, para que no queden marcados documentos de un mes que ya no estás viendo.'},

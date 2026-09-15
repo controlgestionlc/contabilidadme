@@ -545,7 +545,24 @@ async function ejecutarPago(){
     esPagoAgrupado:true,documentos:pagosPorDoc.map(x=>({docId:x.docId,monto:x.monto,tipo:PAG.tipo})),creadoEn:new Date().toISOString()
   });});
   if(!guardado.ok){
-    toast(guardado.motivo==='sin-nube-correlativo'?'☁️ Se requiere conexión para asignar el número contable definitivo.':'❌ No se pudo guardar el asiento de pago. La operación NO fue contabilizada.','e');
+    // Mensaje según la causa real, para no dejar al usuario sin saber qué hacer.
+    // El motivo técnico se muestra entre paréntesis para poder diagnosticar.
+    const mo=String(guardado.motivo||'');
+    let msg;
+    if(mo==='sin-nube-correlativo'||mo==='reservador-no-disponible'||mo==='no-se-pudo-reservar-correlativo')
+      msg='☁️ Se necesita conexión con la nube para asignar el número contable. Revisa tu conexión y reintenta.';
+    else if(mo==='conflicto')
+      msg='☁️ Otro dispositivo guardó cambios primero. Toca ☁️⬇ (restaurar desde la nube) para traerlos y vuelve a registrar el pago.';
+    else if(mo==='clave-no-sincronizada')
+      msg='☁️ Los asientos aún no terminan de sincronizar con la nube. Espera unos segundos, o recarga la página, y reintenta.';
+    else if(mo==='ejercicio-cerrado')
+      msg='🔒 El ejercicio está cerrado. Reábrelo antes de registrar pagos o cobros.';
+    else if(mo.startsWith('validacion-contable'))
+      msg='❌ El asiento no pasó la validación contable. No se contabilizó. ('+mo.replace('validacion-contable:','').trim()+')';
+    else
+      msg='❌ No se pudo guardar el asiento de pago. La operación NO fue contabilizada. ('+(mo||'motivo desconocido')+')';
+    toast(msg,'e');
+    console.warn('[Pagos] Falló persistirAsientosCritico:',guardado);
     return;
   }
   const asientoNuevo=S.asientos.find(a=>a.id===asientoId);const n=asientoNuevo?.numeroContable||asientoNuevo?.n||'?';
