@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-1300';
+const APP_VERSION='v2026.09.15-1400';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.4',fecha:'15-09-2026',titulo:'Arreglo: versión del login desactualizada',items:[
+    {tipo:'arreglo',txt:'El texto de versión en el pie del login mostraba un número viejo fijo. Ahora se toma de la versión real de la app y el proceso de publicación lo actualiza solo en cada versión, así no vuelve a quedar desincronizado.'},
+  ]},
   {version:'V2.19.3',fecha:'15-09-2026',titulo:'Ajustes normativos: referencias, jornada LRE, corrección monetaria y RCV',items:[
     {tipo:'nuevo',txt:'En el importador RCV de compras, la referencia de una NC/ND ahora ofrece todos los tipos válidos, incluida la Nota de Crédito (61) y la factura de compra (45), además de 30/32/33/34/43/46/56.'},
     {tipo:'cambio',txt:'Se precisaron las etiquetas de tipo de jornada del LRE: 101 Ordinaria (Art. 22 inc. 1° · Ley 40 Horas) y 701 Exenta de límite de jornada (Art. 22 inc. 2°), entre otras.'},
