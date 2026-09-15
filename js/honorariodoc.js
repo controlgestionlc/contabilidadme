@@ -39,6 +39,7 @@ function asegurarModal(){
   const div=document.createElement('div');
   div.id='hd-modal';
   div.className='modal-bkd';
+  div.style.zIndex='1050';   // sobre la app, pero deja pasar por encima al editor de ficha
   div.innerHTML=`<div class="modal-box" style="max-width:620px">
     <div class="modal-hdr">
       <div><div class="modal-title">📝 Nuevo honorario</div>
@@ -220,7 +221,13 @@ export function hdProvCerrar(){const b=document.getElementById('hd-prov-ac');if(
 export function hdNuevoAuxiliar(){
   const rutInput=(document.getElementById('hd-rut')?.value||'').trim();
   const rs=(document.getElementById('hd-rs')?.value||'').trim();
+  // El editor de ficha comparte el z-index base de los modales, y el modal del
+  // honorario se inyecta al final del DOM, así que sin esto queda tapado.
+  const fm=document.getElementById('ficha-modal');
+  if(fm)fm.style.zIndex='1120';
+  const restaurarZ=()=>{const f=document.getElementById('ficha-modal');if(f)f.style.zIndex='';};
   abrirFichaAuxNueva({tipo:'proveedor',rutInput,razonSocial:rs,onSaved:(ficha)=>{
+    restaurarZ();
     hdProvSel(ficha.rutCodigo);
     const s=document.getElementById('hd-prov-search');
     if(s)s.value=`${ficha.razonSocial||''} · ${rutFmt(ficha.rutCodigo,ficha.rutDV)}`;
