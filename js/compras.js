@@ -1088,11 +1088,14 @@ function renderImportModal(){
 }
 
 // ── Referencia de notas (56/61) en el importador ──
-// Candidatos = facturas/notas de débito del mismo proveedor, tanto del archivo
-// que se está importando como de las ya registradas en el libro (cualquier mes).
+// Candidatos = facturas, notas de débito y notas de crédito del mismo proveedor,
+// tanto del archivo que se está importando como de las ya registradas en el
+// libro (cualquier mes). Se incluyen todos los tipos de factura de compra
+// (30/32/33/34/45/46), la liquidación-factura (43), la ND (56) y la NC (61),
+// porque una nota puede referenciar cualquiera de ellos.
 function referenciasImportDisponibles(d){
   const rut=d.rutCodigo;
-  const tiposRef=[33,34,43,46,56];
+  const tiposRef=[30,32,33,34,43,45,46,56,61];
   const vistos=new Set(), cand=[];
   const agregar=(tipoDTE,folio,fecha,total,origen)=>{
     const t=+tipoDTE, f=String(folio||'').trim();

@@ -10,6 +10,7 @@ import {puedeEditar} from './auth.js';
 import {logAccion,logCambio} from './firebase.js';
 import {ejercicioCerrado,persistirAsientosCritico,auditoriaIntegridad} from './contabilidad-v2.js';
 import {empresaActiva, marcoInfo, puedeVerEmpresa} from './empresas.js';
+import {regimenInfo} from './regimenes.js';
 import './storage.js';
 
 // ═══ FASE 4: AJUSTES DE CIERRE ═══
@@ -215,7 +216,16 @@ function avisoMarcoCM(){
   if(marco==='ifrs-pyme'||marco==='ifrs-full'){
     return `<div class="info-tip" style="margin-bottom:16px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Esta empresa lleva contabilidad bajo <strong>${marcoInfo(marco).nm}</strong>. La <strong>corrección monetaria del Art. 41 LIR no forma parte de las NIIF</strong>: es un ajuste tributario chileno. Bajo NIIF los activos se miden a costo o valor razonable según corresponda, y solo se reexpresa en economías hiperinflacionarias (NIC 29), que no es el caso de Chile. Este módulo queda como referencia tributaria.</div>`;
   }
-  return `<div class="info-tip" style="margin-bottom:16px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Si tu empresa está en régimen <strong>14 D N°3 Pro-Pyme General, NO está sujeta a corrección monetaria</strong> del Art. 41 LIR (estos contribuyentes no reajustan sus registros). Este módulo es <strong>informativo</strong>; verifica tu régimen antes de usarlo.</div>`;
+  // Advertencia según el régimen real de la empresa: 14 D N°3 y 14 D N°8 (y
+  // renta presunta) NO están sujetos a corrección monetaria del Art. 41 LIR.
+  const reg=regimenInfo(e&&e.regimen);
+  if(reg&&reg.correccionMonetaria===false){
+    return `<div class="info-tip" style="margin-bottom:16px;background:rgba(248,81,73,.10);border-color:var(--err)">⛔ Tu empresa está en régimen <strong>${reg.corto} · ${reg.nm}</strong>, que <strong>NO está sujeto a corrección monetaria</strong> del Art. 41 LIR: estos contribuyentes no reajustan sus registros ni registran asientos por este concepto. Este módulo queda solo como <strong>referencia informativa</strong>; no generes asientos de CM.</div>`;
+  }
+  if(reg&&reg.correccionMonetaria===true){
+    return `<div class="info-tip" style="margin-bottom:16px;background:rgba(46,160,67,.08);border-color:var(--ach)">ℹ️ Régimen <strong>${reg.corto} · ${reg.nm}</strong>: sujeto a corrección monetaria del Art. 41 LIR. Usa el factor oficial del SII para el año.</div>`;
+  }
+  return `<div class="info-tip" style="margin-bottom:16px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Verifica el régimen tributario de tu empresa: los regímenes <strong>Pro-Pyme (14 D N°3 y 14 D N°8)</strong> y la <strong>renta presunta</strong> NO están sujetos a corrección monetaria del Art. 41 LIR. Este módulo es informativo.</div>`;
 }
 
 // ── CORRECCIÓN MONETARIA (informativa; 14 D N°3 está exento) ──

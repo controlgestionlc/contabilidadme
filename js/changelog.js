@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-1200';
+const APP_VERSION='v2026.09.15-1300';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.3',fecha:'15-09-2026',titulo:'Ajustes normativos: referencias, jornada LRE, corrección monetaria y RCV',items:[
+    {tipo:'nuevo',txt:'En el importador RCV de compras, la referencia de una NC/ND ahora ofrece todos los tipos válidos, incluida la Nota de Crédito (61) y la factura de compra (45), además de 30/32/33/34/43/46/56.'},
+    {tipo:'cambio',txt:'Se precisaron las etiquetas de tipo de jornada del LRE: 101 Ordinaria (Art. 22 inc. 1° · Ley 40 Horas) y 701 Exenta de límite de jornada (Art. 22 inc. 2°), entre otras.'},
+    {tipo:'cambio',txt:'La Corrección Monetaria ahora advierte según el régimen real de la empresa: si es Pro-Pyme (14 D N°3 o 14 D N°8) o renta presunta, indica claramente que NO aplica el Art. 41 LIR y que no se deben generar asientos.'},
+    {tipo:'nuevo',txt:'El importador de compras recuerda el plazo de 8 días para acusar recibo/reclamar una factura antes de que opere la aceptación tácita y se consolide el crédito fiscal IVA.'},
+  ]},
   {version:'V2.19.2',fecha:'15-09-2026',titulo:'Arreglo: la referencia de la nota capturada en el importador ahora se refleja en el auxiliar',items:[
     {tipo:'arreglo',txt:'Cuando asociabas una NC/ND a su factura en el importador del RCV, el auxiliar y "Pagos y Cobros" seguían mostrando "SIN REFERENCIA" porque leían un campo distinto al que guarda el importador. Ahora reconocen ambas: la asociación manual (folioRef) y la referencia del importador (referencia.folio).'},
     {tipo:'cambio',txt:'La nota queda colgando bajo su factura, con el saldo neteado, tanto en el detalle del auxiliar como en el estado de cuenta y en Pagos y Cobros. Si asocias a mano, esa asociación tiene prioridad.'},
