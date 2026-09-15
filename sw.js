@@ -5,7 +5,7 @@
  *
  * Por qué siempre va primero a la red
  * -----------------------------------
- * Los 59 módulos se versionan con un import map que genera _release.py. Un
+ * Los módulos se versionan con el import map de index.html. Un
  * service worker con la estrategia habitual (cache-first) volvería a meter el
  * problema que ese import map vino a resolver: el usuario publicaría un arreglo
  * y seguiría ejecutando el código de ayer, sin ningún indicio. En un sistema
@@ -16,13 +16,13 @@
  * exactamente lo que está publicado.
  */
 
-// _release.py reescribe esta línea en cada publicación: al cambiar el nombre,
+// Esta línea se actualiza en cada publicación: al cambiar el nombre,
 // la caché anterior se descarta entera en activate.
-const CACHE = 'contabilidad-1789497895';
+const CACHE = 'contabilidad-1789504683';
 
 // Lo mínimo para que la aplicación abra sin red. Los módulos JS y el CSS se van
 // guardando solos a medida que se usan (ver fetch), así no hay que mantener a
-// mano una lista de 59 archivos que se desincroniza al primer módulo nuevo.
+// mano una lista de archivos que se desincroniza al primer módulo nuevo.
 const BASE = [
   './',
   './index.html',

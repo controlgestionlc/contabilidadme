@@ -2,7 +2,9 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.16.24 · sistema operativo en producción con validación contable central, control de accesos por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
+> **Estado actual:** V2.19.6 · compilación `v2026.09.15-2038`, publicada el 15-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, pagos y cobros editables, honorarios integrados como documentos de proveedor, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
+
+La fuente funcional de la versión es `js/changelog.js`. `version.json`, las etiquetas visibles de `index.html`, el import map y la caché de `sw.js` deben conservar la misma revisión en cada publicación.
 
 ---
 
@@ -313,6 +315,12 @@ Se soportan:
 - pagos/cobros de documentos;
 - pagos parciales;
 - asociación del asiento con uno o más documentos;
+- edición posterior de fecha, glosa y cuenta de banco/caja;
+- incorporación o retiro de documentos desde el comprobante de pago;
+- movimientos tipo Abono o Cargo, con contrapartida de banco/caja recalculada automáticamente;
+- anulación o eliminación controlada del comprobante, restituyendo el saldo de los documentos;
+- selección masiva limitada a los documentos que cumplen el filtro visible;
+- identificación de documentos vencidos y días de atraso;
 - cálculo de saldo pendiente;
 - validación contra documentos existentes;
 - conciliación mediante auxiliares.
@@ -321,7 +329,7 @@ Se soportan:
 
 ## 14. Honorarios
 
-Los honorarios se reconocen contablemente separando devengamiento y pago.
+Desde V2.17, los honorarios se registran desde **Comprobantes → Nuevo honorario** y se tratan como documentos pagables del proveedor, sin incorporarlos al Libro de Compras ni al IVA del F29.
 
 Reconocimiento típico:
 
@@ -329,9 +337,9 @@ Reconocimiento típico:
 - retención de segunda categoría;
 - honorarios por pagar.
 
-El pago se registra posteriormente contra banco/caja.
+El gasto puede distribuirse entre varias cuentas y centros de costo. El prestador se selecciona mediante búsqueda por nombre, RUT o código de auxiliar; si no existe, su ficha de proveedor puede crearse desde el mismo formulario.
 
-El módulo admite modalidad pendiente o contado, anulación lógica, retención guardada y conciliación con F29.
+Se admiten boletas con retención (tipo interno 70) y sin retención (tipo interno 71). La tasa se determina según el año; el líquido queda en Honorarios por Pagar y posteriormente puede pagarse desde **Pagos y Cobros**. La retención participa en el control correspondiente del F29.
 
 ---
 
@@ -346,6 +354,9 @@ Los auxiliares pueden mostrar:
 - saldos pendientes;
 - movimientos contables;
 - conciliación entre documento y asiento.
+- notas de crédito/débito agrupadas bajo el documento referenciado;
+- pagos/cobros agrupados bajo la factura u honorario que abonan;
+- estado de cuenta y antigüedad de saldos sin duplicar documentos ni pagos.
 
 El motor privilegia información derivada de asientos maestros.
 
@@ -374,6 +385,9 @@ Incluye:
 - Libro Diario;
 - Libro Mayor;
 - Balance de Comprobación;
+- Balance de 8 columnas;
+- Balance General;
+- Estado de Resultados;
 - comprobantes;
 - reportes contables;
 - saldos por cuenta;
@@ -733,7 +747,7 @@ El acta se conserva en historial y puede descargarse como HTML para archivo o im
 
 La aplicación usa un service worker para funcionamiento PWA y caché de respaldo.
 
-En cada publicación `_release.py`:
+En cada publicación, el proceso de liberación debe:
 
 - genera un nuevo cache-busting para todos los módulos JS;
 - actualiza la URL de `app.js`;
@@ -758,13 +772,14 @@ Flujo recomendado:
 8. Revisar Preparación Productiva.
 9. Generar Acta de Habilitación y activar PRODUCCIÓN.
 
-Para preparar una publicación se utiliza:
+El paquete V2.19.6 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
 
-```bash
-python3 _release.py vAAAA.MM.DD-HHMM
-```
+- `APP_VERSION` y la primera entrada de `CHANGELOG` en `js/changelog.js`;
+- `meta[name="app-version"]`, `meta[name="app-release"]`, versión del login e import map en `index.html`;
+- `version`, `release`, `revision` y `publicadoEn` en `version.json`;
+- nombre de caché en `sw.js`.
 
-Esto actualiza versiones de módulos y cachés.
+No se debe cambiar uno de estos identificadores de forma aislada, porque una PWA instalada podría mezclar archivos de distintas publicaciones.
 
 ---
 
@@ -792,11 +807,16 @@ js/compras.js              Compras y RCV
 js/ventas.js               Ventas y RCV
 js/rcv-control.js          Idempotencia/control de cambios RCV
 js/pagos.js                Pagos y cobranzas
+js/pagoeditor.js           Edición de comprobantes de pago/cobro
 js/honorarios.js           Honorarios
+js/honorariodoc.js         Honorarios como documento pagable
 js/auxiliares.js           Auxiliares
 js/activofijo.js           Activo fijo
 js/remuneraciones.js       Remuneraciones
 js/tributario.js           F29 y cálculo tributario
+js/libroscv.js             Libros mensuales de Compras y Ventas
+js/lre-dt.js               Exportación Libro de Remuneraciones DT
+js/cierres-mensuales.js    Cierres y reaperturas mensuales
 js/renta.js                Renta/ajustes tributarios
 js/cierre.js               Cierre de ejercicio
 js/integridad.js           Auditoría de Integridad
@@ -834,8 +854,31 @@ El sistema está diseñado para bloquear o advertir cuando alguno de estos contr
 
 ## 38. Versión documentada
 
-**V2.16.4**  
-Documentación vigente del sistema, incluyendo experiencia móvil productiva y columnas monetarias optimizadas.
+**V2.19.6 · `v2026.09.15-2038`**  
+Documentación actualizada el 15-09-2026 a partir de los módulos, metadatos de publicación y changelog incluidos en este ZIP.
+
+Cambios funcionales recientes incorporados a esta documentación:
+
+- conciliación exacta de los importadores RCV contra el Total informado por el SII;
+- tolerancia por documento en importaciones masivas y corrección individual de pendientes;
+- referencia de NC/ND contra documentos del mismo proveedor, incluida factura de compra;
+- glosa editable por documento en la importación RCV;
+- montos enteros con separador de miles en campos monetarios;
+- asiento manual en ventana emergente con tres líneas iniciales;
+- pagos/cobros editables, anulables y asociados a uno o varios documentos;
+- honorarios integrados como documentos de proveedor y distribuibles entre varias cuentas;
+- Balance de 8 columnas y accesos rápidos a reportes;
+- ajustes del LRE, corrección monetaria por régimen y advertencia de aceptación tácita RCV;
+- identificación de versión sincronizada en el login y marca RABF en Inicio.
+
+### V2.19.6 — Correcciones tributarias críticas
+
+- El IUSC contabilizado en remuneraciones se muestra en el código 48 del F29 y se suma al código 91.
+- El código 504 usa el remanente reajustado por la variación de la UTM entre períodos; la UTM se conserva por mes y la falta de datos genera una advertencia.
+- Los asientos de remuneraciones usan el último día calendario real del mes.
+- La depreciación acelerada general del Art. 31 N°5 usa un tercio de la vida normal con piso de un año. El régimen del N°5 bis no se presume ni se aplica automáticamente.
+- La corrección monetaria deudora se reversa como agregado y la acreedora como deducción para regímenes que no la aplican.
+- Los selectores de referencia admiten el DTE 61 y se actualizó la etiqueta de jornada ordinaria LRE.
 
 
 ## Navegación móvil y botón Atrás
