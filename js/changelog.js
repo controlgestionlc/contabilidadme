@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-1400';
+const APP_VERSION='v2026.09.15-1500';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.5',fecha:'15-09-2026',titulo:'Marca RABF: logo como marca de agua en la pantalla de inicio',items:[
+    {tipo:'nuevo',txt:'Se incorporó el logo RABF Contabilidad como marca de agua sutil detrás de la pantalla de inicio, donde se seleccionan las empresas.'},
+  ]},
   {version:'V2.19.4',fecha:'15-09-2026',titulo:'Arreglo: versión del login desactualizada',items:[
     {tipo:'arreglo',txt:'El texto de versión en el pie del login mostraba un número viejo fijo. Ahora se toma de la versión real de la app y el proceso de publicación lo actualiza solo en cada versión, así no vuelve a quedar desincronizado.'},
   ]},

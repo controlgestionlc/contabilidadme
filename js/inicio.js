@@ -46,7 +46,6 @@ export function renderInicio(){
   if(!lista.length){
     el.innerHTML=`
       <div class="inicio-vacio">
-        ${marcaDeAgua()}
         <div class="inicio-vacio-txt">
           ${EMPRESAS.errorCarga
             ? `<span style="color:var(--err)">No se pudo leer el catálogo de empresas.</span><br>

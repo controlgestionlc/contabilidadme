@@ -59,6 +59,12 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;hei
 .qn-btn:active{transform:translateY(1px)}
 .qn-btn.active{border-color:var(--ac,#3fb950);background:rgba(63,185,80,.14)}
 @media (max-width:768px){.quick-nav{display:none}}
+/* Marca de agua RABF en la pantalla de inicio (selección de empresas) */
+#s-inicio{position:relative}
+#s-inicio>#inicio-content{position:relative;z-index:1}
+.inicio-watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0;overflow:hidden}
+.inicio-watermark img{width:min(72%,540px);max-width:540px;opacity:.16;mix-blend-mode:screen}
+@media (max-width:768px){.inicio-watermark img{width:min(86%,420px)}}
 /* Balance de 8 columnas */
 .tbl-bal8 .c-num,.tbl-bal8 th.c-num{text-align:right;font-family:var(--mono);white-space:nowrap}
 .tbl-bal8 th{font-size:10px;text-transform:uppercase;letter-spacing:.03em}
