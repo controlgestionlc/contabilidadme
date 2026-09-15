@@ -10,7 +10,7 @@
 
 import {S} from './state.js';
 import {fmtC, fmt, rutFmt, dteV, dteC, toast, today} from './core.js';
-import {ordenarConNotas, soloConSaldo, docOriginal} from './auxdocs.js';
+import {ordenarConNotas, soloConSaldo, docOriginal, refFolioDoc} from './auxdocs.js';
 import {fichaAux} from './importadoraux.js';
 import {logAccion} from './firebase.js';
 
@@ -91,7 +91,7 @@ export function renderReporteAux(){
     const nm=dteNombre(d.tipoDTE,tipo);
     const refTxt=hija?'↳ ':'';
     const vto=d.fechaVencimiento?`<span class="mt"> · vence ${esc(d.fechaVencimiento)}</span>`:'';
-    const sinRef=(!hija&&orig&&!orig.folioRef&&sd.total<0)
+    const sinRef=(!hija&&orig&&!refFolioDoc(orig)&&sd.total<0)
       ? '<span class="rep-warn">sin referencia</span>':'';
     return `<tr${hija?' class="rep-hija"':''}>
       <td class="tl mono">${esc(d.fecha)}</td>

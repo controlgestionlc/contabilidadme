@@ -4,7 +4,7 @@ import {S} from './state.js';
 import {todosDocsVentas, todosDocsCompras, CUENTAS_AUX, esAux, abrirAsientoDesde} from './asientos.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import {docsApertura, tipoDeCuenta} from './aperturaaux.js';
-import {ordenarConNotas} from './auxdocs.js';
+import {ordenarConNotas, refFolioDoc} from './auxdocs.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {ccOpts} from './centroscosto.js';
 import {logAccion} from './firebase.js';
@@ -271,10 +271,11 @@ function renderAuxDetalle(data,el){
           const orig=arrOrig.find(x=>x.id===d.docOriginalId);
           const tipoAux=AUX_TAB==='c'?'cliente':'proveedor';
           if(orig){
-            refNota=orig.folioRef
+            const ref=refFolioDoc(orig);
+            refNota=ref
               ? `<span style="background:rgba(46,160,67,.13);color:var(--ach);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:6px;cursor:pointer"
-                   title="Asociada a la factura N°${orig.folioRef}. Pulsa para cambiarla."
-                   onclick="event.stopPropagation();abrirAsociarNota('${orig.id}','${d.rutCodigo||a.rutCodigo}','${tipoAux}','auxiliares')">🔗 REF. N°${orig.folioRef}</span>`
+                   title="Asociada a la factura N°${ref}. Pulsa para cambiarla."
+                   onclick="event.stopPropagation();abrirAsociarNota('${orig.id}','${d.rutCodigo||a.rutCodigo}','${tipoAux}','auxiliares')">🔗 REF. N°${ref}</span>`
               : `<span style="background:rgba(255,193,7,.15);color:var(--warn);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:6px;cursor:pointer"
                    title="Sin folio de referencia: se descuenta de la factura más antigua con saldo. Pulsa para asociarla a la que corresponde."
                    onclick="event.stopPropagation();abrirAsociarNota('${orig.id}','${a.rutCodigo}','${tipoAux}','auxiliares')">⚠ SIN REFERENCIA · Asociar</span>`;

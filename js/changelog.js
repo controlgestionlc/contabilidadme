@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.15-1100';
+const APP_VERSION='v2026.09.15-1200';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.19.2',fecha:'15-09-2026',titulo:'Arreglo: la referencia de la nota capturada en el importador ahora se refleja en el auxiliar',items:[
+    {tipo:'arreglo',txt:'Cuando asociabas una NC/ND a su factura en el importador del RCV, el auxiliar y "Pagos y Cobros" seguían mostrando "SIN REFERENCIA" porque leían un campo distinto al que guarda el importador. Ahora reconocen ambas: la asociación manual (folioRef) y la referencia del importador (referencia.folio).'},
+    {tipo:'cambio',txt:'La nota queda colgando bajo su factura, con el saldo neteado, tanto en el detalle del auxiliar como en el estado de cuenta y en Pagos y Cobros. Si asocias a mano, esa asociación tiene prioridad.'},
+  ]},
   {version:'V2.19.1',fecha:'15-09-2026',titulo:'Importador RCV: casilla de descripción (glosa) que aparece en el asiento',items:[
     {tipo:'nuevo',txt:'En la carga del RCV del SII (Compras y Ventas), cada documento tiene una casilla "Descripción (glosa)" bajo la razón social. Lo que escribas ahí se usa como glosa del asiento y como descripción de las líneas de gasto/ingreso (antes salían con "—").'},
     {tipo:'cambio',txt:'Si no ingresas descripción, la glosa mantiene el formato automático de antes (Documento N° — Razón social).'},

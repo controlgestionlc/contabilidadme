@@ -35,10 +35,20 @@ export function esNota(d,tipo){
   return signoDe(d.tipoDTE,tipo)<0||+d.tipoDTE===56;
 }
 
+// Folio de la factura referenciada por un documento (nota de crédito/débito).
+// Reconoce dos orígenes: `folioRef` (asociación manual desde el auxiliar/Pagos)
+// y `referencia.folio` (referencia capturada en el importador RCV o en el
+// formulario). La manual tiene prioridad como override.
+export function refFolioDoc(orig){
+  if(!orig)return '';
+  if(orig.folioRef)return String(orig.folioRef).trim();
+  if(orig.referencia&&orig.referencia.folio)return String(orig.referencia.folio).trim();
+  return '';
+}
+
 // Folio de la factura que referencia esta nota, o '' si va suelta
 export function folioRefDe(d,tipo){
-  const orig=docOriginal(d,tipo);
-  return orig&&orig.folioRef?String(orig.folioRef).trim():'';
+  return refFolioDoc(docOriginal(d,tipo));
 }
 
 // ── Saldo por documento ──

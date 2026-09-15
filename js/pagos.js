@@ -17,6 +17,7 @@ import {logAccion,logCambio} from './firebase.js';
 import {rerender} from './ui.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {pagosDocumento} from './motor-contable.js';
+import {refFolioDoc} from './auxdocs.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
 import {ejercicioCerrado,puedeOperarFecha,persistirAsientosCritico} from './contabilidad-v2.js';
 
@@ -53,8 +54,9 @@ function docsPendientes(tipo){
     const dteInfo=tipo==='proveedor'?dteC(d.tipoDTE):dteV(d.tipoDTE);
     const signo=dteInfo?.signo||1;
     if(signo<0||+d.tipoDTE===56){   // NC (signo -1) o ND (56)
-      if(d.folioRef){
-        const key=d.rutCodigo+'|'+String(d.folioRef).trim();
+      const fref=refFolioDoc(d);   // folioRef (manual) o referencia.folio (importador)
+      if(fref){
+        const key=d.rutCodigo+'|'+fref;
         if(!notasReferenciadas[key])notasReferenciadas[key]=[];
         notasReferenciadas[key].push({...d,dteInfo,signo});
       }else{
@@ -618,8 +620,8 @@ function abrirAsociarNota(notaId,rutCodigo,tipo,volverA){
         <div style="font-size:11px;color:var(--mt);margin-top:2px">${nota.razonSocial||''} · ${rutFmt(nota.rutCodigo,nota.rutDV)}</div>
       </div>
 
-      ${nota.folioRef?`<div class="info-tip" style="display:block;margin:0 0 12px">
-        Hoy está asociada a la factura <strong>N°${nota.folioRef}</strong>. Elige otra para cambiarla.
+      ${refFolioDoc(nota)?`<div class="info-tip" style="display:block;margin:0 0 12px">
+        Hoy está asociada a la factura <strong>N°${refFolioDoc(nota)}</strong>. Elige otra para cambiarla.
       </div>`:`<div class="info-tip" style="display:block;margin:0 0 12px">
         Sin referencia. Mientras no la tenga, el sistema la descuenta de la factura más antigua con saldo,
         que no siempre es la que corresponde. Al asociarla queda imputada donde tú indiques.
