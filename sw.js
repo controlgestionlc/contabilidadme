@@ -18,7 +18,7 @@
 
 // Esta línea se actualiza en cada publicación: al cambiar el nombre,
 // la caché anterior se descarta entera en activate.
-const CACHE = 'contabilidad-1789504683';
+const CACHE = 'contabilidad-1789505681';
 
 // Lo mínimo para que la aplicación abra sin red. Los módulos JS y el CSS se van
 // guardando solos a medida que se usan (ver fetch), así no hay que mantener a
@@ -29,6 +29,8 @@ const BASE = [
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './img/rabf-app-icon.png',
+  './img/rabf-logo.png',
 ];
 
 self.addEventListener('install', e => {
