@@ -8,13 +8,25 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.16-1251';
+const APP_VERSION='v2026.09.16-1826';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.1',fecha:'16-09-2026',titulo:'Logotipo RABF corregido para temas claros y oscuros',items:[
+    {tipo:'cambio',txt:'El nuevo archivo RABF indicado reemplaza el logotipo del login, cabecera, inicio, favicon e iconos de la aplicación instalable.'},
+    {tipo:'arreglo',txt:'Los espacios interiores de las letras R, A y B respetan el fondo del tema y dejan de mostrar rellenos blancos sobre fondos oscuros.'},
+    {tipo:'cambio',txt:'Los iconos maskable incorporan una zona segura sobre fondo oscuro para evitar recortes en Android y accesos instalables.'},
+  ]},
+  {version:'V2.21.0',fecha:'16-09-2026',titulo:'Órdenes de compra y recepciones integradas al inventario',items:[
+    {tipo:'nuevo',txt:'Nuevo flujo de órdenes de compra por proveedor, bodega y centro de costo, con borrador, emisión, anulación y cierre de saldos pendientes.'},
+    {tipo:'nuevo',txt:'Las recepciones parciales controlan cantidades pedidas, recibidas y pendientes, y admiten guía, factura afecta, factura exenta u otro documento.'},
+    {tipo:'nuevo',txt:'Cada recepción genera atómicamente una entrada valorizada al inventario; los productos con lote exigen lote y vencimiento antes de guardar.'},
+    {tipo:'seguridad',txt:'Se impiden sobre-recepciones, documentos duplicados por proveedor, edición concurrente y anulación de mercadería que ya fue consumida o trasladada.'},
+    {tipo:'cambio',txt:'Las facturas recibidas quedan marcadas para conciliación con el DTE contable, evitando contabilizar dos veces la misma compra.'},
+  ]},
   {version:'V2.20.2',fecha:'16-09-2026',titulo:'Carga masiva de productos desde Excel',items:[
     {tipo:'nuevo',txt:'El catálogo de productos permite descargar una plantilla Excel con instrucciones, valores admitidos y los grupos/subgrupos actuales de la empresa.'},
     {tipo:'nuevo',txt:'La carga masiva muestra una vista previa y clasifica cada fila como producto nuevo, actualización, omisión o error antes de guardar.'},

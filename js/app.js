@@ -80,7 +80,10 @@ import {cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
         invGuardarMovimiento,invVerMovimiento,invAnularMovimiento,
         invNuevaToma,invCrearToma,invAbrirToma,invVolverTomas,invSetFisicoToma,invSetCostoToma,
         invAgregarLineaToma,invTomaProductoCambio,invGuardarLineaToma,invCerrarToma,
-        invDevolverToma,invRechazarToma,invAutorizarToma} from './inventario.js';
+        invDevolverToma,invRechazarToma,invAutorizarToma,
+        invNuevaOC,invEditarOC,invOCCampo,invOCLineaCampo,invOCAgregarLinea,invOCQuitarLinea,invGuardarOC,
+        invVerOC,invVolverOC,invEmitirOC,invAnularOC,invCerrarSaldoOC,invAbrirRecepcion,invRecCampo,invRecLineaCampo,invRecAgregarLote,invRecQuitarLinea,
+        invGuardarRecepcion,invAnularRecepcion} from './inventario.js';
 
 // Negocio
 import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut,
@@ -689,6 +692,9 @@ Object.assign(window,{
   invNuevaToma, invCrearToma, invAbrirToma, invVolverTomas, invSetFisicoToma, invSetCostoToma,
   invAgregarLineaToma, invTomaProductoCambio, invGuardarLineaToma, invCerrarToma,
   invDevolverToma, invRechazarToma, invAutorizarToma,
+  invNuevaOC, invEditarOC, invOCCampo, invOCLineaCampo, invOCAgregarLinea, invOCQuitarLinea, invGuardarOC,
+  invVerOC, invVolverOC, invEmitirOC, invAnularOC, invCerrarSaldoOC, invAbrirRecepcion, invRecCampo, invRecLineaCampo, invRecAgregarLote, invRecQuitarLinea,
+  invGuardarRecepcion, invAnularRecepcion,
   verDetalleCC, abrirCapitalizar, confirmarCapitalizar, ccOpts, ccNombre,
   onCurvaChange, setPct, addPctAnio, delPctAnio, onTipoCentroChange,
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,

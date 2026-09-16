@@ -88,7 +88,7 @@ export function renderInicio(){
         <div class="inicio-hola">${saludo?'Hola, '+esc(saludo):'Bienvenido'}</div>
         <div class="inicio-sub">${lista.length} empresa${lista.length===1?'':'s'} · elige con cuál trabajar</div>
       </div>
-      <div class="inicio-logo" aria-hidden="true"><img src="img/rabf-app-icon.png" alt=""></div>
+      <div class="inicio-logo" aria-hidden="true"><img src="img/rabf-app-icon.png?v=1789583185" alt=""></div>
     </div>
     <div class="inicio-grid">${tarjetas}</div>
     <div class="inicio-pie">
