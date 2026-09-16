@@ -50,6 +50,7 @@ html[data-theme="sap-dark"]{
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px;display:flex;flex-direction:column}
+.login-brand-logo{display:block;width:min(72vw,260px);height:auto;margin:0 auto 14px;filter:drop-shadow(0 8px 24px rgba(0,0,0,.14))}
 header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;height:54px;display:flex;align-items:center;gap:14px;flex-shrink:0;z-index:10}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;white-space:nowrap}
 /* Accesos directos de la barra superior (solo escritorio) */
@@ -60,10 +61,12 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;hei
 .qn-btn.active{border-color:var(--ac,#3fb950);background:rgba(63,185,80,.14)}
 @media (max-width:768px){.quick-nav{display:none}}
 /* Marca de agua RABF en la pantalla de inicio (selección de empresas) */
-#s-inicio{position:relative;min-height:calc(100vh - 86px)}
+#s-inicio{position:relative;min-height:calc(100vh - 86px);background:var(--bg)}
 #s-inicio>#inicio-content{position:relative;z-index:1}
-.inicio-watermark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(68vw,560px);pointer-events:none;z-index:0}
-.inicio-watermark img{display:block;width:100%;height:auto;opacity:.13;mix-blend-mode:screen}
+.inicio-watermark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(62vw,520px);pointer-events:none;z-index:0}
+.inicio-watermark img{display:block;width:100%;height:auto;opacity:.11}
+html[data-theme="sap-light"] .inicio-watermark img{opacity:.075}
+html[data-theme="dark"] .inicio-watermark img,html[data-theme="sap-dark"] .inicio-watermark img{opacity:.13}
 @media (max-width:768px){#s-inicio{min-height:calc(100vh - 118px)}.inicio-watermark{width:min(84vw,430px)}}
 /* Balance de 8 columnas */
 .tbl-bal8 .c-num,.tbl-bal8 th.c-num{text-align:right;font-family:var(--mono);white-space:nowrap}
