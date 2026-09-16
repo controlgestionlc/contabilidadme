@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {recalcularInventario,validarMovimiento} from '../js/inventario-motor.js';
+import {recalcularInventario,validarMovimiento,movimientosNetosDespues,rebasarLineaToma} from '../js/inventario-motor.js';
 
 const productos=[
   {id:'p1',descripcion:'Producto normal',activo:true,inventariable:true,manejaLotes:false},
@@ -46,5 +46,42 @@ assert.match(venceDistinto.errores.join(' '),/ya existe con vencimiento/i);
 const negativo=recalcularInventario([...movs,{id:'m6',folio:'SAL-2',tipo:'SALIDA',fecha:'2026-01-06',estado:'VIGENTE',bodegaOrigenId:'b1',lineas:[{productoId:'p1',cantidad:30}]}],productos);
 assert.equal(negativo.stock.find(x=>x.productoId==='p1'&&x.bodegaId==='b1').cantidad,-15);
 assert.ok(negativo.errores.some(x=>x.tipo==='STOCK_NEGATIVO'));
+
+const movRebase=[
+  ...movs,
+  {id:'r1',folio:'ENT-R',tipo:'ENTRADA',fecha:'2026-01-06',creado:'2026-01-06T11:00:00Z',estado:'VIGENTE',bodegaDestinoId:'b1',lineas:[{productoId:'p1',cantidad:4,costoUnitario:150}]},
+  {id:'r2',folio:'SAL-R',tipo:'SALIDA',fecha:'2026-01-06',creado:'2026-01-06T12:00:00Z',estado:'VIGENTE',bodegaOrigenId:'b1',lineas:[{productoId:'p1',cantidad:2}]}
+];
+assert.equal(movimientosNetosDespues(movRebase,{desde:'2026-01-06T10:00:00Z',productoId:'p1',bodegaId:'b1'}),2);
+const calcRebase=recalcularInventario(movRebase,productos);
+const rebased=rebasarLineaToma({productoId:'p1',fisico:15,fisicoFecha:'2026-01-06T10:00:00Z'},{bodegaId:'b1',creado:'2026-01-06T09:00:00Z'},movRebase,calcRebase);
+assert.equal(rebased.actual,17);
+assert.equal(rebased.objetivo,17);
+assert.equal(rebased.diferencia,0);
+
+// Si el conteo detectó dos unidades menos y después hubo un neto de +2, el
+// faltante sigue siendo dos: actual 17 versus objetivo rebasado 15.
+const tomaConFaltante=rebasarLineaToma(
+  {productoId:'p1',fisico:13,fisicoFecha:'2026-01-06T10:00:00Z'},
+  {bodegaId:'b1',creado:'2026-01-06T09:00:00Z'},movRebase,calcRebase
+);
+assert.equal(tomaConFaltante.actual,17);
+assert.equal(tomaConFaltante.objetivo,15);
+assert.equal(tomaConFaltante.diferencia,-2);
+
+const loteRebaseMovs=[...movs,{id:'r3',folio:'TRS-R',tipo:'TRASPASO',fecha:'2026-01-06',creado:'2026-01-06T13:00:00Z',estado:'VIGENTE',bodegaOrigenId:'b1',bodegaDestinoId:'b2',lineas:[{productoId:'p2',cantidad:3,lote:'L1',fechaVencimiento:'2027-01-01'}]}];
+const loteCalc=recalcularInventario(loteRebaseMovs,productos);
+const loteRebase=rebasarLineaToma({productoId:'p2',lote:'L1',fisico:14,fisicoFecha:'2026-01-06T10:00:00Z'},{bodegaId:'b1'},loteRebaseMovs,loteCalc);
+assert.equal(loteRebase.posteriores,-3);
+assert.equal(loteRebase.actual,11);
+assert.equal(loteRebase.diferencia,0);
+
+// Al revisar una toma aplicada, su propio ajuste se excluye del rebase; un
+// ajuste perteneciente a otra toma sí debe considerarse como movimiento real.
+const conAjustesToma=[...movRebase,
+  {id:'ta1',folio:'AJE-TA1',tipo:'AJUSTE_ENTRADA',fecha:'2026-01-06',creado:'2026-01-06T13:00:00Z',estado:'VIGENTE',tomaId:'t1',bodegaDestinoId:'b1',lineas:[{productoId:'p1',cantidad:2,costoUnitario:150}]},
+  {id:'ta2',folio:'AJE-TA2',tipo:'AJUSTE_ENTRADA',fecha:'2026-01-06',creado:'2026-01-06T14:00:00Z',estado:'VIGENTE',tomaId:'otra',bodegaDestinoId:'b1',lineas:[{productoId:'p1',cantidad:1,costoUnitario:150}]}
+];
+assert.equal(movimientosNetosDespues(conAjustesToma,{desde:'2026-01-06T10:00:00Z',productoId:'p1',bodegaId:'b1',excluirTomaId:'t1'}),3);
 
 console.log('Inventario motor: OK');
