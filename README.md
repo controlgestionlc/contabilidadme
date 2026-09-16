@@ -2,9 +2,19 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.19.9 · compilación `v2026.09.16-0154`, publicada el 16-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria, operación móvil, importadores RCV preventivos, pagos y cobros editables, honorarios integrados como documentos de proveedor, auditoría, recuperación ante desastre, LRE Dirección del Trabajo e impresión de libros en hojas foliadas SII.
+> **Estado actual:** V2.20.0 · compilación `v2026.09.16-1227`, publicada el 16-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria y primera etapa del inventario multibodega con lotes, vencimientos, traspasos y valorización PPP.
 
 La fuente funcional de la versión es `js/changelog.js`. `version.json`, las etiquetas visibles de `index.html`, el import map y la caché de `sw.js` deben conservar la misma revisión en cada publicación.
+
+---
+
+## Inventario multibodega — primera etapa
+
+El menú **Inventario → Control de Inventario** incorpora un auxiliar permanente y separado para cada empresa. Los productos, grupos, subgrupos, bodegas y movimientos no se reinician al cambiar de ejercicio; el año activo sigue determinando la contabilidad, mientras las existencias mantienen continuidad histórica.
+
+La fuente de verdad es el libro de movimientos vigentes. Desde él se reconstruyen las cantidades, los lotes y el costo promedio ponderado por producto y bodega. Se soportan entradas, salidas y traspasos con múltiples líneas, lote y vencimiento, documento, tercero y centro de costo. Las anulaciones conservan trazabilidad y recalculan automáticamente los saldos.
+
+Esta versión corresponde al núcleo operacional. Las tomas físicas, órdenes de compra, recepciones parciales y enlace automático con compras/asientos se desarrollan sobre las colecciones ya reservadas para esos procesos, sin crear una segunda fuente de stock.
 
 ---
 
@@ -772,7 +782,7 @@ Flujo recomendado:
 8. Revisar Preparación Productiva.
 9. Generar Acta de Habilitación y activar PRODUCCIÓN.
 
-El paquete V2.19.9 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
+El paquete V2.20.0 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
 
 - `APP_VERSION` y la primera entrada de `CHANGELOG` en `js/changelog.js`;
 - `meta[name="app-version"]`, `meta[name="app-release"]`, versión del login e import map en `index.html`;
@@ -829,6 +839,8 @@ js/autoguardado.js         Borradores y autoguardado seguro
 js/correlativo-contable.js Numeración definitiva
 js/audit.js                Auditoría de acciones
 js/backup.js               Backup/restauración Excel
+js/inventario.js           Interfaz y persistencia del inventario multibodega
+js/inventario-motor.js     Stock, lotes, traspasos y valorización PPP
 ```
 
 ---
@@ -854,7 +866,7 @@ El sistema está diseñado para bloquear o advertir cuando alguno de estos contr
 
 ## 38. Versión documentada
 
-**V2.19.9 · `v2026.09.16-0154`**  
+**V2.20.0 · `v2026.09.16-1227`**  
 Documentación actualizada el 16-09-2026 a partir de los módulos, metadatos de publicación y changelog incluidos en este ZIP.
 
 Cambios funcionales recientes incorporados a esta documentación:
@@ -870,6 +882,7 @@ Cambios funcionales recientes incorporados a esta documentación:
 - Balance de 8 columnas y accesos rápidos a reportes;
 - ajustes del LRE, corrección monetaria por régimen y advertencia de aceptación tácita RCV;
 - identificación de versión sincronizada en el login y marca RABF en Inicio.
+- primera etapa del inventario multiempresa con productos, bodegas, lotes, vencimientos, movimientos y PPP.
 
 ### V2.19.6 — Correcciones tributarias críticas
 

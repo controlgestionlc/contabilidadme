@@ -72,6 +72,11 @@ import {initAyuda, toggleAyuda, actualizarAyuda, ayudaAlNavegar} from './ayuda.j
 import {renderInicio, abrirEmpresaInicio} from './inicio.js';
 import {abrirReporteAux, cerrarReporteAux, setReporteAuxVista, renderReporteAux,
         imprimirReporteAux, exportarReporteAuxExcel} from './auxreporte.js';
+import {cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
+        invAbrirGrupo,invGuardarGrupo,invAbrirBodega,invGuardarBodega,
+        invAbrirProducto,invActualizarSubgrupos,invGuardarProducto,
+        invNuevoMovimiento,invMovCampo,invMovLineaCampo,invMovAgregarLinea,invMovQuitarLinea,
+        invGuardarMovimiento,invVerMovimiento,invAnularMovimiento} from './inventario.js';
 
 // Negocio
 import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut,
@@ -376,7 +381,7 @@ async function initApp(){
   ys.value=S.empresa.anio;
   await loadYear(S.empresa.anio);
   await cargarDeclaracionesF29(true);
-  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
+  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();await cargarInventario();
   // Migración de folios de comprobante para datos preexistentes:
   // asigna folioComp a asientos manuales, compras, ventas y apertura que no
   // lo tengan, respetando el orden cronológico.
@@ -549,6 +554,7 @@ function renderSec(s){
   else if(s==='integridad')renderIntegridad();
   else if(s==='ventas')renderVentas();
   else if(s==='compras')renderCompras();
+  else if(s==='inventario')renderInventario();
   else if(s==='honorarios')renderHon();
   else if(s==='remuneraciones')renderRemuneraciones();
   // 'asientos' dejó de ser un módulo: los manuales viven dentro de Comprobantes.
@@ -619,6 +625,7 @@ async function recargarEmpresaActiva(){
   // Resetear estado en memoria
   S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];
   S.activos=[];S.trabajadores=[];S.apertura=null;
+  S.inventario={cargado:false,grupos:[],bodegas:[],productos:[],movimientos:[],tomas:[],ordenesCompra:[],recepciones:[]};
   S.empresa={...S.empresa,nombre:'',rut:'',domicilio:'',giro:'',codigo:'',ciudad:'',comuna:'',rep:'',rutrep:''};
   // Cargar datos de la nueva empresa
   try{const r=await window.storage.get('empresa');if(r)S.empresa={...S.empresa,...JSON.parse(r.value)};}catch(e){}
@@ -633,7 +640,7 @@ async function recargarEmpresaActiva(){
   await cargarPiloto();
   window.__entornoBypass=false;
   await cargarDeclaracionesF29(true);
-  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
+  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();await cargarInventario(true);
   fillEmpresaForm();updateHdr();renderSelectorEmpresa();renderInicio();
   try{aplicarPermisosUI();}catch(e){}
   rerender();
@@ -669,6 +676,11 @@ Object.assign(window,{
   renderIUSCTabla, setIUSC, addIUSCTramo, delIUSCTramo, restaurarIUSCTabla, setIUSCPrueba,
   renderPrevisional, guardarPrevisional, restaurarPrevisional,
   renderCentrosCosto, abrirFormCC, editarCC, cerrarFormCC, guardarCC, borrarCC,
+  renderInventario, invSetTab, invSetFiltro, invCerrarModal,
+  invAbrirGrupo, invGuardarGrupo, invAbrirBodega, invGuardarBodega,
+  invAbrirProducto, invActualizarSubgrupos, invGuardarProducto,
+  invNuevoMovimiento, invMovCampo, invMovLineaCampo, invMovAgregarLinea, invMovQuitarLinea,
+  invGuardarMovimiento, invVerMovimiento, invAnularMovimiento,
   verDetalleCC, abrirCapitalizar, confirmarCapitalizar, ccOpts, ccNombre,
   onCurvaChange, setPct, addPctAnio, delPctAnio, onTipoCentroChange,
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,

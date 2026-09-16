@@ -1,5 +1,15 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.20.0 — Núcleo de inventario multiempresa
+
+- Nuevo auxiliar continuo por empresa con productos, grupos/subgrupos y multibodega.
+- Libro de entradas, salidas y traspasos con varias líneas, lotes y vencimientos.
+- Stock, valor y PPP son derivados de los movimientos vigentes y reconstruibles.
+- Validación acumulada por producto/lote, control de saldo negativo y fechas incompatibles del mismo lote.
+- Anulación lógica con reconstrucción automática del inventario.
+- Persistencia separada en claves `inv-*`, incluida en cruce de nube, control de concurrencia, snapshots y respaldo Excel.
+- Se reservan colecciones para tomas, órdenes de compra y recepciones, que se incorporarán en la siguiente etapa.
+
 ## V2.16.31 — Montos enteros con separador de miles
 
 - Las casillas de importes monetarios se normalizan en pantalla a pesos enteros con separador de miles chileno (`31.681`) y sin decimales.

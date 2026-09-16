@@ -114,6 +114,17 @@ function construirWorkbookBD(){
   const ccRows=(S.centros||[]).map(c=>ccHdr.map(k=>k==='pctsCapitalizacionJSON'?JSON.stringify(c.pctsCapitalizacion||null):(c[k]!==undefined&&c[k]!==null?c[k]:'')));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ccHdr,...ccRows]),'CentrosCosto');
 
+  // INVENTARIO (maestros y libro continuo; no se separa por ejercicio)
+  const invSheet=(nombre,rows)=>XLSX.utils.book_append_sheet(wb,
+    XLSX.utils.aoa_to_sheet([['id','registroJSON'],...(rows||[]).map(x=>[x.id||'',JSON.stringify(x)])]),nombre);
+  invSheet('InvGrupos',S.inventario?.grupos);
+  invSheet('InvBodegas',S.inventario?.bodegas);
+  invSheet('InvProductos',S.inventario?.productos);
+  invSheet('InvMovimientos',S.inventario?.movimientos);
+  invSheet('InvTomas',S.inventario?.tomas);
+  invSheet('InvOrdenesCompra',S.inventario?.ordenesCompra);
+  invSheet('InvRecepciones',S.inventario?.recepciones);
+
   // PLAN DE CUENTAS (solo referencia, no se importa)
   const pdcHdr=['Código','Nombre','Naturaleza','Tipo'];
   const pdcRows=PDC.map(c=>[c.cd,c.nm,c.nat||'',c.tp||'']);
@@ -461,6 +472,18 @@ async function importarExcelBD(file){
       }));
     }
 
+    // Restaurar el auxiliar de inventario. Cada fila conserva el registro
+    // completo para no perder lotes, vínculos, auditoría ni campos futuros.
+    const leerInv=nombre=>{
+      if(!hojas.includes(nombre))return null;
+      return XLSX.utils.sheet_to_json(wb.Sheets[nombre]).map(r=>{
+        try{return JSON.parse(r.registroJSON||'{}');}catch(e){return null;}
+      }).filter(x=>x&&x.id);
+    };
+    const invHojas={grupos:'InvGrupos',bodegas:'InvBodegas',productos:'InvProductos',movimientos:'InvMovimientos',tomas:'InvTomas',ordenesCompra:'InvOrdenesCompra',recepciones:'InvRecepciones'};
+    for(const [prop,nombre] of Object.entries(invHojas)){const datos=leerInv(nombre);if(datos)S.inventario[prop]=datos;}
+    if(Object.values(invHojas).some(n=>hojas.includes(n)))S.inventario.cargado=true;
+
     // Restaurar trabajadores (clave global)
     if(hojas.includes('Trabajadores')){
       const trRows=XLSX.utils.sheet_to_json(wb.Sheets['Trabajadores']);
@@ -504,6 +527,15 @@ async function importarExcelBD(file){
     if(S.activos&&S.activos.length)await window.storage.set('activos',JSON.stringify(S.activos));
     if(S.trabajadores&&S.trabajadores.length)await window.storage.set('trabajadores',JSON.stringify(S.trabajadores));
     if(S.centros&&S.centros.length)await window.storage.set('centros',JSON.stringify(S.centros));
+    if(S.inventario?.cargado){
+      await window.storage.set('inv-grupos',JSON.stringify(S.inventario.grupos||[]));
+      await window.storage.set('inv-bodegas',JSON.stringify(S.inventario.bodegas||[]));
+      await window.storage.set('inv-productos',JSON.stringify(S.inventario.productos||[]));
+      await window.storage.set('inv-movimientos',JSON.stringify(S.inventario.movimientos||[]));
+      await window.storage.set('inv-tomas',JSON.stringify(S.inventario.tomas||[]));
+      await window.storage.set('inv-ordenes-compra',JSON.stringify(S.inventario.ordenesCompra||[]));
+      await window.storage.set('inv-recepciones',JSON.stringify(S.inventario.recepciones||[]));
+    }
     await window.storage.set('empresa',JSON.stringify(S.empresa));
 
     const apMsg=S.apertura?' · Apertura':'';

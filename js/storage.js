@@ -369,7 +369,9 @@ initDispositivo();
   // exista en este equipo (por si hay algo de otro año o de un módulo nuevo).
   function clavesDeLaEmpresa(anio){
     const fijas=['empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC',
-                 'comprobantesTipo','fichasAux','indicadores','previsional','libroRem'];
+                 'comprobantesTipo','fichasAux','indicadores','previsional','libroRem',
+                 'inv-grupos','inv-bodegas','inv-productos','inv-movimientos',
+                 'inv-tomas','inv-ordenes-compra','inv-recepciones'];
     const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-','f29-declaraciones-','cierresContables-','hardening-certificacion-','preproduccion-','folios-sii-'].map(p=>p+anio);
     const set=new Set([...fijas,...delAnio]);
     try{

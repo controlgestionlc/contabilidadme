@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.16-0154';
+const APP_VERSION='v2026.09.16-1227';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.20.0',fecha:'16-09-2026',titulo:'Primera etapa del inventario multiempresa',items:[
+    {tipo:'nuevo',txt:'Nuevo Control de Inventario separado por empresa, con catálogos de bodegas, grupos, subgrupos y productos.'},
+    {tipo:'nuevo',txt:'Entradas, salidas y traspasos multibodega admiten varias líneas, lotes, fechas de vencimiento, documentos y centros de costo.'},
+    {tipo:'nuevo',txt:'Las existencias y su valorización se reconstruyen desde los movimientos vigentes mediante costo promedio ponderado (PPP), sin permitir que una edición directa altere el saldo.'},
+    {tipo:'seguridad',txt:'Se bloquean salidas superiores al saldo total o al lote disponible, se valida la fecha de un lote existente y las anulaciones reconstruyen automáticamente el stock.'},
+    {tipo:'cambio',txt:'El respaldo Excel, los snapshots, la sincronización y el control de concurrencia incluyen todas las colecciones del nuevo auxiliar.'},
+  ]},
   {version:'V2.19.9',fecha:'16-09-2026',titulo:'Logotipo RABF unificado y adaptado al tema',items:[
     {tipo:'cambio',txt:'La imagen RABF indicada se utiliza en el login, la cabecera, los accesos instalables, el favicon y la pantalla de selección de empresas.'},
     {tipo:'cambio',txt:'El fondo propio de la imagen se eliminó para que el logotipo se integre con el color del tema claro u oscuro en uso.'},

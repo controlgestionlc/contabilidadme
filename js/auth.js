@@ -45,6 +45,7 @@ const SECCIONES=[
   {id:'apertura',lbl:'Balance de Apertura'},
   {id:'ventas',lbl:'Libro de Ventas'},
   {id:'compras',lbl:'Libro de Compras'},
+  {id:'inventario',lbl:'Control de Inventario'},
   {id:'honorarios',lbl:'Honorarios'},
   {id:'remuneraciones',lbl:'Remuneraciones'},
   {id:'auxiliares',lbl:'Auxiliares'},
