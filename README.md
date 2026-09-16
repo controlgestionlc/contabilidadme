@@ -2,7 +2,7 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.20.2 · compilación `v2026.09.16-1251`, publicada el 16-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria, inventario multibodega, tomas físicas y carga masiva de productos.
+> **Estado actual:** V2.21.1 · compilación `v2026.09.16-1826`, publicada el 16-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria, inventario multibodega, tomas físicas, carga masiva y órdenes de compra.
 
 La fuente funcional de la versión es `js/changelog.js`. `version.json`, las etiquetas visibles de `index.html`, el import map y la caché de `sw.js` deben conservar la misma revisión en cada publicación.
 
@@ -20,7 +20,15 @@ Desde la pestaña **Productos** se puede descargar una plantilla Excel e importa
 
 Cada línea conserva la hora de su conteo. Si después ocurren entradas, salidas o traspasos, la autorización incorpora su efecto al objetivo actual antes de calcular el ajuste, por lo que la bodega no necesita quedar bloqueada. El control de versión evita que dos equipos sobrescriban silenciosamente la misma toma.
 
-Las órdenes de compra, recepciones parciales y el enlace automático con compras/asientos corresponden a la siguiente etapa y se desarrollarán sobre las colecciones ya reservadas, sin crear una segunda fuente de stock.
+La conciliación automática que marcará una recepción como contabilizada cuando aparezca su DTE en Compras queda como siguiente integración. La recepción física ya conserva RUT, tipo y número documental para realizar ese enlace sin crear una segunda fuente de stock ni duplicar asientos.
+
+### Órdenes de compra y recepciones
+
+La pestaña **Órdenes de compra** permite preparar borradores, emitir órdenes por proveedor, bodega y centro de costo, registrar precios netos y descuentos, y controlar cantidades pedidas, recibidas y pendientes. Las órdenes pueden quedar emitidas, parcialmente recibidas, completamente recibidas, cerradas con saldo o anuladas.
+
+Cada recepción admite guía, factura afecta, factura exenta u otro documento. Se controla que la cantidad no supere el saldo de la orden y, cuando el producto trabaja con lotes, se exige lote y fecha de vencimiento. El registro de la recepción, la actualización de la orden y la entrada valorizada al inventario se guardan conjuntamente. El costo de entrada corresponde al precio neto de la orden después del descuento.
+
+La anulación de una recepción también anula su entrada, pero sólo cuando la mercadería aún está disponible en la bodega y lote originales. Las facturas quedan identificadas como pendientes de conciliación contable con el DTE capturado en Compras; de este modo la recepción física no crea anticipadamente una segunda contabilización.
 
 ---
 
@@ -788,7 +796,7 @@ Flujo recomendado:
 8. Revisar Preparación Productiva.
 9. Generar Acta de Habilitación y activar PRODUCCIÓN.
 
-El paquete V2.20.2 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
+El paquete V2.21.1 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
 
 - `APP_VERSION` y la primera entrada de `CHANGELOG` en `js/changelog.js`;
 - `meta[name="app-version"]`, `meta[name="app-release"]`, versión del login e import map en `index.html`;
@@ -872,7 +880,7 @@ El sistema está diseñado para bloquear o advertir cuando alguno de estos contr
 
 ## 38. Versión documentada
 
-**V2.20.2 · `v2026.09.16-1251`**  
+**V2.21.1 · `v2026.09.16-1826`**  
 Documentación actualizada el 16-09-2026 a partir de los módulos, metadatos de publicación y changelog incluidos en este ZIP.
 
 Cambios funcionales recientes incorporados a esta documentación:

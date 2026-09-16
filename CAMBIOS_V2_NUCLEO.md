@@ -1,5 +1,21 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.21.1 — Logotipo corregido
+
+- El nuevo logotipo RABF reemplaza todos los recursos visibles e instalables.
+- Los huecos interiores de R, A y B muestran el fondo real del tema, sin rellenos blancos.
+- Se regeneraron favicon, iconos PWA, acceso de Apple y variantes maskable.
+
+## V2.21.0 — Órdenes de compra y recepciones
+
+- Órdenes de compra con proveedor, bodega, centro de costo, entrega esperada, precios, descuentos e IVA.
+- Estados de borrador, emitida, recepción parcial, recibida completa, cerrada con saldo y anulada.
+- Recepciones parciales con control de saldos y documentos de respaldo.
+- Exigencia de lote y vencimiento para productos configurados con trazabilidad.
+- Entrada valorizada al inventario generada conjuntamente con cada recepción.
+- Bloqueo de sobre-recepciones, documentos duplicados y anulaciones sin stock disponible.
+- Facturas marcadas para posterior conciliación con el DTE capturado en Compras.
+
 ## V2.20.2 — Carga masiva de productos
 
 - Descarga de plantilla Excel desde la pestaña Productos.
