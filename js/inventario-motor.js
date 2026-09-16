@@ -135,4 +135,40 @@ function validarMovimiento(m,{productos=[],bodegas=[],movimientos=[]}={}){
   return {ok:errores.length===0,errores,lineas};
 }
 
-export {recalcularInventario,validarMovimiento,stockKey,loteKey};
+// Rebase de una línea de toma física. El conteo representa la existencia que
+// había cuando se digitó. Los movimientos creados después de esa hora se suman
+// al objetivo, evitando ajustar dos veces mercadería que entró o salió mientras
+// la toma estaba abierta.
+function movimientosNetosDespues(movimientos,{desde,productoId,bodegaId,lote='',excluirTomaId=''}){
+  const desdeMs=new Date(desde||0).getTime(),pid=String(productoId),bid=String(bodegaId),lot=String(lote||'').trim().toUpperCase();
+  let neto=0;
+  for(const m of (movimientos||[])){
+    if(!m||m.estado==='ANULADO'||(excluirTomaId&&String(m.tomaId||'')===String(excluirTomaId)))continue;
+    const creadoMs=new Date(m.creado||m.fecha||0).getTime();
+    if(!Number.isFinite(creadoMs)||creadoMs<=desdeMs)continue;
+    for(const l of (m.lineas||[])){
+      if(String(l.productoId)!==pid)continue;
+      if(lot&&String(l.lote||'').trim().toUpperCase()!==lot)continue;
+      const cant=n(l.cantidad);
+      if((m.tipo==='ENTRADA'||m.tipo==='AJUSTE_ENTRADA')&&String(m.bodegaDestinoId)===bid)neto+=cant;
+      else if((m.tipo==='SALIDA'||m.tipo==='AJUSTE_SALIDA')&&String(m.bodegaOrigenId)===bid)neto-=cant;
+      else if(m.tipo==='TRASPASO'){
+        if(String(m.bodegaOrigenId)===bid)neto-=cant;
+        if(String(m.bodegaDestinoId)===bid)neto+=cant;
+      }
+    }
+  }
+  return r6(neto);
+}
+
+function rebasarLineaToma(linea,toma,movimientos,calculo){
+  const pid=String(linea.productoId),bid=String(toma.bodegaId),lot=String(linea.lote||'').trim().toUpperCase();
+  const actual=lot
+    ? n((calculo?.lotes||[]).find(x=>x.productoId===pid&&x.bodegaId===bid&&x.lote===lot)?.cantidad)
+    : n((calculo?.stock||[]).find(x=>x.productoId===pid&&x.bodegaId===bid)?.cantidad);
+  const posteriores=movimientosNetosDespues(movimientos,{desde:linea.fisicoFecha||toma.cerrado||toma.creado,productoId:pid,bodegaId:bid,lote:lot,excluirTomaId:toma.id});
+  const objetivo=r6(n(linea.fisico)+posteriores);
+  return {actual,posteriores,objetivo,diferencia:r6(objetivo-actual)};
+}
+
+export {recalcularInventario,validarMovimiento,movimientosNetosDespues,rebasarLineaToma,stockKey,loteKey};

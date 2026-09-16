@@ -1,18 +1,20 @@
 // inventario.js — Auxiliar multiempresa de existencias.
-// Primera etapa: maestros, lotes, movimientos, traspasos y stock PPP derivado.
+// Maestros, carga Excel, lotes, movimientos, traspasos, tomas y stock PPP derivado.
 
 import {S,AUTH} from './state.js';
 import {toast,PDC} from './core.js';
 import {puedeEditar} from './auth.js';
 import {logCambio} from './firebase.js';
-import {recalcularInventario,validarMovimiento} from './inventario-motor.js';
+import {recalcularInventario,validarMovimiento,rebasarLineaToma} from './inventario-motor.js';
+import {prepararImportacionProductos} from './inventario-importador.js';
 
 const K={
   grupos:'inv-grupos',bodegas:'inv-bodegas',productos:'inv-productos',
   movimientos:'inv-movimientos',tomas:'inv-tomas',ordenesCompra:'inv-ordenes-compra',recepciones:'inv-recepciones'
 };
-const UI={tab:'stock',q:'',bodega:'',estado:'',cargando:false,errorCarga:''};
+const UI={tab:'stock',q:'',bodega:'',estado:'',cargando:false,errorCarga:'',tomaId:''};
 let movDraft=null;
+let productosImportDraft=null;
 const uid=()=>globalThis.crypto?.randomUUID?.()||('inv-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number.isFinite(+v)?+v:0;
@@ -83,7 +85,7 @@ function renderInventario(){
     </div>
     ${calc.errores.length?`<div class="inv-alert error"><strong>⚠ ${calc.errores.length} inconsistencia(s) en el libro.</strong> No se ocultan los saldos negativos. Revisa los movimientos señalados.</div>`:''}
     <div class="inv-tabs">
-      ${[['stock','Existencias'],['movimientos','Movimientos'],['productos','Productos'],['bodegas','Bodegas'],['grupos','Grupos y subgrupos']].map(([id,l])=>`<button class="${UI.tab===id?'active':''}" onclick="invSetTab('${id}')">${l}</button>`).join('')}
+      ${[['stock','Existencias'],['movimientos','Movimientos'],['tomas','Tomas físicas'],['productos','Productos'],['bodegas','Bodegas'],['grupos','Grupos y subgrupos']].map(([id,l])=>`<button class="${UI.tab===id?'active':''}" onclick="invSetTab('${id}')">${l}</button>`).join('')}
     </div>
     <div id="inv-tab-body"></div>`;
   renderTab(calc);
@@ -93,11 +95,12 @@ function renderTab(calc=calculo()){
   const c=document.getElementById('inv-tab-body');if(!c)return;
   if(UI.tab==='stock')renderStock(c,calc);
   else if(UI.tab==='movimientos')renderMovimientos(c,calc);
+  else if(UI.tab==='tomas')renderTomas(c,calc);
   else if(UI.tab==='productos')renderProductos(c);
   else if(UI.tab==='bodegas')renderBodegas(c);
   else renderGrupos(c);
 }
-function invSetTab(tab){UI.tab=tab;UI.q='';renderInventario();}
+function invSetTab(tab){UI.tab=tab;UI.q='';UI.estado='';UI.tomaId='';renderInventario();}
 function invSetFiltro(campo,valor){UI[campo]=valor;renderTab();}
 
 function renderStock(c,calc){
@@ -121,7 +124,7 @@ function renderLotes(calc){
 function renderProductos(c){
   let rows=inv().productos.slice().sort((a,b)=>(a.codigo||'').localeCompare(b.codigo||''));
   if(UI.q){const q=UI.q.toLowerCase();rows=rows.filter(p=>(`${p.codigo} ${p.ean||''} ${p.descripcion} ${p.subgrupo||''}`).toLowerCase().includes(q));}
-  c.innerHTML=`<div class="card inv-toolbar"><input value="${esc(UI.q)}" oninput="invSetFiltro('q',this.value)" placeholder="Código, EAN o descripción…">${writable()?'<button class="btn btn-p" onclick="invAbrirProducto()">＋ Producto</button>':''}</div>
+  c.innerHTML=`<div class="card inv-toolbar"><input value="${esc(UI.q)}" oninput="invSetFiltro('q',this.value)" placeholder="Código, EAN o descripción…">${writable()?'<div class="inv-toolbar-actions"><button class="btn btn-g" onclick="invDescargarPlantillaProductos()">📄 Plantilla Excel</button><button class="btn btn-g" onclick="invAbrirImportProductos()">⬆ Importar Excel</button><button class="btn btn-p" onclick="invAbrirProducto()">＋ Producto</button></div>':''}</div>
   <div class="card-np"><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Código</th><th>EAN</th><th>Descripción</th><th>Tipo</th><th>Grupo / subgrupo</th><th>U.M.</th><th class="num">Mínimo</th><th>Lotes</th><th>Estado</th><th></th></tr></thead><tbody>${rows.length?rows.map(p=>`<tr><td class="mono"><strong>${esc(p.codigo)}</strong></td><td class="mono">${esc(p.ean||'—')}</td><td>${esc(p.descripcion)}</td><td>${esc(p.tipo||'MERCADERÍA')}</td><td>${esc(grupo(p.grupoId)?.nombre||'—')}<small>${esc(p.subgrupo||'')}</small></td><td>${esc(p.unidad)}</td><td class="num">${fmt(p.stockMinimo)}</td><td>${p.manejaLotes?'Sí':'No'}</td><td><span class="badge ${p.activo===false?'inv-muted':'inv-ok'}">${p.activo===false?'INACTIVO':'ACTIVO'}</span></td><td>${writable()?`<button class="btn btn-g" onclick="invAbrirProducto('${p.id}')">Editar</button>`:''}</td></tr>`).join(''):'<tr><td colspan="10" class="empty">Aún no hay productos.</td></tr>'}</tbody></table></div></div>`;
 }
 
@@ -140,11 +143,139 @@ function renderMovimientos(c,calc){
   <div class="card-np"><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Folio</th><th>Fecha</th><th>Tipo</th><th>Motivo</th><th>Origen</th><th>Destino</th><th>Documento</th><th class="num">Valor</th><th>Estado</th><th></th></tr></thead><tbody>${rows.length?rows.map(m=>{const vals=calc.valorizaciones.get(String(m.id))||[],v=vals.reduce((s,l)=>s+num(l.valorAplicado),0);return `<tr class="${m.estado==='ANULADO'?'inv-anulado':''}"><td class="mono"><strong>${esc(m.folio)}</strong></td><td>${fechaCorta(m.fecha)}</td><td><span class="badge inv-type-${m.tipo.toLowerCase()}">${esc(m.tipo.replace('_',' '))}</span></td><td>${esc(m.motivo||'—')}</td><td>${esc(nombreBodega(m.bodegaOrigenId))}</td><td>${esc(nombreBodega(m.bodegaDestinoId))}</td><td>${esc(m.documento||'—')}</td><td class="num">${mon(v)}</td><td>${m.estado==='ANULADO'?'<span class="badge inv-bad">ANULADO</span>':'<span class="badge inv-ok">VIGENTE</span>'}</td><td><button class="btn btn-g" onclick="invVerMovimiento('${m.id}')">Ver</button></td></tr>`;}).join(''):'<tr><td colspan="10" class="empty">Aún no hay movimientos.</td></tr>'}</tbody></table></div></div>`;
 }
 
+const TOMA_ESTADOS={EN_PROCESO:'En proceso',DEVUELTA:'Devuelta',PENDIENTE_AUTORIZACION:'Pendiente de autorización',RECHAZADA:'Rechazada',APLICADA:'Aplicada'};
+async function leerListaActual(prop){
+  const r=await window.storage.leerConEstado(K[prop]);
+  if(r.fuente==='error')throw new Error(`No fue posible verificar ${K[prop]} en la nube`);
+  const lista=r.value==null?[]:JSON.parse(r.value);
+  if(!Array.isArray(lista))throw new Error(`Contenido inválido en ${K[prop]}`);
+  inv()[prop]=lista;return lista;
+}
+async function mutarTomaSegura(id,version,mutador){
+  const actuales=await leerListaActual('tomas'),idx=actuales.findIndex(x=>x.id===id);
+  if(idx<0)throw new Error('La toma ya no existe');
+  if(num(actuales[idx].version)!==num(version))throw new Error('La toma cambió en otro equipo. Se recargó la versión más reciente. Revisa antes de continuar.');
+  const respaldo=JSON.parse(JSON.stringify(actuales));
+  const siguiente=JSON.parse(JSON.stringify(actuales[idx]));mutador(siguiente);siguiente.version=num(siguiente.version)+1;siguiente.modificado=new Date().toISOString();
+  actuales[idx]=siguiente;inv().tomas=actuales;
+  try{await guardarLista('tomas');return inv().tomas.find(x=>x.id===id)||siguiente;}catch(e){inv().tomas=respaldo;throw e;}
+}
+
+function renderTomas(c,calc){
+  if(UI.tomaId){const t=inv().tomas.find(x=>x.id===UI.tomaId);if(t){renderTomaDetalle(c,t,calc);return;}UI.tomaId='';}
+  let rows=inv().tomas.slice().sort((a,b)=>String(b.creado||'').localeCompare(String(a.creado||'')));
+  if(UI.estado)rows=rows.filter(t=>t.estado===UI.estado);
+  if(UI.bodega)rows=rows.filter(t=>t.bodegaId===UI.bodega);
+  if(UI.q){const q=UI.q.toLowerCase();rows=rows.filter(t=>(`${t.folio} ${t.observaciones||''} ${t.creadoPor||''}`).toLowerCase().includes(q));}
+  c.innerHTML=`<div class="card inv-toolbar"><input value="${esc(UI.q)}" oninput="invSetFiltro('q',this.value)" placeholder="Folio, observación o usuario…"><select onchange="invSetFiltro('estado',this.value)"><option value="">Todos los estados</option>${Object.entries(TOMA_ESTADOS).map(([k,v])=>`<option value="${k}" ${UI.estado===k?'selected':''}>${v}</option>`).join('')}</select><select onchange="invSetFiltro('bodega',this.value)">${opcionesBodega(UI.bodega,true)}</select>${writable()?'<button class="btn btn-p" onclick="invNuevaToma()">＋ Iniciar toma</button>':''}</div>
+  <div class="card-np"><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Folio</th><th>Inicio</th><th>Bodega</th><th>Estado</th><th class="num">Líneas</th><th class="num">Contadas</th><th class="num">Diferencias</th><th>Usuario</th><th></th></tr></thead><tbody>${rows.length?rows.map(t=>{const cont=(t.lineas||[]).filter(l=>l.contado).length,dif=(t.lineas||[]).filter(l=>l.contado&&Math.abs(rebasarLineaToma(l,t,inv().movimientos,calc).diferencia)>1e-6).length;return `<tr><td class="mono"><strong>${esc(t.folio)}</strong></td><td>${fechaCorta(t.creado)}</td><td>${esc(nombreBodega(t.bodegaId))}</td><td><span class="badge inv-toma-${String(t.estado).toLowerCase()}">${esc(TOMA_ESTADOS[t.estado]||t.estado)}</span></td><td class="num">${(t.lineas||[]).length}</td><td class="num">${cont}</td><td class="num">${dif}</td><td>${esc(t.creadoPor||'—')}</td><td><button class="btn btn-g" onclick="invAbrirToma('${t.id}')">${['EN_PROCESO','DEVUELTA'].includes(t.estado)&&writable()?'Continuar':'Ver'}</button></td></tr>`;}).join(''):'<tr><td colspan="9" class="empty">Aún no hay tomas físicas.</td></tr>'}</tbody></table></div></div>`;
+}
+
+function invNuevaToma(){
+  if(!writable())return;if(!inv().bodegas.some(b=>b.activo!==false)){toast('Primero crea una bodega activa','e');return;}
+  modal(`${modalHdr('Iniciar toma física','Se congela una referencia inicial, pero la autorización rebasa automáticamente los movimientos posteriores a cada conteo')}
+    <div class="inv-alert"><strong>Conteo seguro:</strong> no es necesario bloquear la bodega. Si hay entradas, salidas o traspasos durante la toma, el sistema los incorpora al calcular el ajuste final.</div>
+    <div class="inv-form-grid"><label>Bodega<select id="it-bod">${opcionesBodega()}</select></label><label>Alcance<select id="it-alc"><option value="CON_STOCK">Productos/lotes con stock</option><option value="TODOS">Todos los productos sin lote y lotes existentes</option></select></label><label>Grupo<select id="it-grupo"><option value="">Todos los grupos</option>${inv().grupos.map(g=>`<option value="${g.id}">${esc(g.nombre)}</option>`).join('')}</select></label><label>Observaciones<input id="it-obs" placeholder="Cierre mensual, conteo cíclico…"></label></div>
+    <div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invCrearToma()">Iniciar</button></div>`);
+}
+async function invCrearToma(){
+  if(!writable())return;const bodegaId=document.getElementById('it-bod').value,alcance=document.getElementById('it-alc').value,grupoId=document.getElementById('it-grupo').value;
+  if(!bodegaId){toast('Selecciona una bodega','e');return;}
+  try{await leerListaActual('tomas');}catch(e){toast('❌ '+e.message,'e');return;}
+  if(inv().tomas.some(t=>t.bodegaId===bodegaId&&['EN_PROCESO','DEVUELTA','PENDIENTE_AUTORIZACION'].includes(t.estado))){toast('Ya existe una toma abierta o pendiente para esa bodega','e');return;}
+  const calc=calculo(),lineas=[];
+  for(const p of inv().productos.filter(p=>p.activo!==false&&p.inventariable!==false&&(!grupoId||p.grupoId===grupoId))){
+    const st=calc.stock.find(x=>x.productoId===p.id&&x.bodegaId===bodegaId),cant=num(st?.cantidad);
+    if(p.manejaLotes){
+      const ls=calc.lotes.filter(x=>x.productoId===p.id&&x.bodegaId===bodegaId&&x.cantidad!==0);
+      for(const l of ls)lineas.push({id:uid(),productoId:p.id,lote:l.lote,fechaVencimiento:l.fechaVencimiento||'',teoricoBase:num(l.cantidad),costoBase:num(st?.costoPromedio),fisico:null,contado:false});
+    }else if(alcance==='TODOS'||cant!==0){
+      lineas.push({id:uid(),productoId:p.id,lote:'',fechaVencimiento:'',teoricoBase:cant,costoBase:num(st?.costoPromedio),fisico:null,contado:false});
+    }
+  }
+  lineas.sort((a,b)=>nombreProducto(a.productoId).localeCompare(nombreProducto(b.productoId))||a.lote.localeCompare(b.lote));
+  const toma={id:uid(),folio:nuevoFolio('TOMA'),bodegaId,alcance,grupoId,observaciones:document.getElementById('it-obs').value.trim(),estado:'EN_PROCESO',version:1,lineas,creado:new Date().toISOString(),creadoPor:AUTH.user?.email||''};
+  const respaldo=inv().tomas.slice();inv().tomas.push(toma);
+  try{await guardarLista('tomas');logCambio('Inició toma de inventario',{entidad:'inventario-toma',id:toma.id,despues:toma,meta:{detalle:toma.folio}});invCerrarModal();UI.tomaId=toma.id;renderInventario();toast(`✅ ${toma.folio} iniciada con ${lineas.length} línea(s)`);}catch(e){inv().tomas=respaldo;toast('❌ '+e.message,'e');}
+}
+
+function invAbrirToma(id){UI.tomaId=id;renderInventario();}
+function invVolverTomas(){UI.tomaId='';renderInventario();}
+function renderTomaDetalle(c,t,calc){
+  const editable=['EN_PROCESO','DEVUELTA'].includes(t.estado)&&writable(),lineas=t.lineas||[],contadas=lineas.filter(l=>l.contado).length,pend=lineas.length-contadas;
+  const revisiones=lineas.map(l=>l.contado?rebasarLineaToma(l,t,inv().movimientos,calc):null),difs=revisiones.filter(x=>x&&Math.abs(x.diferencia)>1e-6).length;
+  c.innerHTML=`<div class="sec-hdr"><div><div class="sec-title">${esc(t.folio)} · ${esc(nombreBodega(t.bodegaId))}</div><div class="sec-sub">${esc(TOMA_ESTADOS[t.estado]||t.estado)} · versión ${num(t.version)} · iniciada por ${esc(t.creadoPor||'—')}</div></div><div class="inv-actions"><button class="btn btn-g" onclick="invVolverTomas()">← Volver</button>${editable?'<button class="btn btn-g" onclick="invAgregarLineaToma()">＋ Producto/lote</button><button class="btn btn-p" onclick="invCerrarToma()">Cerrar para autorización</button>':''}</div></div>
+  ${t.estado==='DEVUELTA'?`<div class="inv-alert"><strong>Devuelta:</strong> ${esc(t.motivoDevolucion||'')}</div>`:''}
+  ${t.estado==='RECHAZADA'?`<div class="inv-alert error"><strong>Rechazada:</strong> ${esc(t.motivoRechazo||'')}</div>`:''}
+  ${t.estado==='APLICADA'?`<div class="inv-alert"><strong>Ajustes aplicados:</strong> ${(t.movimientosAjuste||[]).map(esc).join(', ')||'sin diferencias'}</div>`:''}
+  <div class="inv-kpis inv-kpis-4"><div><small>Líneas</small><strong>${lineas.length}</strong></div><div><small>Contadas</small><strong>${contadas}</strong></div><div class="${pend?'warn':''}"><small>Pendientes</small><strong>${pend}</strong></div><div class="${difs?'warn':''}"><small>Diferencias actuales</small><strong>${difs}</strong></div></div>
+  <div class="card inv-toolbar"><input value="${esc(UI.q)}" oninput="invSetFiltro('q',this.value)" placeholder="Buscar producto o lote…"></div>
+  <div class="card-np"><div class="inv-table-wrap"><table class="inv-table inv-toma-table"><thead><tr><th>Código</th><th>Producto</th><th>Lote / vencimiento</th><th class="num">Teórico inicial</th><th class="num">Físico contado</th><th class="num">Mov. posteriores</th><th class="num">Objetivo actual</th><th class="num">Diferencia</th><th class="num">Costo ajuste</th></tr></thead><tbody>${renderLineasToma(t,calc,editable)}</tbody></table></div></div>
+  ${t.observaciones?`<div class="inv-nota"><strong>Observaciones:</strong> ${esc(t.observaciones)}</div>`:''}
+  ${t.estado==='PENDIENTE_AUTORIZACION'&&writable()?`<div class="inv-review-actions"><button class="btn btn-g" onclick="invDevolverToma()">↩ Devolver</button><button class="btn btn-r" onclick="invRechazarToma()">Rechazar</button><button class="btn btn-p" onclick="invAutorizarToma()">✓ Autorizar y aplicar</button></div>`:''}`;
+}
+function renderLineasToma(t,calc,editable){
+  const q=UI.q.toLowerCase();let lineas=(t.lineas||[]).map(l=>({l,p:prod(l.productoId)}));if(q)lineas=lineas.filter(x=>(`${x.p?.codigo||''} ${x.p?.descripcion||''} ${x.l.lote||''}`).toLowerCase().includes(q));
+  if(!lineas.length)return '<tr><td colspan="9" class="empty">Sin líneas para mostrar.</td></tr>';
+  return lineas.map(({l,p})=>{const r=l.contado?rebasarLineaToma(l,t,inv().movimientos,calc):null,dif=r?.diferencia||0;return `<tr class="${l.contado&&Math.abs(dif)>1e-6?'inv-diferencia':''}"><td class="mono">${esc(p?.codigo||'')}</td><td><strong>${esc(p?.descripcion||l.productoId)}</strong><small>${esc(p?.unidad||'')}</small></td><td class="mono">${esc(l.lote||'—')}<small>${fechaCorta(l.fechaVencimiento)}</small></td><td class="num">${fmt(l.teoricoBase)}</td><td class="num">${editable?`<input class="inv-count-input" type="number" min="0" step="any" value="${l.contado?esc(l.fisico):''}" onchange="invSetFisicoToma('${t.id}','${l.id}',${t.version},this.value)">`:(l.contado?`<strong>${fmt(l.fisico)}</strong>`:'—')}</td><td class="num">${r?fmt(r.posteriores):'—'}</td><td class="num">${r?fmt(r.objetivo):'—'}</td><td class="num"><strong class="${dif>0?'inv-pos':dif<0?'inv-neg':''}">${r?(dif>0?'+':'')+fmt(dif):'—'}</strong></td><td class="num">${editable&&num(l.costoBase)<=0?`<input class="inv-count-input" type="number" min="0" step="any" value="${esc(l.costoConteo||'')}" placeholder="$" onchange="invSetCostoToma('${t.id}','${l.id}',${t.version},this.value)">`:mon(l.costoConteo||l.costoBase)}</td></tr>`;}).join('');
+}
+
+async function invSetFisicoToma(tomaId,lineaId,version,valor){
+  const v=valor===''?null:num(valor);if(v!==null&&v<0){toast('La cantidad física no puede ser negativa','e');renderInventario();return;}
+  try{const t=await mutarTomaSegura(tomaId,version,x=>{if(!['EN_PROCESO','DEVUELTA'].includes(x.estado))throw new Error('La toma ya no está editable');const l=x.lineas.find(y=>y.id===lineaId);if(!l)throw new Error('Línea no encontrada');l.fisico=v;l.contado=v!==null;l.fisicoFecha=v!==null?new Date().toISOString():null;l.contadoPor=AUTH.user?.email||'';});UI.tomaId=t.id;renderInventario();}catch(e){toast('❌ '+e.message,'e');renderInventario();}
+}
+async function invSetCostoToma(tomaId,lineaId,version,valor){
+  const v=valor===''?0:num(valor);if(v<0){toast('El costo no puede ser negativo','e');return;}
+  try{await mutarTomaSegura(tomaId,version,x=>{const l=x.lineas.find(y=>y.id===lineaId);if(!l)throw new Error('Línea no encontrada');l.costoConteo=v;});renderInventario();}catch(e){toast('❌ '+e.message,'e');renderInventario();}
+}
+
+function invAgregarLineaToma(){
+  const t=inv().tomas.find(x=>x.id===UI.tomaId);if(!t)return;
+  modal(`${modalHdr('Agregar producto o lote a '+esc(t.folio),'Úsalo para productos omitidos o para un lote nuevo detectado físicamente')}
+  <div class="inv-form-grid"><label class="span2">Producto<select id="itl-prod" onchange="invTomaProductoCambio()">${opcionesProducto()}</select></label><label id="itl-lote-wrap">Lote<input id="itl-lote"></label><label id="itl-venc-wrap">Vencimiento<input type="date" id="itl-venc"></label><label>Cantidad física<input type="number" min="0" step="any" id="itl-fis"></label><label>Costo unitario si no existe PPP<input type="number" min="0" step="any" id="itl-costo"></label></div><div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invGuardarLineaToma('${t.id}',${t.version})">Agregar</button></div>`);invTomaProductoCambio();
+}
+function invTomaProductoCambio(){const p=prod(document.getElementById('itl-prod')?.value);for(const id of ['itl-lote-wrap','itl-venc-wrap']){const e=document.getElementById(id);if(e)e.style.display=p?.manejaLotes?'flex':'none';}}
+async function invGuardarLineaToma(tomaId,version){
+  const productoId=document.getElementById('itl-prod').value,p=prod(productoId),lote=String(document.getElementById('itl-lote')?.value||'').trim().toUpperCase(),fechaVencimiento=document.getElementById('itl-venc')?.value||'',fisicoRaw=document.getElementById('itl-fis').value,fisico=num(fisicoRaw),costoConteo=num(document.getElementById('itl-costo').value);
+  if(!p){toast('Selecciona un producto','e');return;}if(fisicoRaw===''){toast('Ingresa la cantidad física, incluso si es cero','e');return;}if(fisico<0){toast('La cantidad física no puede ser negativa','e');return;}if(p.manejaLotes&&(!lote||!fechaVencimiento)){toast('Indica lote y vencimiento','e');return;}
+  const calc=calculo(),st=calc.stock.find(x=>x.productoId===p.id&&x.bodegaId===inv().tomas.find(t=>t.id===tomaId)?.bodegaId),lt=p.manejaLotes?calc.lotes.find(x=>x.productoId===p.id&&x.bodegaId===inv().tomas.find(t=>t.id===tomaId)?.bodegaId&&x.lote===lote):null;
+  try{await mutarTomaSegura(tomaId,version,x=>{if(x.lineas.some(y=>y.productoId===p.id&&String(y.lote||'')===lote))throw new Error('Ese producto/lote ya está en la toma');x.lineas.push({id:uid(),productoId:p.id,lote:p.manejaLotes?lote:'',fechaVencimiento:p.manejaLotes?fechaVencimiento:'',teoricoBase:p.manejaLotes?num(lt?.cantidad):num(st?.cantidad),costoBase:num(st?.costoPromedio),costoConteo,fisico,contado:true,fisicoFecha:new Date().toISOString(),contadoPor:AUTH.user?.email||'',agregadaManual:true});});invCerrarModal();renderInventario();toast('✅ Línea agregada');}catch(e){toast('❌ '+e.message,'e');}
+}
+
+async function invCerrarToma(){
+  const t=inv().tomas.find(x=>x.id===UI.tomaId);if(!t)return;if(!(t.lineas||[]).length){toast('La toma no tiene líneas. Agrega al menos un producto o lote.','e');return;}const pendientes=(t.lineas||[]).filter(l=>!l.contado);if(pendientes.length){toast(`Faltan ${pendientes.length} línea(s) por contar. Ingresa cero cuando corresponda.`,'e');return;}if(!confirm(`Cerrar ${t.folio} y enviarla a autorización?`))return;
+  try{await mutarTomaSegura(t.id,t.version,x=>{x.estado='PENDIENTE_AUTORIZACION';x.cerrado=new Date().toISOString();x.cerradoPor=AUTH.user?.email||'';delete x.motivoDevolucion;});renderInventario();toast('✅ Toma cerrada y pendiente de autorización');}catch(e){toast('❌ '+e.message,'e');renderInventario();}
+}
+async function invDevolverToma(){const t=inv().tomas.find(x=>x.id===UI.tomaId);if(!t)return;const motivo=prompt('Motivo de la devolución:');if(motivo===null)return;if(!motivo.trim()){toast('Indica el motivo','e');return;}try{await mutarTomaSegura(t.id,t.version,x=>{x.estado='DEVUELTA';x.motivoDevolucion=motivo.trim();x.devuelta=new Date().toISOString();x.devueltaPor=AUTH.user?.email||'';});renderInventario();toast('✅ Toma devuelta para corrección');}catch(e){toast('❌ '+e.message,'e');renderInventario();}}
+async function invRechazarToma(){const t=inv().tomas.find(x=>x.id===UI.tomaId);if(!t)return;const motivo=prompt('Motivo del rechazo definitivo:');if(motivo===null)return;if(!motivo.trim()){toast('Indica el motivo','e');return;}if(!confirm('La toma se archivará sin aplicar ajustes. ¿Continuar?'))return;try{await mutarTomaSegura(t.id,t.version,x=>{x.estado='RECHAZADA';x.motivoRechazo=motivo.trim();x.rechazada=new Date().toISOString();x.rechazadaPor=AUTH.user?.email||'';});renderInventario();toast('Toma rechazada');}catch(e){toast('❌ '+e.message,'e');renderInventario();}}
+
+async function invAutorizarToma(){
+  const vista=inv().tomas.find(x=>x.id===UI.tomaId);if(!vista||vista.estado!=='PENDIENTE_AUTORIZACION')return;if(!confirm(`Autorizar ${vista.folio} y generar los ajustes de inventario?`))return;
+  try{
+    const tomas=await leerListaActual('tomas'),movimientos=await leerListaActual('movimientos'),idx=tomas.findIndex(x=>x.id===vista.id),t=idx>=0?tomas[idx]:null;
+    if(!t)throw new Error('La toma ya no existe');if(num(t.version)!==num(vista.version))throw new Error('La toma cambió en otro equipo. Revisa la versión actual antes de autorizar.');if(t.estado!=='PENDIENTE_AUTORIZACION')throw new Error('La toma ya no está pendiente');
+    const calc=recalcularInventario(movimientos,inv().productos),entradas=[],salidas=[];
+    for(const l of (t.lineas||[])){
+      const r=rebasarLineaToma(l,t,movimientos,calc),p=prod(l.productoId);if(r.objetivo<0)throw new Error(`${p?.descripcion}: el objetivo rebasado queda negativo; revisa movimientos posteriores al conteo`);if(Math.abs(r.diferencia)<1e-6)continue;
+      const base={id:uid(),productoId:l.productoId,cantidad:Math.abs(r.diferencia),lote:l.lote||'',fechaVencimiento:l.fechaVencimiento||''};
+      if(r.diferencia>0){const st=calc.stock.find(x=>x.productoId===l.productoId&&x.bodegaId===t.bodegaId),costo=num(st?.costoPromedio)||num(l.costoBase)||num(l.costoConteo);if(costo<=0)throw new Error(`${p?.descripcion}: indica un costo para valorizar el sobrante`);entradas.push({...base,costoUnitario:costo});}else salidas.push(base);
+    }
+    const ahora=new Date().toISOString(),nuevos=[];
+    if(entradas.length)nuevos.push({id:uid(),folio:nuevoFolio('AJUSTE_ENTRADA'),tipo:'AJUSTE_ENTRADA',motivo:'AJUSTE POR TOMA',fecha:hoy(),bodegaDestinoId:t.bodegaId,documento:t.folio,observaciones:`Sobrantes autorizados de ${t.folio}`,centroCosto:'',tercero:'',lineas:entradas,estado:'VIGENTE',tomaId:t.id,creado:ahora,creadoPor:AUTH.user?.email||''});
+    if(salidas.length)nuevos.push({id:uid(),folio:nuevoFolio('AJUSTE_SALIDA'),tipo:'AJUSTE_SALIDA',motivo:'AJUSTE POR TOMA',fecha:hoy(),bodegaOrigenId:t.bodegaId,documento:t.folio,observaciones:`Faltantes autorizados de ${t.folio}`,centroCosto:'',tercero:'',lineas:salidas,estado:'VIGENTE',tomaId:t.id,creado:ahora,creadoPor:AUTH.user?.email||''});
+    for(const m of nuevos){const v=validarMovimiento(m,{productos:inv().productos,bodegas:inv().bodegas,movimientos:[...movimientos,...nuevos.filter(x=>x!==m)]});if(!v.ok)throw new Error(v.errores[0]);}
+    const aplicada={...t,estado:'APLICADA',aplicado:ahora,autorizadoPor:AUTH.user?.email||'',movimientosAjuste:nuevos.map(x=>x.folio),version:num(t.version)+1};tomas[idx]=aplicada;const movFinal=[...movimientos,...nuevos];
+    const wr=await window.storage.setMany([{key:K.movimientos,value:JSON.stringify(movFinal)},{key:K.tomas,value:JSON.stringify(tomas)}]);if(!wr||wr.ok===false)throw new Error(wr?.detalle||wr?.motivo||'No se pudieron aplicar los ajustes atómicamente');
+    inv().movimientos=movFinal;inv().tomas=tomas;logCambio('Autorizó toma de inventario',{entidad:'inventario-toma',id:t.id,antes:t,despues:aplicada,meta:{detalle:t.folio}});for(const m of nuevos)logCambio('Creó ajuste por toma',{entidad:'inventario-movimiento',id:m.id,despues:m,meta:{detalle:m.folio}});
+    renderInventario();toast(`✅ Toma aplicada · ${nuevos.length} movimiento(s) de ajuste`);
+  }catch(e){toast('❌ '+e.message,'e');renderInventario();}
+}
+
 function modal(html){
   let e=document.getElementById('inv-modal');if(!e){e=document.createElement('div');e.id='inv-modal';e.className='modal-bkd';document.body.appendChild(e);}
   e.innerHTML=`<div class="modal-box inv-modal-box">${html}</div>`;e.classList.add('open');
 }
-function invCerrarModal(){const e=document.getElementById('inv-modal');if(e)e.classList.remove('open');movDraft=null;}
+function invCerrarModal(){const e=document.getElementById('inv-modal');if(e)e.classList.remove('open');movDraft=null;productosImportDraft=null;}
 function modalHdr(t,s=''){return `<div class="modal-hdr"><div><div class="modal-title">${t}</div>${s?`<div class="modal-sub">${s}</div>`:''}</div><button class="modal-close" onclick="invCerrarModal()">×</button></div>`;}
 
 function invAbrirGrupo(id=''){
@@ -212,7 +343,88 @@ async function invGuardarProducto(id=''){
   try{await guardarLista('productos');invCerrarModal();renderInventario();toast('✅ Producto guardado');}catch(e){inv().productos=JSON.parse(respaldo);toast('❌ '+e.message,'e');}
 }
 
-function nuevoFolio(tipo){const p={ENTRADA:'ENT',SALIDA:'SAL',TRASPASO:'TRS',AJUSTE_ENTRADA:'AJE',AJUSTE_SALIDA:'AJS'}[tipo]||'MOV',d=new Date(),stamp=d.toISOString().replace(/[-:TZ.]/g,'').slice(2,14),rnd=Math.random().toString(36).slice(2,5).toUpperCase();return `${p}-${stamp}-${rnd}`;}
+function invDescargarPlantillaProductos(){
+  if(typeof XLSX==='undefined'){toast('⚠️ Librería Excel no cargada','e');return;}
+  const hdr=['CÓDIGO','EAN','DESCRIPCIÓN','TIPO','UNIDAD','GRUPO','SUBGRUPO','STOCK MÍNIMO','CUENTA INVENTARIO','CUENTA COSTO/CONSUMO','AFECTO IVA','MANEJA LOTES','INVENTARIABLE','ACTIVO'];
+  const ejemplo=['P000001','7801234567890','PRODUCTO DE EJEMPLO','MERCADERÍA','UN','MERCADERÍAS','GENERAL',0,'1109001','3101002','SÍ','NO','SÍ','SÍ'];
+  const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet([hdr,ejemplo,[]]);
+  ws['!cols']=[{wch:15},{wch:18},{wch:38},{wch:22},{wch:12},{wch:24},{wch:24},{wch:15},{wch:20},{wch:23},{wch:14},{wch:15},{wch:16},{wch:12}];
+  ws['!autofilter']={ref:`A1:N2`};XLSX.utils.book_append_sheet(wb,ws,'Productos');
+  const instrucciones=[
+    ['PLANTILLA DE PRODUCTOS — INSTRUCCIONES'],
+    ['1. No cambies los encabezados de la hoja Productos. Código y descripción son obligatorios.'],
+    ['2. La carga crea productos nuevos. Para modificar códigos existentes debes marcar “Actualizar productos existentes” al importar.'],
+    ['3. Los grupos y subgrupos inexistentes se crearán automáticamente en la empresa activa.'],
+    ['4. Valores lógicos admitidos: SÍ o NO. Stock mínimo puede ser cero.'],
+    ['5. Esta plantilla no carga cantidades ni costos iniciales. Esos saldos se ingresan mediante un movimiento de inventario.'],
+    ['6. Las cuentas deben existir y ser imputables en el plan de cuentas de la empresa.'],
+    ['7. Tipos permitidos: MERCADERÍA, MATERIA PRIMA, PRODUCTO TERMINADO, INSUMO, ACTIVO FIJO, SERVICIO.'],
+    ['8. Unidades permitidas: UN, KG, LT, MT, M2, M3, CAJA, SACO, PQT, GL.']
+  ];
+  const wi=XLSX.utils.aoa_to_sheet(instrucciones);wi['!cols']=[{wch:120}];XLSX.utils.book_append_sheet(wb,wi,'Instrucciones');
+  const catalogo=[['TIPOS','UNIDADES','GRUPOS ACTUALES','SUBGRUPOS ACTUALES']];
+  const tipos=['MERCADERÍA','MATERIA PRIMA','PRODUCTO TERMINADO','INSUMO','ACTIVO FIJO','SERVICIO'],unidades=['UN','KG','LT','MT','M2','M3','CAJA','SACO','PQT','GL'];
+  const subgrupos=inv().grupos.flatMap(g=>(g.subgrupos||[]).map(s=>`${g.nombre} / ${s}`)),n=Math.max(tipos.length,unidades.length,inv().grupos.length,subgrupos.length);
+  for(let i=0;i<n;i++)catalogo.push([tipos[i]||'',unidades[i]||'',inv().grupos[i]?.nombre||'',subgrupos[i]||'']);
+  const wc=XLSX.utils.aoa_to_sheet(catalogo);wc['!cols']=[{wch:24},{wch:14},{wch:28},{wch:40}];XLSX.utils.book_append_sheet(wb,wc,'Catálogos');
+  const empresa=String(S.empresa?.nombre||S.empresa?.razonSocial||'empresa').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]+/g,'_').slice(0,40);
+  XLSX.writeFile(wb,`plantilla_productos_${empresa}.xlsx`);toast('📥 Plantilla de productos descargada');
+}
+
+function invAbrirImportProductos(){
+  if(!writable())return;productosImportDraft=null;
+  modal(`${modalHdr('Importar productos desde Excel','La información se valida y previsualiza antes de guardar')}
+    <div class="inv-alert"><strong>Importante:</strong> esta carga crea el catálogo, pero no modifica existencias ni costos.</div>
+    <label class="check-line"><input type="checkbox" id="inv-prod-actualizar"> Actualizar productos cuyo código ya existe. Si no se marca, esas filas se omitirán.</label>
+    <div class="inv-upload-box"><input id="inv-prod-file" type="file" accept=".xlsx,.xls" onchange="invLeerProductosExcel(event)"><span>Selecciona la plantilla Excel completada.</span></div>
+    <div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-g" onclick="invDescargarPlantillaProductos()">📄 Descargar plantilla</button></div>`);
+}
+
+function datosValidacionImportProductos(actualizar){
+  const usados=new Set();for(const m of inv().movimientos)for(const l of (m.lineas||[]))usados.add(String(l.productoId));
+  return {productos:inv().productos,grupos:inv().grupos,actualizar,cuentaExiste,productosConMovimientos:[...usados]};
+}
+
+async function invLeerProductosExcel(event){
+  const file=event?.target?.files?.[0];if(!file)return;
+  if(typeof XLSX==='undefined'){toast('⚠️ Librería Excel no cargada','e');return;}
+  try{
+    const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array',cellDates:false}),ws=wb.Sheets[wb.SheetNames[0]],filas=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+    const actualizar=!!document.getElementById('inv-prod-actualizar')?.checked,resultado=prepararImportacionProductos(filas,datosValidacionImportProductos(actualizar));
+    productosImportDraft={filasOriginales:filas,actualizar,nombre:file.name,...resultado};invRenderPreviewImportProductos();
+  }catch(e){productosImportDraft=null;toast('❌ '+e.message,'e');}
+}
+
+function invRenderPreviewImportProductos(){
+  const d=productosImportDraft;if(!d)return;const r=d.resumen;
+  modal(`${modalHdr('Vista previa de productos',`${esc(d.nombre)} · ${d.actualizar?'creación y actualización':'sólo productos nuevos'}`)}
+    <div class="inv-import-summary"><span class="inv-ok"><b>${r.nuevos}</b>Nuevos</span><span class="inv-info"><b>${r.actualiza}</b>Actualizan</span><span class="inv-muted"><b>${r.omite}</b>Omitidos</span><span class="inv-bad"><b>${r.errores}</b>Con error</span></div>
+    ${r.errores?'<div class="inv-alert error"><strong>Corrige las filas con error en Excel y vuelve a cargar la plantilla.</strong> No se guardará ninguna fila mientras existan errores.</div>':''}
+    <div class="inv-table-wrap inv-import-preview"><table class="inv-table"><thead><tr><th>Fila</th><th>Estado</th><th>Código</th><th>Descripción</th><th>Grupo / subgrupo</th><th>Tipo</th><th>U.M.</th><th>Validación</th></tr></thead><tbody>${d.filas.map(x=>`<tr><td class="num">${x.fila}</td><td><span class="badge inv-import-${x.estado.toLowerCase()}">${x.estado}</span></td><td class="mono">${esc(x.codigo||'—')}</td><td>${esc(x.producto.descripcion||'—')}</td><td>${esc(x.producto.grupoNombre||'—')}<small>${esc(x.producto.subgrupo||'')}</small></td><td>${esc(x.producto.tipo)}</td><td>${esc(x.producto.unidad)}</td><td>${x.errores.length?esc(x.errores.join(' · ')):'OK'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="modal-footer"><button class="btn btn-g" onclick="invAbrirImportProductos()">← Elegir otro archivo</button><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invAplicarImportProductos()" ${r.errores?'disabled':''}>Importar ${r.nuevos+r.actualiza} producto(s)</button></div>`);
+}
+
+async function invAplicarImportProductos(){
+  if(!writable()||!productosImportDraft)return;const d=productosImportDraft;if(d.resumen.errores){toast('Corrige primero las filas con error','e');return;}
+  try{
+    await Promise.all([leerListaActual('productos'),leerListaActual('grupos'),leerListaActual('movimientos')]);
+    const revision=prepararImportacionProductos(d.filasOriginales,datosValidacionImportProductos(d.actualizar));
+    if(revision.resumen.errores)throw new Error('Los datos maestros cambiaron desde la vista previa. Revisa los errores y vuelve a importar.');
+    const grupos=JSON.parse(JSON.stringify(inv().grupos)),productos=JSON.parse(JSON.stringify(inv().productos)),ahora=new Date().toISOString();
+    for(const x of revision.filas){
+      if(!['NUEVO','ACTUALIZA'].includes(x.estado))continue;const p=x.producto;
+      let grupoId='';if(p.grupoNombre){let g=grupos.find(y=>String(y.nombre).toUpperCase()===p.grupoNombre);if(!g){g={id:uid(),nombre:p.grupoNombre,subgrupos:[],activo:true,actualizado:ahora};grupos.push(g);}if(p.subgrupo&&!g.subgrupos.some(s=>String(s).toUpperCase()===p.subgrupo))g.subgrupos.push(p.subgrupo);g.subgrupos.sort();g.actualizado=ahora;grupoId=g.id;}
+      const reg={...p,grupoId,actualizado:ahora};delete reg.grupoNombre;
+      if(x.estado==='ACTUALIZA'){const i=productos.findIndex(y=>y.id===p.id);if(i>=0)productos[i]={...productos[i],...reg};}
+      else productos.push({...reg,id:uid(),creado:ahora,creadoPor:AUTH.user?.email||''});
+    }
+    const wr=await window.storage.setMany([{key:K.grupos,value:JSON.stringify(grupos)},{key:K.productos,value:JSON.stringify(productos)}]);if(!wr||wr.ok===false)throw new Error(wr?.detalle||wr?.motivo||'No se pudo guardar la importación');
+    inv().grupos=grupos;inv().productos=productos;logCambio('Importó productos desde Excel',{entidad:'inventario-productos',id:'carga-'+Date.now(),meta:{detalle:`${revision.resumen.nuevos} nuevos · ${revision.resumen.actualiza} actualizados · archivo ${d.nombre}`}});
+    productosImportDraft=null;invCerrarModal();renderInventario();toast(`✅ ${revision.resumen.nuevos} producto(s) creados · ${revision.resumen.actualiza} actualizado(s)`);
+  }catch(e){toast('❌ '+e.message,'e');}
+}
+
+function nuevoFolio(tipo){const p={ENTRADA:'ENT',SALIDA:'SAL',TRASPASO:'TRS',AJUSTE_ENTRADA:'AJE',AJUSTE_SALIDA:'AJS',TOMA:'TOMA'}[tipo]||'MOV',d=new Date(),stamp=d.toISOString().replace(/[-:TZ.]/g,'').slice(2,14),rnd=Math.random().toString(36).slice(2,5).toUpperCase();return `${p}-${stamp}-${rnd}`;}
 function invNuevoMovimiento(){
   if(!writable())return;if(!inv().bodegas.some(b=>b.activo!==false)){toast('Primero crea una bodega activa','e');UI.tab='bodegas';renderInventario();return;}if(!inv().productos.some(p=>p.activo!==false&&p.inventariable!==false)){toast('Primero crea un producto inventariable','e');UI.tab='productos';renderInventario();return;}
   movDraft={tipo:'ENTRADA',fecha:hoy(),motivo:'COMPRA',bodegaOrigenId:'',bodegaDestinoId:inv().bodegas.find(b=>b.activo!==false)?.id||'',tercero:'',documento:'',centroCosto:'',observaciones:'',lineas:[{id:uid(),productoId:'',cantidad:'',costoUnitario:'',lote:'',fechaVencimiento:''}]};invRenderMovModal();
@@ -261,6 +473,10 @@ export {
   cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
   invAbrirGrupo,invGuardarGrupo,invAbrirBodega,invGuardarBodega,
   invAbrirProducto,invActualizarSubgrupos,invGuardarProducto,
+  invDescargarPlantillaProductos,invAbrirImportProductos,invLeerProductosExcel,invAplicarImportProductos,
   invNuevoMovimiento,invMovCampo,invMovLineaCampo,invMovAgregarLinea,invMovQuitarLinea,
-  invGuardarMovimiento,invVerMovimiento,invAnularMovimiento
+  invGuardarMovimiento,invVerMovimiento,invAnularMovimiento,
+  invNuevaToma,invCrearToma,invAbrirToma,invVolverTomas,invSetFisicoToma,invSetCostoToma,
+  invAgregarLineaToma,invTomaProductoCambio,invGuardarLineaToma,invCerrarToma,
+  invDevolverToma,invRechazarToma,invAutorizarToma
 };

@@ -1,5 +1,23 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.20.2 — Carga masiva de productos
+
+- Descarga de plantilla Excel desde la pestaña Productos.
+- Hoja de instrucciones y catálogo de tipos, unidades, grupos y subgrupos disponibles.
+- Vista previa con productos nuevos, actualizaciones, omisiones y errores.
+- Validación de código, EAN, cuentas contables, tipo, unidad, stock mínimo y valores Sí/No.
+- Creación automática de grupos y subgrupos indicados en el archivo.
+- Aplicación conjunta de productos y clasificaciones, sin modificar stock ni PPP.
+
+## V2.20.1 — Tomas físicas de inventario
+
+- Tomas por bodega con alcance por saldos o catálogo completo y filtro por grupo.
+- Conteo por producto/lote, registro explícito de cero y alta de lotes encontrados físicamente.
+- Flujo de cierre, autorización, devolución y rechazo, con responsables y marcas de tiempo.
+- Rebase automático de entradas, salidas y traspasos posteriores a cada conteo para evitar diferencias falsas sin detener la operación de bodega.
+- Generación trazable de ajustes de entrada/salida al autorizar, vinculados al folio de toma.
+- Control optimista de versión para detectar edición concurrente desde otro equipo.
+
 ## V2.20.0 — Núcleo de inventario multiempresa
 
 - Nuevo auxiliar continuo por empresa con productos, grupos/subgrupos y multibodega.

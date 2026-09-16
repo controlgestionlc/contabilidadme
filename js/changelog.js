@@ -8,13 +8,25 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.16-1227';
+const APP_VERSION='v2026.09.16-1251';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.20.2',fecha:'16-09-2026',titulo:'Carga masiva de productos desde Excel',items:[
+    {tipo:'nuevo',txt:'El catálogo de productos permite descargar una plantilla Excel con instrucciones, valores admitidos y los grupos/subgrupos actuales de la empresa.'},
+    {tipo:'nuevo',txt:'La carga masiva muestra una vista previa y clasifica cada fila como producto nuevo, actualización, omisión o error antes de guardar.'},
+    {tipo:'seguridad',txt:'Se validan códigos y EAN duplicados, cuentas contables, tipos, unidades, stock mínimo, campos Sí/No y cambios incompatibles en productos que ya tienen movimientos.'},
+    {tipo:'cambio',txt:'Los grupos y subgrupos indicados en la plantilla se crean automáticamente y la importación no altera existencias ni costos, que continúan registrándose mediante movimientos.'},
+  ]},
+  {version:'V2.20.1',fecha:'16-09-2026',titulo:'Tomas físicas de inventario con autorización y ajustes',items:[
+    {tipo:'nuevo',txt:'Las tomas físicas operan por bodega, permiten alcance total o sólo productos con stock, filtro por grupo y conteo detallado por producto y lote.'},
+    {tipo:'nuevo',txt:'El flujo incorpora conteo, cierre, revisión, devolución, rechazo y autorización; las diferencias autorizadas generan automáticamente ajustes de entrada o salida trazables.'},
+    {tipo:'seguridad',txt:'Los movimientos ocurridos después de contar cada línea se rebajan automáticamente antes de calcular la diferencia, evitando ajustes falsos mientras la bodega continúa operando.'},
+    {tipo:'seguridad',txt:'Cada toma usa control de versión para impedir sobrescrituras silenciosas entre equipos y la aplicación de ajustes persiste junto con el cierre de la toma.'},
+  ]},
   {version:'V2.20.0',fecha:'16-09-2026',titulo:'Primera etapa del inventario multiempresa',items:[
     {tipo:'nuevo',txt:'Nuevo Control de Inventario separado por empresa, con catálogos de bodegas, grupos, subgrupos y productos.'},
     {tipo:'nuevo',txt:'Entradas, salidas y traspasos multibodega admiten varias líneas, lotes, fechas de vencimiento, documentos y centros de costo.'},

@@ -75,8 +75,12 @@ import {abrirReporteAux, cerrarReporteAux, setReporteAuxVista, renderReporteAux,
 import {cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
         invAbrirGrupo,invGuardarGrupo,invAbrirBodega,invGuardarBodega,
         invAbrirProducto,invActualizarSubgrupos,invGuardarProducto,
+        invDescargarPlantillaProductos,invAbrirImportProductos,invLeerProductosExcel,invAplicarImportProductos,
         invNuevoMovimiento,invMovCampo,invMovLineaCampo,invMovAgregarLinea,invMovQuitarLinea,
-        invGuardarMovimiento,invVerMovimiento,invAnularMovimiento} from './inventario.js';
+        invGuardarMovimiento,invVerMovimiento,invAnularMovimiento,
+        invNuevaToma,invCrearToma,invAbrirToma,invVolverTomas,invSetFisicoToma,invSetCostoToma,
+        invAgregarLineaToma,invTomaProductoCambio,invGuardarLineaToma,invCerrarToma,
+        invDevolverToma,invRechazarToma,invAutorizarToma} from './inventario.js';
 
 // Negocio
 import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut,
@@ -679,8 +683,12 @@ Object.assign(window,{
   renderInventario, invSetTab, invSetFiltro, invCerrarModal,
   invAbrirGrupo, invGuardarGrupo, invAbrirBodega, invGuardarBodega,
   invAbrirProducto, invActualizarSubgrupos, invGuardarProducto,
+  invDescargarPlantillaProductos, invAbrirImportProductos, invLeerProductosExcel, invAplicarImportProductos,
   invNuevoMovimiento, invMovCampo, invMovLineaCampo, invMovAgregarLinea, invMovQuitarLinea,
   invGuardarMovimiento, invVerMovimiento, invAnularMovimiento,
+  invNuevaToma, invCrearToma, invAbrirToma, invVolverTomas, invSetFisicoToma, invSetCostoToma,
+  invAgregarLineaToma, invTomaProductoCambio, invGuardarLineaToma, invCerrarToma,
+  invDevolverToma, invRechazarToma, invAutorizarToma,
   verDetalleCC, abrirCapitalizar, confirmarCapitalizar, ccOpts, ccNombre,
   onCurvaChange, setPct, addPctAnio, delPctAnio, onTipoCentroChange,
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,

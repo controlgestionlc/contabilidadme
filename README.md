@@ -2,19 +2,25 @@
 
 Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-> **Estado actual:** V2.20.0 · compilación `v2026.09.16-1227`, publicada el 16-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria y primera etapa del inventario multibodega con lotes, vencimientos, traspasos y valorización PPP.
+> **Estado actual:** V2.20.2 · compilación `v2026.09.16-1251`, publicada el 16-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria, inventario multibodega, tomas físicas y carga masiva de productos.
 
 La fuente funcional de la versión es `js/changelog.js`. `version.json`, las etiquetas visibles de `index.html`, el import map y la caché de `sw.js` deben conservar la misma revisión en cada publicación.
 
 ---
 
-## Inventario multibodega — primera etapa
+## Inventario multibodega — movimientos y tomas físicas
 
 El menú **Inventario → Control de Inventario** incorpora un auxiliar permanente y separado para cada empresa. Los productos, grupos, subgrupos, bodegas y movimientos no se reinician al cambiar de ejercicio; el año activo sigue determinando la contabilidad, mientras las existencias mantienen continuidad histórica.
 
 La fuente de verdad es el libro de movimientos vigentes. Desde él se reconstruyen las cantidades, los lotes y el costo promedio ponderado por producto y bodega. Se soportan entradas, salidas y traspasos con múltiples líneas, lote y vencimiento, documento, tercero y centro de costo. Las anulaciones conservan trazabilidad y recalculan automáticamente los saldos.
 
-Esta versión corresponde al núcleo operacional. Las tomas físicas, órdenes de compra, recepciones parciales y enlace automático con compras/asientos se desarrollan sobre las colecciones ya reservadas para esos procesos, sin crear una segunda fuente de stock.
+Las tomas físicas se realizan por bodega y pueden abarcar todos los productos o sólo saldos existentes, con filtro opcional por grupo. El conteo distingue lotes y vencimientos, exige registrar explícitamente los ceros y admite lotes encontrados durante el conteo. El flujo separa preparación, cierre, autorización, devolución y rechazo. Al autorizar, los sobrantes y faltantes generan movimientos de ajuste y quedan ligados al folio de la toma.
+
+Desde la pestaña **Productos** se puede descargar una plantilla Excel e importar el catálogo en forma masiva. Antes de guardar, el sistema muestra una vista previa de filas nuevas, actualizaciones, omisiones y errores. La validación comprende códigos, EAN, tipos, unidades, cuentas contables, stock mínimo y campos lógicos. Los grupos y subgrupos ausentes se crean automáticamente. La importación no carga existencias ni costos iniciales, porque esos valores deben conservar trazabilidad mediante movimientos.
+
+Cada línea conserva la hora de su conteo. Si después ocurren entradas, salidas o traspasos, la autorización incorpora su efecto al objetivo actual antes de calcular el ajuste, por lo que la bodega no necesita quedar bloqueada. El control de versión evita que dos equipos sobrescriban silenciosamente la misma toma.
+
+Las órdenes de compra, recepciones parciales y el enlace automático con compras/asientos corresponden a la siguiente etapa y se desarrollarán sobre las colecciones ya reservadas, sin crear una segunda fuente de stock.
 
 ---
 
@@ -782,7 +788,7 @@ Flujo recomendado:
 8. Revisar Preparación Productiva.
 9. Generar Acta de Habilitación y activar PRODUCCIÓN.
 
-El paquete V2.20.0 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
+El paquete V2.20.2 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
 
 - `APP_VERSION` y la primera entrada de `CHANGELOG` en `js/changelog.js`;
 - `meta[name="app-version"]`, `meta[name="app-release"]`, versión del login e import map en `index.html`;
@@ -866,7 +872,7 @@ El sistema está diseñado para bloquear o advertir cuando alguno de estos contr
 
 ## 38. Versión documentada
 
-**V2.20.0 · `v2026.09.16-1227`**  
+**V2.20.2 · `v2026.09.16-1251`**  
 Documentación actualizada el 16-09-2026 a partir de los módulos, metadatos de publicación y changelog incluidos en este ZIP.
 
 Cambios funcionales recientes incorporados a esta documentación:
