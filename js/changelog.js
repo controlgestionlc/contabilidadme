@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.17-1330';
+const APP_VERSION='v2026.09.17-1400';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.6',fecha:'17-09-2026',titulo:'Proveedor y orden de compra en entradas por factura o guía',items:[
+    {tipo:'nuevo',txt:'Al registrar una entrada con Factura afecta/exenta o Guía de despacho, el formulario exige asociar el proveedor y ofrece una lista con sus órdenes de compra emitidas o parcialmente recibidas.'},
+    {tipo:'seguridad',txt:'La orden de compra puede dejarse en blanco sólo si ninguno de los productos de la línea tiene una orden emitida pendiente con ese proveedor; si la tiene, hay que seleccionarla o recibirla desde Órdenes de compra.'},
+  ]},
   {version:'V2.21.5',fecha:'17-09-2026',titulo:'Edición de movimientos de inventario ya guardados',items:[
     {tipo:'nuevo',txt:'Los movimientos de Entrada, Salida y Traspaso vigentes se pueden editar después de guardados (fecha, motivo, bodegas, documento, centro de costo, tercero, observaciones y líneas), a diferencia del resto del sistema, que sigue usando exclusivamente anular y volver a registrar.'},
     {tipo:'nuevo',txt:'El folio interno y el tipo de movimiento no cambian al editar: el tipo queda bloqueado y el folio se conserva desde el primer guardado, para no perder la trazabilidad.'},
