@@ -83,7 +83,7 @@ import {cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
         invDevolverToma,invRechazarToma,invAutorizarToma,
         invNuevaOC,invEditarOC,invOCCampo,invOCLineaCampo,invOCAgregarLinea,invOCQuitarLinea,invGuardarOC,
         invVerOC,invVolverOC,invEmitirOC,invAnularOC,invCerrarSaldoOC,invAbrirRecepcion,invRecCampo,invRecLineaCampo,invRecAgregarLote,invRecQuitarLinea,
-        invGuardarRecepcion,invAnularRecepcion} from './inventario.js';
+        invGuardarRecepcion,invAnularRecepcion,invAbrirVincularFactura,invVincularFactura} from './inventario.js';
 
 // Negocio
 import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut,
@@ -694,7 +694,7 @@ Object.assign(window,{
   invDevolverToma, invRechazarToma, invAutorizarToma,
   invNuevaOC, invEditarOC, invOCCampo, invOCLineaCampo, invOCAgregarLinea, invOCQuitarLinea, invGuardarOC,
   invVerOC, invVolverOC, invEmitirOC, invAnularOC, invCerrarSaldoOC, invAbrirRecepcion, invRecCampo, invRecLineaCampo, invRecAgregarLote, invRecQuitarLinea,
-  invGuardarRecepcion, invAnularRecepcion,
+  invGuardarRecepcion, invAnularRecepcion, invAbrirVincularFactura, invVincularFactura,
   verDetalleCC, abrirCapitalizar, confirmarCapitalizar, ccOpts, ccNombre,
   onCurvaChange, setPct, addPctAnio, delPctAnio, onTipoCentroChange,
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,

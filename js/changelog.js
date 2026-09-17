@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.16-1826';
+const APP_VERSION='v2026.09.17-1130';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.2',fecha:'17-09-2026',titulo:'Conciliación automática entre recepciones y facturas del Libro de Compras',items:[
+    {tipo:'nuevo',txt:'Al registrar una factura afecta o exenta ya sea de forma manual o al importar el RCV, el sistema la vincula automáticamente con la recepción física de inventario que comparte proveedor, tipo de DTE y N° de documento.'},
+    {tipo:'nuevo',txt:'Las recepciones registradas con GUÍA (o cualquier recepción que el vínculo automático no resuelva) pueden conciliarse manualmente eligiendo la factura correspondiente ya registrada en Compras; una misma factura puede consolidar varias guías.'},
+    {tipo:'seguridad',txt:'Si dos recepciones distintas apuntan al mismo N° de documento y proveedor (incluso con el tipo de documento mal tipeado), se muestra una advertencia de posible duplicado sin bloquear el guardado.'},
+    {tipo:'cambio',txt:'Al anular la factura o la recepción vinculada, el vínculo se retira automáticamente de ambos lados conservando la trazabilidad.'},
+  ]},
   {version:'V2.21.1',fecha:'16-09-2026',titulo:'Logotipo RABF corregido para temas claros y oscuros',items:[
     {tipo:'cambio',txt:'El nuevo archivo RABF indicado reemplaza el logotipo del login, cabecera, inicio, favicon e iconos de la aplicación instalable.'},
     {tipo:'arreglo',txt:'Los espacios interiores de las letras R, A y B respetan el fondo del tema y dejan de mostrar rellenos blancos sobre fondos oscuros.'},

@@ -8,6 +8,7 @@ import {logCambio} from './firebase.js';
 import {recalcularInventario,validarMovimiento,rebasarLineaToma} from './inventario-motor.js';
 import {prepararImportacionProductos} from './inventario-importador.js';
 import {calcularTotalesOC,resumenRecepcionOC,validarOrdenCompra,validarRecepcion,estadoSegunRecepciones} from './inventario-oc-motor.js';
+import {buscarCompraParaRecepcion,otrasRecepcionesMismoDocumento,comprasVinculables} from './conciliacion-compras-motor.js';
 
 const K={
   grupos:'inv-grupos',bodegas:'inv-bodegas',productos:'inv-productos',
@@ -319,7 +320,7 @@ function renderOCDetalle(c,o){
   c.innerHTML=`<div class="sec-hdr"><div><div class="sec-title">${esc(o.folio)} · ${esc(o.proveedorNombre)}</div><div class="sec-sub">${esc(o.proveedorRut)} · ${fechaCorta(o.fecha)} · ${esc(nombreBodega(o.bodegaId))} · versión ${num(o.version)}</div></div><div class="inv-actions"><button class="btn btn-g" onclick="invVolverOC()">← Volver</button>${writable()&&o.estado==='BORRADOR'?`<button class="btn btn-g" onclick="invEditarOC('${o.id}')">Editar</button><button class="btn btn-p" onclick="invEmitirOC('${o.id}')">Emitir OC</button>`:''}${writable()&&['EMITIDA','PARCIAL'].includes(o.estado)?`<button class="btn btn-p" onclick="invAbrirRecepcion('${o.id}')">＋ Recibir</button>`:''}</div></div>
   <div class="inv-kpis inv-kpis-4"><div><small>Estado</small><strong class="inv-kpi-text">${esc(OC_ESTADOS[o.estado]||o.estado)}</strong></div><div><small>Recepción</small><strong>${fmt(res.avance)}%</strong></div><div><small>Pendiente</small><strong>${fmt(res.pendiente)}</strong></div><div><small>Total OC</small><strong>${mon(tot.total)}</strong></div></div>
   <div class="card-np"><div class="inv-card-title">Detalle de la orden</div><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Producto</th><th class="num">Pedido</th><th class="num">Recibido</th><th class="num">Pendiente</th><th class="num">Precio neto</th><th class="num">Desc. %</th><th class="num">Total neto</th></tr></thead><tbody>${res.lineas.map(l=>`<tr><td>${esc(nombreProducto(l.productoId))}</td><td class="num">${fmt(l.cantidad)}</td><td class="num">${fmt(l.recibida)}</td><td class="num"><strong>${fmt(l.pendiente)}</strong></td><td class="num">${mon(l.precioUnitario)}</td><td class="num">${fmt(l.descuentoPct)}</td><td class="num">${mon(num(l.cantidad)*num(l.precioUnitario)*(1-num(l.descuentoPct)/100))}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="5">Neto ${mon(tot.neto)} · IVA ${mon(tot.iva)}</td><td>Total</td><td class="num"><strong>${mon(tot.total)}</strong></td></tr></tfoot></table></div></div>
-  <div class="card-np inv-oc-recs"><div class="inv-card-title">Recepciones</div><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Folio</th><th>Fecha</th><th>Documento</th><th class="num">Líneas</th><th>Estado</th><th>Integración contable</th><th>Responsable</th><th></th></tr></thead><tbody>${recs.length?recs.map(r=>`<tr class="${r.estado==='ANULADA'?'inv-anulado':''}"><td class="mono"><strong>${esc(r.folio)}</strong></td><td>${fechaCorta(r.fecha)}</td><td>${esc(r.documentoTipo)} ${esc(r.documentoNumero)}</td><td class="num">${r.lineas.length}</td><td><span class="badge ${r.estado==='ANULADA'?'inv-bad':'inv-ok'}">${esc(r.estado)}</span></td><td><span class="badge inv-muted">${r.estado==='ANULADA'?'Anulada':r.estadoContable==='PENDIENTE_CONCILIACION'?'Pendiente DTE':'Espera factura'}</span></td><td>${esc(r.creadoPor||'—')}</td><td>${writable()&&r.estado!=='ANULADA'?`<button class="btn btn-r" onclick="invAnularRecepcion('${r.id}')">Anular</button>`:''}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">Sin recepciones registradas.</td></tr>'}</tbody></table></div></div>
+  <div class="card-np inv-oc-recs"><div class="inv-card-title">Recepciones</div><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Folio</th><th>Fecha</th><th>Documento</th><th class="num">Líneas</th><th>Estado</th><th>Integración contable</th><th>Responsable</th><th></th></tr></thead><tbody>${recs.length?recs.map(r=>`<tr class="${r.estado==='ANULADA'?'inv-anulado':''}"><td class="mono"><strong>${esc(r.folio)}</strong></td><td>${fechaCorta(r.fecha)}</td><td>${esc(r.documentoTipo)} ${esc(r.documentoNumero)}</td><td class="num">${r.lineas.length}</td><td><span class="badge ${r.estado==='ANULADA'?'inv-bad':'inv-ok'}">${esc(r.estado)}</span></td><td>${r.estado==='ANULADA'?'<span class="badge inv-muted">Anulada</span>':r.compraId?`<span class="badge inv-ok">✅ Conciliada · DTE ${esc(r.compraTipoDTE)} N°${esc(r.compraNumero)}</span>`:`<span class="badge inv-muted">${r.estadoContable==='PENDIENTE_CONCILIACION'?'Pendiente DTE':'Espera factura'}</span>${writable()?` <button class="btn btn-g" style="padding:2px 6px;font-size:10px" onclick="invAbrirVincularFactura('${r.id}')">🔗 Vincular</button>`:''}`}</td><td>${esc(r.creadoPor||'—')}</td><td>${writable()&&r.estado!=='ANULADA'?`<button class="btn btn-r" onclick="invAnularRecepcion('${r.id}')">Anular</button>`:''}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">Sin recepciones registradas.</td></tr>'}</tbody></table></div></div>
   ${o.observaciones?`<div class="inv-nota"><strong>Observaciones:</strong> ${esc(o.observaciones)}</div>`:''}
   ${writable()&&o.estado==='PARCIAL'?'<div class="inv-review-actions"><button class="btn btn-g" onclick="invCerrarSaldoOC()">Cerrar saldo pendiente</button></div>':''}${writable()&&['BORRADOR','EMITIDA'].includes(o.estado)?'<div class="inv-review-actions"><button class="btn btn-r" onclick="invAnularOC()">Anular orden</button></div>':''}`;
 }
@@ -342,15 +343,74 @@ async function invGuardarRecepcion(){
   if(!writable()||!recDraft)return;const vista=JSON.parse(JSON.stringify(recDraft));
   try{await Promise.all([leerListaActual('ordenesCompra'),leerListaActual('recepciones'),leerListaActual('movimientos')]);const oi=inv().ordenesCompra.findIndex(x=>x.id===vista.ordenCompraId),o=inv().ordenesCompra[oi];if(!o)throw new Error('La orden ya no existe');if(num(o.version)!==num(vista.ordenVersion))throw new Error('La orden cambió en otro equipo. Reabre la recepción.');if(!['EMITIDA','PARCIAL'].includes(o.estado))throw new Error('La orden ya no admite recepciones');if(vista.fecha<o.fecha)throw new Error('La recepción no puede ser anterior a la orden');if(inv().recepciones.some(r=>r.estado!=='ANULADA'&&r.proveedorRut===o.proveedorRut&&r.documentoTipo===vista.documentoTipo&&String(r.documentoNumero).trim().toUpperCase()===String(vista.documentoNumero).trim().toUpperCase()))throw new Error('Ese documento ya fue recibido para el proveedor');
     const valida=validarRecepcion(vista,o,{productos:inv().productos,recepciones:inv().recepciones});if(!valida.ok)throw new Error(valida.errores[0]);if(vista.documentoTipo==='FACTURA EXENTA'&&valida.lineas.some(l=>prod(l.productoId)?.aplicaIVA!==false))throw new Error('Una factura exenta contiene productos configurados como afectos a IVA');const ahora=new Date().toISOString(),tipoDTE={'GUÍA':52,'FACTURA AFECTA':33,'FACTURA EXENTA':34}[vista.documentoTipo]||null,rec={id:uid(),folio:nuevoFolio('RECEPCION'),ordenCompraId:o.id,ordenFolio:o.folio,proveedorRut:o.proveedorRut,proveedorNombre:o.proveedorNombre,bodegaId:o.bodegaId,fecha:vista.fecha,documentoTipo:vista.documentoTipo,tipoDTE,documentoNumero:String(vista.documentoNumero).trim().toUpperCase(),estadoContable:tipoDTE===33||tipoDTE===34?'PENDIENTE_CONCILIACION':'ESPERA_FACTURA',observaciones:vista.observaciones,estado:'VIGENTE',creado:ahora,creadoPor:AUTH.user?.email||'',lineas:valida.lineas.map(l=>{const ol=o.lineas.find(x=>x.id===l.ocLineaId);return {...l,id:uid(),productoId:ol.productoId,cantidad:num(l.cantidad),lote:String(l.lote||'').trim().toUpperCase(),precioUnitario:num(ol.precioUnitario)*(1-num(ol.descuentoPct)/100)};})};
+    // V2.22 — Conciliación automática: si ya existe en Compras la factura con el mismo RUT+tipoDTE+N°, se vincula de una vez.
+    const compraMatch=(tipoDTE===33||tipoDTE===34)?buscarCompraParaRecepcion(rec,S.compras||[]):null;
+    if(compraMatch){rec.compraId=compraMatch.id;rec.compraTipoDTE=compraMatch.tipoDTE;rec.compraNumero=compraMatch.numero;rec.compraAnio=S.empresa.anio;rec.estadoContable='CONCILIADA';}
     const mov={id:uid(),folio:nuevoFolio('ENTRADA'),tipo:'ENTRADA',motivo:'COMPRA',fecha:rec.fecha,bodegaDestinoId:o.bodegaId,documento:`${rec.documentoTipo} ${rec.documentoNumero}`,tercero:o.proveedorNombre,centroCosto:o.centroCosto||'',observaciones:`Recepción ${rec.folio} de ${o.folio}`,lineas:rec.lineas.map(l=>({id:uid(),productoId:l.productoId,cantidad:l.cantidad,costoUnitario:l.precioUnitario,lote:l.lote,fechaVencimiento:l.fechaVencimiento||''})),estado:'VIGENTE',recepcionId:rec.id,ordenCompraId:o.id,creado:ahora,creadoPor:AUTH.user?.email||''};
     const vm=validarMovimiento(mov,{productos:inv().productos,bodegas:inv().bodegas,movimientos:inv().movimientos});if(!vm.ok)throw new Error(vm.errores[0]);mov.lineas=vm.lineas;const recs=[...inv().recepciones,rec],movs=[...inv().movimientos,mov],actualizada={...o,estado:estadoSegunRecepciones(o,recs),version:num(o.version)+1,modificado:ahora,ultimaRecepcion:ahora};const ocs=inv().ordenesCompra.slice();ocs[oi]=actualizada;
-    const wr=await window.storage.setMany([{key:K.recepciones,value:JSON.stringify(recs)},{key:K.movimientos,value:JSON.stringify(movs)},{key:K.ordenesCompra,value:JSON.stringify(ocs)}]);if(!wr||wr.ok===false)throw new Error(wr?.detalle||wr?.motivo||'No fue posible registrar la recepción');inv().recepciones=recs;inv().movimientos=movs;inv().ordenesCompra=ocs;logCambio('Registró recepción de compra',{entidad:'inventario-recepcion',id:rec.id,despues:rec,meta:{detalle:`${rec.folio} · ${o.folio}`}});recDraft=null;invCerrarModal();UI.ocId=o.id;renderInventario();toast(`✅ ${rec.folio} registrada · entrada ${mov.folio}`);
+    const wr=await window.storage.setMany([{key:K.recepciones,value:JSON.stringify(recs)},{key:K.movimientos,value:JSON.stringify(movs)},{key:K.ordenesCompra,value:JSON.stringify(ocs)}]);if(!wr||wr.ok===false)throw new Error(wr?.detalle||wr?.motivo||'No fue posible registrar la recepción');inv().recepciones=recs;inv().movimientos=movs;inv().ordenesCompra=ocs;
+    let avisoExtra='';
+    if(compraMatch){
+      const ci=S.compras.findIndex(x=>x.id===compraMatch.id);
+      if(ci>=0&&!(S.compras[ci].recepcionesVinculadas||[]).some(v=>v.id===rec.id)){
+        S.compras[ci]={...S.compras[ci],recepcionesVinculadas:[...(S.compras[ci].recepcionesVinculadas||[]),{id:rec.id,folio:rec.folio}]};
+        const wc=await window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras));
+        if(!wc||wc.ok===false)avisoExtra=' · ⚠️ no se pudo actualizar la referencia en Compras (vincúlala manualmente)';
+      }
+    }
+    logCambio('Registró recepción de compra',{entidad:'inventario-recepcion',id:rec.id,despues:rec,meta:{detalle:`${rec.folio} · ${o.folio}`}});recDraft=null;invCerrarModal();UI.ocId=o.id;renderInventario();
+    const otras=otrasRecepcionesMismoDocumento(rec,recs);
+    if(otras.length)toast(`⚠️ ${rec.folio} registrada, pero ya existe otra recepción con el mismo N° de documento para este proveedor (${otras.map(x=>x.folio).join(', ')}). Verifica que no sea un duplicado.${avisoExtra}`,'e');
+    else if(avisoExtra)toast(`✅ ${rec.folio} registrada · entrada ${mov.folio}${compraMatch?' · 🔗 conciliada':''}${avisoExtra}`,'e');
+    else toast(`✅ ${rec.folio} registrada · entrada ${mov.folio}${compraMatch?' · 🔗 conciliada con factura ya registrada':''}`);
+  }catch(e){toast('❌ '+e.message,'e');renderInventario();}
+}
+
+async function invAbrirVincularFactura(recepcionId){
+  const r=inv().recepciones.find(x=>x.id===recepcionId);if(!r||r.estado==='ANULADA'||r.compraId)return;
+  const candidatas=comprasVinculables(r,S.compras||[]);
+  modal(`${modalHdr('Vincular factura de Compras',`${esc(r.proveedorNombre)} · ${esc(r.documentoTipo)} ${esc(r.documentoNumero)}`)}
+  ${candidatas.length?`<div class="inv-lines">${candidatas.map(c=>`<div class="inv-rec-line"><div><strong>DTE ${c.tipoDTE} N° ${esc(c.numero)}</strong><small>${fechaCorta(c.fecha)} · ${mon(c.total)}${(c.recepcionesVinculadas||[]).length?` · ya vinculada a ${c.recepcionesVinculadas.length} recepción(es)`:''}</small></div><button class="btn btn-p" onclick="invVincularFactura('${r.id}','${c.id}')">Vincular</button></div>`).join('')}</div>`
+  :`<div class="empty">No hay facturas de ${esc(r.proveedorNombre)} registradas en Compras este año.</div>`}
+  <div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cerrar</button></div>`);
+}
+async function invVincularFactura(recepcionId,compraId){
+  if(!writable())return;
+  try{
+    await leerListaActual('recepciones');
+    const ri=inv().recepciones.findIndex(x=>x.id===recepcionId),r=inv().recepciones[ri];
+    if(!r||r.estado==='ANULADA')throw new Error('La recepción ya no está disponible');
+    if(r.compraId)throw new Error('Esta recepción ya está conciliada con una factura');
+    const c=(S.compras||[]).find(x=>x.id===compraId);
+    if(!c||c.estado==='anulado')throw new Error('La factura seleccionada ya no está disponible');
+    const ahora=new Date().toISOString(),recs=inv().recepciones.slice();
+    recs[ri]={...r,compraId:c.id,compraTipoDTE:c.tipoDTE,compraNumero:c.numero,compraAnio:S.empresa.anio,estadoContable:'CONCILIADA',conciliadoManual:true,conciliadoEn:ahora,conciliadoPor:AUTH.user?.email||''};
+    const wr=await window.storage.set(K.recepciones,JSON.stringify(recs));if(!wr||wr.ok===false)throw new Error(wr?.detalle||wr?.motivo||'No se pudo vincular la recepción');
+    inv().recepciones=recs;
+    const ci=S.compras.findIndex(x=>x.id===c.id);
+    if(ci>=0&&!(S.compras[ci].recepcionesVinculadas||[]).some(v=>v.id===r.id)){
+      S.compras[ci]={...S.compras[ci],recepcionesVinculadas:[...(S.compras[ci].recepcionesVinculadas||[]),{id:r.id,folio:r.folio}]};
+      const wc=await window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras));
+      if(!wc||wc.ok===false){invCerrarModal();renderInventario();toast(`🔗 ${r.folio} vinculada, pero no se pudo actualizar la referencia en Compras`,'e');return;}
+    }
+    logCambio('Vinculó recepción con factura',{entidad:'inventario-recepcion',id:r.id,despues:recs[ri],meta:{detalle:`${r.folio} ↔ DTE ${c.tipoDTE} N°${c.numero}`}});
+    invCerrarModal();renderInventario();toast(`🔗 ${r.folio} conciliada con DTE ${c.tipoDTE} N°${c.numero}`);
   }catch(e){toast('❌ '+e.message,'e');renderInventario();}
 }
 
 async function invAnularRecepcion(id){
   const vista=inv().recepciones.find(x=>x.id===id);if(!vista||vista.estado==='ANULADA')return;const motivo=prompt('Motivo de anulación de la recepción:');if(motivo===null)return;if(!motivo.trim()){toast('Indica el motivo','e');return;}if(!confirm('La entrada de inventario asociada también será anulada. ¿Continuar?'))return;
-    try{await Promise.all([leerListaActual('ordenesCompra'),leerListaActual('recepciones'),leerListaActual('movimientos')]);const ri=inv().recepciones.findIndex(x=>x.id===id),r=inv().recepciones[ri];if(!r||r.estado==='ANULADA')throw new Error('La recepción ya fue anulada o no existe');const mi=inv().movimientos.findIndex(x=>x.recepcionId===r.id&&x.estado!=='ANULADO'),m=inv().movimientos[mi];if(!m)throw new Error('No se encontró la entrada de inventario asociada');const salida={tipo:'AJUSTE_SALIDA',fecha:hoy(),bodegaOrigenId:r.bodegaId,lineas:m.lineas.map(l=>({productoId:l.productoId,cantidad:l.cantidad,lote:l.lote}))};const vs=validarMovimiento(salida,{productos:inv().productos,bodegas:inv().bodegas,movimientos:inv().movimientos});if(!vs.ok)throw new Error('No se puede anular: parte de la mercadería ya no está disponible. '+vs.errores[0]);const ahora=new Date().toISOString(),recs=inv().recepciones.slice(),movs=inv().movimientos.slice();recs[ri]={...r,estado:'ANULADA',motivoAnulacion:motivo.trim(),anulado:ahora,anuladoPor:AUTH.user?.email||''};movs[mi]={...m,estado:'ANULADO',motivoAnulacion:`Recepción anulada: ${motivo.trim()}`,anulado:ahora,anuladoPor:AUTH.user?.email||''};const oi=inv().ordenesCompra.findIndex(x=>x.id===r.ordenCompraId),ocs=inv().ordenesCompra.slice();if(oi>=0){const o=ocs[oi],baseEstado=o.estado==='CERRADA_PARCIAL'?'CERRADA_PARCIAL':'EMITIDA';ocs[oi]={...o,estado:estadoSegunRecepciones({...o,estado:baseEstado},recs),version:num(o.version)+1,modificado:ahora};}const wr=await window.storage.setMany([{key:K.recepciones,value:JSON.stringify(recs)},{key:K.movimientos,value:JSON.stringify(movs)},{key:K.ordenesCompra,value:JSON.stringify(ocs)}]);if(!wr||wr.ok===false)throw new Error(wr?.detalle||wr?.motivo||'No fue posible anular');inv().recepciones=recs;inv().movimientos=movs;inv().ordenesCompra=ocs;logCambio('Anuló recepción de compra',{entidad:'inventario-recepcion',id:r.id,antes:r,despues:recs[ri],meta:{detalle:r.folio}});renderInventario();toast('✅ Recepción y entrada anuladas');}catch(e){toast('❌ '+e.message,'e');renderInventario();}
+    try{await Promise.all([leerListaActual('ordenesCompra'),leerListaActual('recepciones'),leerListaActual('movimientos')]);const ri=inv().recepciones.findIndex(x=>x.id===id),r=inv().recepciones[ri];if(!r||r.estado==='ANULADA')throw new Error('La recepción ya fue anulada o no existe');const mi=inv().movimientos.findIndex(x=>x.recepcionId===r.id&&x.estado!=='ANULADO'),m=inv().movimientos[mi];if(!m)throw new Error('No se encontró la entrada de inventario asociada');const salida={tipo:'AJUSTE_SALIDA',fecha:hoy(),bodegaOrigenId:r.bodegaId,lineas:m.lineas.map(l=>({productoId:l.productoId,cantidad:l.cantidad,lote:l.lote}))};const vs=validarMovimiento(salida,{productos:inv().productos,bodegas:inv().bodegas,movimientos:inv().movimientos});if(!vs.ok)throw new Error('No se puede anular: parte de la mercadería ya no está disponible. '+vs.errores[0]);const ahora=new Date().toISOString(),recs=inv().recepciones.slice(),movs=inv().movimientos.slice();recs[ri]={...r,estado:'ANULADA',motivoAnulacion:motivo.trim(),anulado:ahora,anuladoPor:AUTH.user?.email||''};movs[mi]={...m,estado:'ANULADO',motivoAnulacion:`Recepción anulada: ${motivo.trim()}`,anulado:ahora,anuladoPor:AUTH.user?.email||''};const oi=inv().ordenesCompra.findIndex(x=>x.id===r.ordenCompraId),ocs=inv().ordenesCompra.slice();if(oi>=0){const o=ocs[oi],baseEstado=o.estado==='CERRADA_PARCIAL'?'CERRADA_PARCIAL':'EMITIDA';ocs[oi]={...o,estado:estadoSegunRecepciones({...o,estado:baseEstado},recs),version:num(o.version)+1,modificado:ahora};}const wr=await window.storage.setMany([{key:K.recepciones,value:JSON.stringify(recs)},{key:K.movimientos,value:JSON.stringify(movs)},{key:K.ordenesCompra,value:JSON.stringify(ocs)}]);if(!wr||wr.ok===false)throw new Error(wr?.detalle||wr?.motivo||'No fue posible anular');inv().recepciones=recs;inv().movimientos=movs;inv().ordenesCompra=ocs;
+    let avisoExtra='';
+    if(r.compraId){
+      const ci=S.compras.findIndex(x=>x.id===r.compraId);
+      if(ci>=0&&(S.compras[ci].recepcionesVinculadas||[]).some(v=>v.id===r.id)){
+        S.compras[ci]={...S.compras[ci],recepcionesVinculadas:S.compras[ci].recepcionesVinculadas.filter(v=>v.id!==r.id)};
+        const wc=await window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras));
+        if(!wc||wc.ok===false)avisoExtra=' · ⚠️ no se pudo desvincular la factura en Compras';
+      }
+    }
+    logCambio('Anuló recepción de compra',{entidad:'inventario-recepcion',id:r.id,antes:r,despues:recs[ri],meta:{detalle:r.folio}});renderInventario();toast('✅ Recepción y entrada anuladas'+avisoExtra,avisoExtra?'e':'ok');}catch(e){toast('❌ '+e.message,'e');renderInventario();}
 }
 
 function modal(html){
@@ -563,5 +623,5 @@ export {
   invDevolverToma,invRechazarToma,invAutorizarToma
   ,invNuevaOC,invEditarOC,invOCCampo,invOCLineaCampo,invOCAgregarLinea,invOCQuitarLinea,invGuardarOC,
   invVerOC,invVolverOC,invEmitirOC,invAnularOC,invCerrarSaldoOC,invAbrirRecepcion,invRecCampo,invRecLineaCampo,invRecAgregarLote,invRecQuitarLinea,
-  invGuardarRecepcion,invAnularRecepcion
+  invGuardarRecepcion,invAnularRecepcion,invAbrirVincularFactura,invVincularFactura
 };

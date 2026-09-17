@@ -14,6 +14,7 @@ import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import './storage.js';
 import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
+import {buscarRecepcionParaCompra} from './conciliacion-compras-motor.js';
 
 // Estado del formulario de compras (interno del módulo)
 // CF NUNCA debe reasignarse: app.js expone este objeto con Object.assign(window,{CF})
@@ -362,6 +363,7 @@ function renderCompras(){
       const perC=periodoContableCompra(d);
       const periodoBadge=d.periodoContable&&d.fecha?.slice(0,7)!==perC?`<div style="font-size:9px;color:var(--info);margin-top:2px" title="Período contable/RCV">RCV ${perC}</div>`:'';
       const distTxt=d.dist&&d.dist.length>1?`📊 ${d.dist.length} categorías`:(d.dist&&d.dist[0]?pdcNm(d.dist[0].cuenta):'');
+      const recVincTxt=d.recepcionesVinculadas&&d.recepcionesVinculadas.length?`<div style="font-size:9px;color:var(--ach);margin-top:2px" title="Conciliada con la recepción física de inventario">📦 ${d.recepcionesVinculadas.map(v=>escOptC(v.folio)).join(', ')}</div>`:'';
       // Las notas de crédito RESTAN: se muestran en negativo y en rojo, igual
       // que como se computan en los totales, el F29 y el libro diario.
       const esNC=signo<0;
@@ -382,7 +384,7 @@ function renderCompras(){
         <td class="tl" style="font-family:var(--mono);font-size:11px">${d.tipoDTE}${esNC?' <span style="font-family:var(--sans);font-size:8px;font-weight:700;color:var(--err);border:1px solid var(--err);border-radius:3px;padding:0 3px;vertical-align:middle">NC</span>':''}${dte?`<div style="font-size:9px;color:var(--mt);font-family:var(--sans);line-height:1.1;margin-top:1px">${dte.nm.slice(0,18)}</div>`:''}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px">${d.numero||''}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px">${rutFmt(d.rutCodigo,d.rutDV)}</td>
-        <td class="tnm">${d.razonSocial||''}${distTxt?`<div style="font-size:10px;color:var(--mt);margin-top:2px">${distTxt}</div>`:''}</td>
+        <td class="tnm">${d.razonSocial||''}${distTxt?`<div style="font-size:10px;color:var(--mt);margin-top:2px">${distTxt}</div>`:''}${recVincTxt}</td>
         <td${cNC}>${sg(d.neto)}</td>
         <td${cNC}>${sg(d.exento)}</td>
         <td${cNC}>${sg(d.iva)}</td>
@@ -689,7 +691,11 @@ async function guardarCompra(){
   const fechaVencimientoOrigen=fechaVencimiento
     ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
     :'';
-  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(usaIvaRetenido?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||'',tipoCompra:prevEdit.tipoCompra||'',codigoIvaNoRecuperable:prevEdit.codigoIvaNoRecuperable||'',numeroInternoSII:prevEdit.numeroInternoSII||''}:{})};
+  // V2.22 — Conciliación automática: si ya existe una recepción de inventario con el mismo RUT+tipoDTE+N°, se vincula al guardar la factura.
+  const recepcionesPrevias=prevEdit?.recepcionesVinculadas||[];
+  const recepcionMatch=(!recepcionesPrevias.length&&(tipoDTE===33||tipoDTE===34))?buscarRecepcionParaCompra({tipoDTE,rutCodigo:r.codigo,numero},S.inventario?.recepciones||[]):null;
+  const recepcionesVinculadas=recepcionesPrevias.length?recepcionesPrevias:(recepcionMatch?[{id:recepcionMatch.id,folio:recepcionMatch.folio}]:[]);
+  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(usaIvaRetenido?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||'',tipoCompra:prevEdit.tipoCompra||'',codigoIvaNoRecuperable:prevEdit.codigoIvaNoRecuperable||'',numeroInternoSII:prevEdit.numeroInternoSII||''}:{}),...(recepcionesVinculadas.length?{recepcionesVinculadas}:{})};
   const editando=!!CF.editId;
   if(editando){
     const i=S.compras.findIndex(x=>x.id===CF.editId); const prev=i>=0?S.compras[i]:null;
@@ -698,7 +704,18 @@ async function guardarCompra(){
   } else doc.corrMes=proxCorrMesCompra(fecha,null,periodoContableCompra(doc));
   const rSave=await guardarDocumentoContabilizado('compras',doc,S.compras,editando);
   if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
-  toast(editando?'✅ Documento actualizado y contabilizado':'✅ Documento registrado y contabilizado');
+  let avisoExtra='';
+  if(recepcionMatch){
+    const recs=(S.inventario?.recepciones||[]).slice();
+    const ri=recs.findIndex(x=>x.id===recepcionMatch.id);
+    if(ri>=0&&!recs[ri].compraId){
+      recs[ri]={...recs[ri],compraId:doc.id,compraTipoDTE:doc.tipoDTE,compraNumero:doc.numero,compraAnio:S.empresa.anio,estadoContable:'CONCILIADA'};
+      const wr=await window.storage.set('inv-recepciones',JSON.stringify(recs));
+      if(wr&&wr.ok!==false)S.inventario.recepciones=recs;
+      else avisoExtra=' · ⚠️ no se pudo vincular la recepción asociada';
+    }
+  }
+  toast((editando?'✅ Documento actualizado y contabilizado':'✅ Documento registrado y contabilizado')+(recepcionMatch?` · 🔗 conciliado con recepción ${recepcionMatch.folio}`:'')+avisoExtra,avisoExtra?'e':'ok');
   logAccion(editando?'Editó compra':'Registró compra',`DTE ${doc.tipoDTE} N°${doc.numero} · ${doc.razonSocial} · ${fmtC(doc.total)}`);
   cerrarCF();rerender();
 }
@@ -706,9 +723,24 @@ async function guardarCompra(){
 async function eliminarCompra(id){
   const d=S.compras.find(x=>x.id===id);if(!d)return;
   if(!confirm(`¿Eliminar documento ${d.tipoDTE} N°${d.numero} de ${d.razonSocial}?\nTotal: ${fmtC(d.total)}`))return;
+  const recepcionesVinculadas=d.recepcionesVinculadas||[];
   const r=await anularDocumentoContabilizado('compras',d,S.compras);
   if(!r.ok){toast(r.motivo==='ejercicio-cerrado'?'🔒 El ejercicio está cerrado':'❌ No se pudo guardar la anulación','e');return;}
-  rerender();toast('🚫 Documento y asiento anulados (se conserva la trazabilidad)');
+  let avisoExtra='';
+  if(recepcionesVinculadas.length){
+    const recs=(S.inventario?.recepciones||[]).slice();
+    let cambio=false;
+    recepcionesVinculadas.forEach(v=>{
+      const ri=recs.findIndex(x=>x.id===v.id);
+      if(ri>=0&&recs[ri].compraId===d.id){recs[ri]={...recs[ri],compraId:null,compraTipoDTE:null,compraNumero:null,compraAnio:null,estadoContable:(recs[ri].tipoDTE===52?'ESPERA_FACTURA':'PENDIENTE_CONCILIACION')};cambio=true;}
+    });
+    if(cambio){
+      const wr=await window.storage.set('inv-recepciones',JSON.stringify(recs));
+      if(wr&&wr.ok!==false)S.inventario.recepciones=recs;
+      else avisoExtra=' · ⚠️ no se pudo desvincular la(s) recepción(es) asociada(s)';
+    }
+  }
+  rerender();toast('🚫 Documento y asiento anulados (se conserva la trazabilidad)'+avisoExtra,avisoExtra?'e':'ok');
 }
 
 // ═══ IMPORTACIÓN DESDE SII (Registro de Compras CSV) ═══
@@ -1336,6 +1368,7 @@ async function confirmarImportacion(){
   // sobrescribir, los que se conservan mantienen el suyo y los nuevos deben
   // tomar números que no choquen con ellos.
   const sinFolio=[];
+  const recepMatches=[]; // V2.22: {recepcionId,docId} — conciliación automática pendiente de persistir
   incluidos.forEach((d,i)=>{
     const fechaFinal=d.fechaOriginal;
     const periodoContable=periodoImportSeleccionado();
@@ -1356,6 +1389,11 @@ async function confirmarImportacion(){
       const sumPrev=prev.dist.reduce((s,l)=>s+(l.monto||0),0);
       if(Math.abs(sumPrev-montoDist)<=1)dist=prev.dist.map(l=>({...l}));
     }
+    // V2.22 — Conciliación automática con recepciones de inventario (misma lógica que el registro manual).
+    const recepcionesPrevias=prev?.recepcionesVinculadas||[];
+    const recepcionMatch=(!recepcionesPrevias.length&&(+d.tipoDTE===33||+d.tipoDTE===34))?buscarRecepcionParaCompra({tipoDTE:d.tipoDTE,rutCodigo:d.rutCodigo,numero:d.numero},S.inventario?.recepciones||[]):null;
+    const recepcionesVinculadas=recepcionesPrevias.length?recepcionesPrevias:(recepcionMatch?[{id:recepcionMatch.id,folio:recepcionMatch.folio}]:[]);
+    if(recepcionMatch)recepMatches.push({recepcionId:recepcionMatch.id,docId:prev?prev.id:'c_imp_'+ts+'_'+i,tipoDTE:d.tipoDTE,numero:d.numero});
     const doc={
       id:prev?prev.id:'c_imp_'+ts+'_'+i,
       folioComp:(prev&&+prev.folioComp)||0,   // correlativo único de comprobante contable
@@ -1400,6 +1438,7 @@ async function confirmarImportacion(){
       }:{}),
       total:d.total,
       dist,
+      ...(recepcionesVinculadas.length?{recepcionesVinculadas}:{}),
       // Descripción/glosa de la compra ingresada en el importador (se muestra en el asiento).
       ...((d.glosa||prev?.glosa)?{glosa:d.glosa||prev.glosa}:{}),
       // Referencia de nota (56/61) asociada en el importador a una factura del proveedor.
@@ -1441,6 +1480,7 @@ async function confirmarImportacion(){
       d.errorImport=err?.message||String(err);
       d.estadoImport='pendiente_error';d.incluir=true;
       pendientesError.push(d);
+      const rmi=recepMatches.findIndex(m=>m.docId===doc.id);if(rmi>=0)recepMatches.splice(rmi,1);
     }
   });
 
@@ -1485,6 +1525,22 @@ async function confirmarImportacion(){
     toast('❌ No se pudo completar la importación. Se revirtieron documentos y asientos.','e');return;
   }
 
+  // V2.22 — Persistir la conciliación automática detectada durante el import (best-effort: no revierte la importación si falla).
+  if(recepMatches.length){
+    const recs=(S.inventario?.recepciones||[]).slice();
+    const porId=new Map();recepMatches.forEach(m=>{if(!porId.has(m.recepcionId))porId.set(m.recepcionId,m);});
+    let cambio=false;
+    porId.forEach(m=>{
+      const ri=recs.findIndex(x=>x.id===m.recepcionId);
+      if(ri>=0&&!recs[ri].compraId){recs[ri]={...recs[ri],compraId:m.docId,compraTipoDTE:m.tipoDTE,compraNumero:m.numero,compraAnio:S.empresa.anio,estadoContable:'CONCILIADA'};cambio=true;}
+    });
+    if(cambio){
+      const wr=await window.storage.set('inv-recepciones',JSON.stringify(recs));
+      if(wr&&wr.ok!==false)S.inventario.recepciones=recs;
+      else console.warn('No se pudo persistir la conciliación automática de recepciones tras el import RCV',wr);
+    }
+  }
+
   // Auditoría inmutable de cambios RCV. Para altas masivas se registra un
   // resumen de lote; cuando el SII cambió un documento existente se conserva
   // además el antes/después individual.
@@ -1514,11 +1570,12 @@ async function confirmarImportacion(){
   const msgFichas=(fichasCreadas||fichasActualizadas)?` · fichas: ${fichasCreadas} nuevas${fichasActualizadas?', '+fichasActualizadas+' completadas':''}`:'';
   const msgPend=pendientes.length?` · ⚠️ ${pendientes.length} pendiente${pendientes.length===1?'':'s'} de clasificación/revisión`:'';
   const msgError=pendientesError.length?` · ⛔ ${pendientesError.length} con error aislado`:'';
+  const msgConc=recepMatches.length?` · 🔗 ${recepMatches.length} conciliada${recepMatches.length===1?'':'s'} con recepción de inventario`:'';
   if(modo==='sobrescribir'){
-    toast(`♻️ ${periodoStr} reemplazado — ${agregados} documento${agregados===1?'':'s'} · ${reemplazados} conservaron su correlativo${depurados?` · ${depurados} anulado${depurados===1?'':'s'}`:''}${msgFichas}${msgPend}${msgError}`);
+    toast(`♻️ ${periodoStr} reemplazado — ${agregados} documento${agregados===1?'':'s'} · ${reemplazados} conservaron su correlativo${depurados?` · ${depurados} anulado${depurados===1?'':'s'}`:''}${msgFichas}${msgPend}${msgError}${msgConc}`);
     logAccion('Sobrescribió compras SII',`${periodoStr}: ${agregados} nuevos/cambiados, ${reemplazados} ya presentes, ${depurados} anulados por ausencia en RCV`);
   }else{
-    toast(`✅ ${agregados} documento${agregados===1?'':'s'} importado${agregados===1?'':'s'} al periodo ${periodoStr}${fueraPeriodoContable?` (${fueraPeriodoContable} con fecha documental distinta del período RCV, conservada sin cambios)`:''}${msgProv}${msgFichas}${msgPend}${msgError}`);
+    toast(`✅ ${agregados} documento${agregados===1?'':'s'} importado${agregados===1?'':'s'} al periodo ${periodoStr}${fueraPeriodoContable?` (${fueraPeriodoContable} con fecha documental distinta del período RCV, conservada sin cambios)`:''}${msgProv}${msgFichas}${msgPend}${msgError}${msgConc}`);
     logAccion('Importó compras SII',`${agregados} documentos${msgFichas}`);
   }
   rerender();
