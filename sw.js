@@ -18,7 +18,7 @@
 
 // Esta línea se actualiza en cada publicación: al cambiar el nombre,
 // la caché anterior se descarta entera en activate.
-const CACHE = 'contabilidad-1789583185';
+const CACHE = 'contabilidad-1789644009';
 
 // Lo mínimo para que la aplicación abra sin red. Los módulos JS y el CSS se van
 // guardando solos a medida que se usan (ver fetch), así no hay que mantener a
