@@ -8,13 +8,24 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.17-1200';
+const APP_VERSION='v2026.09.17-1330';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.5',fecha:'17-09-2026',titulo:'Edición de movimientos de inventario ya guardados',items:[
+    {tipo:'nuevo',txt:'Los movimientos de Entrada, Salida y Traspaso vigentes se pueden editar después de guardados (fecha, motivo, bodegas, documento, centro de costo, tercero, observaciones y líneas), a diferencia del resto del sistema, que sigue usando exclusivamente anular y volver a registrar.'},
+    {tipo:'nuevo',txt:'El folio interno y el tipo de movimiento no cambian al editar: el tipo queda bloqueado y el folio se conserva desde el primer guardado, para no perder la trazabilidad.'},
+    {tipo:'seguridad',txt:'Antes de guardar una edición se recalcula todo el libro de movimientos con el cambio aplicado: si dejaría stock negativo en algún movimiento posterior (por ejemplo, reducir una entrada cuya mercadería ya salió), se bloquea con el detalle del conflicto.'},
+    {tipo:'cambio',txt:'Los movimientos que provienen de una recepción de compra o de una toma física siguen protegidos: no se editan directamente, se administran desde su origen.'},
+  ]},
+  {version:'V2.21.4',fecha:'17-09-2026',titulo:'Documento, folio interno y total por línea en movimientos de inventario',items:[
+    {tipo:'nuevo',txt:'El formulario de movimientos separa el documento en un tipo seleccionable (guía, factura afecta/exenta, boleta, orden de compra, orden de trabajo, solicitud interna, acta de toma física u otro) y un N° independiente, que se exige sólo cuando corresponde.'},
+    {tipo:'nuevo',txt:'Cada movimiento recibe su folio interno al abrir el formulario y lo conserva hasta guardar, visible desde el inicio para trazabilidad y referencia en futuras correcciones.'},
+    {tipo:'cambio',txt:'El costo unitario neto de las entradas usa el mismo formato entero con separador de miles del resto del sistema, y cada línea muestra su total neto (cantidad × costo) apenas se completan ambos datos.'},
+  ]},
   {version:'V2.21.3',fecha:'17-09-2026',titulo:'Cuentas contables obligatorias y restringidas en productos',items:[
     {tipo:'cambio',txt:'La cuenta de inventario de todo producto queda fija en 1109007: ya no es editable ni se puede elegir otra, tanto en el formulario como en la carga masiva desde Excel.'},
     {tipo:'nuevo',txt:'La cuenta de gasto/consumo pasa a ser un selector limitado a las cuentas de tipo Gasto del plan de cuentas, y su selección es obligatoria para guardar el producto.'},
