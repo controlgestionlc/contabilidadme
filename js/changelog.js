@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.17-1400';
+const APP_VERSION='v2026.09.17-1430';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.7',fecha:'17-09-2026',titulo:'Buscador dinámico de proveedor y saldo pendiente visible en Movimientos',items:[
+    {tipo:'cambio',txt:'El campo Proveedor en el formulario de movimientos deja de ser una lista larga y pasa a ser un buscador dinámico: filtra por RUT o nombre a medida que se escribe, igual que en Asientos.'},
+    {tipo:'nuevo',txt:'Al elegir una orden de compra en el movimiento, se muestra debajo el detalle de lo pendiente por recibir de esa orden (producto y cantidad).'},
+  ]},
   {version:'V2.21.6',fecha:'17-09-2026',titulo:'Proveedor y orden de compra en entradas por factura o guía',items:[
     {tipo:'nuevo',txt:'Al registrar una entrada con Factura afecta/exenta o Guía de despacho, el formulario exige asociar el proveedor y ofrece una lista con sus órdenes de compra emitidas o parcialmente recibidas.'},
     {tipo:'seguridad',txt:'La orden de compra puede dejarse en blanco sólo si ninguno de los productos de la línea tiene una orden emitida pendiente con ese proveedor; si la tiene, hay que seleccionarla o recibirla desde Órdenes de compra.'},

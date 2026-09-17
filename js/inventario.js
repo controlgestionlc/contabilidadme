@@ -3,6 +3,7 @@
 
 import {S,AUTH} from './state.js';
 import {toast,PDC,CUENTAS_GASTO,pdcNm,pn} from './core.js';
+import {inputAux} from './buscadorcuentas.js';
 import {puedeEditar} from './auth.js';
 import {logCambio} from './firebase.js';
 import {recalcularInventario,validarMovimiento,rebasarLineaToma} from './inventario-motor.js';
@@ -596,8 +597,9 @@ function invRenderMovModal(){
   ${!esEnt?`<label>Bodega origen<select onchange="invMovCampo('bodegaOrigenId',this.value,true)">${opcionesBodega(d.bodegaOrigenId)}</select></label>`:''}${!esSal?`<label>Bodega destino<select onchange="invMovCampo('bodegaDestinoId',this.value)">${opcionesBodega(d.bodegaDestinoId)}</select></label>`:''}
   <label>Tercero / responsable<input value="${esc(d.tercero)}" onchange="invMovCampo('tercero',this.value)"></label><label>Tipo de documento<select onchange="invMovCampo('documentoTipo',this.value,true)">${DOC_TIPOS_MOV.map(x=>`<option ${d.documentoTipo===x?'selected':''}>${x}</option>`).join('')}</select></label>
   ${d.documentoTipo&&d.documentoTipo!=='SIN DOCUMENTO'?`<label>N° de documento<input value="${esc(d.documentoNumero)}" onchange="invMovCampo('documentoNumero',this.value)" placeholder="N°…"></label>`:''}
-  ${esEnt&&DOC_TIPOS_PROVEEDOR.includes(d.documentoTipo)?`<label>Proveedor<select onchange="invMovProveedor(this.value)"><option value="">Selecciona proveedor…</option>${proveedoresOC().map(p=>{const rut=p.rutCodigo||p.rut;return `<option value="${esc(rut)}" ${String(d.proveedorRut)===String(rut)?'selected':''}>${esc(p.razonSocial)}</option>`;}).join('')}</select></label>
-  <label>Orden de compra<select onchange="invMovCampo('ordenCompraId',this.value)" ${!d.proveedorRut?'disabled':''}><option value="">Sin orden de compra</option>${ocsAbiertasProveedor(d.proveedorRut).map(o=>{const r=resumenRecepcionOC(o,inv().recepciones);return `<option value="${o.id}" ${d.ordenCompraId===o.id?'selected':''}>${esc(o.folio)} · ${fechaCorta(o.fecha)} · pendiente ${fmt(r.pendiente)}</option>`;}).join('')}</select>${!d.proveedorRut?'<small>Selecciona primero el proveedor</small>':''}</label>`:''}
+  ${esEnt&&DOC_TIPOS_PROVEEDOR.includes(d.documentoTipo)?`<label>Proveedor${inputAux({id:'mov-proveedor',tipo:'proveedor',value:d.proveedorRut,onPick:"invMovProveedor('%RUT%')",placeholder:'RUT o nombre del proveedor…'})}${d.proveedorNombre?`<small>${esc(d.proveedorNombre)}</small>`:''}</label>
+  <label>Orden de compra<select onchange="invMovCampo('ordenCompraId',this.value,true)" ${!d.proveedorRut?'disabled':''}><option value="">Sin orden de compra</option>${ocsAbiertasProveedor(d.proveedorRut).map(o=>{const r=resumenRecepcionOC(o,inv().recepciones);return `<option value="${o.id}" ${d.ordenCompraId===o.id?'selected':''}>${esc(o.folio)} · ${fechaCorta(o.fecha)} · pendiente ${fmt(r.pendiente)}</option>`;}).join('')}</select>${!d.proveedorRut?'<small>Selecciona primero el proveedor</small>':''}</label>
+  ${d.ordenCompraId?renderPendienteOC(d.ordenCompraId):''}`:''}
   <label class="span2">Observaciones<input value="${esc(d.observaciones)}" onchange="invMovCampo('observaciones',this.value)"></label></div>
   <div class="inv-lines"><div class="inv-card-title">Detalle</div>${d.lineas.map((l,i)=>renderMovLinea(l,i,d)).join('')}<button class="btn btn-g" onclick="invMovAgregarLinea()">＋ Agregar línea</button></div>
   <div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invGuardarMovimiento()">${d.editId?'Guardar cambios':'Guardar movimiento'}</button></div>`);
@@ -608,6 +610,12 @@ function renderMovLinea(l,i,d){
   const st=p&&d.bodegaOrigenId?calc.stock.find(x=>x.productoId===p.id&&x.bodegaId===d.bodegaOrigenId):null;
   const totalLinea=d.tipo==='ENTRADA'&&l.cantidad!==''&&l.costoUnitario!==''?mon(num(l.cantidad)*num(l.costoUnitario)):'';
   return `<div class="inv-line"><label>Producto<select onchange="invMovLineaCampo(${i},'productoId',this.value,true)">${opcionesProducto(l.productoId)}</select>${p&&salida?`<small>Disponible: ${fmt(st?.cantidad||0)} ${esc(p.unidad)}</small>`:''}</label><label>Cantidad<input type="number" min="0" step="any" value="${esc(l.cantidad)}" onchange="invMovLineaCampo(${i},'cantidad',this.value,true)"></label>${d.tipo==='ENTRADA'?`<label>Costo unitario neto<input type="text" inputmode="numeric" class="money-input" value="${esc(l.costoUnitario)}" onchange="invMovLineaCampo(${i},'costoUnitario',pn(this.value),true)"></label>`:''}${p?.manejaLotes?(salida?`<label>Lote<select onchange="invMovLineaCampo(${i},'lote',this.value,true)"><option value="">Seleccione lote…</option>${lotes.map(x=>`<option value="${esc(x.lote)}" ${l.lote===x.lote?'selected':''}>${esc(x.lote)} · ${fmt(x.cantidad)} · vence ${fechaCorta(x.fechaVencimiento)}</option>`).join('')}</select></label>`:`<label>Lote<input value="${esc(l.lote)}" onchange="invMovLineaCampo(${i},'lote',this.value.toUpperCase())"></label><label>Vencimiento<input type="date" value="${esc(l.fechaVencimiento)}" onchange="invMovLineaCampo(${i},'fechaVencimiento',this.value)"></label>`):''}<button class="inv-line-del" onclick="invMovQuitarLinea(${i})" title="Quitar">×</button>${totalLinea?`<div style="grid-column:1/-1;text-align:right;font-size:11px;color:var(--mt);margin-top:-4px">Total neto línea: <strong style="color:var(--tx)">${totalLinea}</strong></div>`:''}</div>`;
+}
+function renderPendienteOC(ocId){
+  const o=inv().ordenesCompra.find(x=>x.id===ocId);if(!o)return'';
+  const r=resumenRecepcionOC(o,inv().recepciones),pend=r.lineas.filter(l=>l.pendiente>0);
+  if(!pend.length)return'<div class="inv-nota span2" style="grid-column:1/-1">Esta orden ya no tiene saldo pendiente por recibir.</div>';
+  return `<div class="inv-nota span2" style="grid-column:1/-1"><strong>Pendiente por recibir de ${esc(o.folio)}:</strong> ${pend.map(l=>`${esc(nombreProducto(l.productoId))} (${fmt(l.pendiente)})`).join(' · ')}</div>`;
 }
 function invMovCampo(campo,valor,r=false){if(!movDraft)return;movDraft[campo]=valor;if(campo==='tipo'){movDraft.motivo=motivos(valor)[0];if(!movDraft.editId)movDraft.folio=nuevoFolio(valor);movDraft.lineas.forEach(l=>{l.lote='';l.fechaVencimiento='';});}if(campo==='documentoTipo'&&valor==='SIN DOCUMENTO')movDraft.documentoNumero='';if(r)invRenderMovModal();}
 function invMovProveedor(rut){if(!movDraft)return;const p=proveedorOC(rut);movDraft.proveedorRut=rut;movDraft.proveedorNombre=p?.razonSocial||'';movDraft.ordenCompraId='';invRenderMovModal();}
