@@ -2,7 +2,7 @@
 // Maestros, carga Excel, lotes, movimientos, traspasos, tomas y stock PPP derivado.
 
 import {S,AUTH} from './state.js';
-import {toast,PDC} from './core.js';
+import {toast,PDC,CUENTAS_GASTO,pdcNm} from './core.js';
 import {puedeEditar} from './auth.js';
 import {logCambio} from './firebase.js';
 import {recalcularInventario,validarMovimiento,rebasarLineaToma} from './inventario-motor.js';
@@ -65,7 +65,8 @@ function nombreBodega(id){return bod(id)?.nombre||id||'—';}
 function fechaCorta(s){if(!s)return '—';const [y,m,d]=String(s).slice(0,10).split('-');return y&&m&&d?`${d}-${m}-${y}`:s;}
 function opcionesBodega(sel='',todos=false){return `${todos?'<option value="">Todas las bodegas</option>':'<option value="">Seleccione…</option>'}`+inv().bodegas.filter(b=>b.activo!==false).map(b=>`<option value="${esc(b.id)}" ${String(sel)===String(b.id)?'selected':''}>${esc(b.codigo)} · ${esc(b.nombre)}</option>`).join('');}
 function opcionesProducto(sel=''){return '<option value="">Seleccione producto…</option>'+inv().productos.filter(p=>p.activo!==false&&p.inventariable!==false).map(p=>`<option value="${esc(p.id)}" ${String(sel)===String(p.id)?'selected':''}>${esc(p.codigo)} · ${esc(p.descripcion)}</option>`).join('');}
-function cuentaExiste(cd){return PDC.some(c=>c.tp==='A'&&String(c.cd)===String(cd));}
+function cuentaEsGasto(cd){return CUENTAS_GASTO.some(c=>String(c.cd)===String(cd));}
+const CUENTA_INVENTARIO_FIJA='1109007'; // Única cuenta permitida para inventario en todos los productos.
 
 function renderInventario(){
   const c=document.getElementById('s-inventario');if(!c)return;
@@ -462,8 +463,8 @@ function invAbrirProducto(id=''){
     <label>Unidad<select id="ip-unidad">${['UN','KG','LT','MT','M2','M3','CAJA','SACO','PQT','GL'].map(x=>`<option ${p?.unidad===x?'selected':''}>${x}</option>`).join('')}</select></label>
     <label>Grupo<select id="ip-grupo" onchange="invActualizarSubgrupos()"><option value="">Sin grupo</option>${grupos.map(g=>`<option value="${g.id}" ${p?.grupoId===g.id?'selected':''}>${esc(g.nombre)}</option>`).join('')}</select></label>
     <label>Subgrupo<select id="ip-sub" data-value="${esc(p?.subgrupo||'')}"></select></label>
-    <label>Stock mínimo<input type="number" min="0" step="any" id="ip-min" value="${num(p?.stockMinimo)}"></label><label>Cuenta inventario<input id="ip-cinv" value="${esc(p?.cuentaInventario||'1109001')}" inputmode="numeric"></label>
-    <label>Cuenta costo/consumo<input id="ip-ccosto" value="${esc(p?.cuentaCosto||'3101002')}" inputmode="numeric"></label><label class="inv-check"><input type="checkbox" id="ip-iva" ${p?.aplicaIVA===false?'':'checked'}> Afecto a IVA</label>
+    <label>Stock mínimo<input type="number" min="0" step="any" id="ip-min" value="${num(p?.stockMinimo)}"></label><label>Cuenta inventario<input value="${CUENTA_INVENTARIO_FIJA} — ${esc(pdcNm(CUENTA_INVENTARIO_FIJA)||'')}" readonly disabled title="Única cuenta de inventario permitida"></label>
+    <label>Cuenta de gasto/consumo<select id="ip-ccosto"><option value="">Selecciona una cuenta de gasto…</option>${CUENTAS_GASTO.map(c=>`<option value="${c.cd}" ${(p?.cuentaCosto||'')===c.cd?'selected':''}>${c.cd} — ${esc(c.nm)}</option>`).join('')}</select></label><label class="inv-check"><input type="checkbox" id="ip-iva" ${p?.aplicaIVA===false?'':'checked'}> Afecto a IVA</label>
     <label class="inv-check"><input type="checkbox" id="ip-lotes" ${p?.manejaLotes?'checked':''} ${p&&inv().movimientos.some(m=>(m.lineas||[]).some(l=>l.productoId===p.id))?'disabled':''}> Maneja lote y vencimiento</label>
     <label class="inv-check"><input type="checkbox" id="ip-inv" ${p?.inventariable===false?'':'checked'}> Inventariable</label><label class="inv-check"><input type="checkbox" id="ip-activo" ${p?.activo===false?'':'checked'}> Producto activo</label>
   </div><div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invGuardarProducto('${esc(id)}')">Guardar</button></div>`);
@@ -476,11 +477,11 @@ async function invGuardarProducto(id=''){
   if(!codigo||!descripcion){toast('Completa código y descripción','e');return;}
   if(inv().productos.some(p=>p.id!==id&&p.codigo===codigo)){toast('El código interno ya existe','e');return;}
   const ean=document.getElementById('ip-ean').value.trim();if(ean&&inv().productos.some(p=>p.id!==id&&p.ean===ean)){toast('El código EAN ya está asignado','e');return;}
-  const ci=document.getElementById('ip-cinv').value.trim(),cc=document.getElementById('ip-ccosto').value.trim();
-  if(ci&&!cuentaExiste(ci)){toast('La cuenta de inventario no existe o no es imputable','e');return;}
-  if(cc&&!cuentaExiste(cc)){toast('La cuenta de costo/consumo no existe o no es imputable','e');return;}
+  const cc=document.getElementById('ip-ccosto').value.trim();
+  if(!cc){toast('Selecciona la cuenta de gasto/consumo','e');return;}
+  if(!cuentaEsGasto(cc)){toast('La cuenta de gasto/consumo debe ser una cuenta de Gasto del plan de cuentas','e');return;}
   const respaldo=JSON.stringify(inv().productos);
-  const viejo=id?prod(id):null,reg={...(viejo||{}),id:id||uid(),codigo,ean,descripcion,tipo:document.getElementById('ip-tipo').value,unidad:document.getElementById('ip-unidad').value,grupoId:document.getElementById('ip-grupo').value,subgrupo:document.getElementById('ip-sub').value,stockMinimo:num(document.getElementById('ip-min').value),cuentaInventario:ci,cuentaCosto:cc,aplicaIVA:document.getElementById('ip-iva').checked,manejaLotes:document.getElementById('ip-lotes').checked,inventariable:document.getElementById('ip-inv').checked,activo:document.getElementById('ip-activo').checked,actualizado:new Date().toISOString()};
+  const viejo=id?prod(id):null,reg={...(viejo||{}),id:id||uid(),codigo,ean,descripcion,tipo:document.getElementById('ip-tipo').value,unidad:document.getElementById('ip-unidad').value,grupoId:document.getElementById('ip-grupo').value,subgrupo:document.getElementById('ip-sub').value,stockMinimo:num(document.getElementById('ip-min').value),cuentaInventario:CUENTA_INVENTARIO_FIJA,cuentaCosto:cc,aplicaIVA:document.getElementById('ip-iva').checked,manejaLotes:document.getElementById('ip-lotes').checked,inventariable:document.getElementById('ip-inv').checked,activo:document.getElementById('ip-activo').checked,actualizado:new Date().toISOString()};
   if(viejo)Object.assign(viejo,reg);else inv().productos.push(reg);
   try{await guardarLista('productos');invCerrarModal();renderInventario();toast('✅ Producto guardado');}catch(e){inv().productos=JSON.parse(respaldo);toast('❌ '+e.message,'e');}
 }
@@ -488,7 +489,7 @@ async function invGuardarProducto(id=''){
 function invDescargarPlantillaProductos(){
   if(typeof XLSX==='undefined'){toast('⚠️ Librería Excel no cargada','e');return;}
   const hdr=['CÓDIGO','EAN','DESCRIPCIÓN','TIPO','UNIDAD','GRUPO','SUBGRUPO','STOCK MÍNIMO','CUENTA INVENTARIO','CUENTA COSTO/CONSUMO','AFECTO IVA','MANEJA LOTES','INVENTARIABLE','ACTIVO'];
-  const ejemplo=['P000001','7801234567890','PRODUCTO DE EJEMPLO','MERCADERÍA','UN','MERCADERÍAS','GENERAL',0,'1109001','3101002','SÍ','NO','SÍ','SÍ'];
+  const ejemplo=['P000001','7801234567890','PRODUCTO DE EJEMPLO','MERCADERÍA','UN','MERCADERÍAS','GENERAL',0,'1109007','3101002','SÍ','NO','SÍ','SÍ'];
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet([hdr,ejemplo,[]]);
   ws['!cols']=[{wch:15},{wch:18},{wch:38},{wch:22},{wch:12},{wch:24},{wch:24},{wch:15},{wch:20},{wch:23},{wch:14},{wch:15},{wch:16},{wch:12}];
   ws['!autofilter']={ref:`A1:N2`};XLSX.utils.book_append_sheet(wb,ws,'Productos');
@@ -499,7 +500,8 @@ function invDescargarPlantillaProductos(){
     ['3. Los grupos y subgrupos inexistentes se crearán automáticamente en la empresa activa.'],
     ['4. Valores lógicos admitidos: SÍ o NO. Stock mínimo puede ser cero.'],
     ['5. Esta plantilla no carga cantidades ni costos iniciales. Esos saldos se ingresan mediante un movimiento de inventario.'],
-    ['6. Las cuentas deben existir y ser imputables en el plan de cuentas de la empresa.'],
+    ['6. La cuenta de inventario es siempre 1109007 para todos los productos: lo que traiga esa columna se ignora y se reemplaza automáticamente.'],
+    ['6b. La cuenta de gasto/consumo es obligatoria y debe ser una cuenta de tipo Gasto del plan de cuentas de la empresa (columna “Catálogos” no la lista; revisa el Plan de Cuentas en el sistema).'],
     ['7. Tipos permitidos: MERCADERÍA, MATERIA PRIMA, PRODUCTO TERMINADO, INSUMO, ACTIVO FIJO, SERVICIO.'],
     ['8. Unidades permitidas: UN, KG, LT, MT, M2, M3, CAJA, SACO, PQT, GL.']
   ];
@@ -524,7 +526,7 @@ function invAbrirImportProductos(){
 
 function datosValidacionImportProductos(actualizar){
   const usados=new Set();for(const m of inv().movimientos)for(const l of (m.lineas||[]))usados.add(String(l.productoId));
-  return {productos:inv().productos,grupos:inv().grupos,actualizar,cuentaExiste,productosConMovimientos:[...usados]};
+  return {productos:inv().productos,grupos:inv().grupos,actualizar,cuentaGastoExiste:cuentaEsGasto,cuentaInventarioFija:CUENTA_INVENTARIO_FIJA,productosConMovimientos:[...usados]};
 }
 
 async function invLeerProductosExcel(event){

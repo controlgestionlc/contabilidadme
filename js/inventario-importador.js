@@ -19,7 +19,7 @@ function booleano(v,defecto){
   return null;
 }
 
-function prepararImportacionProductos(filas,{productos=[],grupos=[],actualizar=false,cuentaExiste=()=>true,productosConMovimientos=[]}={}){
+function prepararImportacionProductos(filas,{productos=[],grupos=[],actualizar=false,cuentaGastoExiste=()=>true,cuentaInventarioFija='1109007',productosConMovimientos=[]}={}){
   if(!Array.isArray(filas)||!filas.length)throw new Error('El archivo está vacío');
   let hi=-1;
   for(let i=0;i<Math.min(10,filas.length);i++){
@@ -57,10 +57,10 @@ function prepararImportacionProductos(filas,{productos=[],grupos=[],actualizar=f
     if(subgrupo&&!grupo)errores.push('Un subgrupo requiere grupo');
     const gExistente=gruposNombre.get(grupo);
     if(gExistente&&subgrupo&&(gExistente.subgrupos||[]).some(s=>mayus(s)===subgrupo)===false){/* se agregará */}
-    const cuentaInventario=valor(r,'cinv')||texto(existente?.cuentaInventario)||'1109001';
-    const cuentaCosto=valor(r,'ccosto')||texto(existente?.cuentaCosto)||'3101002';
-    if(cuentaInventario&&!cuentaExiste(cuentaInventario))errores.push(`Cuenta de inventario inexistente: ${cuentaInventario}`);
-    if(cuentaCosto&&!cuentaExiste(cuentaCosto))errores.push(`Cuenta de costo inexistente: ${cuentaCosto}`);
+    const cuentaInventario=cuentaInventarioFija;
+    const cuentaCosto=valor(r,'ccosto')||texto(existente?.cuentaCosto)||'';
+    if(!cuentaCosto)errores.push('Falta la cuenta de gasto/consumo');
+    else if(!cuentaGastoExiste(cuentaCosto))errores.push(`La cuenta de gasto/consumo debe ser una cuenta de Gasto del plan de cuentas: ${cuentaCosto}`);
     if(ean){
       const otro=porEan.get(ean);if(otro&&otro.id!==existente?.id)errores.push('EAN asignado a otro producto');
       if(vistosEan.has(ean)&&vistosEan.get(ean)!==codigo)errores.push('EAN repetido dentro del archivo');

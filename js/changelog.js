@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.17-1130';
+const APP_VERSION='v2026.09.17-1200';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.3',fecha:'17-09-2026',titulo:'Cuentas contables obligatorias y restringidas en productos',items:[
+    {tipo:'cambio',txt:'La cuenta de inventario de todo producto queda fija en 1109007: ya no es editable ni se puede elegir otra, tanto en el formulario como en la carga masiva desde Excel.'},
+    {tipo:'nuevo',txt:'La cuenta de gasto/consumo pasa a ser un selector limitado a las cuentas de tipo Gasto del plan de cuentas, y su selección es obligatoria para guardar el producto.'},
+    {tipo:'seguridad',txt:'La importación masiva rechaza filas sin cuenta de gasto o con una cuenta que no sea de tipo Gasto, e ignora cualquier valor que la planilla traiga en la columna de cuenta de inventario.'},
+  ]},
   {version:'V2.21.2',fecha:'17-09-2026',titulo:'Conciliación automática entre recepciones y facturas del Libro de Compras',items:[
     {tipo:'nuevo',txt:'Al registrar una factura afecta o exenta ya sea de forma manual o al importar el RCV, el sistema la vincula automáticamente con la recepción física de inventario que comparte proveedor, tipo de DTE y N° de documento.'},
     {tipo:'nuevo',txt:'Las recepciones registradas con GUÍA (o cualquier recepción que el vínculo automático no resuelva) pueden conciliarse manualmente eligiendo la factura correspondiente ya registrada en Compras; una misma factura puede consolidar varias guías.'},
