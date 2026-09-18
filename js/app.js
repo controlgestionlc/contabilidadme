@@ -43,6 +43,7 @@ import {renderIndicadores, guardarIndicadores, restaurarIndicadoresDefault,
 import {renderPrevisional, guardarPrevisional, restaurarPrevisional} from './previsional-ui.js';
 import {acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
         axAcBuscar, axAcTecla, axAcElegir, axAcCerrar} from './buscadorcuentas.js';
+import {prAcBuscar, prAcTecla, prAcElegir, prAcCerrarDif} from './buscadorproductos.js';
 import {initAvisoSalida, marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados,
         guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, recordarNav, ultimaSeccion, olvidarNav,
         listarBorradoresLocales, descartarBorradorLocal, descartarTodosBorradoresLocales, continuarBorradorLocal} from './salida.js';
@@ -700,6 +701,7 @@ Object.assign(window,{
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,
   acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
   axAcBuscar, axAcTecla, axAcElegir, axAcCerrar, lAuxElegido,
+  prAcBuscar, prAcTecla, prAcElegir, prAcCerrarDif,
   marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, listarBorradoresLocales, descartarBorradorLocal, descartarTodosBorradoresLocales, continuarBorradorLocal,
   actualizarBotonGuardar, guardarTodoAhora, setAutoguardado, setIntervaloAutoguardado, confirmarSalida, AG,
   abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos, setImportGlosa, enfocarPendienteImportC, enfocarPendienteImportV,

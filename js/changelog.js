@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.17-1430';
+const APP_VERSION='v2026.09.17-1500';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.8',fecha:'17-09-2026',titulo:'Buscador dinámico de proveedor y producto en Órdenes de Compra',items:[
+    {tipo:'cambio',txt:'Al emitir una orden de compra, Proveedor y Producto dejan de ser listas largas y pasan a ser buscadores dinámicos: filtran por código, RUT o nombre a medida que se escribe.'},
+    {tipo:'nuevo',txt:'Nuevo buscador de productos de inventario (mismo criterio que el de cuentas y auxiliares), reutilizable en cualquier formulario del módulo.'},
+  ]},
   {version:'V2.21.7',fecha:'17-09-2026',titulo:'Buscador dinámico de proveedor y saldo pendiente visible en Movimientos',items:[
     {tipo:'cambio',txt:'El campo Proveedor en el formulario de movimientos deja de ser una lista larga y pasa a ser un buscador dinámico: filtra por RUT o nombre a medida que se escribe, igual que en Asientos.'},
     {tipo:'nuevo',txt:'Al elegir una orden de compra en el movimiento, se muestra debajo el detalle de lo pendiente por recibir de esa orden (producto y cantidad).'},
