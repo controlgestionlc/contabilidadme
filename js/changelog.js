@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.21-2100';
+const APP_VERSION='v2026.09.21-2130';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.11',fecha:'21-09-2026',titulo:'Acceso directo al Balance de 8 columnas en la barra superior',items:[
+    {tipo:'nuevo',txt:'Nuevo ícono 📋 en los accesos rápidos de la barra superior (junto a Comprobantes, Diario, Mayor, Balance y Resultados) para ir directo al Balance de 8 columnas. Respeta el mismo permiso que el Balance General.'},
+  ]},
   {version:'V2.21.10',fecha:'21-09-2026',titulo:'Cerrar sesión vuelve a quedar siempre visible en el menú móvil',items:[
     {tipo:'cambio',txt:'El bloque de usuario y "Cerrar sesión" al final del menú lateral en móvil queda fijo (sticky) dentro del menú: ya no se pierde por falta de espacio tras acortar el menú para dejar visible la barra superior.'},
   ]},
