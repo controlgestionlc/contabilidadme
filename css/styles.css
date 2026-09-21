@@ -481,7 +481,7 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   .nav-contexto{padding:10px 12px}
   .btn-save-all{font-size:11px;padding:6px 10px}
   #user-badge{display:none!important} /* el usuario/logout vive en el nav en móvil */
-  #nav-user-block-m{margin-top:16px}
+  #nav-user-block-m{margin-top:16px;position:sticky;bottom:0;background:var(--sf)}
   /* Nav como drawer deslizable, debajo de la barra superior (48px en móvil) para no tapar el nombre de la empresa */
   nav{position:fixed;top:48px;left:0;height:calc(100vh - 48px);width:250px;max-width:82vw;z-index:60;
     transform:translateX(-100%);transition:transform .25s ease;box-shadow:2px 0 16px rgba(0,0,0,.4);padding-top:14px}
