@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.17-1500';
+const APP_VERSION='v2026.09.17-1600';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.9',fecha:'17-09-2026',titulo:'Ajustes visuales: logo, marca de agua y menú lateral en móvil',items:[
+    {tipo:'cambio',txt:'El logo de la pantalla de login y la marca de agua de la pantalla de inicio se ven más pequeños, en escritorio y en móvil.'},
+    {tipo:'cambio',txt:'En móvil, el menú lateral ahora empieza justo debajo de la barra superior en vez de taparla, así el nombre de la empresa activa queda siempre visible mientras el menú está abierto.'},
+  ]},
   {version:'V2.21.8',fecha:'17-09-2026',titulo:'Buscador dinámico de proveedor y producto en Órdenes de Compra',items:[
     {tipo:'cambio',txt:'Al emitir una orden de compra, Proveedor y Producto dejan de ser listas largas y pasan a ser buscadores dinámicos: filtran por código, RUT o nombre a medida que se escribe.'},
     {tipo:'nuevo',txt:'Nuevo buscador de productos de inventario (mismo criterio que el de cuentas y auxiliares), reutilizable en cualquier formulario del módulo.'},
