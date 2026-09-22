@@ -481,7 +481,7 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   .nav-contexto{padding:10px 12px}
   .btn-save-all{font-size:11px;padding:6px 10px}
   #user-badge{display:none!important} /* el usuario/logout vive en el nav en móvil */
-  #nav-user-block-m{margin-top:16px;position:sticky;bottom:0;background:var(--sf)}
+  #nav-user-block-m{margin-top:16px;position:sticky;bottom:0;background:var(--sf);padding-bottom:max(12px,env(safe-area-inset-bottom))!important}
   /* Nav como drawer deslizable, debajo de la barra superior (48px en móvil) para no tapar el nombre de la empresa */
   nav{position:fixed;top:48px;left:0;height:calc(100vh - 48px);width:250px;max-width:82vw;z-index:60;
     transform:translateX(-100%);transition:transform .25s ease;box-shadow:2px 0 16px rgba(0,0,0,.4);padding-top:14px}
@@ -997,7 +997,7 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   body{font-size:12px;min-width:0}
   header{
-    position:relative;z-index:70;min-width:0;height:48px;padding:0 8px;gap:6px;
+    position:relative;z-index:70;min-width:0;height:48px;padding:0 8px;gap:6px;overflow:hidden;
     padding-left:max(8px,env(safe-area-inset-left));
     padding-right:max(8px,env(safe-area-inset-right));
   }
@@ -1005,9 +1005,9 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   header .logo{flex:0 0 auto;min-width:0;gap:4px}
   header .logo-icon{width:28px;height:28px;font-size:14px}
   #entorno-badge{max-width:72px;overflow:hidden;text-overflow:ellipsis;padding:3px 6px!important;font-size:8px!important}
-  #save-indicator{min-width:0;max-width:78px;overflow:hidden;text-overflow:ellipsis;font-size:9px!important;margin-left:auto!important}
-  .btn-save-all{flex:0 0 auto;width:36px;height:34px;padding:0!important;justify-content:center;font-size:15px!important}
-  .btn-save-all .save-lbl{display:none}
+  #save-indicator{display:none!important} /* en móvil el ícono de Guardar ya indica el estado; el texto competía por espacio y se cortaba */
+  .btn-save-all{flex:0 0 auto!important;width:34px!important;height:34px!important;padding:0!important;justify-content:center;font-size:15px!important}
+  .btn-save-all .save-lbl{display:none!important}
 
   /* Contexto persistente: nombre del módulo + volver + inicio. */
   #mobile-context{
