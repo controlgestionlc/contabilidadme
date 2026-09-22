@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.21-2250';
+const APP_VERSION='v2026.09.21-2310';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.14',fecha:'21-09-2026',titulo:'Causa real del botón Guardar roto en móvil',items:[
+    {tipo:'seguridad',txt:'`actualizarBotonGuardar()` reescribía el botón con texto plano en cada cambio de estado (bloqueado/pendiente/al día), borrando el <span> del que dependía el CSS para ocultar el texto en móvil. Por más que se ajustara el CSS, esa función lo pisaba segundos después de cargar la página. Corregido para que siempre conserve esa estructura.'},
+    {tipo:'seguridad',txt:'Al ocultar el indicador "Guardado" en móvil (V2.21.12) se perdió el margen que empujaba el botón Guardar hacia la derecha, así que quedaba pegado al logo. Corregido: el botón Guardar siempre queda en la esquina derecha de la barra superior.'},
+  ]},
   {version:'V2.21.13',fecha:'21-09-2026',titulo:'Corrección de fondo: la hoja de estilos quedaba pegada en caché',items:[
     {tipo:'seguridad',txt:'Se encontró la causa real de que los últimos ajustes visuales no llegaran a los teléfonos: css/styles.css se cargaba siempre con la misma URL, sin el sello de versión que sí tienen los módulos JS, así que el navegador seguía sirviendo la hoja de estilos vieja aunque el resto de la app se actualizara. Ahora _release.py también le agrega su propio sello de versión en cada publicación, igual que al resto.'},
   ]},

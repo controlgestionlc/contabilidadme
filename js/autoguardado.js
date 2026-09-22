@@ -92,6 +92,10 @@ export async function guardarTodoAhora(){
 }
 
 // Refleja en el botón de la barra superior si hay algo pendiente
+// Ojo: el innerHTML siempre debe conservar <span class="save-lbl">…</span>
+// alrededor del texto — es lo que el CSS usa para ocultar la etiqueta y dejar
+// sólo el ícono en móvil. Perder ese span (por ejemplo, poniendo un string
+// plano) rompe ese comportamiento sin que sea evidente por qué.
 export function actualizarBotonGuardar(){
   const btn=document.getElementById('btn-guardar-todo');
   if(!btn)return;
@@ -100,7 +104,7 @@ export function actualizarBotonGuardar(){
   if(bloq.length){
     btn.classList.remove('pendiente');
     btn.classList.add('bloqueado');
-    btn.innerHTML='🚫 Guardado bloqueado';
+    btn.innerHTML='<span aria-hidden="true">🚫</span><span class="save-lbl">Guardado bloqueado</span>';
     btn.title='No se pudieron leer '+bloq.length+' registro(s) desde la nube ('+bloq.map(b=>b.clave).join(', ')+
       '). No se guarda nada para no sobrescribirlos. Recarga la página cuando vuelva la conexión.';
     return;
@@ -110,7 +114,7 @@ export function actualizarBotonGuardar(){
   btn.classList.toggle('pendiente',sucio);
   btn.title=sucio ? 'Hay cambios confirmados sin sincronizar — haz clic para guardarlos ahora'
     : 'Todo guardado'+(AG.activo?` · sincronización automática cada ${etiquetaIntervalo(AG.segundos)}`:'');
-  btn.innerHTML=sucio?'💾 Guardar •':'💾 Guardar';
+  btn.innerHTML=`<span aria-hidden="true">💾</span><span class="save-lbl">Guardar${sucio?' •':''}</span>`;
 }
 
 // ── Salida segura ──

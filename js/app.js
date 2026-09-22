@@ -218,7 +218,7 @@ async function saveAll({silencioso=false}={}){
     console.error('saveAll',e);
     toast('❌ No se pudo guardar: '+e.message,'e');   // el error se avisa siempre
   }
-  if(btn){btn.disabled=false;btn.innerHTML=rotulo||'💾 Guardar';}
+  if(btn){btn.disabled=false;btn.innerHTML=rotulo||'<span aria-hidden="true">💾</span><span class="save-lbl">Guardar</span>';}
   actualizarBotonGuardar();
   return ok;
 }
