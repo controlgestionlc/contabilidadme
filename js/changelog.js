@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.21-2130';
+const APP_VERSION='v2026.09.21-2200';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.12',fecha:'21-09-2026',titulo:'Barra superior y menú lateral sin recortes en móvil',items:[
+    {tipo:'cambio',txt:'En móvil, el botón "Guardar" de la barra superior queda solo como ícono y se ocultó el indicador de texto "Guardado", que competía por espacio y se cortaba contra el borde de la pantalla.'},
+    {tipo:'seguridad',txt:'La barra superior recorta cualquier contenido que aún así exceda su ancho, en vez de dejarlo sobresalir de la pantalla.'},
+    {tipo:'cambio',txt:'El bloque de "Cerrar sesión" al final del menú lateral respeta el área segura inferior del dispositivo (gestos o barra de navegación del teléfono), para que no quede tapado por los botones del sistema.'},
+  ]},
   {version:'V2.21.11',fecha:'21-09-2026',titulo:'Acceso directo al Balance de 8 columnas en la barra superior',items:[
     {tipo:'nuevo',txt:'Nuevo ícono 📋 en los accesos rápidos de la barra superior (junto a Comprobantes, Diario, Mayor, Balance y Resultados) para ir directo al Balance de 8 columnas. Respeta el mismo permiso que el Balance General.'},
   ]},
