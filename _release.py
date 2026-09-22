@@ -12,6 +12,11 @@ La solución sin build: un import map que apunta cada módulo a su URL con la
 versión. Los import maps aceptan especificadores tipo URL, así que `./js/x.js`
 dentro de app.js queda redirigido a `./js/x.js?v=<epoch>`.
 
+El mismo problema existe con `css/styles.css`, cargado con un <link> normal
+sin import map: se le agrega/renueva su propio `?v=<epoch>` en cada release
+(ver paso 1b) para que un cambio de CSS no quede pegado en la caché del
+navegador ni en la del service worker.
+
 Uso:  python3 _release.py v2026.08.22-0130
 """
 import json,os,re,sys,time
@@ -45,6 +50,14 @@ s=re.sub(r'<script type="importmap">.*?</script>\n','',s,flags=re.S)
 anc=re.search(r'[ \t]*<script type="module" src="js/app\.js[^"]*"></script>',s)
 if not anc: sys.exit('no se encontró el <script> de app.js')
 s=s[:anc.start()]+mapa+'\n'+f'<script type="module" src="js/app.js?v={epoch}"></script>'+s[anc.end():]
+
+# 1b. Hoja de estilos: mismo problema que los módulos JS, pero con un <link>
+# normal (sin import map). Se le agrega/actualiza el cache-busting a mano.
+if re.search(r'<link rel="stylesheet" href="css/styles\.css(\?v=[^"]*)?">', s):
+    s=re.sub(r'<link rel="stylesheet" href="css/styles\.css(\?v=[^"]*)?">',
+              f'<link rel="stylesheet" href="css/styles.css?v={epoch}">', s)
+else:
+    sys.exit('no se encontró el <link> de styles.css')
 
 # 2. Versión visible en la barra superior
 s=re.sub(r'v20\d\d\.\d\d\.\d\d-\d{4}',version,s)
