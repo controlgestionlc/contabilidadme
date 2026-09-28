@@ -15,6 +15,13 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.15',fecha:'28-09-2026',titulo:'Mayor por cuentas, Diario a pedido y Comprobantes en modo registro',items:[
+    {tipo:'cambio',txt:'Libro Mayor: al entrar se ve una fila por cuenta (código, nombre, Debe, Haber y Saldo) con totales al pie. Haz clic en la cuenta para ver su detalle, que se arma en ese momento. Las cuentas abiertas se mantienen al cambiar el filtro y "Limpiar" las cierra.'},
+    {tipo:'cambio',txt:'Libro Diario: sin filtros ya no muestra asientos, solo la barra de filtros y un aviso. Elige mes, rango de fechas o busca para verlos.'},
+    {tipo:'cambio',txt:'Comprobantes abre directo con el formulario de asiento nuevo, fijo en la pantalla (deja de ser ventana flotante). Cancelar y Limpiar lo dejan en blanco en vez de cerrarlo.'},
+    {tipo:'nuevo',txt:'Buscador de comprobantes en el encabezado: por N°, glosa o monto (con o sin puntos). Un asiento manual se carga en el formulario para editarlo; los automáticos, los vinculados a un documento y la apertura se abren en su comprobante.'},
+    {tipo:'seguridad',txt:'El botón "atrás" del teléfono ya no esconde el formulario de asiento: como ahora está siempre abierto, "atrás" navega a la pantalla anterior.'},
+  ]},
   {version:'V2.21.14',fecha:'21-09-2026',titulo:'Causa real del botón Guardar roto en móvil',items:[
     {tipo:'seguridad',txt:'`actualizarBotonGuardar()` reescribía el botón con texto plano en cada cambio de estado (bloqueado/pendiente/al día), borrando el <span> del que dependía el CSS para ocultar el texto en móvil. Por más que se ajustara el CSS, esa función lo pisaba segundos después de cargar la página. Corregido para que siempre conserve esa estructura.'},
     {tipo:'seguridad',txt:'Al ocultar el indicador "Guardado" en móvil (V2.21.12) se perdió el margen que empujaba el botón Guardar hacia la derecha, así que quedaba pegado al logo. Corregido: el botón Guardar siempre queda en la esquina derecha de la barra superior.'},

@@ -364,7 +364,9 @@ export function initAvisoSalida(){
     const nav=document.querySelector('nav.open,nav.abierto,.sidebar.abierto,#sidebar.open');
     if(nav)return {el:nav,cerrar:()=>{try{window.cerrarNavMovil&&window.cerrarNavMovil();}catch(e){}}};
     // 4. Formularios en pantalla (nueva venta, compra, asiento…)
-    const forms=['vf-form','cf-form','as-form','ap-form','cc-form','rem-form',
+    // 'as-form' no va: en Comprobantes el formulario de asiento está siempre
+    // abierto (modo registro), así que "atrás" debe navegar, no esconderlo.
+    const forms=['vf-form','cf-form','ap-form','cc-form','rem-form',
                  'af-form-bien','pdc-form','emp-form','us-form'];
     for(const id of forms){
       const el=document.getElementById(id);

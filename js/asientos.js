@@ -845,11 +845,14 @@ function irAComprobantes(){
   }catch(e){}
 }
 
-function abrirForm(){
+function abrirForm(silencioso){
   // El formulario vive dentro de la sección Comprobantes. Si se llega desde
   // otra parte (un botón del Diario, el buscador), primero hay que llevar al
   // usuario ahí; si no, el formulario se abre en una sección invisible.
-  irAComprobantes();
+  // silencioso=true: apertura automática al entrar a Comprobantes, sin
+  // desplazar la pantalla ni robar el foco.
+  silencioso=silencioso===true;
+  if(!silencioso)irAComprobantes();
   fijarAF(null,lineasEnBlanco());
   const f=document.getElementById('as-form');f.style.display='block';f.classList.remove('editing');
   document.getElementById('af-title').textContent='Nuevo Asiento Contable';
@@ -858,8 +861,18 @@ function abrirForm(){
   document.getElementById('af-glosa').value='';
   document.getElementById('af-last-saved').textContent='';
   renderLineas();
+  if(silencioso)return;
   f.scrollIntoView({behavior:'smooth',block:'start'});
   setTimeout(()=>document.getElementById('af-glosa').focus(),200);
+}
+
+// Deja el formulario de asiento nuevo abierto si no hay uno en curso.
+// Comprobantes abre directo en modo registro: al entrar, al cancelar y
+// después de guardar una edición el formulario vuelve a quedar en blanco.
+function asegurarFormNuevo(){
+  const f=document.getElementById('as-form');
+  if(!f||f.style.display!=='none')return;
+  abrirForm(true);
 }
 
 function editarAsiento(id){
@@ -1106,4 +1119,4 @@ async function eliminarAsiento(id){
 
 
 
-export {lAuxElegido, CUENTAS_AUX, esAux, renderAsientos, toggleAs, cuentasOpts, renderLineas, lCd, lRut, lVal, lValFmt, lValFmtBlur, quitarDte, delLinea, addLinea, updCuadre, todosDocsVentas, todosDocsCompras, todosDocsComprasConBorrador, todosDocsVentasConBorrador, folioPreviewDte, DM, abrirDteModal, cerrarDteModal, dtmRutInput, dtmCalcTotals, dtmTipoChanged, dtmRefresh, dtmCheckDup, dtmRenderDist, dtmAddDist, dtmDelDist, dtmUpdDistCheck, dtmGuardar, dtmRemover, proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, abrirForm, editarAsiento, cerrarForm, duplicarAsiento, anularAsiento, abrirAsientoDesde, sigAsiento, limpiarFormAsiento, guardarAsiento, eliminarAsiento, AF};
+export {lAuxElegido, CUENTAS_AUX, esAux, renderAsientos, toggleAs, cuentasOpts, renderLineas, lCd, lRut, lVal, lValFmt, lValFmtBlur, quitarDte, delLinea, addLinea, updCuadre, todosDocsVentas, todosDocsCompras, todosDocsComprasConBorrador, todosDocsVentasConBorrador, folioPreviewDte, DM, abrirDteModal, cerrarDteModal, dtmRutInput, dtmCalcTotals, dtmTipoChanged, dtmRefresh, dtmCheckDup, dtmRenderDist, dtmAddDist, dtmDelDist, dtmUpdDistCheck, dtmGuardar, dtmRemover, proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, abrirForm, asegurarFormNuevo, editarAsiento, cerrarForm, duplicarAsiento, anularAsiento, abrirAsientoDesde, sigAsiento, limpiarFormAsiento, guardarAsiento, eliminarAsiento, AF};

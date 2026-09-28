@@ -9,10 +9,10 @@
 // que se corrijan los documentos que los generaron.
 
 import {fmt, fmtC, MESES, pdcNm, today, toast, rutFmt, dteV, dteC, rutParse, DTE_VENTAS, DTE_COMPRAS, IVA, pn} from './core.js';
-import {S} from './state.js';
+import {S, getCurSec} from './state.js';
 import {nav, rerender} from './ui.js';
 import {genDiario, destinoEdicion, corregirDesdeDiario, editarAsientoRef} from './reportes.js';
-import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux} from './asientos.js';
+import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux, asegurarFormNuevo} from './asientos.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {logAccion} from './firebase.js';
 import {ejercicioCerrado,persistirAsientosCritico,persistirClavesCritico,anularDocumentoContabilizado,anularAsientoDocumento} from './contabilidad-v2.js';
@@ -65,6 +65,10 @@ function abrirEntradaCmp(ref){
 export function renderComprobantes(){
   const cont=document.getElementById('comprobantes-content');
   if(!cont)return;
+  // Comprobantes abre en modo registro: formulario de asiento nuevo listo.
+  // Solo si la sección está a la vista (cerrarForm también llama aquí).
+  const secActual=getCurSec();
+  if(secActual==='comprobantes'||secActual==='asientos')asegurarFormNuevo();
 
   let entries=genDiario();
   const entriesGlobal=[...entries];
@@ -426,6 +430,105 @@ function abrirComprobantePor(criterio){
   // Un respiro para que la sección esté visible antes de abrir el modal
   setTimeout(()=>abrirEntradaCmp(e),60);
   return true;
+}
+
+// ═══ BUSCADOR DEL ENCABEZADO ═══
+// Busca entre todos los comprobantes del ejercicio por N°, glosa o monto.
+// Al elegir un manual, se carga en el formulario de arriba para editarlo.
+// Los automáticos, los vinculados a un documento y la apertura no se editan
+// en ese formulario, así que se abren en su comprobante (desde ahí se puede
+// ir al documento de origen).
+let CMP_HDR={items:[],sel:-1,universo:null};
+const soloDig=t=>String(t||'').replace(/[^0-9]/g,'');
+function totalAsiento(e){return Math.round(e.movs.reduce((s,m)=>s+(+m.debe||0),0));}
+function editableEnFormulario(e){
+  if(e.origen!=='manual'||!e.asientoId)return false;
+  const f=e.referenciaDoc?.fuente||'';
+  return !(f==='ventas'||f==='compras');
+}
+
+function buscarComprobantesHdr(q,universo){
+  const qs=String(q||'').trim();
+  if(!qs)return[];
+  const qt=qs.toLowerCase();
+  // Es "numérico" si solo trae dígitos, puntos, comas, espacios o $
+  const esNum=/^[\s$.,0-9]+$/.test(qs)&&soloDig(qs).length>0;
+  const qd=esNum?soloDig(qs):'';
+  const res=[];
+  universo.forEach(e=>{
+    let score=null;
+    const nStr=String(e.n??'');
+    const tot=totalAsiento(e);
+    if(esNum){
+      if(nStr===qd)score=0;
+      else if(String(tot)===qd)score=1;
+      else if(e.movs.some(m=>String(Math.round(+m.debe||+m.haber||0))===qd))score=2;
+      else if(nStr.startsWith(qd))score=3;
+      else if(qd.length>=3&&String(tot).includes(qd))score=4;
+    }
+    if(score==null){
+      if((e.glosa||'').toLowerCase().includes(qt))score=5;
+      else if(e.movs.some(m=>(m.desc||'').toLowerCase().includes(qt)||(m.razonSocial||'').toLowerCase().includes(qt)))score=6;
+    }
+    if(score!=null)res.push({e,score});
+  });
+  // Mejor coincidencia primero; a igual puntaje, el más reciente arriba
+  res.sort((a,b)=>a.score-b.score||String(b.e.fecha||'').localeCompare(String(a.e.fecha||''))||(+b.e.n||0)-(+a.e.n||0));
+  return res.slice(0,12).map(r=>r.e);
+}
+
+function cmpHdrBuscar(q){
+  // El universo se calcula una vez por búsqueda y no en cada tecla
+  if(!CMP_HDR.universo||!String(q||'').trim())CMP_HDR.universo=genDiario();
+  CMP_HDR.items=buscarComprobantesHdr(q,CMP_HDR.universo);
+  CMP_HDR.sel=CMP_HDR.items.length?0:-1;
+  renderCmpHdrLista(String(q||'').trim());
+}
+
+function renderCmpHdrLista(q){
+  const box=document.getElementById('cmp-hdr-list');if(!box)return;
+  if(!q){box.style.display='none';box.innerHTML='';return;}
+  if(!CMP_HDR.items.length){
+    box.innerHTML=`<div class="ac-item" style="color:var(--mt);cursor:default">Sin comprobantes que coincidan</div>`;
+    box.style.display='block';return;
+  }
+  box.innerHTML=CMP_HDR.items.map((e,i)=>{
+    const o=origenLbl(e);
+    return `<div class="ac-item${i===CMP_HDR.sel?' sel':''}" onmousedown="cmpHdrElegir(${i})" style="display:flex;align-items:center;gap:8px">
+      <span style="font-family:var(--mono);color:var(--info);font-weight:700;min-width:48px">N°${attr(String(e.n??""))}</span>
+      <span style="font-family:var(--mono);color:var(--mt);font-size:11px">${attr(e.fecha)}</span>
+      <span style="background:${o.c}22;color:${o.c};padding:1px 6px;border-radius:100px;font-size:10px;white-space:nowrap">${o.ic} ${o.nm}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${attr(e.glosa)}">${attr(e.glosa)}</span>
+      <span style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fmtC(totalAsiento(e))}</span>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+
+function cmpHdrTecla(ev){
+  const n=CMP_HDR.items.length;
+  if(ev.key==='ArrowDown'&&n){ev.preventDefault();CMP_HDR.sel=(CMP_HDR.sel+1)%n;renderCmpHdrLista('x');}
+  else if(ev.key==='ArrowUp'&&n){ev.preventDefault();CMP_HDR.sel=(CMP_HDR.sel-1+n)%n;renderCmpHdrLista('x');}
+  else if(ev.key==='Enter'&&CMP_HDR.sel>=0){ev.preventDefault();cmpHdrElegir(CMP_HDR.sel);}
+  else if(ev.key==='Escape'){cmpHdrCerrar();ev.target.blur();}
+}
+
+function cmpHdrCerrar(){
+  const box=document.getElementById('cmp-hdr-list');
+  if(box){box.style.display='none';box.innerHTML='';}
+  CMP_HDR.universo=null;
+}
+
+function cmpHdrElegir(i){
+  const e=CMP_HDR.items[i];if(!e)return;
+  const inp=document.getElementById('cmp-hdr-q');if(inp){inp.value='';inp.blur();}
+  cmpHdrCerrar();
+  if(editableEnFormulario(e)){
+    editarAsiento(e.asientoId);
+    toast(`✏️ Asiento N°${e.n} cargado para editar`);
+    return;
+  }
+  abrirEntradaCmp(e);
 }
 
 function limpiarCmpFiltro(){
@@ -1203,7 +1306,7 @@ function guardarCmpEdDte(){
   toast('✅ Datos del documento actualizados');
 }
 
-export {abrirComprobantePor, corregirDescuadreCmp,
+export {buscarComprobantesHdr, cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, abrirComprobantePor, corregirDescuadreCmp,
         setCmpFiltro, limpiarCmpFiltro, toggleCmpDet,
         cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, mismaEntradaCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,

@@ -224,28 +224,27 @@ function renderDiarioTabla(){
 
   const hayFiltro=!!(DIARIO_Q.trim()||DIA_F.desde||DIA_F.hasta);
   const totalDisp=entries.length;
-  // Sin ningún filtro: solo los últimos 5 (más recientes). genDiario viene ascendente.
-  const LIMITE_DIA=5;
-  let ocultos=0;
-  if(!hayFiltro&&entries.length>LIMITE_DIA){
-    ocultos=entries.length-LIMITE_DIA;
-    entries=entries.slice(-LIMITE_DIA);
-  }
 
   const cnt=document.getElementById('diario-count');
   if(cnt)cnt.textContent=hayFiltro?`${totalDisp} asiento${totalDisp===1?'':'s'} · ${etiquetaPeriodo(DIA_F)}`:'';
+
+  // Sin filtros no se pinta ningún asiento: el diario completo del año son
+  // miles de filas. Se muestra solo la barra de filtros y un aviso.
+  if(!hayFiltro){
+    box.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--mt)">
+      <div style="font-size:36px;margin-bottom:8px">📖</div>
+      <div style="font-size:13px;font-weight:600;color:var(--tx)">Aplica un filtro para ver el Libro Diario</div>
+      <div style="font-size:12px;margin-top:6px">Elige un mes, un rango de fechas o busca por N° de comprobante, glosa, cuenta o RUT.</div>
+      <div style="font-size:11px;margin-top:10px">${todasEntries.length} asiento${todasEntries.length===1?'':'s'} en el ejercicio ${S.empresa.anio}</div>
+    </div>`;
+    return;
+  }
 
   if(!entries.length){
     box.innerHTML=`<div style="text-align:center;padding:30px;color:var(--mt)">No hay asientos que coincidan con el filtro.</div>`;
     return;
   }
-
-  let aviso='';
-  if(ocultos){
-    aviso=`<div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);color:var(--info);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px">
-      📖 Mostrando los <strong>${LIMITE_DIA} asientos más recientes</strong> de ${totalDisp}. Filtra por mes, rango de fechas o búsqueda para ver el resto.
-    </div>`;
-  }
+  const ocultos=0,aviso='';
 
   // Totales: del periodo filtrado si hay filtro, de todo el diario si no.
   let tD=0,tH=0;
@@ -433,6 +432,7 @@ function setMayorFecha(k,v){
 function setMayorQ(v){MAY_F.q=v;renderMayorTabla();}
 function limpiarFiltrosMayor(){
   MAY_F={mes:'',desde:'',hasta:'',q:''};
+  MAY_EXP.clear();
   renderMayor();
 }
 // La descripción de la línea suele repetir lo que ya dice la glosa
@@ -525,11 +525,16 @@ function renderMayor(){
 }
 
 // Renderiza SOLO el contenido del mayor (respeta periodo y búsqueda).
+// Vista resumida: una fila por cuenta (código, nombre, debe, haber, saldo).
+// El detalle de movimientos se arma recién al expandir la cuenta, así la
+// pantalla no pinta miles de filas al entrar.
+let MAY_M={};              // último Mayor calculado (lo usa el detalle al expandir)
+const MAY_EXP=new Set();   // cuentas expandidas (se conservan al filtrar)
 function renderMayorTabla(){
   const box=document.getElementById('mayor-tabla');if(!box)return;
   const M=buildMayor(MAY_F.desde,MAY_F.hasta);
+  MAY_M=M;
   const keys=cuentasMayorFiltradas(M);
-  const hayPeriodo=!!(MAY_F.desde||MAY_F.hasta);
 
   const cnt=document.getElementById('mayor-count');
   if(cnt)cnt.textContent=`${keys.length} cuenta${keys.length===1?'':'s'} · ${etiquetaPeriodo(MAY_F)}`;
@@ -544,42 +549,68 @@ function renderMayorTabla(){
   const tP=sumaPres(M,keys.filter(k=>k.startsWith('2')&&!k.startsWith('23')));
   const tC=sumaPres(M,keys.filter(k=>k.startsWith('3')));
   const tI=sumaPres(M,keys.filter(k=>k.startsWith('4')));
+  let tD=0,tH=0;
   let h=`<div class="kpi-grid">
     <div class="kpi"><div class="kpi-lbl">Total Activos</div><div class="kpi-val pos">${fmtC(tA)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Total Pasivos</div><div class="kpi-val neg">${fmtC(tP)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Total Ingresos</div><div class="kpi-val pos">${fmtC(tI)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Total Costos</div><div class="kpi-val neg">${fmtC(tC)}</div></div>
-  </div>`;
+  </div>
+  <div class="card-np"><div class="tw"><table class="tbl-fija may-res">
+    <colgroup><col style="width:28px"><col style="width:92px"><col><col style="width:130px"><col style="width:130px"><col style="width:140px"></colgroup>
+    <thead><tr><th></th><th class="tl">CÓDIGO</th><th class="tl">CUENTA</th><th>DEBE</th><th>HABER</th><th>SALDO</th></tr></thead><tbody>`;
   keys.forEach(cd=>{
     const a=M[cd];
-    const filaAnt=hayPeriodo
-      ? `<tr style="background:var(--sf2)"><td class="tl" style="font-family:var(--mono);font-size:10px">—</td><td class="cel-trunc" style="font-style:italic;color:var(--mt)">Saldo anterior al ${MAY_F.desde||'inicio'}</td><td>–</td><td>–</td><td style="font-weight:600">${fmtC(Math.abs(a.saldoAnterior))}</td></tr>`
-      : '';
-    h+=`<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div><span style="font-family:var(--mono);font-size:11px;color:var(--mt)">${cd}</span><span style="font-size:14px;font-weight:700;margin-left:10px">${a.nm}</span></div>
-        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-          ${hayPeriodo?`<span style="font-size:11px;color:var(--mt)">Ant: ${fmtC(a.saldoAnterior)}</span>`:''}
-          <span style="font-size:11px;color:var(--mt)">D: ${fmtC(a.debe)}</span>
-          <span style="font-size:11px;color:var(--mt)">H: ${fmtC(a.haber)}</span>
-          <span class="badge ${a.saldo>=0?'bg':'br'}">Saldo: ${fmtC(Math.abs(a.saldo))}</span>
-        </div>
-      </div>
-      <div class="tw"><table class="tbl-fija" style="font-size:11px">
-        <colgroup><col style="width:92px"><col><col style="width:118px"><col style="width:118px"><col style="width:126px"></colgroup>
-        <thead><tr><th class="tl">FECHA</th><th class="tl">GLOSA</th><th>DEBE</th><th>HABER</th><th>SALDO</th></tr></thead><tbody>
-        ${filaAnt}
-        ${a.movs.map(m=>{
-          const extra=descAporta(m.glosa,m.desc)?` — ${m.desc}`:'';
-          const txt=(m.glosa||'')+extra;
-          return `<tr><td class="tl" style="font-family:var(--mono);font-size:10px">${m.fecha}</td><td class="cel-trunc" title="${attr(txt)}">${m.glosa||''}${extra?`<span style="color:var(--mt)">${extra}</span>`:''}</td><td>${m.debe?fmtC(m.debe):'–'}</td><td>${m.haber?fmtC(m.haber):'–'}</td><td style="font-weight:600">${fmtC(Math.abs(m.saldo))}</td></tr>`;
-        }).join('')
-          ||`<tr><td colspan="5" style="text-align:center;color:var(--mt);padding:10px">Sin movimientos en el periodo</td></tr>`}
-        </tbody>
-      </table></div>
-    </div>`;
+    tD+=a.debe;tH+=a.haber;
+    const abierta=MAY_EXP.has(cd);
+    h+=`<tr class="may-cta${abierta?' open':''}" data-cd="${cd}" onclick="toggleMayorCuenta('${cd}')" style="cursor:pointer">
+      <td class="may-chev" style="text-align:center;color:var(--mt)">${abierta?'▾':'▸'}</td>
+      <td class="tl" style="font-family:var(--mono);font-size:11px">${cd}</td>
+      <td class="cel-trunc" title="${attr(a.nm)}" style="font-weight:600">${a.nm}</td>
+      <td>${a.debe?fmtC(a.debe):'–'}</td>
+      <td>${a.haber?fmtC(a.haber):'–'}</td>
+      <td style="font-weight:700;color:${a.saldo>=0?'var(--ach)':'var(--err)'}">${fmtC(Math.abs(a.saldo))}</td>
+    </tr>`;
+    if(abierta)h+=filaDetalleMayor(cd);
   });
+  h+=`</tbody><tfoot><tr><td></td><td class="tl" colspan="2">TOTALES</td><td>${fmtC(tD)}</td><td>${fmtC(tH)}</td><td></td></tr></tfoot></table></div></div>`;
   box.innerHTML=h;
+}
+
+// Fila con el detalle de una cuenta. Se genera sólo cuando se expande.
+function filaDetalleMayor(cd){
+  const a=MAY_M[cd];if(!a)return'';
+  const hayPeriodo=!!(MAY_F.desde||MAY_F.hasta);
+  const filaAnt=hayPeriodo
+    ? `<tr style="background:var(--sf2)"><td class="tl" style="font-family:var(--mono);font-size:10px">—</td><td class="cel-trunc" style="font-style:italic;color:var(--mt)">Saldo anterior al ${MAY_F.desde||'inicio'}</td><td>–</td><td>–</td><td style="font-weight:600">${fmtC(Math.abs(a.saldoAnterior))}</td></tr>`
+    : '';
+  const movs=a.movs.map(m=>{
+    const extra=descAporta(m.glosa,m.desc)?` — ${m.desc}`:'';
+    const txt=(m.glosa||'')+extra;
+    return `<tr><td class="tl" style="font-family:var(--mono);font-size:10px">${m.fecha}</td><td class="cel-trunc" title="${attr(txt)}"><span style="font-family:var(--mono);color:var(--mt);font-size:10px;margin-right:6px">N°${m.n}</span>${m.glosa||''}${extra?`<span style="color:var(--mt)">${extra}</span>`:''}</td><td>${m.debe?fmtC(m.debe):'–'}</td><td>${m.haber?fmtC(m.haber):'–'}</td><td style="font-weight:600">${fmtC(Math.abs(m.saldo))}</td></tr>`;
+  }).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--mt);padding:10px">Sin movimientos en el periodo</td></tr>`;
+  return `<tr class="may-det" data-det="${cd}"><td colspan="6" style="padding:0 0 10px 28px;background:var(--sf2)">
+    <table class="tbl-fija" style="font-size:11px">
+      <colgroup><col style="width:92px"><col><col style="width:118px"><col style="width:118px"><col style="width:126px"></colgroup>
+      <thead><tr><th class="tl">FECHA</th><th class="tl">GLOSA</th><th>DEBE</th><th>HABER</th><th>SALDO</th></tr></thead>
+      <tbody>${filaAnt}${movs}</tbody>
+    </table></td></tr>`;
+}
+
+// Expande/colapsa una cuenta sin volver a calcular ni redibujar el Mayor
+function toggleMayorCuenta(cd){
+  const fila=document.querySelector(`#mayor-tabla tr.may-cta[data-cd="${cd}"]`);
+  if(!fila)return;
+  const det=document.querySelector(`#mayor-tabla tr.may-det[data-det="${cd}"]`);
+  const chev=fila.querySelector('.may-chev');
+  if(det){
+    det.remove();MAY_EXP.delete(cd);fila.classList.remove('open');
+    if(chev)chev.textContent='▸';
+  }else{
+    fila.insertAdjacentHTML('afterend',filaDetalleMayor(cd));
+    MAY_EXP.add(cd);fila.classList.add('open');
+    if(chev)chev.textContent='▾';
+  }
 }
 
 // ── Exportar Libro Mayor a Excel (respeta los filtros activos) ──
@@ -1058,4 +1089,4 @@ function exportarBalance8Excel(){
 
 export {genDiario, renderDiario, setDiarioQ, buildMayor, buildMayorAnio, totalesDeMayor, CMP_YEAR, fmtVar, renderMayor, renderBalance, renderBalance8, calcularBalance8, exportarBalance8Excel, poblarCmpSelect, onCmpYear, renderComparativo, renderResultados, corregirDesdeDiario, editarAsientoRef, destinoEdicion,
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
-        onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel};
+        onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel, toggleMayorCuenta};
