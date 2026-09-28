@@ -15,6 +15,10 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.18',fecha:'28-09-2026',titulo:'Importar Balance de Apertura: saldos con guion',items:[
+    {tipo:'correccion',txt:'Cuando una cuenta de Activo tenía el saldo como guion ("-", formato contable para cero), el importador se saltaba el guion y tomaba como monto el código de la cuenta de Pasivo de la misma fila. Ahora el saldo es solo la celda que sigue al nombre: un guion o una celda vacía cuentan como cero y la cuenta no se importa.'},
+    {tipo:'cambio',txt:'El importador acepta montos escritos como texto: con puntos de miles, con signo $ o negativos entre paréntesis, como (5.335.946).'},
+  ]},
   {version:'V2.21.17',fecha:'28-09-2026',titulo:'Importar Balance de Apertura: pasivos al Haber',items:[
     {tipo:'correccion',txt:'Al importar el balance desde Excel, las cuentas de Pasivo y Patrimonio podían quedar todas al Debe. Pasaba cuando la hoja tenía formato o notas en columnas lejanas: el lado del balance se calculaba por "mitad de la fila" y esa mitad se corría. Ahora el lado se toma del encabezado PASIVO, o de la posición de las columnas de códigos, o del primer dígito del código si el balance viene en una sola columna.'},
     {tipo:'nuevo',txt:'La vista previa avisa si alguna cuenta quedó en un lado que no calza con su código (un 1xxxxxx como Pasivo o un 2xxxxxx como Activo).'},

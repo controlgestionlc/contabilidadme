@@ -309,6 +309,22 @@ function initBalanceImportListener(){
   }
 }
 
+// Convierte la celda de saldo a número entero. Guiones y textos → 0.
+function aNumeroSaldo(c){
+  if(typeof c==='number')return isNaN(c)?0:Math.round(c);
+  let t=String(c).trim();
+  if(/^[-–—]+$/.test(t))return 0;
+  let neg=false;
+  if(/^\(.*\)$/.test(t)){neg=true;t=t.slice(1,-1);}
+  t=t.replace(/[$\s]/g,'');
+  if(t.startsWith('-')||t.startsWith('−')){neg=!neg;t=t.slice(1);}
+  // Formato chileno: puntos de miles y coma decimal
+  t=t.replace(/\./g,'').replace(',','.');
+  const n=+t;
+  if(!t||isNaN(n))return 0;
+  return Math.round(neg?-n:n);
+}
+
 // Procesa matriz de filas: detecta cuentas analíticas (código de 7 dígitos)
 // Formato esperado: columnas de Activo (cod/nom/saldo) y columnas de Pasivo (cod/nom/saldo) en la misma fila
 function procesarBalanceXLSX(rows){
@@ -366,11 +382,21 @@ function procesarBalanceXLSX(rows){
       if(esAnalitico(v)&&tieneNombre(row[i+1])){
         const cd=String(v).trim();
         const nm=String(row[i+1]||'').trim();
+        // El saldo es la PRIMERA celda con contenido después del nombre.
+        // Antes se buscaba "el primer número" en las 3 celdas siguientes, y si
+        // el saldo venía como guion ("-", típico del formato contable para
+        // cero) se saltaba el guion y tomaba el CÓDIGO de la cuenta de pasivo
+        // de al lado como si fuera el monto. Ahora:
+        //  - se detiene al llegar a otro código de cuenta;
+        //  - un guion o un texto que no es número cuenta como saldo 0;
+        //  - acepta negativos con signo o entre paréntesis: (5.335.946).
         let saldo=null;
         for(let j=i+2;j<Math.min(i+5,row.length);j++){
           const c=row[j];
-          if(typeof c==='number'&&!isNaN(c)){saldo=Math.round(c);break;}
-          if(typeof c==='string'&&c.trim()&&!isNaN(+c.replace(/[.,\s]/g,''))){saldo=Math.round(+c.replace(/[.,\s]/g,''));break;}
+          if(c==null||(typeof c==='string'&&!c.trim()))continue;
+          if(esAnalitico(c)&&tieneNombre(row[j+1]))break;   // otra cuenta: esta no tiene saldo
+          saldo=aNumeroSaldo(c);
+          break;
         }
         if(saldo===null||saldo===0)continue;
         const lado=ladoDe(i,cd);
