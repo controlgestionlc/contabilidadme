@@ -568,7 +568,22 @@ async function invAplicarImportProductos(){
   }catch(e){toast('❌ '+e.message,'e');}
 }
 
-function nuevoFolio(tipo){const p={ENTRADA:'ENT',SALIDA:'SAL',TRASPASO:'TRS',AJUSTE_ENTRADA:'AJE',AJUSTE_SALIDA:'AJS',TOMA:'TOMA',OC:'OC',RECEPCION:'REC'}[tipo]||'MOV',d=new Date(),stamp=d.toISOString().replace(/[-:TZ.]/g,'').slice(2,14),rnd=Math.random().toString(36).slice(2,5).toUpperCase();return `${p}-${stamp}-${rnd}`;}
+// Folios correlativos por tipo: ENT-000001, SAL-000001, TRA-000001…
+// El número sigue al mayor folio con ese prefijo en su lista (movimientos,
+// tomas, órdenes de compra o recepciones). Los folios antiguos con formato
+// fecha-azar (ENT-260915103012-X7K) no cuentan para la secuencia y se conservan
+// tal cual, porque están citados en documentos, observaciones y bitácora.
+// `extra`: folios ya asignados en la misma operación y aún no guardados.
+const FOLIO_PREFIJO={ENTRADA:'ENT',SALIDA:'SAL',TRASPASO:'TRA',AJUSTE_ENTRADA:'AJE',AJUSTE_SALIDA:'AJS',TOMA:'TOMA',OC:'OC',RECEPCION:'REC'};
+const FOLIO_LISTA={TOMA:'tomas',OC:'ordenesCompra',RECEPCION:'recepciones'};
+function nuevoFolio(tipo,extra=[]){
+  const p=FOLIO_PREFIJO[tipo]||'MOV';
+  const lista=inv()[FOLIO_LISTA[tipo]||'movimientos']||[];
+  const re=new RegExp('^'+p+'-(\\d{6,})$');
+  let max=0;
+  [...lista.map(x=>x&&x.folio),...extra].forEach(f=>{const m=re.exec(String(f||''));if(m)max=Math.max(max,+m[1]);});
+  return `${p}-${String(max+1).padStart(6,'0')}`;
+}
 function invNuevoMovimiento(){
   if(!writable())return;if(!inv().bodegas.some(b=>b.activo!==false)){toast('Primero crea una bodega activa','e');UI.tab='bodegas';renderInventario();return;}if(!inv().productos.some(p=>p.activo!==false&&p.inventariable!==false)){toast('Primero crea un producto inventariable','e');UI.tab='productos';renderInventario();return;}
   movDraft={tipo:'ENTRADA',folio:nuevoFolio('ENTRADA'),fecha:hoy(),motivo:'COMPRA',bodegaOrigenId:'',bodegaDestinoId:inv().bodegas.find(b=>b.activo!==false)?.id||'',tercero:'',documentoTipo:'SIN DOCUMENTO',documentoNumero:'',proveedorRut:'',proveedorNombre:'',ordenCompraId:'',centroCosto:'',observaciones:'',lineas:[{id:uid(),productoId:'',cantidad:'',costoUnitario:'',lote:'',fechaVencimiento:''}]};invRenderMovModal();
@@ -590,7 +605,7 @@ function productosConOCAbierta(rut){const set=new Set();ocsAbiertasProveedor(rut
 function invRenderMovModal(){
   const d=movDraft;if(!d)return;const esEnt=d.tipo==='ENTRADA',esSal=d.tipo==='SALIDA',esTra=d.tipo==='TRASPASO';
   modal(`${modalHdr(d.editId?'Editar movimiento':'Nuevo movimiento',d.editId?'Los cambios se reflejan de inmediato en el stock y el PPP recalculados':'El stock y el PPP se recalculan desde este libro cronológico')}
-  <div style="font-size:11px;color:var(--mt);margin:-6px 0 12px;font-family:var(--mono)">Folio interno: <strong style="color:var(--tx)">${esc(d.folio)}</strong> <span style="font-family:var(--sans)">— ${d.editId?'se conserva a través de las ediciones':'asignado al abrir este formulario, para trazabilidad del movimiento'}</span></div>
+  <div style="font-size:11px;color:var(--mt);margin:-6px 0 12px;font-family:var(--mono)">Folio interno: <strong style="color:var(--tx)">${esc(d.folio)}</strong> <span style="font-family:var(--sans)">— ${d.editId?'se conserva a través de las ediciones':'próximo correlativo; se confirma al guardar'}</span></div>
   <div class="inv-form-grid"><label>Tipo<select ${d.editId?'disabled':''} onchange="invMovCampo('tipo',this.value,true)">${['ENTRADA','SALIDA','TRASPASO'].map(x=>`<option ${d.tipo===x?'selected':''}>${x}</option>`).join('')}</select>${d.editId?'<small>No editable</small>':''}</label><label>Fecha<input type="date" value="${esc(d.fecha)}" onchange="invMovCampo('fecha',this.value)"></label>
   <label>Motivo<select onchange="invMovCampo('motivo',this.value)">${motivos(d.tipo).map(x=>`<option ${d.motivo===x?'selected':''}>${x}</option>`).join('')}</select></label><label>Centro de costo<select onchange="invMovCampo('centroCosto',this.value)"><option value="">Sin centro</option>${(S.centros||[]).filter(x=>x.estado!=='inactivo').map(x=>`<option value="${esc(x.codigo||x.id)}" ${d.centroCosto===(x.codigo||x.id)?'selected':''}>${esc(x.codigo||'')} · ${esc(x.nombre||'')}</option>`).join('')}</select></label>
   ${!esEnt?`<label>Bodega origen<select onchange="invMovCampo('bodegaOrigenId',this.value,true)">${opcionesBodega(d.bodegaOrigenId)}</select></label>`:''}${!esSal?`<label>Bodega destino<select onchange="invMovCampo('bodegaDestinoId',this.value)">${opcionesBodega(d.bodegaDestinoId)}</select></label>`:''}
@@ -661,7 +676,11 @@ async function invGuardarMovimiento(){
     return;
   }
 
-  const now=new Date().toISOString(),m={tipo:movDraft.tipo,folio:movDraft.folio||nuevoFolio(movDraft.tipo),fecha:movDraft.fecha,motivo:movDraft.motivo,bodegaOrigenId:movDraft.bodegaOrigenId,bodegaDestinoId:movDraft.bodegaDestinoId,tercero:movDraft.tercero,documentoTipo:movDraft.documentoTipo,documentoNumero,documento,proveedorRut,proveedorNombre,ordenCompraId,centroCosto:movDraft.centroCosto,observaciones:movDraft.observaciones,id:uid(),estado:'VIGENTE',creado:now,creadoPor:AUTH.user?.email||'',lineas:lineasFinal};
+  // Folio definitivo al guardar, contra la lista más reciente de la nube,
+  // para que dos equipos no tomen el mismo correlativo. Sin conexión se usa
+  // la lista local.
+  try{await leerListaActual('movimientos');}catch(e){}
+  const now=new Date().toISOString(),m={tipo:movDraft.tipo,folio:nuevoFolio(movDraft.tipo),fecha:movDraft.fecha,motivo:movDraft.motivo,bodegaOrigenId:movDraft.bodegaOrigenId,bodegaDestinoId:movDraft.bodegaDestinoId,tercero:movDraft.tercero,documentoTipo:movDraft.documentoTipo,documentoNumero,documento,proveedorRut,proveedorNombre,ordenCompraId,centroCosto:movDraft.centroCosto,observaciones:movDraft.observaciones,id:uid(),estado:'VIGENTE',creado:now,creadoPor:AUTH.user?.email||'',lineas:lineasFinal};
   const v=validarMovimiento(m,{productos:inv().productos,bodegas:inv().bodegas,movimientos:inv().movimientos});
   if(!v.ok){toast('❌ '+v.errores[0],'e');return;}
   m.lineas=v.lineas;inv().movimientos.push(m);

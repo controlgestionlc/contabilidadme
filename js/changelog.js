@@ -15,6 +15,11 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.19',fecha:'28-09-2026',titulo:'Inventario: folios correlativos',items:[
+    {tipo:'cambio',txt:'Los folios de inventario ahora son correlativos por tipo: ENT-000001 (entrada), SAL-000001 (salida), TRA-000001 (traspaso), AJE-000001 y AJS-000001 (ajustes), TOMA-000001, OC-000001 y REC-000001.'},
+    {tipo:'cambio',txt:'El folio de un movimiento nuevo se asigna al guardar, contra la lista más reciente de la nube, para que dos equipos no tomen el mismo número. El formulario muestra el próximo correlativo como referencia.'},
+    {tipo:'cambio',txt:'Los movimientos ya registrados conservan su folio anterior (formato fecha y letras), porque está citado en documentos, observaciones y bitácora. La numeración nueva parte en 000001.'},
+  ]},
   {version:'V2.21.18',fecha:'28-09-2026',titulo:'Importar Balance de Apertura: saldos con guion',items:[
     {tipo:'correccion',txt:'Cuando una cuenta de Activo tenía el saldo como guion ("-", formato contable para cero), el importador se saltaba el guion y tomaba como monto el código de la cuenta de Pasivo de la misma fila. Ahora el saldo es solo la celda que sigue al nombre: un guion o una celda vacía cuentan como cero y la cuenta no se importa.'},
     {tipo:'cambio',txt:'El importador acepta montos escritos como texto: con puntos de miles, con signo $ o negativos entre paréntesis, como (5.335.946).'},
