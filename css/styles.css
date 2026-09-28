@@ -176,14 +176,15 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 /* ASIENTOS FORM */
 .as-form{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:20px;margin-bottom:16px}
 .as-form.editing{border-color:var(--info);box-shadow:0 0 0 2px rgba(88,166,255,.15)}
-/* El formulario de asiento se muestra como ventana flotante sobre la lista de
-   comprobantes. z-index 900: por debajo de los modales .modal-bkd (1000) para
-   que "+ Comprobante tipo" y el modal de DTE se abran por encima. */
-#as-form{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);overflow-y:auto;padding:24px 14px;margin:0;border:0;border-radius:0;display:none}
-#as-form .as-modal-panel{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px;max-width:960px;margin:0 auto;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+/* El formulario de asiento vive fijo en Comprobantes (modo registro): la
+   pantalla abre con él listo y el buscador del encabezado queda a la vista.
+   Antes era ventana flotante (V2.16.34); se volvió a la forma en línea porque
+   un overlay permanente taparía el buscador y la lista. */
+#as-form{padding:0;border:0;background:transparent;margin:0 0 16px}
+#as-form .as-modal-panel{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px}
 #as-form.editing{box-shadow:none}
-#as-form.editing .as-modal-panel{border-color:var(--info);box-shadow:0 24px 70px rgba(0,0,0,.45),0 0 0 2px rgba(88,166,255,.18)}
-@media(max-width:640px){#as-form{padding:12px 8px}#as-form .as-modal-panel{padding:14px}}
+#as-form.editing .as-modal-panel{border-color:var(--info);box-shadow:0 0 0 2px rgba(88,166,255,.18)}
+@media(max-width:640px){#as-form .as-modal-panel{padding:14px}}
 .as-meta{display:grid;grid-template-columns:180px 1fr;gap:12px;margin-bottom:16px;align-items:end}
 /* Las líneas del asiento tienen columnas de ancho fijo que suman ~900px. En un
    contenedor más angosto empujaban la página entera. Ahora scrollean dentro de
