@@ -15,6 +15,10 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.17',fecha:'28-09-2026',titulo:'Importar Balance de Apertura: pasivos al Haber',items:[
+    {tipo:'correccion',txt:'Al importar el balance desde Excel, las cuentas de Pasivo y Patrimonio podían quedar todas al Debe. Pasaba cuando la hoja tenía formato o notas en columnas lejanas: el lado del balance se calculaba por "mitad de la fila" y esa mitad se corría. Ahora el lado se toma del encabezado PASIVO, o de la posición de las columnas de códigos, o del primer dígito del código si el balance viene en una sola columna.'},
+    {tipo:'nuevo',txt:'La vista previa avisa si alguna cuenta quedó en un lado que no calza con su código (un 1xxxxxx como Pasivo o un 2xxxxxx como Activo).'},
+  ]},
   {version:'V2.21.16',fecha:'28-09-2026',titulo:'Contador de consumo de Firestore y monitor de tamaño',items:[
     {tipo:'nuevo',txt:'Configuración → Sistema tiene una tarjeta "Consumo de Firestore": lecturas y escrituras a la nube desde que abriste la app, lecturas servidas desde caché (no se cobran), los registros más consultados y un historial de los últimos 14 días de este equipo.'},
     {tipo:'nuevo',txt:'Monitor de tamaño: muestra cuánto pesa cada registro contra el máximo de 1 MB por documento de Firestore. Al pasar el 70% aparece un aviso, rojo desde el 90%, para partirlo en bloques antes de que la nube rechace el guardado.'},
