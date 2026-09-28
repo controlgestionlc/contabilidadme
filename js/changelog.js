@@ -15,6 +15,11 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.16',fecha:'28-09-2026',titulo:'Contador de consumo de Firestore y monitor de tamaño',items:[
+    {tipo:'nuevo',txt:'Configuración → Sistema tiene una tarjeta "Consumo de Firestore": lecturas y escrituras a la nube desde que abriste la app, lecturas servidas desde caché (no se cobran), los registros más consultados y un historial de los últimos 14 días de este equipo.'},
+    {tipo:'nuevo',txt:'Monitor de tamaño: muestra cuánto pesa cada registro contra el máximo de 1 MB por documento de Firestore. Al pasar el 70% aparece un aviso, rojo desde el 90%, para partirlo en bloques antes de que la nube rechace el guardado.'},
+    {tipo:'cambio',txt:'El contador mide todo lo que habla con Firestore (contabilidad, inventario, usuarios) sin cambiar cómo se guarda. El historial vive solo en este equipo y no se sube a la nube.'},
+  ]},
   {version:'V2.21.15',fecha:'28-09-2026',titulo:'Mayor por cuentas, Diario a pedido y Comprobantes en modo registro',items:[
     {tipo:'cambio',txt:'Libro Mayor: al entrar se ve una fila por cuenta (código, nombre, Debe, Haber y Saldo) con totales al pie. Haz clic en la cuenta para ver su detalle, que se arma en ese momento. Las cuentas abiertas se mantienen al cambiar el filtro y "Limpiar" las cierra.'},
     {tipo:'cambio',txt:'Libro Diario: sin filtros ya no muestra asientos, solo la barra de filtros y un aviso. Elige mes, rango de fechas o busca para verlos.'},

@@ -1,3 +1,4 @@
+import {resumenMonitorFS, reiniciarMonitorFS} from './monitorfs.js';
 import {initActualizador, verificarActualizacion} from './actualizador.js';
 // app.js — Orquestador: routing, arranque y puente con el HTML.
 // Importa todos los módulos, registra los callbacks de ui.js/auth.js
@@ -667,7 +668,7 @@ setOnAuthReady(initApp);
 Object.assign(window,{
   renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios,AF, VF, CF, REMF, AFB, PF, APF, IMB, IM, IMV, US, BD, S, getCurSec, CD, IVAC, PAGOF29, DJ, ACC});
 
-Object.assign(window,{
+Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS, 
   // utilidades
   toast, normalizarMontos,
   // navegación y arranque

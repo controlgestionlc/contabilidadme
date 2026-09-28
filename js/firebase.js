@@ -2,6 +2,7 @@
 // Depende solo del SDK de Firebase cargado por <script> en index.html
 import {AUTH, S} from './state.js';
 import {FIREBASE_CONFIG,FIREBASE_ENV} from './firebase-config.js';
+import {instalarMonitorFS} from './monitorfs.js';
 
 // ═══ CONFIGURACIÓN FIREBASE ═══
 // Centralizada en firebase-config.js para facilitar migraciones de cuenta/proyecto.
@@ -42,6 +43,8 @@ async function initFirestore(){
     fsStatusSet('connecting');
     if(!firebase.apps.length)firebase.initializeApp(FIREBASE_CONFIG);
     FS.db=firebase.firestore();
+    // Contador de lecturas/escrituras y monitor de tamaño (Configuración → Sistema)
+    try{instalarMonitorFS();}catch(e){console.warn('monitorFS no instalado',e);}
     // Habilitar persistencia offline (para que funcione sin internet)
     try{await FS.db.enablePersistence({synchronizeTabs:true});}catch(e){/* ya habilitada o multi-tab */}
     // Probar conexión con un read simple. Con tope de tiempo: sin él, en una
