@@ -390,36 +390,54 @@ export async function asignarDuenio(id,email){
 // el prefijo de esa empresa (`emp1:ventas-2026`, etc.) y las elimina.
 // En Firestore no se puede borrar todo desde el cliente sin listar la colección;
 // se dejan huérfanos y quedan invisibles porque ya no aparece la empresa.
+// Borra de ESTE navegador todas las claves de una empresa. Coincide el prefijo
+// como segmento completo seguido de ":" para no confundir "emp1" con "emp10".
+function borrarLocalesDe(id){
+  const aBorrar=[];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k&&(k===id||k.startsWith(id+':')||k.includes(':'+id+':')))aBorrar.push(k);
+    }
+  }catch(e){}
+  aBorrar.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
+  return aBorrar.length;
+}
+
+// Elimina una empresa del catálogo y, si `borrarDatos`, también todos sus
+// datos: los de este navegador y los de la nube. La nube se borra PRIMERO,
+// mientras la ficha de acceso sigue vigente (sin ella las reglas no dejan).
+// Pueden hacerlo un admin o el dueño de la empresa.
 export async function eliminarEmpresa(id,borrarDatos=false){
   if(EMPRESAS.lista.length<=1)throw new Error('Debe existir al menos una empresa');
+  const e=EMPRESAS.todas.find(x=>x.id===id);
+  if(!e)throw new Error('La empresa ya no está en el catálogo');
+  if(!esAdminActual()&&!esDuenioDeEmpresa(e))throw new Error('Solo el dueño o un administrador pueden eliminarla');
+  let nube={ok:true,borrados:0};
+  if(borrarDatos){
+    nube=await window.storage.borrarDatosNubeEmpresa(id);
+    if(!nube.ok)throw new Error('No se pudieron borrar los datos en la nube ('+nube.error+'). No se eliminó nada.');
+  }
   const era=EMPRESAS.activa===id;
-  EMPRESAS.todas=EMPRESAS.todas.filter(e=>e.id!==id);
-  borrarACLEmpresa(id);
+  EMPRESAS.todas=EMPRESAS.todas.filter(x=>x.id!==id);
+  delete HOGAR[id];
   aplicarVisibilidad();
   if(era)EMPRESAS.activa=(EMPRESAS.lista[0]||EMPRESAS.todas[0]||{}).id||null;
   await guardarCatalogo();
+  // La ficha de acceso sólo la puede borrar un admin (reglas); la del dueño
+  // queda sin empresa detrás y no da acceso a nada.
+  if(esAdminActual())borrarACLEmpresa(id);
+  const borradas=borrarDatos?borrarLocalesDe(id):0;
+  return {borradas,nube:nube.borrados||0};
+}
 
-  if(borrarDatos){
-    // Recorrer localStorage y borrar todas las claves de esta empresa.
-    // El storage guarda como `<prefijoInstancia><empresaId>:<clave>` o
-    // directamente `<empresaId>:<clave>` según cómo esté configurado.
-    // Debemos matchear el prefijo de empresa como un segmento COMPLETO
-    // seguido de ":" para no confundir "emp1" con "emp10".
-    const aBorrar=[];
-    try{
-      for(let i=0;i<localStorage.length;i++){
-        const k=localStorage.key(i);
-        if(!k)continue;
-        // Coincidencia: empieza con "id:" o contiene ":id:"
-        if(k===id||k.startsWith(id+':')||k.includes(':'+id+':')){
-          aBorrar.push(k);
-        }
-      }
-    }catch(e){}
-    aBorrar.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
-    return {borradas:aBorrar.length};
-  }
-  return {borradas:0};
+// Descarta una empresa huérfana (fuera del catálogo): borra sus datos de este
+// navegador y, si la nube lo permite, los que haya allá.
+export async function descartarHuerfana(id){
+  if(EMPRESAS.todas.some(e=>e.id===id))throw new Error('Esa empresa está en el catálogo: elimínala desde el listado');
+  const nube=await window.storage.borrarDatosNubeEmpresa(id);
+  const locales=borrarLocalesDe(id);
+  return {locales,nube:nube.ok?nube.borrados:0,errorNube:nube.ok?null:nube.error};
 }
 
 // ── Recuperar una empresa borrada del catálogo ──

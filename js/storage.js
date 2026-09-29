@@ -721,6 +721,29 @@ initDispositivo();
       }
     },
 
+    // Borra en la nube TODOS los documentos de una empresa (`<id>:<clave>`).
+    // Se apoya en el campo `empresa`, que es lo que las reglas permiten
+    // consultar a un miembro. Hay que llamarlo ANTES de borrar la ficha de
+    // acceso: sin ella, las reglas ya no dejan ni listar ni borrar.
+    async borrarDatosNubeEmpresa(empId){
+      if(!empId||String(empId).startsWith('_'))return {ok:false,borrados:0,error:'empresa inválida'};
+      if(!FS.enabled||!FS.db)return {ok:true,borrados:0,sinNube:true};
+      try{
+        const snap=await FS.db.collection(COLL).where('empresa','==',empId).get();
+        const docs=snap.docs.filter(d=>d.id.startsWith(empId+':'));
+        for(let i=0;i<docs.length;i+=400){
+          const lote=FS.db.batch();
+          docs.slice(i,i+400).forEach(d=>lote.delete(d.ref));
+          await lote.commit();
+        }
+        docs.forEach(d=>{revs.delete(d.id);baseline.delete(d.id);tumbas.delete(d.id);bloqueadas.delete(d.id);});
+        return {ok:true,borrados:docs.length};
+      }catch(e){
+        console.warn('FS borrar empresa',empId,e);
+        return {ok:false,borrados:0,error:e.message||String(e)};
+      }
+    },
+
     async getGlobal(key){
       const local=getLocal(key);
       if(FS.enabled){

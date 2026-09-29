@@ -15,6 +15,11 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.21',fecha:'29-09-2026',titulo:'Eliminar empresas y datos que no se usan',items:[
+    {tipo:'nuevo',txt:'El dueño de una empresa (no solo el administrador) puede eliminarla con el botón 🗑 del listado, siempre que le quede al menos otra.'},
+    {tipo:'cambio',txt:'Al eliminar una empresa eligiendo borrar también sus datos, ahora se borran en este navegador y en la nube. Antes la nube no se tocaba y los datos quedaban guardados sin uso.'},
+    {tipo:'nuevo',txt:'En Empresas recuperables, el botón 🗑 Descartar borra definitivamente los datos de una empresa que ya no está en el listado y no se va a usar.'},
+  ]},
   {version:'V2.21.20',fecha:'29-09-2026',titulo:'Empresas creadas por usuarios no administradores',items:[
     {tipo:'correccion',txt:'Un usuario Contador que creaba su empresa la veía solo en su equipo: nunca llegaba a la nube, al volver a entrar se le creaba otra vacía y lo trabajado no aparecía. Ahora cada usuario guarda sus empresas en su propio catálogo en la nube, y el administrador sigue viéndolas todas.'},
     {tipo:'correccion',txt:'Al crear una empresa nueva, la app espera que su ficha de acceso quede en la nube antes de leer los datos. Antes la lectura se adelantaba, la nube la rechazaba y el guardado quedaba bloqueado toda la sesión.'},
