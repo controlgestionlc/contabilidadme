@@ -15,6 +15,16 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.23',fecha:'29-09-2026',titulo:'Empresas eliminadas que volvían a aparecer',items:[
+    {tipo:'correccion',txt:'Una empresa eliminada por su dueño podía volver a aparecer al entrar de nuevo, si había quedado una copia en el catálogo principal. Ahora el catálogo del dueño guarda una marca de eliminación que manda sobre cualquier copia, y cuando el administrador entra, esa copia se limpia sola.'},
+    {tipo:'correccion',txt:'Si la nube rechaza el cambio del catálogo, la app ahora lo avisa y deja la empresa en el listado. Antes la borraba solo en este equipo, como si se hubiera guardado, y reaparecía al volver a entrar.'},
+    {tipo:'cambio',txt:'Recuperar una empresa eliminada con su mismo identificador sigue funcionando: la marca de eliminación se retira.'},
+  ]},
+  {version:'V2.21.22',fecha:'29-09-2026',titulo:'Administrador: al entrar, solo sus empresas',items:[
+    {tipo:'cambio',txt:'Al iniciar sesión, el administrador ve solo sus empresas, las compartidas con él y las heredadas, igual que cualquier usuario.'},
+    {tipo:'nuevo',txt:'El botón "👁 Ver empresas de otros usuarios", en Inicio y en Empresas, muestra el resto del catálogo cuando hace falta. Vale solo para la sesión en curso.'},
+    {tipo:'cambio',txt:'Si la última empresa abierta por el administrador era de otro usuario, al volver a entrar la app abre una propia.'},
+  ]},
   {version:'V2.21.21',fecha:'29-09-2026',titulo:'Eliminar empresas y datos que no se usan',items:[
     {tipo:'nuevo',txt:'El dueño de una empresa (no solo el administrador) puede eliminarla con el botón 🗑 del listado, siempre que le quede al menos otra.'},
     {tipo:'cambio',txt:'Al eliminar una empresa eligiendo borrar también sus datos, ahora se borran en este navegador y en la nube. Antes la nube no se tocaba y los datos quedaban guardados sin uso.'},

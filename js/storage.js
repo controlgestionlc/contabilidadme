@@ -775,7 +775,11 @@ initDispositivo();
         try{window.__avisarFusion&&window.__avisarFusion(key,r);}catch(e){}
         return {key,value:r.value,fusionado:true};
       }
-      return {key,value};
+      // La nube rechazó la escritura (permisos, clave no sincronizada, red):
+      // hay que decirlo. Antes se devolvía como si se hubiera guardado y el
+      // cambio quedaba sólo en este equipo.
+      if(r.ok===false&&r.motivo!=='sin-nube')return {key,value,ok:false,motivo:r.motivo||'error'};
+      return {key,value,ok:true};
     },
 
     async list(prefixArg){

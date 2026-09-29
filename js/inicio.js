@@ -11,7 +11,7 @@
 import {S} from './state.js';
 import {AUTH} from './state.js';
 import {EMPRESAS, empresaActiva, esDuenioDeEmpresa, empresaSinDuenio,
-        activarEmpresa} from './empresas.js';
+        activarEmpresa, empresasDeOtros, setVerOtras} from './empresas.js';
 import {regimenInfo} from './regimenes.js';
 import {marcoInfo} from './empresas.js';
 import {toast} from './core.js';
@@ -92,9 +92,25 @@ export function renderInicio(){
     </div>
     <div class="inicio-grid">${tarjetas}</div>
     <div class="inicio-pie">
+      ${botonVerOtras()}
       <button class="btn btn-g" onclick="nav('empresas')">🏢 Administrar empresas</button>
       <button class="btn btn-g" onclick="nav('empresa')">🏛️ Datos de la empresa activa</button>
     </div>`;
+}
+
+// Admin: botón para mostrar u ocultar las empresas de otros usuarios
+export function botonVerOtras(){
+  const n=empresasDeOtros().length;
+  if(!n)return '';
+  return EMPRESAS.verOtras
+    ? `<button class="btn btn-g" onclick="alternarVerOtras()">🙈 Ocultar empresas de otros usuarios</button>`
+    : `<button class="btn btn-g" onclick="alternarVerOtras()" title="Como administrador puedes abrir las empresas de otros usuarios">👁 Ver empresas de otros usuarios (${n})</button>`;
+}
+export function alternarVerOtras(){
+  setVerOtras(!EMPRESAS.verOtras);
+  renderInicio();
+  if(window.renderSelectorEmpresa)window.renderSelectorEmpresa();
+  if(window.renderEmpresas&&document.getElementById('empresas-content')?.offsetParent)window.renderEmpresas();
 }
 
 // Entrar a una empresa desde la portada.

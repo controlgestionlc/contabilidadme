@@ -107,7 +107,7 @@ export function renderEmpresas(){
   el.innerHTML=`${bannerErrorCatalogo()}<div class="info-tip" style="margin-bottom:14px">🏢 Cada empresa tiene sus datos <strong>completamente separados</strong>: plan de cuentas, libros, asientos e indicadores propios. Cambia de empresa con el selector del menú lateral.</div>
   <div class="info-tip" style="margin-bottom:14px;font-size:11px;line-height:1.6">
     👤 <strong>Cada usuario ve sólo sus empresas.</strong> La empresa queda a nombre de quien la crea; el dueño puede
-    compartirla con otros usuarios desde el botón 👥. ${esAdmin()?'Como administrador ves <strong>todo el catálogo</strong>, con el dueño de cada una.':''}
+    compartirla con otros usuarios desde el botón 👥. ${esAdmin()?(EMPRESAS.verOtras?'Estás viendo <strong>todo el catálogo</strong>, con el dueño de cada una.':'Como administrador puedes ver también las empresas de otros usuarios con el botón de abajo.'):''}
     Las marcadas como <em>heredadas</em> son anteriores a este cambio y las sigue viendo todo el mundo hasta que alguien las reclame.
     ${ocultas>0&&!esAdmin()?`<br><span style="color:var(--mt)">Hay ${ocultas} empresa(s) de otros usuarios que no se muestran.</span>`:''}
     <br><span style="color:var(--warn)">⚠️ Es separación de vista, no de acceso: los datos siguen en la misma base y un usuario con conocimientos técnicos podría alcanzarlos. Para aislamiento real hay que endurecer las reglas de Firestore.</span>
@@ -116,7 +116,7 @@ export function renderEmpresas(){
     <thead><tr><th class="tl">EMPRESA</th><th class="tl">MARCO CONTABLE</th><th class="tl">RÉGIMEN</th><th class="tl">ACCESO</th><th></th></tr></thead>
     <tbody>${filas}</tbody>
   </table></div></div>
-  <button class="btn btn-p" onclick="abrirFormEmpresa()">+ Nueva empresa</button>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-p" onclick="abrirFormEmpresa()">+ Nueva empresa</button>${window.botonVerOtras?window.botonVerOtras():''}</div>
   ${bloqueHuerfanas()}
 
   <div class="card" id="emp-form" style="display:none;margin-top:14px">

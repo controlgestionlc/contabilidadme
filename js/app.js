@@ -71,7 +71,7 @@ import {renderCargaDatos, descargarPlantillaDatos, abrirCargaDatos,
 import {renderSistema} from './sistema.js';
 import {DISPOSITIVO, renombrarDispositivo} from './dispositivo.js';
 import {initAyuda, toggleAyuda, actualizarAyuda, ayudaAlNavegar} from './ayuda.js';
-import {renderInicio, abrirEmpresaInicio} from './inicio.js';
+import {renderInicio, abrirEmpresaInicio, alternarVerOtras, botonVerOtras} from './inicio.js';
 import {abrirReporteAux, cerrarReporteAux, setReporteAuxVista, renderReporteAux,
         imprimirReporteAux, exportarReporteAuxExcel} from './auxreporte.js';
 import {cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
@@ -797,7 +797,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   guardarDJ, borrarDJ, restaurarCatalogoDJ, exportarDJExcel,
   renderRenta, setRentaTab, setRentaParam, restaurarTasaLegal, toggleRechazada,
   onRegimenEmpresaChange, pintarRegimen, onRegimenChange, aplicarPermisosUI,
-  toggleAyuda, actualizarAyuda, renderInicio, abrirEmpresaInicio, verificarActualizacion,
+  toggleAyuda, actualizarAyuda, renderInicio, abrirEmpresaInicio, alternarVerOtras, botonVerOtras, verificarActualizacion,
   addRentaLinea, setRentaLinea, delRentaLinea, setRentaCredito, exportRentaXLSX,
   renderConciliacion, onSaldoBancoChange, toggleConciliado, marcarTodosConciliados,
   cargarCartola, autoConciliarCartola,

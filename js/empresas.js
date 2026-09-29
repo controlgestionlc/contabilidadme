@@ -38,6 +38,7 @@ export const EMPRESAS={
   activa:null,
   errorCarga:null, // por qué no se pudo leer el catálogo (null = todo bien)
   sinEmpresas:false, // rol Consulta sin ninguna empresa compartida
+  verOtras:false,   // admin: mostrar también las empresas de otros usuarios (sólo esta sesión)
 };
 
 const emailActual=()=>((AUTH.user&&AUTH.user.email)||'').toLowerCase();
@@ -55,10 +56,33 @@ export function puedeVerEmpresa(e){
 }
 export const esDuenioDeEmpresa=e=>!!e&&String(e.creadoPor||'').toLowerCase()===emailActual();
 
-// Recalcula la lista visible a partir del catálogo completo
+// Vista "propia": lo que ve cualquier usuario sin privilegios (sus empresas,
+// las compartidas con él y las heredadas). Un admin PUEDE ver todo, pero al
+// entrar sólo ve esto; las de otros usuarios aparecen al pedirlas con el botón
+// "Ver empresas de otros usuarios" (EMPRESAS.verOtras, dura la sesión).
+export function esDeMiVista(e){
+  if(!e)return false;
+  if(empresaSinDuenio(e))return true;
+  const yo=emailActual();
+  if(!yo)return true;
+  if(String(e.creadoPor).toLowerCase()===yo)return true;
+  return (e.compartidaCon||[]).some(x=>String(x).toLowerCase()===yo);
+}
+// Empresas de otros usuarios que un admin tiene ocultas ahora
+export const empresasDeOtros=()=>esAdminActual()?EMPRESAS.todas.filter(e=>!esDeMiVista(e)):[];
+
+// Recalcula la lista visible a partir del catálogo completo.
+// La empresa activa siempre se mantiene en la lista, aunque sea de otro
+// usuario, para que el selector no quede apuntando a algo invisible.
 export function aplicarVisibilidad(){
-  EMPRESAS.lista=EMPRESAS.todas.filter(puedeVerEmpresa);
+  const admin=esAdminActual();
+  EMPRESAS.lista=EMPRESAS.todas.filter(e=>puedeVerEmpresa(e)&&
+    (!admin||EMPRESAS.verOtras||esDeMiVista(e)||e.id===EMPRESAS.activa));
   return EMPRESAS.lista;
+}
+export function setVerOtras(v){
+  EMPRESAS.verOtras=!!v;
+  return aplicarVisibilidad();
 }
 
 // Clave de empresa activa POR USUARIO: antes era global y dos usuarios se
@@ -130,6 +154,7 @@ const PREF_USUARIO='_empresas_u:';
 const docUsuario=email=>PREF_USUARIO+String(email||'').toLowerCase();
 const HOGAR={};                 // id empresa → documento donde vive
 const DOCS=new Map();           // documento → {ok, ultimo:JSON guardado/leído}
+const LAPIDAS=new Map();        // documento → Map(id → lápida)
 const correoDe=e=>String((e&&e.creadoPor)||'').trim().toLowerCase();
 
 // Une el maestro con los catálogos de usuario. Reglas de confianza:
@@ -138,36 +163,64 @@ const correoDe=e=>String((e&&e.creadoPor)||'').trim().toLowerCase();
 //  · si el maestro tiene la misma empresa con OTRO dueño, gana el maestro;
 //  · si el maestro la tiene sin dueño o con el mismo dueño, gana el del
 //    usuario (reclamo de heredada, o edición más reciente de su dueño).
+//
+// Lápidas (V2.21.23): cuando el dueño elimina una empresa, su catálogo guarda
+// {id, creadoPor, eliminada:<fecha>}. Si la empresa seguía copiada en otro
+// documento (típicamente el maestro, que un usuario común no puede escribir),
+// la lápida la saca igual. Sin esto la empresa "volvía" al entrar de nuevo.
+export const esLapida=e=>!!(e&&e.eliminada);
 export function unirCatalogos(maestro,porUsuario){
-  const mapa=new Map(),hogar={};
-  (maestro||[]).forEach(e=>{if(e&&e.id){mapa.set(e.id,e);hogar[e.id]=DOC_MAESTRO;}});
+  const mapa=new Map(),hogar={},lapidas=new Map();
+  (maestro||[]).forEach(e=>{if(e&&e.id&&!esLapida(e)){mapa.set(e.id,e);hogar[e.id]=DOC_MAESTRO;}});
   (porUsuario||[]).forEach(({doc,email,lista})=>{
     const yo=String(email||'').toLowerCase();
     (lista||[]).forEach(e=>{
       if(!e||!e.id||correoDe(e)!==yo)return;
+      if(esLapida(e)){
+        if(!lapidas.has(doc))lapidas.set(doc,new Map());
+        lapidas.get(doc).set(e.id,e);
+        return;
+      }
       const prev=mapa.get(e.id);
       if(prev&&correoDe(prev)&&correoDe(prev)!==yo)return;
       mapa.set(e.id,e);hogar[e.id]=doc;
     });
   });
-  return {todas:[...mapa.values()],hogar};
+  // Una lápida del dueño manda sobre cualquier copia con ese mismo dueño (o
+  // sin dueño), salvo que el propio dueño la haya vuelto a crear en su doc.
+  lapidas.forEach((m,doc)=>m.forEach((l,id)=>{
+    const vivo=mapa.get(id);
+    if(!vivo||hogar[id]===doc)return;
+    if(!correoDe(vivo)||correoDe(vivo)===correoDe(l)){mapa.delete(id);delete hogar[id];}
+  }));
+  return {todas:[...mapa.values()],hogar,lapidas};
 }
 
 // Qué documento escribir y con qué contenido. Un usuario común sólo escribe
 // su propio documento, con todas las empresas de las que es dueño. Un admin
 // escribe el maestro y los documentos de usuario, según el hogar de cada una.
-export function repartirCatalogo(todas,hogar,{admin,email}){
+export function repartirCatalogo(todas,hogar,{admin,email,lapidas}){
   const yo=String(email||'').toLowerCase();
   const mio=docUsuario(yo);
   const out=new Map();
   if(!admin){
     out.set(mio,todas.filter(e=>correoDe(e)===yo));
-    return out;
+  }else{
+    todas.forEach(e=>{
+      const d=hogar[e.id]||DOC_MAESTRO;
+      if(!out.has(d))out.set(d,[]);
+      out.get(d).push(e);
+    });
   }
-  todas.forEach(e=>{
-    const d=hogar[e.id]||DOC_MAESTRO;
-    if(!out.has(d))out.set(d,[]);
-    out.get(d).push(e);
+  // Las lápidas viajan con su documento, salvo las de empresas que volvieron
+  // a existir (recuperadas con el mismo id).
+  const vivos=new Set(todas.map(e=>e.id));
+  (lapidas||new Map()).forEach((m,doc)=>{
+    if(!admin&&doc!==mio)return;
+    const ls=[...m.values()].filter(l=>!vivos.has(l.id));
+    if(!ls.length)return;
+    if(!out.has(doc))out.set(doc,[]);
+    out.get(doc).push(...ls);
   });
   return out;
 }
@@ -221,6 +274,9 @@ export async function cargarEmpresas(){
   EMPRESAS.todas=u.todas;
   Object.keys(HOGAR).forEach(k=>delete HOGAR[k]);
   Object.assign(HOGAR,u.hogar);
+  LAPIDAS.clear();u.lapidas.forEach((m,d)=>LAPIDAS.set(d,m));
+  // Copias muertas en el maestro (una lápida las sacó): un admin lo limpia
+  const sucioMaestro=maestro.some(e=>e&&e.id&&!EMPRESAS.todas.some(x=>x.id===e.id));
   if(EMPRESAS.errorCarga){aplicarVisibilidad();return EMPRESAS;}
   if(!lst.ok)console.warn('No se pudieron listar los catálogos de usuario: sólo se ven el maestro y el propio',lst.error);
 
@@ -248,6 +304,12 @@ export async function cargarEmpresas(){
   // Si el usuario no puede ver la empresa activa, cae a la primera visible.
   // Si no tiene ninguna, se le crea una propia (salvo rol Consulta, que no
   // puede escribir: a ése se le avisa que pida que le compartan una).
+  // Un admin entra a SUS empresas: si la última activa era de otro usuario y
+  // no pidió verlas, se vuelve a una propia (si tiene alguna).
+  const activaObj=EMPRESAS.todas.find(e=>e.id===EMPRESAS.activa);
+  if(admin&&!EMPRESAS.verOtras&&activaObj&&!esDeMiVista(activaObj)&&EMPRESAS.todas.some(esDeMiVista)){
+    EMPRESAS.activa=null;aplicarVisibilidad();
+  }
   if(!EMPRESAS.activa||!EMPRESAS.lista.find(e=>e.id===EMPRESAS.activa)){
     if(!EMPRESAS.lista.length){
       if(AUTH.user&&AUTH.user.rol==='consulta'){
@@ -264,7 +326,10 @@ export async function cargarEmpresas(){
   }
   // Un admin, al entrar, deja al día las fichas de acceso de todo el catálogo
   // (repara las que hayan quedado a medias). En segundo plano.
-  if(admin)refrescarACL();
+  if(admin){
+    refrescarACL();
+    if(sucioMaestro)guardarCatalogo().catch(e=>console.warn('Limpieza del catálogo:',e));
+  }
   return EMPRESAS;
 }
 
@@ -301,7 +366,7 @@ export async function guardarCatalogo(){
   if(!admin)EMPRESAS.todas.forEach(e=>{if(correoDe(e)===yo)HOGAR[e.id]=docUsuario(yo);});
   // Documentos a revisar: los que tienen contenido ahora y los que lo tenían
   // al leer (para que una empresa que se fue de un documento salga de él).
-  const plan=repartirCatalogo(EMPRESAS.todas,HOGAR,{admin,email:yo});
+  const plan=repartirCatalogo(EMPRESAS.todas,HOGAR,{admin,email:yo,lapidas:LAPIDAS});
   if(admin)DOCS.forEach((info,doc)=>{if(info.ok&&!plan.has(doc))plan.set(doc,[]);});
   let ok=true;
   for(const [doc,lista] of plan){
@@ -312,12 +377,16 @@ export async function guardarCatalogo(){
     if(!info&&!lista.length)continue;               // nada que crear
     const r=await window.storage.setGlobal(doc,json,{fusionar:true});
     if(r&&r.conflicto){ok=false;continue;}
+    if(r&&r.ok===false){
+      console.error('La nube rechazó el catálogo',doc,'—',r.motivo);
+      EMPRESAS.ultimoError=r.motivo;ok=false;continue;
+    }
     let final=json;
     if(r&&r.fusionado&&r.value){
       // Otro equipo escribió en el intermedio: adoptar lo fusionado
       final=r.value;
       parse(r.value).forEach(x=>{
-        if(!x||!x.id)return;
+        if(!x||!x.id||esLapida(x))return;
         const i=EMPRESAS.todas.findIndex(e=>e.id===x.id);
         if(i<0){EMPRESAS.todas.push(x);HOGAR[x.id]=doc;}
       });
@@ -419,11 +488,27 @@ export async function eliminarEmpresa(id,borrarDatos=false){
     if(!nube.ok)throw new Error('No se pudieron borrar los datos en la nube ('+nube.error+'). No se eliminó nada.');
   }
   const era=EMPRESAS.activa===id;
+  const antes={todas:EMPRESAS.todas,hogar:HOGAR[id],activa:EMPRESAS.activa};
   EMPRESAS.todas=EMPRESAS.todas.filter(x=>x.id!==id);
   delete HOGAR[id];
+  // Lápida en el catálogo del dueño: si quedó otra copia (en el maestro), no
+  // vuelve a aparecer.
+  const duenio=correoDe(e);
+  if(duenio){
+    const doc=docUsuario(duenio);
+    if(!LAPIDAS.has(doc))LAPIDAS.set(doc,new Map());
+    LAPIDAS.get(doc).set(id,{id,creadoPor:duenio,nombre:e.nombre||'',eliminada:new Date().toISOString()});
+  }
   aplicarVisibilidad();
   if(era)EMPRESAS.activa=(EMPRESAS.lista[0]||EMPRESAS.todas[0]||{}).id||null;
-  await guardarCatalogo();
+  EMPRESAS.ultimoError=null;
+  if(!(await guardarCatalogo())){
+    // No quedó en la nube: se deshace en pantalla para no mentir
+    EMPRESAS.todas=antes.todas;if(antes.hogar)HOGAR[id]=antes.hogar;EMPRESAS.activa=antes.activa;
+    if(duenio)LAPIDAS.get(docUsuario(duenio))?.delete(id);
+    aplicarVisibilidad();
+    throw new Error('La nube no aceptó el cambio del catálogo'+(EMPRESAS.ultimoError?' ('+EMPRESAS.ultimoError+')':'')+'. La empresa sigue en el listado.');
+  }
   // La ficha de acceso sólo la puede borrar un admin (reglas); la del dueño
   // queda sin empresa detrás y no da acceso a nada.
   if(esAdminActual())borrarACLEmpresa(id);
