@@ -1,5 +1,13 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.21.21 — Eliminar empresas y datos sin uso
+
+- El dueño puede eliminar sus empresas (antes solo admin). Se exige que quede al menos una.
+- Eliminar con datos borra también los documentos `<id>:*` en Firestore (`storage.borrarDatosNubeEmpresa`), antes de tocar la ficha de acceso.
+- Si la nube no se puede limpiar, la operación se aborta sin eliminar nada.
+- Empresas recuperables: nuevo botón Descartar (`descartarHuerfana`).
+- No requiere cambios en `firestore.rules`.
+
 ## V2.21.20 — Catálogo de empresas por usuario
 
 - Requiere publicar las nuevas `firestore.rules` (permiten a cada usuario escribir `_empresas_u:<su email>`).
