@@ -1,5 +1,9 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.21.25 — Sin distintivo de entorno
+
+- `actualizarBadgeEntorno` sólo oculta `#entorno-badge`: el modo es siempre producción desde V2.16.7.
+
 ## V2.21.24 — Tema Claro por defecto
 
 - Ids de tema: `claro` (predeterminado, en `:root`), `dark` (Oscuro), `noche`. `sap-light`/`sap-dark` se traducen solos.

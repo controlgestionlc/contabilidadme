@@ -37,18 +37,13 @@ async function persistir(){
   const r=await window.storage.set(k(),JSON.stringify(PREPRO));
   if(r?.ok===false)throw new Error(r.motivo||'No se pudo guardar configuración de entorno');
 }
+// V2.21.25: el distintivo PRUEBA/PRODUCCIÓN se retiró de la barra superior.
+// Desde V2.16.7 el modo es siempre producción (ver normalizar), así que sólo
+// repetía la misma palabra sin informar nada. Se mantiene la función porque
+// otros módulos la llaman; ahora sólo asegura que el distintivo quede oculto.
 function actualizarBadgeEntorno(){
-  const el=document.getElementById('entorno-badge');if(!el)return;
-  // El estado técnico del entorno es información administrativa. Para el
-  // contador la interfaz se mantiene limpia y enfocada en su empresa.
-  if(AUTH.user?.rol!=='admin'){el.style.display='none';return;}
-  const prod=PREPRO.modo==='produccion';
-  const habil=escrituraPruebaHabilitada();
-  el.textContent=prod?'● PRODUCCIÓN':habil?'● PRUEBA · ESCRITURA':'● PRUEBA · BLOQUEADA';
-  el.style.display='inline-flex';
-  el.style.background=prod?'rgba(46,160,67,.18)':habil?'rgba(210,153,34,.18)':'rgba(248,81,73,.14)';
-  el.style.color=prod?'var(--ok)':'var(--warn)';
-  el.title=prod?'Datos productivos: escrituras habilitadas':'Modo de preproducción: las escrituras de negocio requieren habilitación explícita por sesión';
+  const el=document.getElementById('entorno-badge');
+  if(el)el.style.display='none';
 }
 function claveControl(k0){return /^preproduccion-\d{4}$/.test(k0)||/^piloto-\d{4}$/.test(k0)||/^hardening-/.test(k0)||/^recovery-/.test(k0)||/^_/.test(k0);}
 function autorizarEscrituraEntorno(key){
