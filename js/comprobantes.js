@@ -8,16 +8,13 @@
 // automáticos llevan al origen (Libro de Ventas/Compras/Honorarios) para
 // que se corrijan los documentos que los generaron.
 
-import {fmt, fmtC, MESES, pdcNm, today, toast, rutFmt, dteV, dteC, rutParse, DTE_VENTAS, DTE_COMPRAS, IVA, pn} from './core.js';
-import {S, getCurSec} from './state.js';
+import {fmt, fmtC, MESES, pdcNm, today, toast, rutFmt, dteV, dteC, rutParse, DTE_VENTAS, DTE_COMPRAS, IVA} from './core.js';
+import {S} from './state.js';
 import {nav, rerender} from './ui.js';
-import {genDiario, destinoEdicion, corregirDesdeDiario, editarAsientoRef} from './reportes.js';
-import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux, asegurarFormNuevo} from './asientos.js';
+import {genDiario, destinoEdicion} from './reportes.js';
+import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux} from './asientos.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {logAccion} from './firebase.js';
-import {ejercicioCerrado,persistirAsientosCritico,persistirClavesCritico,anularDocumentoContabilizado,anularAsientoDocumento} from './contabilidad-v2.js';
-import {inferirDteDesdeAsiento} from './dte-autocompletar.js';
-import {abrirEditorPago} from './pagoeditor.js';
 
 // Filtros
 let CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
@@ -41,37 +38,13 @@ function origenLbl(e){
 const attr=t=>String(t||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 
 let CMP_ENTRIES=[];        // cachea las entries actuales para el modal
-let CMP_ALERT_ENTRIES=[];  // descuadres exactos mostrados en la alerta
-let CMP_NUM_ENTRIES=[];    // resultados exactos del buscador por número
 let CMP_MODAL={mode:'view',idx:-1,edit:null};
-
-function mismaEntradaCmp(a,b){
-  if(!a||!b)return false;
-  if(a.asientoId||b.asientoId)return !!a.asientoId&&a.asientoId===b.asientoId;
-  if(a.docId||b.docId)return !!a.docId&&a.docId===b.docId&&a.fuente===b.fuente;
-  if(a.origen==='apertura'||b.origen==='apertura')return a.origen==='apertura'&&b.origen==='apertura';
-  return a.origen===b.origen&&String(a.n)===String(b.n)&&a.fecha===b.fecha&&a.glosa===b.glosa;
-}
-function entradaActualCmp(ref){return genDiario().find(e=>mismaEntradaCmp(e,ref))||null;}
-function abrirEntradaCmp(ref){
-  const actual=entradaActualCmp(ref)||ref;if(!actual)return;
-  CMP_FILTRO.numero=String(actual.n??'');
-  CMP_FILTRO.mes='';CMP_FILTRO.origen='';CMP_FILTRO.texto='';
-  renderCmpNumeroList([]);renderComprobantes();
-  const idx=(CMP_ENTRIES||[]).findIndex(e=>mismaEntradaCmp(e,actual));
-  if(idx>=0)setTimeout(()=>abrirCmpModal(idx),100);
-}
 
 export function renderComprobantes(){
   const cont=document.getElementById('comprobantes-content');
   if(!cont)return;
-  // Comprobantes abre en modo registro: formulario de asiento nuevo listo.
-  // Solo si la sección está a la vista (cerrarForm también llama aquí).
-  const secActual=getCurSec();
-  if(secActual==='comprobantes'||secActual==='asientos')asegurarFormNuevo();
 
   let entries=genDiario();
-  const entriesGlobal=[...entries];
 
   // Filtros
   if(CMP_FILTRO.mes){
@@ -109,17 +82,12 @@ export function renderComprobantes(){
   const cuadraE=e=>{
     const d=e.movs.reduce((s,m)=>s+(m.debe||0),0);
     const h=e.movs.reduce((s,m)=>s+(m.haber||0),0);
-    return Math.abs(d-h)<0.000001;
+    return Math.abs(d-h)<1;
   };
-  const descuadresGlobal=entriesGlobal.filter(e=>!cuadraE(e));
   if(CMP_FILTRO.origen==='descuadrados'){
     entries=entries.filter(e=>!cuadraE(e));
   }
-  // La alerta es global, no depende del filtro visual activo. Así no puede
-  // desaparecer sólo porque el usuario filtró otro mes/origen; se elimina
-  // únicamente cuando el asiento realmente vuelve a cuadrar.
-  const descuadres=descuadresGlobal;
-  CMP_ALERT_ENTRIES=[...descuadres];
+  const descuadres=(CMP_FILTRO.origen==='descuadrados'?entries:entries.filter(e=>!cuadraE(e)));
 
   // Resumen
   const totD=entries.reduce((s,e)=>s+e.movs.reduce((ss,m)=>ss+(m.debe||0),0),0);
@@ -132,23 +100,15 @@ export function renderComprobantes(){
   // Panel de alerta cuando hay descuadres (y no estamos ya filtrando solo por ellos)
   let alerta='';
   if(descuadres.length&&CMP_FILTRO.origen!=='descuadrados'){
-    const botonNumero=(e,i)=>{const n=String(e.n??e.numeroContable??'S/N');return `<button type="button" class="cmp-alert-link" onclick="corregirDescuadreCmp(${i})" title="Abrir y corregir comprobante N° ${attr(n)}">N° ${attr(n)}</button>`;};
-    const detalleNumeros=descuadres.length<=6
-      ? descuadres.map(botonNumero).join(' ')
-      : `${descuadres.slice(0,6).map(botonNumero).join(' ')} <span style="font-size:11px;color:var(--mt)">y ${descuadres.length-6} más</span>`;
     alerta=`<div style="background:rgba(248,81,73,.08);border:1px solid var(--err);border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:16px">⚠️</span>
       <span style="font-weight:700;color:var(--err)">${descuadres.length} comprobante${descuadres.length===1?'':'s'} descuadrado${descuadres.length===1?'':'s'}</span>
-      <span style="font-size:11px;color:var(--mt)">— toca el N° para abrir el origen y corregirlo</span>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1 1 100%;color:var(--err)" aria-label="Números de comprobantes descuadrados">${detalleNumeros}</div>
+      <span style="font-size:11px;color:var(--mt)">— revisa cada asiento y corrige el documento origen</span>
       <button class="btn btn-d" style="font-size:11px;margin-left:auto" onclick="setCmpFiltro('origen','descuadrados')">Ver solo descuadrados</button>
     </div>`;
   }
 
-  let h=alerta+`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <button class="btn btn-p" onclick="abrirNuevoHonorario()" title="Registrar una boleta de honorarios como documento del prestador (proveedor)">📝 Nuevo honorario</button>
-  </div>
-  <div class="filter-row" style="margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+  let h=alerta+`<div class="filter-row" style="margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
     <span class="f-lbl">Filtrar:</span>
     <select onchange="setCmpFiltro('mes',this.value)">${mesOptsCmp()}</select>
     <select onchange="setCmpFiltro('origen',this.value)">
@@ -170,8 +130,7 @@ export function renderComprobantes(){
         style="width:100%">
       <div id="cmp-num-list" class="ac-lista" style="display:none;min-width:280px"></div>
     </div>
-    <input type="search" id="cmp-texto-input" placeholder="Buscar por glosa o cuenta…" autocomplete="off" enterkeyhint="search"
-      value="${CMP_FILTRO.texto.replace(/"/g,'&quot;')}"
+    <input type="text" placeholder="Buscar por glosa o cuenta…" value="${CMP_FILTRO.texto.replace(/"/g,'&quot;')}"
       oninput="setCmpFiltro('texto',this.value)" style="min-width:180px">
     <button class="btn btn-g" onclick="limpiarCmpFiltro()">Limpiar</button>
     <span class="doc-count">${entries.length} comprobantes${cntAp?' · '+cntAp+' apertura':''}${cntAuto?' · '+cntAuto+' automáticos':''}${cntMan?' · '+cntMan+' manuales':''}</span>
@@ -202,27 +161,8 @@ export function renderComprobantes(){
     </div>`;
   }
 
-  // En móvil los comprobantes se presentan como fichas: una tabla de siete
-  // columnas obliga a desplazarse horizontalmente y termina partiendo los
-  // montos en varias líneas. Escritorio conserva la tabla completa.
-  h+='<div class="cmp-mobile-list">';
-  entries.forEach((e,i)=>{
-    const o=origenLbl(e);
-    const d=e.movs.reduce((s,m)=>s+(+m.debe||0),0),a=e.movs.reduce((s,m)=>s+(+m.haber||0),0);
-    const desc=Math.abs(d-a)>=0.000001;
-    const dst=destinoEdicion(e);
-    const accion=dst?`<button class="btn ${desc?'btn-d':'btn-i'} cmp-mobile-action" onclick="event.stopPropagation();${dst.fn}">${desc?'⚠️ Corregir':dst.ic+' '+dst.lbl}</button>`:`<button class="btn btn-g cmp-mobile-action" onclick="event.stopPropagation();abrirCmpModal(${i})">👁 Ver</button>`;
-    h+=`<article class="cmp-mobile-card${desc?' is-error':''}" onclick="abrirCmpModal(${i})">
-      <div class="cmp-mobile-head"><strong>N° ${e.n}</strong><span>${e.fecha}</span><span class="cmp-mobile-origin" style="--cmp-origin:${o.c}">${o.ic} ${o.nm}</span></div>
-      <div class="cmp-mobile-glosa">${e.glosa||'(sin glosa)'}${desc?`<span class="cmp-mobile-error">⚠ Descuadre ${fmtC(Math.abs(d-a))}</span>`:''}</div>
-      <div class="cmp-mobile-money"><div><small>DEBE</small><strong>${fmtC(d)}</strong></div><div><small>HABER</small><strong>${fmtC(a)}</strong></div></div>
-      <div class="cmp-mobile-foot"><span>${e.movs.length} línea${e.movs.length===1?'':'s'}</span>${accion}</div>
-    </article>`;
-  });
-  h+='</div>';
-
-  // Tabla de comprobantes para escritorio/tablet ancho.
-  h+='<div class="card-np cmp-desktop-wrap" style="margin-bottom:14px"><div class="tw"><table class="cmp-desktop-table" style="font-size:12px">';
+  // Tabla de comprobantes
+  h+='<div class="card-np" style="margin-bottom:14px"><div class="tw"><table style="font-size:12px">';
   h+=`<thead><tr>
     <th class="tl" style="width:50px">N°</th>
     <th class="tl" style="width:90px">FECHA</th>
@@ -239,7 +179,7 @@ export function renderComprobantes(){
     const totEH=e.movs.reduce((s,m)=>s+(m.haber||0),0);
     const detId='cmp-det-'+i;
     const anulado=e.anulado?' opacity:.5;text-decoration:line-through;':'';
-    const descuadrado=Math.abs(totED-totEH)>=0.000001;
+    const descuadrado=Math.abs(totED-totEH)>1;
     const estiloFila=(anulado||descuadrado)?` style="${anulado}${descuadrado?'background:rgba(248,81,73,.05);':''}"`:'';
     const estiloTotal=descuadrado?'color:var(--err);font-weight:700':'font-family:var(--mono)';
     const badgeDescuadre=descuadrado
@@ -278,8 +218,8 @@ export function renderComprobantes(){
     <td colspan="4" class="tl" style="font-weight:700">TOTALES</td>
     <td style="text-align:right;font-family:var(--mono);font-weight:700">${fmtC(totD)}</td>
     <td style="text-align:right;font-family:var(--mono);font-weight:700">${fmtC(totH)}</td>
-    <td style="text-align:right;font-size:10px;color:${Math.abs(totD-totH)<0.000001?'var(--ach)':'var(--err)'}">
-      ${Math.abs(totD-totH)<0.000001?'✓ cuadra':'⚠️ diff '+fmtC(Math.abs(totD-totH))}
+    <td style="text-align:right;font-size:10px;color:${Math.abs(totD-totH)<1?'var(--ach)':'var(--err)'}">
+      ${Math.abs(totD-totH)<1?'✓ cuadra':'⚠️ diff '+fmtC(Math.abs(totD-totH))}
     </td>
   </tr></tfoot>`;
   h+='</table></div></div>';
@@ -288,76 +228,8 @@ export function renderComprobantes(){
   CMP_ENTRIES=entries;
 }
 
-// La alerta de descuadres es derivada en tiempo real desde genDiario(): no se
-// guarda como estado. Por eso, al corregir el origen y volver a Comprobantes,
-// el aviso desaparece automáticamente si Debe = Haber. El número es un acceso
-// directo al editor correcto, no una etiqueta pasiva.
-function corregirDescuadreCmp(indice){
-  const ref=CMP_ALERT_ENTRIES[+indice];
-  const e=entradaActualCmp(ref);
-  const numero=ref?.n??'';
-  if(!e){toast('⚠️ El comprobante fue modificado o ya no existe.','e');renderComprobantes();return;}
-  const debe=(e.movs||[]).reduce((s,m)=>s+(+m.debe||0),0);
-  const haber=(e.movs||[]).reduce((s,m)=>s+(+m.haber||0),0);
-  if(Math.abs(debe-haber)<0.000001){toast(`✅ El comprobante N°${numero} ya está cuadrado`);renderComprobantes();return;}
-  if(e.referenciaDoc?.fuente&&e.referenciaDoc?.docId){
-    corregirDesdeDiario(e.referenciaDoc.fuente,e.referenciaDoc.docId);return;
-  }
-  if((e.fuente==='compras'||e.fuente==='ventas')&&e.docId){
-    corregirDesdeDiario(e.fuente,e.docId);return;
-  }
-  if(e.origen==='manual'){
-    editarAsientoRef(e.asientoId||e.numeroContable||e.ref||e.n);return;
-  }
-  if(e.origen==='apertura'){nav('apertura');return;}
-  if(e.fuente==='honorarios'&&e.docId&&window.abrirHonComprobante){
-    window.abrirHonComprobante(e.docId);return;
-  }
-  // Orígenes sin editor específico: abrir el comprobante completo.
-  abrirEntradaCmp(e);
-}
-
-let _cmpTextoTimer=0;
-let _cmpTextoSel={ini:0,fin:0};
-
-function _restaurarFocoCmpTexto(){
-  const el=document.getElementById('cmp-texto-input');
-  if(!el)return;
-  // Volver a enfocar el input recién recreado evita que Android cierre el
-  // teclado al filtrar. preventScroll mantiene estable la lista mientras se
-  // escribe y el cursor vuelve a la misma posición.
-  try{el.focus({preventScroll:true});}catch(_){el.focus();}
-  try{
-    const max=String(el.value||'').length;
-    const ini=Math.min(_cmpTextoSel.ini??max,max);
-    const fin=Math.min(_cmpTextoSel.fin??ini,max);
-    el.setSelectionRange(ini,fin);
-  }catch(_){/* algunos WebView no exponen selectionRange en search */}
-}
-
 function setCmpFiltro(campo,valor){
   CMP_FILTRO[campo]=valor;
-  if(campo==='texto'){
-    const activo=document.activeElement;
-    if(activo&&activo.id==='cmp-texto-input'){
-      _cmpTextoSel={
-        ini:Number.isFinite(activo.selectionStart)?activo.selectionStart:String(valor||'').length,
-        fin:Number.isFinite(activo.selectionEnd)?activo.selectionEnd:String(valor||'').length
-      };
-    }else{
-      const n=String(valor||'').length;
-      _cmpTextoSel={ini:n,fin:n};
-    }
-    clearTimeout(_cmpTextoTimer);
-    // Esperar brevemente permite escribir palabras completas sin reconstruir
-    // el DOM en cada pulsación. Al filtrar se restaura inmediatamente el foco.
-    _cmpTextoTimer=setTimeout(()=>{
-      renderComprobantes();
-      requestAnimationFrame(()=>requestAnimationFrame(_restaurarFocoCmpTexto));
-    },220);
-    return;
-  }
-  clearTimeout(_cmpTextoTimer);
   renderComprobantes();
 }
 
@@ -378,7 +250,7 @@ function cmpNumeroBuscar(q){
     return;
   }
   // Obtener el universo actual de comprobantes del año
-  const todos=genDiario();
+  const todos=(CMP_ENTRIES&&CMP_ENTRIES.length)?CMP_ENTRIES:genDiario();
   const filtrados=todos.filter(e=>String(e.n||'').startsWith(qs)).slice(0,15);
   renderCmpNumeroList(filtrados);
 }
@@ -386,10 +258,9 @@ function cmpNumeroBuscar(q){
 function renderCmpNumeroList(items){
   const box=document.getElementById('cmp-num-list');
   if(!box)return;
-  CMP_NUM_ENTRIES=[...(items||[])];
   if(!items.length){box.style.display='none';box.innerHTML='';return;}
-  box.innerHTML=items.map((e,i)=>`
-    <div class="ac-item" onmousedown="cmpNumeroElegirResultado(${i})">
+  box.innerHTML=items.map(e=>`
+    <div class="ac-item" onmousedown="cmpNumeroElegir(${e.n})">
       <span style="font-family:var(--mono);color:var(--info);font-weight:700">N°${e.n}</span>
       <span style="margin-left:8px;color:var(--mt);font-size:11px">${e.fecha}</span>
       <span style="margin-left:8px">${(e.glosa||'').slice(0,50)}</span>
@@ -397,16 +268,15 @@ function renderCmpNumeroList(items){
   box.style.display='block';
 }
 
-function cmpNumeroElegirResultado(i){
-  const e=CMP_NUM_ENTRIES[+i];if(e)abrirEntradaCmp(e);
-}
-
 function cmpNumeroElegir(n){
-  const candidatos=genDiario().filter(e=>String(e.n)===String(n));
-  // Compatibilidad para llamadas antiguas: si el número está duplicado,
-  // priorizar el que realmente está descuadrado.
-  const e=candidatos.find(x=>{const d=x.movs.reduce((s,m)=>s+(+m.debe||0),0),h=x.movs.reduce((s,m)=>s+(+m.haber||0),0);return Math.abs(d-h)>=0.000001;})||candidatos[0];
-  if(e)abrirEntradaCmp(e);
+  CMP_FILTRO.numero=String(n);
+  CMP_FILTRO.mes=''; CMP_FILTRO.origen=''; CMP_FILTRO.texto='';
+  const box=document.getElementById('cmp-num-list');
+  if(box){box.style.display='none';box.innerHTML='';}
+  renderComprobantes();
+  // Auto-abrir el modal del comprobante elegido
+  const idx=(CMP_ENTRIES||[]).findIndex(e=>+e.n===+n);
+  if(idx>=0)setTimeout(()=>abrirCmpModal(idx),100);
 }
 
 // ── Abrir el comprobante de un registro cualquiera ──
@@ -428,111 +298,11 @@ function abrirComprobantePor(criterio){
   if(!e)return false;
   nav('comprobantes');
   // Un respiro para que la sección esté visible antes de abrir el modal
-  setTimeout(()=>abrirEntradaCmp(e),60);
+  setTimeout(()=>cmpNumeroElegir(e.n),60);
   return true;
 }
 
-// ═══ BUSCADOR DEL ENCABEZADO ═══
-// Busca entre todos los comprobantes del ejercicio por N°, glosa o monto.
-// Al elegir un manual, se carga en el formulario de arriba para editarlo.
-// Los automáticos, los vinculados a un documento y la apertura no se editan
-// en ese formulario, así que se abren en su comprobante (desde ahí se puede
-// ir al documento de origen).
-let CMP_HDR={items:[],sel:-1,universo:null};
-const soloDig=t=>String(t||'').replace(/[^0-9]/g,'');
-function totalAsiento(e){return Math.round(e.movs.reduce((s,m)=>s+(+m.debe||0),0));}
-function editableEnFormulario(e){
-  if(e.origen!=='manual'||!e.asientoId)return false;
-  const f=e.referenciaDoc?.fuente||'';
-  return !(f==='ventas'||f==='compras');
-}
-
-function buscarComprobantesHdr(q,universo){
-  const qs=String(q||'').trim();
-  if(!qs)return[];
-  const qt=qs.toLowerCase();
-  // Es "numérico" si solo trae dígitos, puntos, comas, espacios o $
-  const esNum=/^[\s$.,0-9]+$/.test(qs)&&soloDig(qs).length>0;
-  const qd=esNum?soloDig(qs):'';
-  const res=[];
-  universo.forEach(e=>{
-    let score=null;
-    const nStr=String(e.n??'');
-    const tot=totalAsiento(e);
-    if(esNum){
-      if(nStr===qd)score=0;
-      else if(String(tot)===qd)score=1;
-      else if(e.movs.some(m=>String(Math.round(+m.debe||+m.haber||0))===qd))score=2;
-      else if(nStr.startsWith(qd))score=3;
-      else if(qd.length>=3&&String(tot).includes(qd))score=4;
-    }
-    if(score==null){
-      if((e.glosa||'').toLowerCase().includes(qt))score=5;
-      else if(e.movs.some(m=>(m.desc||'').toLowerCase().includes(qt)||(m.razonSocial||'').toLowerCase().includes(qt)))score=6;
-    }
-    if(score!=null)res.push({e,score});
-  });
-  // Mejor coincidencia primero; a igual puntaje, el más reciente arriba
-  res.sort((a,b)=>a.score-b.score||String(b.e.fecha||'').localeCompare(String(a.e.fecha||''))||(+b.e.n||0)-(+a.e.n||0));
-  return res.slice(0,12).map(r=>r.e);
-}
-
-function cmpHdrBuscar(q){
-  // El universo se calcula una vez por búsqueda y no en cada tecla
-  if(!CMP_HDR.universo||!String(q||'').trim())CMP_HDR.universo=genDiario();
-  CMP_HDR.items=buscarComprobantesHdr(q,CMP_HDR.universo);
-  CMP_HDR.sel=CMP_HDR.items.length?0:-1;
-  renderCmpHdrLista(String(q||'').trim());
-}
-
-function renderCmpHdrLista(q){
-  const box=document.getElementById('cmp-hdr-list');if(!box)return;
-  if(!q){box.style.display='none';box.innerHTML='';return;}
-  if(!CMP_HDR.items.length){
-    box.innerHTML=`<div class="ac-item" style="color:var(--mt);cursor:default">Sin comprobantes que coincidan</div>`;
-    box.style.display='block';return;
-  }
-  box.innerHTML=CMP_HDR.items.map((e,i)=>{
-    const o=origenLbl(e);
-    return `<div class="ac-item${i===CMP_HDR.sel?' sel':''}" onmousedown="cmpHdrElegir(${i})" style="display:flex;align-items:center;gap:8px">
-      <span style="font-family:var(--mono);color:var(--info);font-weight:700;min-width:48px">N°${attr(String(e.n??""))}</span>
-      <span style="font-family:var(--mono);color:var(--mt);font-size:11px">${attr(e.fecha)}</span>
-      <span style="background:${o.c}22;color:${o.c};padding:1px 6px;border-radius:100px;font-size:10px;white-space:nowrap">${o.ic} ${o.nm}</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${attr(e.glosa)}">${attr(e.glosa)}</span>
-      <span style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fmtC(totalAsiento(e))}</span>
-    </div>`;
-  }).join('');
-  box.style.display='block';
-}
-
-function cmpHdrTecla(ev){
-  const n=CMP_HDR.items.length;
-  if(ev.key==='ArrowDown'&&n){ev.preventDefault();CMP_HDR.sel=(CMP_HDR.sel+1)%n;renderCmpHdrLista('x');}
-  else if(ev.key==='ArrowUp'&&n){ev.preventDefault();CMP_HDR.sel=(CMP_HDR.sel-1+n)%n;renderCmpHdrLista('x');}
-  else if(ev.key==='Enter'&&CMP_HDR.sel>=0){ev.preventDefault();cmpHdrElegir(CMP_HDR.sel);}
-  else if(ev.key==='Escape'){cmpHdrCerrar();ev.target.blur();}
-}
-
-function cmpHdrCerrar(){
-  const box=document.getElementById('cmp-hdr-list');
-  if(box){box.style.display='none';box.innerHTML='';}
-  CMP_HDR.universo=null;
-}
-
-function cmpHdrElegir(i){
-  const e=CMP_HDR.items[i];if(!e)return;
-  const inp=document.getElementById('cmp-hdr-q');if(inp){inp.value='';inp.blur();}
-  cmpHdrCerrar();
-  if(editableEnFormulario(e)){
-    editarAsiento(e.asientoId);
-    toast(`✏️ Asiento N°${e.n} cargado para editar`);
-    return;
-  }
-  abrirEntradaCmp(e);
-}
-
 function limpiarCmpFiltro(){
-  clearTimeout(_cmpTextoTimer);
   CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
   renderCmpNumeroList([]);
   renderComprobantes();
@@ -590,8 +360,8 @@ function renderCmpModal(){
 function renderCmpModalView(box,e,o){
   const totD=e.movs.reduce((s,m)=>s+(m.debe||0),0);
   const totH=e.movs.reduce((s,m)=>s+(m.haber||0),0);
-  const cuadra=Math.abs(totD-totH)<0.000001;
-  const editable=e.origen==='manual'||e.origen==='apertura'||e.fuente==='compras'||e.fuente==='ventas'||e.tipo==='pago';
+  const cuadra=Math.abs(totD-totH)<1;
+  const editable=e.origen==='manual'||e.origen==='apertura'||e.fuente==='compras'||e.fuente==='ventas';
 
   box.innerHTML=`
     <div style="padding:16px 20px">
@@ -631,7 +401,7 @@ function renderCmpModalView(box,e,o){
       <div style="display:flex;justify-content:space-between;gap:8px;margin-top:16px;flex-wrap:wrap">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${borrable(e)?`<button class="btn btn-d" onclick="eliminarComprobante()">🗑 Eliminar</button>`:''}
-          ${(e.origen==='manual'||e.tipo==='pago')?`<button class="btn btn-g" onclick="anularComprobante()" title="Mantiene el N° correlativo pero excluye sus efectos">🚫 Anular</button>`:''}
+          ${e.origen==='manual'?`<button class="btn btn-g" onclick="anularComprobante()" title="Mantiene el N° correlativo pero excluye sus efectos">🚫 Anular</button>`:''}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-g" onclick="cerrarCmpModal()">Cerrar</button>
@@ -646,40 +416,16 @@ function renderCmpModalView(box,e,o){
 // contable de un documento del libro. Por eso "eliminar" significa cosas
 // distintas según el origen, y el diálogo lo dice con todas sus letras.
 //
-// Cada comprobante automático de honorarios queda vinculado a una boleta
-// individual; anularlo deriva al flujo de anulación documental con trazabilidad.
+// Honorarios queda fuera: su comprobante resume TODAS las boletas del mes, así
+// que no hay un documento único que borrar — se manda al libro correspondiente.
 function borrable(e){
-  if(e.tipo==='pago')return true;   // pagos/cobros agrupados: eliminables (restauran saldos)
   if(e.origen==='manual'||e.origen==='apertura')return true;
-  return e.origen==='auto'&&['ventas','compras','honorarios'].includes(e.fuente)&&!!e.docId;
+  return e.origen==='auto'&&(e.fuente==='ventas'||e.fuente==='compras')&&!!e.docId;
 }
 
-async function eliminarComprobante(){
+function eliminarComprobante(){
   const e=CMP_ENTRIES[CMP_MODAL.idx];
   if(!e)return;
-
-  // ── Pago / Cobro agrupado ──
-  // El asiento de pago es el registro maestro: los saldos de cada documento se
-  // DERIVAN de él. Al eliminarlo, esos documentos vuelven a quedar pendientes
-  // solos, sin tocar nada más. Es la forma de deshacer un pago mal registrado.
-  if(e.tipo==='pago'){
-    const a=S.asientos.find(x=>x.id===e.asientoId)||S.asientos.find(x=>x.n===e.ref);
-    if(!a){toast('⚠️ No se encontró el asiento de pago','e');return;}
-    if(ejercicioCerrado()){toast('🔒 No se puede eliminar el pago con el ejercicio cerrado.','e');return;}
-    const nDocs=(a.documentos||[]).length;
-    const nComp=a.numeroContable||a.n||'?';
-    if(!confirm(
-      `¿Eliminar "${a.glosa||'pago/cobro'}"?\n\n`+
-      `Se borra por completo y ${nDocs} documento${nDocs===1?'':'s'} vuelve${nDocs===1?'':'n'} a quedar pendiente${nDocs===1?'':'s'}.\n`+
-      `El N° ${nComp} queda libre y el correlativo pierde continuidad.\n`+
-      `Si prefieres conservar el N°, usa "Anular" en vez de eliminar.\n\n`+
-      `Esta acción no se puede deshacer.`))return;
-    const r=await persistirAsientosCritico(()=>{S.asientos=S.asientos.filter(x=>x!==a);});
-    if(!r.ok){toast('❌ No se pudo eliminar el pago. No se realizaron cambios.','e');return;}
-    logAccion('Eliminó pago/cobro',`${a.glosa||''} — ${nDocs} doc · N°${nComp}`);
-    cerrarCmpModal();rerender();toast('🗑 Pago eliminado — los documentos vuelven a quedar pendientes');
-    return;
-  }
 
   // ── Manual ──
   if(e.origen==='manual'){
@@ -691,8 +437,8 @@ async function eliminarComprobante(){
       `El N° ${a.n} queda libre y el correlativo pierde continuidad.\n`+
       `Si lo que quieres es dejar constancia, usa "Anular" en vez de eliminar.\n\n`+
       `Esta acción no se puede deshacer.`))return;
-    const r=await persistirAsientosCritico(()=>{S.asientos=S.asientos.filter(x=>x!==a);});
-    if(!r.ok){toast('❌ No se pudo eliminar el asiento. No se realizaron cambios.','e');return;}
+    S.asientos=S.asientos.filter(x=>x!==a);
+    window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
     logAccion('Eliminó asiento',`N°${a.n} — ${a.glosa}`);
     cerrarCmpModal();rerender();toast('🗑 Asiento eliminado');
     return;
@@ -705,11 +451,8 @@ async function eliminarComprobante(){
       `Es el asiento N°0 del ejercicio: se van sus ${e.movs.length} líneas y con ellas\n`+
       `los saldos iniciales del Mayor, el Balance y los auxiliares.\n\n`+
       `Esta acción no se puede deshacer.`))return;
-    if(ejercicioCerrado()){toast('🔒 No se puede eliminar la apertura con el ejercicio cerrado.','e');return;}
-    const snap=JSON.stringify(S.apertura);
     S.apertura=null;
-    try{const r=await window.storage.delete('apertura-'+S.empresa.anio);if(r&&r.ok===false)throw new Error(r.motivo||'fallo-persistencia');}
-    catch(err){S.apertura=JSON.parse(snap);toast('❌ No se pudo eliminar la apertura. No se realizaron cambios.','e');return;}
+    window.storage.delete('apertura-'+S.empresa.anio).catch(()=>{});
     logAccion('Eliminó apertura',`Ejercicio ${S.empresa.anio}`);
     cerrarCmpModal();rerender();toast('🗑 Balance de apertura eliminado');
     return;
@@ -730,18 +473,25 @@ async function eliminarComprobante(){
       `   ${fmtC(d.total||0)}\n\n`+
       `Se borra del ${libro} y de todos los reportes.\n`+
       `Esta acción no se puede deshacer.`))return;
-    const rr=await anularDocumentoContabilizado(e.fuente,d,lista);
-    if(!rr.ok){toast('❌ No se pudo anular el documento. No se realizaron cambios.','e');return;}
+    if(esVenta){
+      S.ventas=S.ventas.filter(x=>x.id!==e.docId);
+      window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas)).catch(()=>{});
+    }else{
+      S.compras=S.compras.filter(x=>x.id!==e.docId);
+      window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras)).catch(()=>{});
+    }
     logAccion('Eliminó documento',`${libro} — N°${d.numero} ${d.razonSocial||''}`);
-    cerrarCmpModal();rerender();toast('🚫 Documento anulado — se conserva la trazabilidad y el comprobante deja de afectar la contabilidad');
+    cerrarCmpModal();rerender();toast('🗑 Documento eliminado — el comprobante ya no se genera');
     return;
   }
 
-  // ── Honorarios: cada boleta y su pago tienen comprobantes vinculados ──
+  // ── Honorarios: resumen mensual, sin documento único ──
   if(e.fuente==='honorarios'){
-    cerrarCmpModal();
-    if(e.docId)window.anularHonDesdeComprobante?.(e.docId);
-    else nav('honorarios');
+    if(confirm(
+      `Este comprobante resume TODAS las boletas de honorarios del mes,\n`+
+      `así que no hay un documento único que eliminar.\n\n`+
+      `¿Quieres ir al libro de Honorarios para borrar las boletas que\n`+
+      `correspondan?`)){cerrarCmpModal();nav('honorarios');}
     return;
   }
 
@@ -750,35 +500,24 @@ async function eliminarComprobante(){
 
 // Anular deja el N° en su sitio y excluye los efectos: es lo correcto en
 // contabilidad, donde el correlativo no debería tener huecos.
-async function anularComprobante(){
+function anularComprobante(){
   const e=CMP_ENTRIES[CMP_MODAL.idx];
-  if(!e||(e.origen!=='manual'&&e.tipo!=='pago'))return;
-  const a=S.asientos.find(x=>x.id===e.asientoId)||S.asientos.find(x=>x.n===e.ref)||S.asientos.find(x=>x.folioComp===e.n);
+  if(!e||e.origen!=='manual')return;
+  const a=S.asientos.find(x=>x.n===e.ref)||S.asientos.find(x=>x.folioComp===e.n);
   if(!a){toast('⚠️ No se encontró el asiento de origen','e');return;}
-  const nComp=a.numeroContable||a.n||'';
-  const esPago=a.tipo==='pago';
-  const nDocs=(a.documentos||[]).length;
-  const msg=esPago
-    ? `¿Anular "${a.glosa||'pago/cobro'}"?\n\n`+
-      `NO borra el N° ${nComp} — el correlativo queda intacto y sin huecos —\n`+
-      `pero deja de afectar la contabilidad y ${nDocs} documento${nDocs===1?'':'s'} vuelve${nDocs===1?'':'n'} a\n`+
-      `quedar pendiente${nDocs===1?'':'s'} de pago/cobro.\n\n`+
-      `Si en cambio quieres borrarlo por completo, usa "Eliminar".`
-    : `¿Anular el asiento N°${a.n}?\n\n`+
-      `"${a.glosa||'(sin glosa)'}"\n\n`+
-      `NO borra el N° ${a.n} — el correlativo queda intacto — pero sus montos\n`+
-      `dejan de sumar en el Mayor, el Balance y los auxiliares.\n\n`+
-      `Como el libro diario excluye los anulados, el comprobante deja de\n`+
-      `aparecer en esta lista. Queda visible y se puede reactivar desde\n`+
-      `"Asientos Manuales".`;
-  if(!confirm(msg))return;
-  const r=await persistirAsientosCritico(()=>{a.anulado=true;a.anuladoEn=new Date().toISOString();});
-  if(!r.ok){toast('❌ No se pudo anular el asiento. No se realizaron cambios.','e');return;}
-  logAccion(esPago?'Anuló pago/cobro':'Anuló asiento',`N°${nComp||a.n} — ${a.glosa}`);
+  if(!confirm(
+    `¿Anular el asiento N°${a.n}?\n\n`+
+    `"${a.glosa||'(sin glosa)'}"\n\n`+
+    `NO borra el N° ${a.n} — el correlativo queda intacto — pero sus montos\n`+
+    `dejan de sumar en el Mayor, el Balance y los auxiliares.\n\n`+
+    `Como el libro diario excluye los anulados, el comprobante deja de\n`+
+    `aparecer en esta lista. Queda visible y se puede reactivar desde\n`+
+    `"Asientos Manuales".`))return;
+  a.anulado=true;
+  window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
+  logAccion('Anuló asiento',`N°${a.n} — ${a.glosa}`);
   cerrarCmpModal();rerender();
-  toast(esPago
-    ?'🚫 Pago anulado — los documentos vuelven a quedar pendientes'
-    :'🚫 Asiento N°'+a.n+' anulado — reactivable desde Asientos Manuales');
+  toast('🚫 Asiento N°'+a.n+' anulado — reactivable desde Asientos Manuales');
 }
 
 function renderCmpModalEdit(box,e,o){
@@ -786,7 +525,7 @@ function renderCmpModalEdit(box,e,o){
   const totD=ed.movs.reduce((s,m)=>s+(+m.debe||0),0);
   const totH=ed.movs.reduce((s,m)=>s+(+m.haber||0),0);
   const dif=totD-totH;
-  const cuadra=Math.abs(dif)<0.000001;
+  const cuadra=Math.abs(dif)<1;
 
   const filas=ed.movs.map((m,i)=>{
     const busc=inputCuenta({
@@ -880,8 +619,8 @@ function renderCmpModalEdit(box,e,o){
 
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
         <button class="btn btn-g" onclick="cmpModalCancelar()">Cancelar</button>
-        <button data-btn-guardar class="btn ${cuadra?'btn-p':'btn-g'}" onclick="cmpModalGuardar()" ${cuadra?'':'disabled'} title="${cuadra?'Guardar cambios':'Cuadra el Debe y Haber antes de guardar'}">
-          💾 ${cuadra?'Guardar cambios':'Cuadrar para guardar'}
+        <button data-btn-guardar class="btn ${cuadra?'btn-p':'btn-w'}" onclick="cmpModalGuardar()" title="${cuadra?'Guardar cambios':'Guardar pese al descuadre (aparecerá en el reporte de descuadres)'}">
+          💾 ${cuadra?'Guardar cambios':'Guardar (descuadra)'}
         </button>
       </div>
     </div>`;
@@ -890,18 +629,6 @@ function renderCmpModalEdit(box,e,o){
 function cmpModalEditar(){
   const e=CMP_ENTRIES[CMP_MODAL.idx];
   if(!e)return;
-  // Los comprobantes de pago/cobro tienen su propio editor dedicado, que
-  // mantiene la referencia documento↔pago y recalcula el banco.
-  if(e.tipo==='pago'){cerrarCmpModal();abrirEditorPago(e.asientoId||e.ref);return;}
-  // Los documentos se corrigen en su origen y regeneran EL MISMO asiento.
-  // Nunca convertir la edición en un alta manual con otro número.
-  const rd=e.referenciaDoc;
-  const fuente=rd?.fuente||e.fuente,docId=rd?.docId||e.docId;
-  if(['compras','ventas'].includes(fuente)&&docId){
-    cerrarCmpModal();
-    corregirDesdeDiario(fuente,docId);
-    return;
-  }
   CMP_MODAL.mode='edit';
 
   // Si el comprobante viene de un doc de compras/ventas, buscamos ese doc
@@ -916,10 +643,7 @@ function cmpModalEditar(){
     glosa:e.glosa||'',
     fecha:e.fecha||today(),
     movs:e.movs.map(m=>{
-      // Conservar centro de costo, docId, tributo, auxiliar y cualquier otro
-      // metadato de la línea. Perderlos hacía que un asiento visualmente
-      // cuadrado fuera rechazado por la validación central al guardar.
-      const linea={...m,
+      const linea={
         cd:m.cd||'',
         nm:m.nm||pdcNm(m.cd)||'',
         desc:m.desc||'',
@@ -1035,7 +759,7 @@ function actualizarBarraCuadre(){
   const totD=ed.movs.reduce((s,m)=>s+(+m.debe||0),0);
   const totH=ed.movs.reduce((s,m)=>s+(+m.haber||0),0);
   const dif=totD-totH;
-  const cuadra=Math.abs(dif)<0.000001;
+  const cuadra=Math.abs(dif)<1;
   const barra=box.querySelector('[data-cuadre-bar]');
   if(barra){
     barra.style.background=cuadra?'rgba(46,160,67,.08)':'rgba(248,81,73,.08)';
@@ -1048,10 +772,9 @@ function actualizarBarraCuadre(){
   // Actualizar botón guardar
   const btnG=box.querySelector('[data-btn-guardar]');
   if(btnG){
-    btnG.className='btn '+(cuadra?'btn-p':'btn-g');
-    btnG.textContent=cuadra?'💾 Guardar cambios':'💾 Cuadrar para guardar';
-    btnG.title=cuadra?'Guardar cambios':'Cuadra el Debe y Haber antes de guardar';
-    btnG.disabled=!cuadra;
+    btnG.className='btn '+(cuadra?'btn-p':'btn-w');
+    btnG.textContent=cuadra?'💾 Guardar cambios':'💾 Guardar (descuadra)';
+    btnG.title=cuadra?'Guardar cambios':'Guardar pese al descuadre';
   }
 }
 function addCmpEdLinea(){
@@ -1069,22 +792,22 @@ async function cmpModalGuardar(){
   if(!ed)return;
   const e=CMP_ENTRIES[CMP_MODAL.idx];
   if(!e)return;
-  if((['compras','ventas'].includes(e.fuente)&&e.docId)||e.referenciaDoc?.docId){
-    toast('Los comprobantes vinculados se guardan desde su documento de origen.','e');
-    return;
-  }
-  if(ejercicioCerrado()){
-    toast('🔒 El ejercicio está cerrado. Reabre antes de modificar comprobantes.','e');
-    return;
-  }
 
-  // La puerta contable central no admite persistir asientos descuadrados. El
-  // editor debe comunicar la misma regla y conservar el formulario abierto.
+  // Validación de cuadratura: si descuadra, pedir confirmación en vez de rechazar.
+  // Esto permite guardar en pasos intermedios mientras se corrige la distribución
+  // o los datos DTE, sin perder los cambios hechos.
   const totD=ed.movs.reduce((s,m)=>s+(+m.debe||0),0);
   const totH=ed.movs.reduce((s,m)=>s+(+m.haber||0),0);
   const dif=totD-totH;
-  if(Math.abs(dif)>=0.000001){
-    toast(`⚠️ No se puede guardar: falta cuadrar ${fmtC(Math.abs(dif))}. Los cambios permanecen abiertos para corregirlos.`,'e');return;
+  if(Math.abs(dif)>1){
+    const conf=confirm(
+      `⚠️ El asiento no cuadra:\n\n`+
+      `  DEBE:  ${new Intl.NumberFormat('es-CL').format(Math.round(totD))}\n`+
+      `  HABER: ${new Intl.NumberFormat('es-CL').format(Math.round(totH))}\n`+
+      `  DIFERENCIA: ${new Intl.NumberFormat('es-CL').format(Math.abs(Math.round(dif)))}\n\n`+
+      `¿Guardar de todas formas? Aparecerá en el reporte de descuadres del libro diario y podrás corregirlo después.`
+    );
+    if(!conf)return;
   }
   // Requerir cuenta en todas las líneas con monto
   const sinCuenta=ed.movs.filter(m=>(m.debe||m.haber)&&!m.cd);
@@ -1094,10 +817,11 @@ async function cmpModalGuardar(){
   }
   // Filtrar líneas vacías (preservando los datos DTE en cuentas auxiliares)
   const movsClean=ed.movs.filter(m=>m.cd&&(m.debe||m.haber)).map(m=>{
-    const mv={...m,
+    const mv={
       cd:m.cd, nm:pdcNm(m.cd), desc:m.desc||'',
       debe:+m.debe||0, haber:+m.haber||0,
     };
+    if(m.dte)mv.dte=m.dte;
     return mv;
   });
   if(movsClean.length<2){
@@ -1106,29 +830,68 @@ async function cmpModalGuardar(){
   }
 
   if(e.origen==='manual'){
-    const a=S.asientos.find(x=>x.id===e.asientoId)||S.asientos.find(x=>+x.numeroContable===+e.n)||S.asientos.find(x=>x.n===e.ref);
+    // Editar el asiento manual existente
+    const a=S.asientos.find(x=>x.n===e.ref);
     if(!a){toast('❌ No se encontró el asiento manual','e');return;}
-    try{
-      const r=await persistirAsientosCritico(async()=>{
-        const actual=S.asientos.find(x=>x.id===a.id);
-        if(!actual)throw new Error('asiento no encontrado');
-        actual.glosa=ed.glosa;actual.fecha=ed.fecha;actual.movs=movsClean;
-        return actual;
-      });
-      if(!r?.ok)throw new Error(r?.motivo||'fallo-persistencia');
-    }catch(err){toast(`❌ No se pudo guardar el asiento: ${err.message||'validación contable'}`,'e');return;}
+    a.glosa=ed.glosa;
+    a.fecha=ed.fecha;
+    a.movs=movsClean;
+    await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
     logAccion('Editó asiento manual desde Comprobantes',`N°${e.n} · ${ed.glosa}`);
     toast(`✅ Asiento N°${e.n} actualizado`);
   }else if(e.origen==='apertura'){
-    const snap=JSON.stringify(S.apertura||null);
+    // Editar el balance de apertura
     if(!S.apertura)S.apertura={};
-    S.apertura.glosa=ed.glosa;S.apertura.fecha=ed.fecha;S.apertura.movs=movsClean;
-    try{
-      const r=await window.storage.set('apertura-'+S.empresa.anio,JSON.stringify(S.apertura));
-      if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia');
-    }catch(err){S.apertura=JSON.parse(snap);toast('❌ No se pudo guardar la apertura. No se aplicaron cambios.','e');return;}
+    S.apertura.glosa=ed.glosa;
+    S.apertura.fecha=ed.fecha;
+    S.apertura.movs=movsClean;
+    await window.storage.set('apertura-'+S.empresa.anio,JSON.stringify(S.apertura)).catch(()=>{});
     logAccion('Editó balance de apertura desde Comprobantes',ed.glosa);
     toast('✅ Balance de apertura actualizado');
+  }else if(e.fuente==='compras'||e.fuente==='ventas'){
+    // Convertir asiento automático a manual: crea un asiento manual con las
+    // líneas actuales y marca el documento origen como excluido de la generación
+    // automática (excluidoAuto:true). El resumen agregado del mes ya no lo tomará.
+    const arr=e.fuente==='compras'?S.compras:S.ventas;
+    const doc=arr.find(x=>x.id===e.docId);
+    if(doc){
+      doc.excluidoAuto=true;
+      // Si el usuario editó los datos DTE en alguna línea auxiliar, propagar
+      // esos cambios al documento origen para mantener consistencia con el
+      // libro de compras/ventas y auxiliares.
+      const movAux=movsClean.find(m=>m.dte&&m.dte.rutCodigo);
+      if(movAux){
+        const d=movAux.dte;
+        if(d.fecha)doc.fecha=d.fecha;
+        if(d.fechaVencimiento)doc.fechaVencimiento=d.fechaVencimiento;
+        if(d.tipoDTE)doc.tipoDTE=+d.tipoDTE;
+        if(d.numero)doc.numero=String(d.numero);
+        if(d.rutCodigo)doc.rutCodigo=d.rutCodigo;
+        if(d.rutDV)doc.rutDV=d.rutDV;
+        if(d.razonSocial)doc.razonSocial=d.razonSocial;
+        if(d.neto!==undefined)doc.neto=+d.neto||0;
+        if(d.exento!==undefined)doc.exento=+d.exento||0;
+        if(d.iva!==undefined)doc.iva=+d.iva||0;
+        if(d.otrosImpuestos!==undefined)doc.otrosImpuestos=+d.otrosImpuestos||0;
+        if(d.total!==undefined)doc.total=+d.total||0;
+      }
+    }
+    // Crear asiento manual
+    if(!S.asientos)S.asientos=[];
+    const n=proxFolioAsiento();
+    S.asientos.push({
+      id:'a_'+Date.now(),
+      n,
+      fecha:ed.fecha,
+      glosa:ed.glosa,
+      movs:movsClean,
+      referenciaDoc:{fuente:e.fuente,docId:e.docId,tipoDTE:e.tipoDTE,folio:e.folio,rutCodigo:e.rutCodigo},
+    });
+    // Guardar
+    if(doc)await window.storage.set(e.fuente+'-'+S.empresa.anio,JSON.stringify(arr)).catch(()=>{});
+    await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
+    logAccion(`Convertió comprobante auto (${e.fuente}) a manual`,`${e.glosa} → asiento N°${n}`);
+    toast(`✅ Comprobante convertido a asiento manual N°${n}`);
   }
   cerrarCmpModal();
   rerender();
@@ -1143,32 +906,31 @@ async function cmpModalGuardar(){
 //
 // Es un modal secundario que se abre sobre el editor principal.
 
-let CMP_DTE={lineaIdx:-1,dte:null,tipoAux:'',autoBase:false};
+let CMP_DTE={lineaIdx:-1,dte:null,tipoAux:''};
 
 function abrirCmpEdDte(lineaIdx){
   const l=CMP_MODAL.edit.movs[lineaIdx];
   if(!l||!l.cd)return;
   const tipoAux=CUENTAS_AUX[l.cd];
   if(!tipoAux)return;
-  const base=l.dte?{...l.dte}:{
-    fecha:CMP_MODAL.edit.fecha||today(),
-    fechaVencimiento:'',
-    tipoDTE:'', numero:'',
-    rutCodigo:'', rutDV:'', razonSocial:'',
-    neto:0, exento:0, iva:0, otrosImpuestos:0, retencion:0, total:0,
+  CMP_DTE={
+    lineaIdx,
+    tipoAux,
+    dte:l.dte?{...l.dte}:{
+      fecha:CMP_MODAL.edit.fecha||today(),
+      fechaVencimiento:'',
+      tipoDTE:'', numero:'',
+      rutCodigo:'', rutDV:'', razonSocial:'',
+      neto:0, exento:0, iva:0, otrosImpuestos:0, retencion:0, total:0,
+    },
   };
-  const autoBase=!(Number(l.dte?.neto)||Number(l.dte?.exento));
-  CMP_DTE={lineaIdx,tipoAux,autoBase,dte:inferirDteDesdeAsiento({
-    movs:CMP_MODAL.edit.movs,lineaIdx,tipoAux,tipoDTE:base.tipoDTE,
-    actual:base,fecha:CMP_MODAL.edit.fecha||today(),glosa:CMP_MODAL.edit.glosa||''
-  })};
   document.getElementById('cmp-dte-modal').classList.add('open');
   renderCmpDteModal();
 }
 
 function cerrarCmpEdDte(){
   document.getElementById('cmp-dte-modal').classList.remove('open');
-  CMP_DTE={lineaIdx:-1,dte:null,tipoAux:'',autoBase:false};
+  CMP_DTE={lineaIdx:-1,dte:null,tipoAux:''};
 }
 
 function renderCmpDteModal(){
@@ -1212,7 +974,7 @@ function renderCmpDteModal(){
           <input type="text" id="cmpdte-razon" value="${(d.razonSocial||'').replace(/"/g,'&quot;')}" oninput="setCmpDteCampo('razonSocial',this.value)"></div>
 
         <div class="grp"><label>Tipo de documento</label>
-          <select id="cmpdte-tipo" onchange="setCmpDteTipo(+this.value)">${dteOpts}</select></div>
+          <select id="cmpdte-tipo" onchange="setCmpDteCampo('tipoDTE',+this.value)">${dteOpts}</select></div>
         <div class="grp"><label>Folio / N° documento</label>
           <input type="text" id="cmpdte-numero" value="${d.numero||''}" oninput="setCmpDteCampo('numero',this.value)"></div>
       </div>
@@ -1222,23 +984,23 @@ function renderCmpDteModal(){
         <div class="fg">
           ${esHono?`
           <div class="grp"><label>Bruto (base honorarios)</label>
-            <input type="number" class="money-input" id="cmpdte-neto" value="${d.neto||''}" oninput="setCmpDteCampo('neto',pn(this.value))"></div>
+            <input type="number" id="cmpdte-neto" value="${d.neto||''}" oninput="setCmpDteCampo('neto',+this.value)"></div>
           <div class="grp"><label>Retención</label>
-            <input type="number" class="money-input" id="cmpdte-ret" value="${d.retencion||''}" oninput="setCmpDteCampo('retencion',pn(this.value))"></div>
+            <input type="number" id="cmpdte-ret" value="${d.retencion||''}" oninput="setCmpDteCampo('retencion',+this.value)"></div>
           `:`
           <div class="grp"><label>Neto</label>
-            <input type="number" class="money-input" id="cmpdte-neto" value="${d.neto||''}" oninput="setCmpDteCampo('neto',pn(this.value));cmpDteAutoTotal()"></div>
+            <input type="number" id="cmpdte-neto" value="${d.neto||''}" oninput="setCmpDteCampo('neto',+this.value);cmpDteAutoTotal()"></div>
           <div class="grp"><label>Exento</label>
-            <input type="number" class="money-input" id="cmpdte-exento" value="${d.exento||''}" oninput="setCmpDteCampo('exento',pn(this.value));cmpDteAutoTotal()"></div>
+            <input type="number" id="cmpdte-exento" value="${d.exento||''}" oninput="setCmpDteCampo('exento',+this.value);cmpDteAutoTotal()"></div>
           <div class="grp"><label>IVA</label>
-            <input type="number" class="money-input" id="cmpdte-iva" value="${d.iva||''}" oninput="setCmpDteCampo('iva',pn(this.value));cmpDteAutoTotal()"></div>
+            <input type="number" id="cmpdte-iva" value="${d.iva||''}" oninput="setCmpDteCampo('iva',+this.value);cmpDteAutoTotal()"></div>
           <div class="grp"><label>Otros impuestos / Retención</label>
-            <input type="number" class="money-input" id="cmpdte-otros" value="${d.otrosImpuestos||d.retencion||''}" oninput="setCmpDteCampo('otrosImpuestos',pn(this.value));cmpDteAutoTotal()"></div>
+            <input type="number" id="cmpdte-otros" value="${d.otrosImpuestos||d.retencion||''}" oninput="setCmpDteCampo('otrosImpuestos',+this.value);cmpDteAutoTotal()"></div>
           `}
           <div class="grp full"><label style="font-weight:700">Total documento</label>
-            <input type="number" class="money-input" id="cmpdte-total" style="font-weight:700;font-size:14px" value="${d.total||''}" oninput="setCmpDteCampo('total',pn(this.value))"></div>
+            <input type="number" id="cmpdte-total" style="font-weight:700;font-size:14px" value="${d.total||''}" oninput="setCmpDteCampo('total',+this.value)"></div>
         </div>
-        ${!esHono?`<div style="font-size:10px;color:var(--mt);margin-top:6px">💡 Neto, IVA, exento, otros impuestos y total se completan desde las líneas del asiento cuando es posible. Normalmente sólo debes elegir el tipo de DTE y la fecha de vencimiento; puedes ajustar un valor si el documento real tiene una situación especial.</div>`:''}
+        ${!esHono?`<div style="font-size:10px;color:var(--mt);margin-top:6px">💡 El total se recalcula automáticamente al editar neto/exento/IVA. Puedes ajustarlo manualmente si hay diferencias con el documento real.</div>`:''}
       </div>
 
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
@@ -1250,25 +1012,7 @@ function renderCmpDteModal(){
 
 function setCmpDteCampo(campo,valor){
   if(!CMP_DTE.dte)return;
-  if(campo==='neto'||campo==='exento')CMP_DTE.autoBase=false;
   CMP_DTE.dte[campo]=valor;
-}
-function setCmpDteTipo(valor){
-  if(!CMP_DTE.dte)return;
-  const tipoDTE=+valor||0;
-  CMP_DTE.dte.tipoDTE=tipoDTE;
-  // Si Neto/Exento fueron inferidos automáticamente al abrir el DTE, no los
-  // tratamos como dato definitivo: al escoger el tipo SII los reconstruimos
-  // para que una factura afecta vaya a Neto y una exenta a Exento. Si el
-  // usuario ya editó manualmente alguno de ambos campos, se respeta su valor.
-  const actual={...CMP_DTE.dte,tipoDTE};
-  if(CMP_DTE.autoBase){actual.neto=0;actual.exento=0;}
-  CMP_DTE.dte=inferirDteDesdeAsiento({
-    movs:CMP_MODAL.edit?.movs||[],lineaIdx:CMP_DTE.lineaIdx,tipoAux:CMP_DTE.tipoAux,
-    tipoDTE,actual,
-    fecha:CMP_MODAL.edit?.fecha||today(),glosa:CMP_MODAL.edit?.glosa||''
-  });
-  renderCmpDteModal();
 }
 function setCmpDteRut(txt){
   if(!CMP_DTE.dte)return;
@@ -1306,10 +1050,10 @@ function guardarCmpEdDte(){
   toast('✅ Datos del documento actualizados');
 }
 
-export {buscarComprobantesHdr, cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, abrirComprobantePor, corregirDescuadreCmp,
+export {abrirComprobantePor,
         setCmpFiltro, limpiarCmpFiltro, toggleCmpDet,
-        cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, mismaEntradaCmp,
+        cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
         eliminarComprobante, anularComprobante,
         setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
-        abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte};
+        abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte};

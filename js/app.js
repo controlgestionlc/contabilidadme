@@ -1,17 +1,14 @@
-import {resumenMonitorFS, reiniciarMonitorFS} from './monitorfs.js';
-import {initActualizador, verificarActualizacion} from './actualizador.js';
 // app.js — Orquestador: routing, arranque y puente con el HTML.
 // Importa todos los módulos, registra los callbacks de ui.js/auth.js
 // y expone al scope global las funciones usadas por los onclick del HTML.
 
 import {toast, fmtC, MESES, PDC, recalcDerivadasPDC, pn} from './core.js';
-import {normalizarPDC,asegurarCuentasSistema} from './pdc-reglas.js';
 import {S, AUTH, getCurSec, setCurSec} from './state.js';
 import {FS, initFirestore, logAccion} from './firebase.js';
 import './storage.js';
 import {registrarUI} from './ui.js';
 import {initTema, cambiarTema, aplicarTema} from './tema.js';
-import {EMPRESAS, MARCOS, marcoInfo, cargarEmpresas, empresaActiva, crearEmpresa,
+import {EMPRESAS, MARCOS, marcoInfo, cargarEmpresas, empresaActiva, crearEmpresa, asegurarAccesoEmpresa,
         eliminarEmpresa, actualizarEmpresa, activarEmpresa, migrarSiHaceFalta,
         aplicarVisibilidad, puedeVerEmpresa} from './empresas.js';
 import {renderEmpresas, abrirFormEmpresa, cerrarFormEmpresa, editarEmpresaCat,
@@ -22,16 +19,12 @@ import {renderEmpresas, abrirFormEmpresa, cerrarFormEmpresa, editarEmpresaCat,
 // Sistema
 import {initAuth, puedeVer, puedeEditar, esAdmin, ROLES, SECCIONES, permisosDeRol,
         toggleLoginMode, submitLogin, recuperarPassword, mostrarLogin, logout,
-        aplicarPermisosUI, setOnAuthReady} from './auth.js';
+        aplicarPermisosUI, setOnAuthReady,
+        sesionPersistente, setSesionPersistente} from './auth.js';
 import {cargarUsuarios, renderUsuarios, abrirInvitarUsuario, editarUsuario,
         renderPermisosForm, cerrarUsuarioForm, guardarUsuario, aprobarUsuario,
         desactivarUsuario, US} from './usuarios.js';
 import {renderAuditLog} from './audit.js';
-import {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI} from './integridad.js';
-import {renderCierresMensuales,cerrarMesContableOperativo,reabrirMesContableOperativo} from './cierres-mensuales.js';
-import {initRecovery} from './recovery.js';
-import {cargarPreproduccion,actualizarBadgeEntorno,setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion} from './preproduccion.js';
-import {cargarPiloto} from './piloto.js';
 
 // Configuración y datos
 import {fillEmpresaForm, saveEmpresa, updateHdr, aplicarRegimenEmpresa,
@@ -44,10 +37,8 @@ import {renderIndicadores, guardarIndicadores, restaurarIndicadoresDefault,
 import {renderPrevisional, guardarPrevisional, restaurarPrevisional} from './previsional-ui.js';
 import {acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
         axAcBuscar, axAcTecla, axAcElegir, axAcCerrar} from './buscadorcuentas.js';
-import {prAcBuscar, prAcTecla, prAcElegir, prAcCerrarDif} from './buscadorproductos.js';
-import {initAvisoSalida, marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados,
-        guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, recordarNav, ultimaSeccion, olvidarNav,
-        listarBorradoresLocales, descartarBorradorLocal, descartarTodosBorradoresLocales, continuarBorradorLocal} from './salida.js';
+import {initAvisoSalida, marcarGuardado, marcarSucio, haySinGuardar,
+        recordarNav, ultimaSeccion, olvidarNav} from './salida.js';
 import {initAutoguardado, actualizarBotonGuardar, guardarTodoAhora, setAutoguardado,
         setIntervaloAutoguardado, confirmarSalida, AG} from './autoguardado.js';
 import {cargarFichasAux, descargarPlantillaAux, abrirImportFichas,
@@ -70,22 +61,11 @@ import {renderCargaDatos, descargarPlantillaDatos, abrirCargaDatos,
         initCargaDatosListener, CD} from './cargadatos.js';
 import {renderSistema} from './sistema.js';
 import {DISPOSITIVO, renombrarDispositivo} from './dispositivo.js';
+import {diagnosticarSeguridad, prepararAislamiento, repararAccesos, repararDocumentos} from './seguridad.js';
 import {initAyuda, toggleAyuda, actualizarAyuda, ayudaAlNavegar} from './ayuda.js';
 import {renderInicio, abrirEmpresaInicio} from './inicio.js';
 import {abrirReporteAux, cerrarReporteAux, setReporteAuxVista, renderReporteAux,
         imprimirReporteAux, exportarReporteAuxExcel} from './auxreporte.js';
-import {cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
-        invAbrirGrupo,invGuardarGrupo,invAbrirBodega,invGuardarBodega,
-        invAbrirProducto,invActualizarSubgrupos,invGuardarProducto,
-        invDescargarPlantillaProductos,invAbrirImportProductos,invLeerProductosExcel,invAplicarImportProductos,
-        invNuevoMovimiento,invMovCampo,invMovLineaCampo,invMovAgregarLinea,invMovQuitarLinea,
-        invGuardarMovimiento,invVerMovimiento,invAnularMovimiento,invEditarMovimiento,
-        invNuevaToma,invCrearToma,invAbrirToma,invVolverTomas,invSetFisicoToma,invSetCostoToma,
-        invAgregarLineaToma,invTomaProductoCambio,invGuardarLineaToma,invCerrarToma,
-        invDevolverToma,invRechazarToma,invAutorizarToma,
-        invNuevaOC,invEditarOC,invOCCampo,invOCLineaCampo,invOCAgregarLinea,invOCQuitarLinea,invGuardarOC,
-        invVerOC,invVolverOC,invEmitirOC,invAnularOC,invCerrarSaldoOC,invAbrirRecepcion,invRecCampo,invRecLineaCampo,invRecAgregarLote,invRecQuitarLinea,
-        invGuardarRecepcion,invAnularRecepcion,invAbrirVincularFactura,invVincularFactura} from './inventario.js';
 
 // Negocio
 import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut,
@@ -97,57 +77,51 @@ import {abrirAperturaAux, cerrarAperturaAux, renderAperturaAux, apxAddDoc, apxDe
         apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
         descargarPlantillaAperturaAux, initAperturaAuxListener, APX} from './aperturaaux.js';
 import {onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerrarVF,
-        vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
+        vfRutInput, vfCheckDup, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
         eliminarVenta, VF, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas,
-        initImportListenerV, setBulkCuentaImpV, enfocarPendienteImportV,
+        initImportListenerV, setBulkCuentaImpV,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, IMV} from './ventas.js';
 import {onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
-        cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
+        cfRutInput, cfCheckDup, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
         guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal,
         cambiarPeriodoImport, cerrarImportModal, toggleImportDoc, toggleAllImport,
-        setImportCuenta, aplicarCuentaATodos, confirmarImportacion, setImportReferencia,
-        initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos, setImportGlosa, enfocarPendienteImportC,
+        setImportCuenta, aplicarCuentaATodos, confirmarImportacion,
+        initImportListener, renderImportModal, setBulkCuentaImp, setImportCC, aplicarCCATodos,
         cambiarModoImport, verDuplicadoC, renderCDupAlert,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF, IM} from './compras.js';
-import {renderHon, setHonCampo, uhon, addHon, delHon, saveHon, abrirHonComprobante, cerrarHonComprobante, actualizarPreviewHon, guardarHonComprobante, anularHonDesdeComprobante, seleccionarPrestadorHon} from './honorarios.js';
+import {renderHon, uhon, addHon, delHon, saveHon} from './honorarios.js';
 import {renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento,
         anularAsiento, eliminarAsiento, guardarAsiento, addLinea, delLinea, renderLineas,
         lCd, lVal, lValFmt, lValFmtBlur, lRut, toggleAs, updCuadre, limpiarFormAsiento, sigAsiento,
-        abrirDteModal, cerrarDteModal, dtmGuardar, dtmTipoChanged, dtmRefresh, dtmCalcTotals, dtmRutInput,
+        abrirDteModal, cerrarDteModal, dtmGuardar, dtmRefresh, dtmCalcTotals, dtmRutInput,
         dtmCheckDup, dtmAddDist, dtmDelDist, dtmRenderDist, dtmUpdDistCheck, dtmRemover,
         quitarDte, folioPreviewDte, abrirAsientoDesde, cuentasOpts, lAuxElegido,
         proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, AF} from './asientos.js';
-import {asegurarNumerosContables} from './correlativo-contable.js';
-import {renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF,
+import {renderActivoFijo, abrirFormAF, onCatAF, cerrarFormAF, previewAF, guardarAF,
         editarAF, eliminarAF, generarAsientoDepreciacion, AFB} from './activofijo.js';
 import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
         previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador,
         onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF} from './remuneraciones.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
         cerrarMesRem, reabrirMesRem, exportarLibroRemExcel} from './libroremuneraciones.js';
-import {exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS} from './lre-dt.js';
-import {renderCierre, generarAsientoCierre, reabrirEjercicio, renderProvisiones, previewProvInc,
+import {renderCierre, generarAsientoCierre, renderProvisiones, previewProvInc,
         previewProvFer, generarProvisionIncobrables, generarProvisionFeriado,
         renderCorreccion, previewCM} from './cierre.js';
 
 // Reportes
-import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBalance, renderBalance8, exportarBalance8Excel,
+import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBalance,
         poblarCmpSelect, onCmpYear, renderResultados, corregirDesdeDiario, editarAsientoRef,
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla,
-        exportarMayorExcel, toggleMayorCuenta} from './reportes.js';
-import {renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV} from './libroscv.js';
-import {initMoneyInputs,normalizarMontos} from './money-inputs.js';
-import {cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
+        exportarMayorExcel} from './reportes.js';
+import {renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
         eliminarComprobante, anularComprobante,
         setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
-        abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte} from './comprobantes.js';
+        abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte} from './comprobantes.js';
 import {renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago, abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia} from './pagos.js';
-import {abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo, hdProvBuscar, hdProvElegir, hdProvCerrar, hdProvTecla, hdNuevoAuxiliar} from './honorariodoc.js';
-import {abrirEditorPago, cerrarEditorPago, guardarEditorPago, peCampo, peLineaCampo, peDelLinea, pePickBuscar, pePickAdd, pePickCerrar} from './pagoeditor.js';
 import {setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux, renderAuxiliares, calcularAging,
         toggleAgingDetalle, AUX_TAB,
         abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
@@ -156,8 +130,7 @@ import {setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux,
 import {renderF29, renderPPM, IVAC, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente,
         PAGOF29, renderPagoF29, generarAsientoPagoF29, setPagoF29Cuenta, setPagoF29Campo,
-        setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29, cargarDeclaracionesF29,
-        setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29} from './tributario.js';
+        setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29} from './tributario.js';
 import {DJ, renderDJ, cargarDJ, resetDJ, setDJVerTodas, setDJEstado, editarDJ, nuevaDJ,
         cerrarEditorDJ, guardarDJ, borrarDJ, restaurarCatalogoDJ, exportarDJExcel} from './djrenta.js';
 import {renderRenta, setRentaTab, setRentaParam, restaurarTasaLegal, toggleRechazada,
@@ -169,7 +142,6 @@ import {renderConciliacion, onSaldoBancoChange, toggleConciliado,
 import {abrirBusqueda, cerrarBusqueda, ejecutarBusqueda, navBusqueda,
         irAResultado} from './busqueda.js';
 import {prepararImpresion} from './impresion.js';
-import {renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios} from './folios-sii.js';
 import {exportarExcelManual, conectarBD, fsBackupToCloud, fsRestoreFromCloud,
         importarExcelBD, initBDImportListener, bdRestaurarHandle, BD} from './backup.js';
 
@@ -187,31 +159,17 @@ async function saveAll({silencioso=false}={}){
   let ok=false;
   try{
     const y=S.empresa.anio;
-    const nr=await asegurarNumerosContables();
-    if(!nr.ok)throw new Error(nr.motivo||'correlativo-contable');
-    const entradas=[
-      {key:'empresa',value:JSON.stringify(S.empresa)},
-      {key:'ventas-'+y,value:JSON.stringify(S.ventas)},
-      {key:'compras-'+y,value:JSON.stringify(S.compras)},
-      {key:'honorarios-'+y,value:JSON.stringify(S.honorarios)},
-      {key:'asientos-'+y,value:JSON.stringify(S.asientos)},
-      {key:'cierresContables-'+y,value:JSON.stringify(S.cierresContables||[])},
-    ];
-    if(S.activos&&S.activos.length)entradas.push({key:'activos',value:JSON.stringify(S.activos)});
-    if(S.trabajadores&&S.trabajadores.length)entradas.push({key:'trabajadores',value:JSON.stringify(S.trabajadores)});
-    if(S.centros&&S.centros.length)entradas.push({key:'centros',value:JSON.stringify(S.centros)});
-    if(S.cierresCC&&S.cierresCC.length)entradas.push({key:'cierresCC',value:JSON.stringify(S.cierresCC)});
-    if(S.comprobantesTipo&&S.comprobantesTipo.length)entradas.push({key:'comprobantesTipo',value:JSON.stringify(S.comprobantesTipo)});
-    if(S.fichasAux)entradas.push({key:'fichasAux',value:JSON.stringify(S.fichasAux)});
-    const r=typeof window.storage.setMany==='function'?await window.storage.setMany(entradas):null;
-    if(r&&r.ok===false){
-      const clave=r.clave?` · ${r.clave}`:'';
-      const detalle=r.detalle?` · ${r.detalle}`:'';
-      throw new Error((r.motivo||'fallo-persistencia')+clave+detalle);
-    }
-    if(!r){
-      for(const e of entradas){const rr=await window.storage.set(e.key,e.value);if(!rr||rr.ok===false)throw new Error(rr?.motivo||`fallo-${e.key}`);}
-    }
+    await window.storage.set('empresa',JSON.stringify(S.empresa));
+    await window.storage.set('ventas-'+y,JSON.stringify(S.ventas));
+    await window.storage.set('compras-'+y,JSON.stringify(S.compras));
+    await window.storage.set('honorarios-'+y,JSON.stringify(S.honorarios));
+    await window.storage.set('asientos-'+y,JSON.stringify(S.asientos));
+    if(S.activos&&S.activos.length)await window.storage.set('activos',JSON.stringify(S.activos));
+    if(S.trabajadores&&S.trabajadores.length)await window.storage.set('trabajadores',JSON.stringify(S.trabajadores));
+    if(S.centros&&S.centros.length)await window.storage.set('centros',JSON.stringify(S.centros));
+    if(S.cierresCC&&S.cierresCC.length)await window.storage.set('cierresCC',JSON.stringify(S.cierresCC));
+    if(S.comprobantesTipo&&S.comprobantesTipo.length)await window.storage.set('comprobantesTipo',JSON.stringify(S.comprobantesTipo));
+    if(S.fichasAux)await window.storage.set('fichasAux',JSON.stringify(S.fichasAux));
     ok=true;
     marcarGuardado();
     if(!silencioso)toast('✅ Todos los datos guardados');
@@ -219,7 +177,7 @@ async function saveAll({silencioso=false}={}){
     console.error('saveAll',e);
     toast('❌ No se pudo guardar: '+e.message,'e');   // el error se avisa siempre
   }
-  if(btn){btn.disabled=false;btn.innerHTML=rotulo||'<span aria-hidden="true">💾</span><span class="save-lbl">Guardar</span>';}
+  if(btn){btn.disabled=false;btn.innerHTML=rotulo||'💾 Guardar';}
   actualizarBotonGuardar();
   return ok;
 }
@@ -280,7 +238,7 @@ function renombrarEsteDispositivo(){
 }
 
 async function loadYear(y){
-  S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];S.apertura=null;S.activos=[];S.trabajadores=[];S.cierresContables=[];S.hardeningCert=null;
+  S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];S.apertura=null;S.activos=[];S.trabajadores=[];
   S.cargaFallida=[];
   resetRenta(); // los ajustes del F22 son por empresa+año: se recargan al entrar a la sección
   resetDJ();    // ídem el catálogo y el control de declaraciones juradas
@@ -312,8 +270,6 @@ async function loadYear(y){
     });
   }
   await leer('apertura-'+y,p=>{S.apertura=p;});
-  await leer('cierresContables-'+y,p=>{if(Array.isArray(p))S.cierresContables=p;});
-  await leer('hardening-certificacion-'+y,p=>{if(p&&typeof p==='object')S.hardeningCert=p;});
   // Activos fijos y trabajadores: claves GLOBALES de la empresa (persisten entre años)
   await leer('activos',p=>{if(Array.isArray(p))S.activos=p;});
   await leer('trabajadores',p=>{if(Array.isArray(p))S.trabajadores=p;});
@@ -324,7 +280,7 @@ async function loadYear(y){
   try{actualizarBotonGuardar();}catch(e){}
   return S.cargaFallida;
 }
-async function changeYear(y){S.empresa.anio=y;await loadYear(y);recargarBorradoresContexto();await cargarPreproduccion();await cargarPiloto();await cargarDeclaracionesF29(true);rerender();}
+async function changeYear(y){S.empresa.anio=y;await loadYear(y);rerender();}
 async function init(){
   // Firestore y Auth arrancan EN PARALELO.
   // Antes se esperaba a que Firestore terminara de conectar para recién empezar
@@ -354,6 +310,9 @@ async function initApp(){
   }
   window.storage.setPrefijo(EMPRESAS.activa);
   renderSelectorEmpresa();
+  // La ficha de acceso de la empresa activa tiene que estar en la nube ANTES
+  // del cruce: si no, las reglas niegan la lectura y el guardado se bloquea.
+  await asegurarAccesoEmpresa(EMPRESAS.activa);
 
   // ── Cruce con la nube ANTES de dejar trabajar ──
   // Arrancar con una foto vieja es la causa de fondo de los conflictos y de que
@@ -367,7 +326,7 @@ async function initApp(){
 
   try{const r=await window.storage.get('empresa');if(r)S.empresa={...S.empresa,...JSON.parse(r.value)};}catch(e){}
   aplicarRegimenEmpresa();
-  const PDC_VERSION=3;
+  const PDC_VERSION=2;
   try{
     const vr=await window.storage.get('pdc_v');
     const savedV=vr?+vr.value:0;
@@ -376,21 +335,18 @@ async function initApp(){
       if(r){
         const loaded=JSON.parse(r.value);
         if(Array.isArray(loaded)&&loaded.length>0){
-          PDC.length=0;loaded.forEach(c=>PDC.push(c));normalizarPDC(PDC);recalcDerivadasPDC();
+          PDC.length=0;loaded.forEach(c=>PDC.push(c));recalcDerivadasPDC();
         }
       }
     }else if(savedV>0){
       console.log('Plan de cuentas actualizado a v'+PDC_VERSION+' (anterior: v'+savedV+')');
-      normalizarPDC(PDC);
       await window.storage.set('pdc',JSON.stringify(PDC));
     }
     await window.storage.set('pdc_v',String(PDC_VERSION));
   }catch(e){console.warn('Error cargando PDC:',e);}
-  try{if(asegurarCuentasSistema(PDC))await window.storage.set('pdc',JSON.stringify(PDC));}catch(e){console.warn('No se pudo persistir cuentas de sistema:',e);}
   ys.value=S.empresa.anio;
   await loadYear(S.empresa.anio);
-  await cargarDeclaracionesF29(true);
-  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();await cargarInventario();
+  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
   // Migración de folios de comprobante para datos preexistentes:
   // asigna folioComp a asientos manuales, compras, ventas y apertura que no
   // lo tengan, respetando el orden cronológico.
@@ -399,31 +355,12 @@ async function initApp(){
     console.log(`Migración: ${migrados} elementos recibieron folio de comprobante`);
     // Persistir los cambios de migración
     try{
-      const entradas=[];
-      if(S.asientos?.length)entradas.push({key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos)});
-      if(S.compras?.length)entradas.push({key:'compras-'+S.empresa.anio,value:JSON.stringify(S.compras)});
-      if(S.ventas?.length)entradas.push({key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)});
-      if(entradas.length){
-        const r=window.storage.setMany?await window.storage.setMany(entradas):null;
-        if(r&&r.ok===false)throw new Error(r.motivo||'fallo-migracion-folios');
-      }
-    }catch(e){console.warn('Error persistiendo migración de folios:',e);toast('⚠️ No se pudo persistir la migración de folios. Revisa la conexión antes de continuar.','e');}
+      if(S.asientos?.length)await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos));
+      if(S.compras?.length)await window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras));
+      if(S.ventas?.length)await window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas));
+    }catch(e){console.warn('Error persistiendo migración de folios:',e);}
   }
-  // V2.15.3: cada asiento maestro obtiene un número contable definitivo.
-  // La secuencia se reserva en Firebase; si no hay conexión, no inventamos
-  // números locales que pudieran chocar con otro equipo.
-  try{
-    const nr=await asegurarNumerosContables();
-    if(nr.ok&&nr.asignados){
-      const r=await window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos));
-      if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia-numeracion');
-      console.log(`Numeración contable: ${nr.asignados} asiento(s) numerados`);
-    }else if(!nr.ok){
-      toast('☁️ Numeración contable pendiente: conecta Firebase antes de crear nuevos asientos.','e');
-    }
-  }catch(e){console.warn('Numeración contable:',e);toast('⚠️ No se pudo completar la numeración contable definitiva.','e');}
-
-  fillEmpresaForm();recargarBorradoresContexto();updateHdr();renderInicio();
+  fillEmpresaForm();updateHdr();renderInicio();
   initImportListener();
   initImportListenerV();
   initImportFichasListener();
@@ -432,13 +369,8 @@ async function initApp(){
   initBalanceImportListener();
   bdStatusSet('offline');
   if(BD.supported)await bdRestaurarHandle();
-  // V2.15.4: cargar índice de snapshots y activar respaldo automático periódico.
-  try{await initRecovery();}catch(e){console.warn('Recovery init:',e);}
-  // V2.15.7: recién ahora se activa la guardia PRUEBA/PRODUCCIÓN, después de migraciones de arranque.
-  try{await cargarPreproduccion();await cargarPiloto();}catch(e){console.warn('Preproducción/Piloto init:',e);}
   // Aplicar permisos por si el usuario no puede ver la sección actual
   aplicarPermisosUI();
-  initNavGroups();
   retomarUltimaSeccion();
 }
 
@@ -462,10 +394,6 @@ function toggleNav(){
   const nav=document.querySelector('nav');
   const ov=document.getElementById('nav-overlay');
   const abierto=nav.classList.toggle('open');
-  if(abierto&&!nav.querySelector('.nav-group.open')){
-    const activa=nav.querySelector('.nav-item.active');
-    const g=activa?.closest('.nav-group');if(g)abrirNavGroup(g.dataset.navGroup,false);
-  }
   if(ov)ov.classList.toggle('open',abierto);
 }
 function cerrarNavMovil(){
@@ -474,74 +402,19 @@ function cerrarNavMovil(){
   if(nav)nav.classList.remove('open');
   if(ov)ov.classList.remove('open');
 }
-
-const NAV_GRUPO_KEY='cv:nav-grupo-abierto';
-function abrirNavGroup(id,guardar=true){
-  const grupos=[...document.querySelectorAll('.nav-group')];
-  grupos.forEach(g=>{
-    const abrir=!!id&&g.dataset.navGroup===id;
-    g.classList.toggle('open',abrir);
-    const b=g.querySelector('.nav-group-toggle');if(b)b.setAttribute('aria-expanded',abrir?'true':'false');
-  });
-  if(guardar){try{id?localStorage.setItem(NAV_GRUPO_KEY,id):localStorage.removeItem(NAV_GRUPO_KEY);}catch(e){}}
-}
-function toggleNavGroup(id){
-  const g=document.querySelector(`.nav-group[data-nav-group="${String(id).replace(/"/g,'')}"]`);
-  if(!g)return;
-  abrirNavGroup(g.classList.contains('open')?'':id,true);
-}
-function abrirGrupoDeSeccion(s,guardar=true){
-  const item=document.querySelector(`.nav-item[data-s="${String(s).replace(/"/g,'')}"]`);
-  const g=item?.closest('.nav-group');
-  if(g)abrirNavGroup(g.dataset.navGroup,guardar);
-}
-function initNavGroups(){
-  let guardado='';try{guardado=localStorage.getItem(NAV_GRUPO_KEY)||'';}catch(e){}
-  const activa=document.querySelector('.nav-item.active');
-  const gid=guardado||activa?.closest('.nav-group')?.dataset.navGroup||'';
-  abrirNavGroup(gid,false);
-}
 function nav(s){
   document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   const sec=document.getElementById('s-'+s);
   if(sec)sec.classList.add('active');
-  const item=document.querySelector('.nav-item[data-s="'+s+'"]');
+  const item=document.querySelector('[data-s="'+s+'"]');
   if(item)item.classList.add('active');   // hay secciones sin ítem de menú
-  if(item)abrirGrupoDeSeccion(s,true);    // el menú recuerda y muestra la categoría actual
-  // Resaltar el acceso directo de la barra superior que corresponda
-  document.querySelectorAll('.qn-btn').forEach(b=>b.classList.toggle('active',b.getAttribute('data-s')===s));
-  // Contexto móvil: siempre mostrar dónde está el usuario. Preferimos el título
-  // visible de la sección y, como respaldo, el texto del menú lateral.
-  try{
-    const mt=document.getElementById('mobile-section-title');
-    const ms=document.getElementById('mobile-section-sub');
-    const titulo=sec?.querySelector('.sec-title')?.textContent?.trim()
-      ||item?.textContent?.replace(/^\s*[^A-Za-zÁÉÍÓÚÜÑ0-9]+/,'').trim()
-      ||'Contabilidad';
-    if(mt)mt.textContent=titulo;
-    if(ms){
-      const sub=sec?.querySelector('.sec-sub')?.textContent?.trim();
-      ms.textContent=sub||(s==='inicio'?'Panel principal':'Empresa · '+(S?.empresa?.anio||''));
-    }
-    const volver=document.getElementById('mobile-back');
-    if(volver)volver.style.visibility=(s==='inicio'?'hidden':'visible');
-    const inicio=document.getElementById('mobile-home');
-    if(inicio)inicio.style.visibility=(s==='inicio'?'hidden':'visible');
-  }catch(e){}
   setCurSec(s);renderSec(s);
   recordarNav(s);      // para que el botón atrás deshaga un paso, no salte a Inicio
   ayudaAlNavegar(s);   // aplicar la preferencia de ayuda de esta pantalla
   cerrarNavMovil(); // en móvil, cerrar el drawer tras elegir sección
 }
 function renderSec(s){
-  // Las pantallas de administración y sus alertas no se exponen aunque se
-  // intente abrirlas mediante un enlace o un estado de navegación antiguo.
-  if(AUTH.user&&['usuarios','auditlog','integridad'].includes(s)&&AUTH.user.rol!=='admin'){
-    const sec=document.getElementById('s-'+s);
-    if(sec)sec.innerHTML='<div class="empty"><div class="ei">🔒</div>Sección disponible sólo para administración.</div>';
-    return;
-  }
   // Verificar permiso de acceso a la sección.
   // 'empresa' y 'usuarios' se excluyen del bloqueo genérico: empresa es la landing,
   // y usuarios tiene su propio control de admin dentro de renderUsuarios().
@@ -560,10 +433,8 @@ function renderSec(s){
   else if(s==='apertura')renderApertura();
   else if(s==='usuarios')renderUsuarios();
   else if(s==='auditlog')renderAuditLog();
-  else if(s==='integridad')renderIntegridad();
   else if(s==='ventas')renderVentas();
   else if(s==='compras')renderCompras();
-  else if(s==='inventario')renderInventario();
   else if(s==='honorarios')renderHon();
   else if(s==='remuneraciones')renderRemuneraciones();
   // 'asientos' dejó de ser un módulo: los manuales viven dentro de Comprobantes.
@@ -571,11 +442,8 @@ function renderSec(s){
   else if(s==='asientos')renderComprobantes();
   else if(s==='auxiliares')renderAuxiliares();
   else if(s==='diario')renderDiario();
-  else if(s==='libroscv')renderLibrosCV();
-  else if(s==='foliossii')renderFoliosSII();
   else if(s==='mayor')renderMayor();
   else if(s==='balance')renderBalance();
-  else if(s==='balance8')renderBalance8();
   else if(s==='resultados')renderResultados();
   else if(s==='flujocaja')renderFlujoCaja();
   else if(s==='conciliacion')renderConciliacion();
@@ -590,7 +458,6 @@ function renderSec(s){
   else if(s==='activofijo')renderActivoFijo();
   else if(s==='provisiones')renderProvisiones();
   else if(s==='correccion')renderCorreccion();
-  else if(s==='cierresmensuales')renderCierresMensuales();
   else if(s==='cierre')renderCierre();
 }
 function rerender(){updateHdr();renderSec(getCurSec());}
@@ -629,27 +496,20 @@ async function onCambiarEmpresa(){
 
 // Recarga TODO el estado desde la empresa activa (tras cambiarla)
 async function recargarEmpresaActiva(){
-  // La guardia del entorno anterior no debe bloquear migraciones técnicas al cambiar de empresa.
-  window.__entornoBypass=true;
   // Resetear estado en memoria
   S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];
   S.activos=[];S.trabajadores=[];S.apertura=null;
-  S.inventario={cargado:false,grupos:[],bodegas:[],productos:[],movimientos:[],tomas:[],ordenesCompra:[],recepciones:[]};
+  await asegurarAccesoEmpresa(EMPRESAS.activa);
   S.empresa={...S.empresa,nombre:'',rut:'',domicilio:'',giro:'',codigo:'',ciudad:'',comuna:'',rep:'',rutrep:''};
   // Cargar datos de la nueva empresa
   try{const r=await window.storage.get('empresa');if(r)S.empresa={...S.empresa,...JSON.parse(r.value)};}catch(e){}
   aplicarRegimenEmpresa();
   try{
     const r=await window.storage.get('pdc');
-    if(r){const l=JSON.parse(r.value);if(Array.isArray(l)&&l.length){PDC.length=0;l.forEach(c=>PDC.push(c));normalizarPDC(PDC);recalcDerivadasPDC();}}
+    if(r){const l=JSON.parse(r.value);if(Array.isArray(l)&&l.length){PDC.length=0;l.forEach(c=>PDC.push(c));recalcDerivadasPDC();}}
   }catch(e){}
-  try{if(asegurarCuentasSistema(PDC))await window.storage.set('pdc',JSON.stringify(PDC));}catch(e){console.warn('No se pudo persistir cuentas de sistema:',e);}
   await loadYear(S.empresa.anio);
-  await cargarPreproduccion();
-  await cargarPiloto();
-  window.__entornoBypass=false;
-  await cargarDeclaracionesF29(true);
-  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();await cargarInventario(true);
+  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();
   fillEmpresaForm();updateHdr();renderSelectorEmpresa();renderInicio();
   try{aplicarPermisosUI();}catch(e){}
   rerender();
@@ -665,19 +525,19 @@ setOnAuthReady(initApp);
 // El HTML usa onclick="renderVentas()" etc. Los módulos ES tienen scope propio,
 // así que hay que publicar esas funciones en window.
 // Objetos de estado usados directamente en onclick del HTML
-Object.assign(window,{
-  renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios,AF, VF, CF, REMF, AFB, PF, APF, IMB, IM, IMV, US, BD, S, getCurSec, CD, IVAC, PAGOF29, DJ, ACC});
+Object.assign(window,{AF, VF, CF, REMF, AFB, PF, APF, IMB, IM, IMV, US, BD, S, getCurSec, CD, IVAC, PAGOF29, DJ, ACC});
 
-Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS, 
+Object.assign(window,{
   // utilidades
-  toast, normalizarMontos,
+  toast,
   // navegación y arranque
-  nav, rerender, renderSec, toggleNav, cerrarNavMovil, toggleNavGroup, changeYear, saveAll, init, initApp,
+  nav, rerender, renderSec, toggleNav, cerrarNavMovil, changeYear, saveAll, init, initApp,
   // auth / usuarios
   toggleLoginMode, submitLogin, recuperarPassword, mostrarLogin, logout,
+  sesionPersistente, setSesionPersistente,
   olvidarNav,
   renderUsuarios, abrirInvitarUsuario, editarUsuario, renderPermisosForm,
-  cerrarUsuarioForm, guardarUsuario, aprobarUsuario, desactivarUsuario, renderAuditLog, renderIntegridad, migrarAsientosV2,
+  cerrarUsuarioForm, guardarUsuario, aprobarUsuario, desactivarUsuario, renderAuditLog,
   // empresa / pdc / indicadores
   fillEmpresaForm, saveEmpresa, updateHdr,
   renderPDC, abrirPdcForm, editarCuenta, cerrarPdcForm, guardarCuenta, eliminarCuenta, resetPDC,
@@ -685,38 +545,23 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderIUSCTabla, setIUSC, addIUSCTramo, delIUSCTramo, restaurarIUSCTabla, setIUSCPrueba,
   renderPrevisional, guardarPrevisional, restaurarPrevisional,
   renderCentrosCosto, abrirFormCC, editarCC, cerrarFormCC, guardarCC, borrarCC,
-  renderInventario, invSetTab, invSetFiltro, invCerrarModal,
-  invAbrirGrupo, invGuardarGrupo, invAbrirBodega, invGuardarBodega,
-  invAbrirProducto, invActualizarSubgrupos, invGuardarProducto,
-  invDescargarPlantillaProductos, invAbrirImportProductos, invLeerProductosExcel, invAplicarImportProductos,
-  invNuevoMovimiento, invMovCampo, invMovLineaCampo, invMovAgregarLinea, invMovQuitarLinea,
-  invGuardarMovimiento, invVerMovimiento, invAnularMovimiento, invEditarMovimiento,
-  invNuevaToma, invCrearToma, invAbrirToma, invVolverTomas, invSetFisicoToma, invSetCostoToma,
-  invAgregarLineaToma, invTomaProductoCambio, invGuardarLineaToma, invCerrarToma,
-  invDevolverToma, invRechazarToma, invAutorizarToma,
-  invNuevaOC, invEditarOC, invOCCampo, invOCLineaCampo, invOCAgregarLinea, invOCQuitarLinea, invGuardarOC,
-  invVerOC, invVolverOC, invEmitirOC, invAnularOC, invCerrarSaldoOC, invAbrirRecepcion, invRecCampo, invRecLineaCampo, invRecAgregarLote, invRecQuitarLinea,
-  invGuardarRecepcion, invAnularRecepcion, invAbrirVincularFactura, invVincularFactura,
   verDetalleCC, abrirCapitalizar, confirmarCapitalizar, ccOpts, ccNombre,
   onCurvaChange, setPct, addPctAnio, delPctAnio, onTipoCentroChange,
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,
   acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
   axAcBuscar, axAcTecla, axAcElegir, axAcCerrar, lAuxElegido,
-  prAcBuscar, prAcTecla, prAcElegir, prAcCerrarDif,
-  marcarGuardado, marcarSucio, haySinGuardar, hayBorrador, hayCambiosConfirmados, guardarBorradoresAhora, limpiarBorradorCampos, recargarBorradoresContexto, listarBorradoresLocales, descartarBorradorLocal, descartarTodosBorradoresLocales, continuarBorradorLocal,
+  marcarGuardado, marcarSucio, haySinGuardar,
   actualizarBotonGuardar, guardarTodoAhora, setAutoguardado, setIntervaloAutoguardado, confirmarSalida, AG,
-  abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos, setImportGlosa, enfocarPendienteImportC, enfocarPendienteImportV,
+  abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos,
   toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel,
   abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
-  cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
+  renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir,
   abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
   eliminarComprobante, anularComprobante,
   setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
-  abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte,
+  abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte,
   renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago,
   abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia,
-  abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo, hdProvBuscar, hdProvElegir, hdProvCerrar, hdProvTecla, hdNuevoAuxiliar,
-  abrirEditorPago, cerrarEditorPago, guardarEditorPago, peCampo, peLineaCampo, peDelLinea, pePickBuscar, pePickAdd, pePickCerrar,
   corregirDesdeDiario, editarAsientoRef,
   descargarPlantillaAux, abrirImportFichas, descargarPlantillaAuxActual, abrirImportFichasActual,
   renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas,
@@ -734,43 +579,40 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   descargarPlantillaAperturaAux, APX,
   // ventas
   onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerrarVF,
-  vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
+  vfRutInput, vfCheckDup, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
   // compras
   onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
-  cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
+  cfRutInput, cfCheckDup, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
   guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal, cambiarPeriodoImport,
   cerrarImportModal, toggleImportDoc, toggleAllImport, setImportCuenta,
-  aplicarCuentaATodos, confirmarImportacion, setImportReferencia, renderImportModal, pn,
+  aplicarCuentaATodos, confirmarImportacion, renderImportModal, pn,
   cambiarModoImport, verDuplicadoC, renderCDupAlert,
   // honorarios
-  renderHon, setHonCampo, uhon, addHon, delHon, saveHon, abrirHonComprobante, cerrarHonComprobante, actualizarPreviewHon, guardarHonComprobante, anularHonDesdeComprobante, seleccionarPrestadorHon,
+  renderHon, uhon, addHon, delHon, saveHon,
   // asientos
   renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento, anularAsiento,
   eliminarAsiento, guardarAsiento, addLinea, delLinea, renderLineas, lCd, lVal, lValFmt, lValFmtBlur, lRut,
   toggleAs, updCuadre, limpiarFormAsiento, sigAsiento, abrirDteModal, cerrarDteModal,
-  dtmGuardar, dtmTipoChanged, dtmRefresh, dtmCalcTotals, dtmRutInput, dtmCheckDup, dtmAddDist, dtmDelDist,
+  dtmGuardar, dtmRefresh, dtmCalcTotals, dtmRutInput, dtmCheckDup, dtmAddDist, dtmDelDist,
   dtmRenderDist, dtmUpdDistCheck, dtmRemover, quitarDte, folioPreviewDte, abrirAsientoDesde,
   // activo fijo
-  renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF, editarAF,
+  renderActivoFijo, abrirFormAF, onCatAF, cerrarFormAF, previewAF, guardarAF, editarAF,
   eliminarAF, generarAsientoDepreciacion,
   // remuneraciones
   renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
   renderLibroRem, setRemView, getRemView, tabsRemuneraciones, cerrarMesRem, reabrirMesRem,
-  exportarLibroRemExcel, exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS, libroDelMes,
+  exportarLibroRemExcel, libroDelMes,
   previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem,
   verLiquidacion, generarAsientoRemuneraciones,
   // cierre
-  renderCierre, generarAsientoCierre, reabrirEjercicio, renderProvisiones, previewProvInc, previewProvFer,
+  renderCierre, generarAsientoCierre, renderProvisiones, previewProvInc, previewProvFer,
   generarProvisionIncobrables, generarProvisionFeriado, renderCorreccion, previewCM,
   // reportes
-  renderDiario, setDiarioQ, renderMayor, renderBalance, renderBalance8, exportarBalance8Excel, onCmpYear, renderResultados,
-  renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV,
+  renderDiario, setDiarioQ, renderMayor, renderBalance, onCmpYear, renderResultados,
   onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
-  onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel, toggleMayorCuenta,
-  renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,renderCierresMensuales,cerrarMesContableOperativo,reabrirMesContableOperativo,
-  setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion,actualizarBadgeEntorno,
-  ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI,
+  onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel,
   renderCargaDatos, descargarPlantillaDatos, abrirCargaDatos, renderSistema,
+  diagnosticarSeguridad, prepararAislamiento, repararAccesos, repararDocumentos,
   renombrarEsteDispositivo,
   renderCompensacionIVA, generarAsientoIVA, setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente,
   renderPagoF29, generarAsientoPagoF29, setPagoF29Cuenta, setPagoF29Campo, setPagoF29Monto,
@@ -778,7 +620,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux, renderAuxiliares, toggleAgingDetalle,
   auxPorRut, abrirReporteAuxDe, abrirReporteAux, cerrarReporteAux, setReporteAuxVista,
   renderReporteAux, imprimirReporteAux, exportarReporteAuxExcel,
-  renderF29, renderPPM, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29, setFCView, renderFlujoCaja,
+  renderF29, renderPPM, setFCView, renderFlujoCaja,
   // asignación manual de centros de costo
   renderAsigCC, resetAsigCC, setAsigCC, limpiarFiltrosCC, setCCMov, toggleSelCC, selTodosCC,
   limpiarSelCC, setBulkCC, asignarSelCC, exportarAsigCCExcel, pendientesCC,
@@ -787,7 +629,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   guardarDJ, borrarDJ, restaurarCatalogoDJ, exportarDJExcel,
   renderRenta, setRentaTab, setRentaParam, restaurarTasaLegal, toggleRechazada,
   onRegimenEmpresaChange, pintarRegimen, onRegimenChange, aplicarPermisosUI,
-  toggleAyuda, actualizarAyuda, renderInicio, abrirEmpresaInicio, verificarActualizacion,
+  toggleAyuda, actualizarAyuda, renderInicio, abrirEmpresaInicio,
   addRentaLinea, setRentaLinea, delRentaLinea, setRentaCredito, exportRentaXLSX,
   renderConciliacion, onSaldoBancoChange, toggleConciliado, marcarTodosConciliados,
   cargarCartola, autoConciliarCartola,
@@ -812,9 +654,7 @@ function descargarPlantillaAuxActual(){descargarPlantillaAux(tipoAuxActual());}
 function abrirImportFichasActual(){abrirImportFichas(tipoAuxActual());}
 
 // ═══ ARRANQUE ═══
-initActualizador(); // bloquea y actualiza obligatoriamente si el servidor publica otra versión
 initTema();
-initMoneyInputs();   // montos enteros con separador de miles en toda la aplicación
 initAyuda();         // ampolleta 💡 por sección: las ayudas quedan plegadas
 initAvisoSalida();   // aviso si se cierra con cambios sin guardar
 initAutoguardado();  // temporizador + guardado al dejar la pestaña o cerrar

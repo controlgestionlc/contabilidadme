@@ -1,20 +1,15 @@
-import {tributacionCompra,periodoContableCompra,fechaContabilizacionCompra,asientoCompra} from './motor-contable.js';
-import {claveRCV,compararCompraRCV,snapshotCompraRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 // compras.js — Libro de compras + importador SII
-import {toast, fmt, pn, today, MESES, IVA, DTE_COMPRAS, dteC, esDteHonorario, rutParse, rutFmt, rutDV, pdcNm, CCOLS, CUENTAS_GASTO, CUENTAS_COMPRA, fmtC} from './core.js';
+import {toast, fmt, pn, today, MESES, IVA, DTE_COMPRAS, dteC, rutParse, rutFmt, rutDV, pdcNm, CCOLS, CUENTAS_GASTO, CUENTAS_COMPRA, fmtC} from './core.js';
 import {rerender} from './ui.js';
 import {S} from './state.js';
-import {logAccion,logCambio} from './firebase.js';
+import {logAccion} from './firebase.js';
 import {mesOpts, mesRango} from './helpers.js';
 import {todosDocsCompras, abrirAsientoDesde, proxFolioComprobante} from './asientos.js';
 import {ccOpts} from './centroscosto.js';
 import {inputCuenta} from './buscadorcuentas.js';
-import {leerArchivo,resolverVencimientoImportado} from './importadorsii.js';
+import {leerArchivo} from './importadorsii.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import './storage.js';
-import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
-import {validarMovimientosPDC} from './pdc-reglas.js';
-import {buscarRecepcionParaCompra} from './conciliacion-compras-motor.js';
 
 // Estado del formulario de compras (interno del módulo)
 // CF NUNCA debe reasignarse: app.js expone este objeto con Object.assign(window,{CF})
@@ -22,66 +17,9 @@ import {buscarRecepcionParaCompra} from './conciliacion-compras-motor.js';
 // (CF.dist[i].monto, CF.dist[i].cc). Reasignarlo dejaba window.CF apuntando al
 // objeto viejo y la distribución del gasto —montos y centros de costo— se perdía.
 const CF={editId:null,dist:[]};
-const textoSeguroImport=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function fijarCF(editId,dist){
   CF.editId=editId==null?null:editId;
   CF.dist=dist||[];
-}
-
-function validarCuadraturaImportCompras(){
-  const out=[];
-  IM.docs.forEach((d,i)=>{
-    // Sin cuenta todavía no existe un asiento completo que validar. Es un
-    // pendiente de clasificación, no un descuadre del documento del SII.
-    if(!d.incluir||!d.cuenta)return;
-    const base=(+d.neto||0)+(+d.exento||0);
-    const prev=d.dup||null;
-    let dist=[{cuenta:d.cuenta||'',monto:base,cc:d.cc||''}];
-    if(prev&&Array.isArray(prev.dist)&&prev.dist.length>1){
-      const sum=prev.dist.reduce((s,l)=>s+(+l.monto||0),0);
-      if(Math.abs(sum-base)<=1)dist=prev.dist.map(l=>({...l}));
-    }
-    const doc={...d,id:prev?.id||`preview-c-${i}`,fecha:d.fechaOriginal||d.fecha,
-      periodoContable:periodoImportSeleccionado(),fechaContabilizacion:fechaContabilizacionImport(d),dist,
-      totalIncluyeRetencion:(+d.tipoDTE===45||+d.tipoDTE===46)?false:d.totalIncluyeRetencion,
-      ...((+d.tipoDTE===45||+d.tipoDTE===46)?{ivaRetenido:d.ivaRetenido!=null?d.ivaRetenido:d.iva}:{}),
-      tratamientoOtrosImpuestos:d.tratamientoOtrosImpuestos||'costo'};
-    try{
-      const a=asientoCompra(doc);
-      const vp=validarMovimientosPDC(a.movs||[]);
-      if(!a.cuadre?.ok||!vp.ok){
-        const motivos=[];
-        if(!a.cuadre?.ok)motivos.push(`Debe y Haber difieren en ${fmtC(a.cuadre?.diferencia||0)}`);
-        if(!vp.ok)motivos.push(vp.errores[0]);
-        out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:a.cuadre?.diferencia||0,motivo:motivos.join(' · '),tipo:!vp.ok?'pdc':'cuadratura'});
-      }else if(d.errorImport){
-        out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:d.errorImport,tipo:'guardado'});
-      }
-    }catch(err){
-      out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:err?.message||String(err),tipo:'preview'});
-    }
-  });
-  return out;
-}
-
-function enfocarPendienteImportC(i){
-  const el=document.getElementById('imp-row-'+i);
-  if(!el)return;
-  el.scrollIntoView({behavior:'smooth',block:'center'});
-  el.classList.add('imp-pending-focus');
-  setTimeout(()=>el.classList.remove('imp-pending-focus'),1800);
-}
-
-function alertaCuadraturaImportCompras(lista){
-  if(!lista.length)return '';
-  const items=lista.slice(0,8).map(x=>`<button type="button" class="imp-pending-link" onclick="enfocarPendienteImportC(${x.idx})">DTE ${x.tipoDTE} N° ${textoSeguroImport(x.numero)} · ${textoSeguroImport(x.motivo||`diferencia ${fmtC(x.diferencia)}`)}</button>`).join('');
-  return `<div class="imp-pending-alert"><strong>⚠️ ${lista.length} documento${lista.length===1?'':'s'} no pasarían la validación contable.</strong><div class="imp-pending-links">${items}${lista.length>8?`<span>… y ${lista.length-8} más</span>`:''}</div><span>Se detectaron antes de guardar. Los documentos válidos sí pueden importarse; estos quedarán pendientes para corregir su cuenta, centro de costo o cuadratura.</span></div>`;
-}
-
-function alertaSinCuentaImportCompras(lista){
-  if(!lista.length)return '';
-  const items=lista.slice(0,8).map(x=>`<button type="button" class="imp-pending-link" onclick="enfocarPendienteImportC(${x.idx})">DTE ${x.tipoDTE} N° ${x.numero}</button>`).join('');
-  return `<div class="imp-pending-alert" style="border-color:var(--warn);background:rgba(210,153,34,.08)"><strong style="color:var(--warn)">⚠️ ${lista.length} documento${lista.length===1?'':'s'} sin cuenta asignada.</strong><div class="imp-pending-links">${items}${lista.length>8?`<span>… y ${lista.length-8} más</span>`:''}</div><span>Los montos del RCV están cuadrados. Asigna una cuenta de gasto o activo para completar y guardar estos documentos.</span></div>`;
 }
 
 // ═══ CORRELATIVO MENSUAL PERSISTENTE ═══
@@ -91,13 +29,13 @@ function alertaSinCuentaImportCompras(lista){
 
 // Devuelve el próximo correlativo libre para el mes de `fecha` (YYYY-MM-DD),
 // mirando el máximo corrMes ya asignado en ese mes. Excluye un id opcional.
-function proxCorrMesCompra(fecha,excluirId=null,periodoContable=''){
-  const m=periodoContable||(fecha||'').slice(0,7);
+function proxCorrMesCompra(fecha,excluirId=null){
+  const m=(fecha||'').slice(0,7);
   if(!m)return 1;
   let max=0;
   S.compras.forEach(d=>{
     if(d.id===excluirId)return;
-    if(periodoContableCompra(d)!==m)return;
+    if((d.fecha||'').slice(0,7)!==m)return;
     if(typeof d.corrMes==='number'&&d.corrMes>max)max=d.corrMes;
   });
   return max+1;
@@ -109,7 +47,7 @@ function proxCorrMesCompra(fecha,excluirId=null,periodoContable=''){
 function migrarCorrelativosCompras(){
   const porMes={};
   S.compras.forEach(d=>{
-    const m=periodoContableCompra(d);if(!m)return;
+    const m=(d.fecha||'').slice(0,7);if(!m)return;
     (porMes[m]||(porMes[m]=[])).push(d);
   });
   let cambios=false;
@@ -130,21 +68,9 @@ function migrarCorrelativosCompras(){
 // Un documento tributario es único por RUT emisor + tipo DTE + folio.
 // Si aparece más de una vez (por ejemplo, cargado en el libro y además a través
 // de un asiento manual) se duplica el gasto y el crédito fiscal.
-function claveDocCompra(d){return claveRCV(d);}
-
-function recalcularEstadoImportCompras(){
-  const per=periodoImportSeleccionado();
-  IM.docs.forEach(d=>{
-    const prev=d.dup;
-    if(!prev){d.estadoImport='nuevo';d.cambiosRCV=[];if(d.incluir==null)d.incluir=true;return;}
-    if(prev.origen==='asiento'){d.estadoImport='manual';d.cambiosRCV=[];d.incluir=false;return;}
-    const cmp=compararCompraRCV(d,prev,per);
-    d.cambiosRCV=cmp.cambios;d.rcvFingerprint=cmp.fingerprint;
-    if(prev.estado==='anulado'){d.estadoImport='cambio';d.cambiosRCV=[{campo:'estado',label:'Estado',anterior:'Anulado',nuevo:'Activo'},...d.cambiosRCV];}
-    else d.estadoImport=cmp.igual?'igual':'cambio';
-  });
+function claveDocCompra(d){
+  return `${d.rutCodigo}|${+d.tipoDTE}|${String(d.numero||'').trim()}`;
 }
-
 function gruposDuplicadosCompras(){
   const map=new Map();
   todosDocsCompras().forEach(d=>{
@@ -207,9 +133,9 @@ function renderCDupAlert(){
 }
 
 function onMesChangeC(){
-  // El selector mensual representa el PERIODO CONTABLE/RCV. No modifica ni
-  // filtra por la fecha documental; los campos Desde/Hasta siguen disponibles
-  // como filtros explícitos de fecha de emisión.
+  const m=+(document.getElementById('cf-mes')?.value||0);
+  if(m){const r=mesRango(m);document.getElementById('cf-desde').value=r.desde;document.getElementById('cf-hasta').value=r.hasta;}
+  else{document.getElementById('cf-desde').value='';document.getElementById('cf-hasta').value='';}
   renderCompras();
 }
 
@@ -220,7 +146,7 @@ function limpiarFiltrosC(){
 
 // ═══ COMPRAS — Documentos individuales ═══
 function dteComprasOpts(sel=''){
-  return '<option value="">— Seleccionar —</option>'+DTE_COMPRAS.filter(d=>!d.honorario).map(d=>`<option value="${d.cod}" ${+sel===d.cod?'selected':''}>${d.cod} — ${d.nm}</option>`).join('');
+  return '<option value="">— Seleccionar —</option>'+DTE_COMPRAS.map(d=>`<option value="${d.cod}" ${+sel===d.cod?'selected':''}>${d.cod} — ${d.nm}</option>`).join('');
 }
 function cuentasGastoOpts(sel=''){
   // Ahora incluye gastos + activos (para compras que son inversión, no gasto)
@@ -245,64 +171,47 @@ function toggleCSelAll(marcados){
 }
 function limpiarCSel(){CF_SEL.clear();renderCompras();}
 async function eliminarCSel(){
-  const cerrados=(S.compras||[]).filter(d=>CF_SEL.has(d.id)&&!puedeOperarFecha(fechaContabilizacionCompra(d)));
-  if(cerrados.length){toast(`🔒 ${cerrados.length} compra(s) pertenecen a períodos cerrados. Reabre esos períodos antes de anular.`, 'e');return;}
   if(!CF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de anular compras.','e');return;}
   const n=CF_SEL.size;
-  if(!confirm(`¿Anular ${n} documento${n===1?'':'s'} de compra seleccionado${n===1?'':'s'}?
-
-Los documentos y sus asientos se conservarán para trazabilidad.`))return;
-  const snapC=JSON.stringify(S.compras||[]),snapA=JSON.stringify(S.asientos||[]);
-  let borrados=0;
-  try{
-    S.compras.forEach(d=>{if(CF_SEL.has(d.id)&&d.estado!=='anulado'){d.estado='anulado';d.anuladoEn=new Date().toISOString();anularAsientoDocumento('compras',d.id,'anulación masiva');borrados++;}});
-    await persistirClavesCritico([
-      {key:'compras-'+S.empresa.anio,value:JSON.stringify(S.compras)},
-      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
-    ]);
-  }catch(e){
-    S.compras=JSON.parse(snapC);S.asientos=JSON.parse(snapA);
-    toast('❌ No se pudo guardar la anulación. No se aplicaron cambios.','e');return;
-  }
+  if(!confirm(`¿Eliminar ${n} documento${n===1?'':'s'} de compra seleccionado${n===1?'':'s'}?\n\nEsta acción no se puede deshacer.`))return;
+  const antes=S.compras.length;
+  S.compras=S.compras.filter(d=>!CF_SEL.has(d.id));
+  const borrados=antes-S.compras.length;
   CF_SEL.clear();
-  toast(`🚫 ${borrados} documento${borrados===1?'':'s'} anulado${borrados===1?'':'s'}`);
-  logAccion('Anuló compras masivamente',`${borrados} documentos`);
+  try{await window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras));}catch(e){}
+  toast(`🗑 ${borrados} documento${borrados===1?'':'s'} eliminado${borrados===1?'':'s'}`);
+  logAccion('Eliminó compras masivamente',`${borrados} documentos`);
   rerender();
 }
 
 function renderCompras(){
   // Asegurar que todos los documentos del libro tengan correlativo mensual fijo
   if(migrarCorrelativosCompras())
-    window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras)).then(r=>{if(r&&r.ok===false)console.warn('No se pudo persistir correlativos migrados',r);}).catch(e=>console.warn('No se pudo persistir correlativos migrados',e));
+    window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras)).catch(()=>{});
 
   const selMes=document.getElementById('cf-mes');
   if(selMes&&selMes.options.length<=1)selMes.innerHTML=mesOpts(selMes.value);
   const selDteFlt=document.getElementById('cf-dte-flt');
-  if(selDteFlt&&selDteFlt.options.length<=1)selDteFlt.innerHTML='<option value="">Todos los DTE</option>'+DTE_COMPRAS.filter(d=>!d.honorario).map(d=>`<option value="${d.cod}">${d.cod} — ${d.nm}</option>`).join('');
+  if(selDteFlt&&selDteFlt.options.length<=1)selDteFlt.innerHTML='<option value="">Todos los DTE</option>'+DTE_COMPRAS.map(d=>`<option value="${d.cod}">${d.cod} — ${d.nm}</option>`).join('');
 
   // Aviso de documentos duplicados (se calcula sobre todo el libro, con o sin filtro)
   renderCDupAlert();
 
-  const fMes=+(document.getElementById('cf-mes')?.value||0);
   const fDesde=(document.getElementById('cf-desde')?.value||'');
   const fHasta=(document.getElementById('cf-hasta')?.value||'');
   const fDte=+(document.getElementById('cf-dte-flt')?.value||0);
   const fQ=(document.getElementById('cf-search')?.value||'').toLowerCase().trim();
-  // Los honorarios (DTE 70/71) son documentos de proveedor pero no son compras
-  // con IVA: se registran y ven desde Comprobantes / auxiliar, no en este libro.
-  const todos=todosDocsCompras().filter(d=>!esDteHonorario(d.tipoDTE));
+  const todos=todosDocsCompras();
   const docs=[...todos].sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.numero||'').localeCompare(b.numero||''));
   // Correlativo mensual: los del libro traen su corrMes fijo; los que vienen de
   // asientos manuales continúan la secuencia del mes (máximo del libro + N).
   const corr={};
   const maxMes={};
-  todos.forEach(d=>{if(d.origen==='libro'&&typeof d.corrMes==='number'){corr[d.id]=d.corrMes;const m=periodoContableCompra(d);if(!maxMes[m]||d.corrMes>maxMes[m])maxMes[m]=d.corrMes;}});
+  todos.forEach(d=>{if(d.origen==='libro'&&typeof d.corrMes==='number'){corr[d.id]=d.corrMes;const m=(d.fecha||'').slice(0,7);if(!maxMes[m]||d.corrMes>maxMes[m])maxMes[m]=d.corrMes;}});
   [...todos].filter(d=>d.origen!=='libro')
     .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')||(a.numero||'').localeCompare(b.numero||''))
-    .forEach(d=>{const m=periodoContableCompra(d);maxMes[m]=(maxMes[m]||0)+1;corr[d.id]=maxMes[m];});
+    .forEach(d=>{const m=(d.fecha||'').slice(0,7);maxMes[m]=(maxMes[m]||0)+1;corr[d.id]=maxMes[m];});
   const fDocs=docs.filter(d=>{
-    if(fMes&&periodoContableCompra(d)!==`${S.empresa.anio}-${String(fMes).padStart(2,'0')}`)return false;
     if(fDesde&&d.fecha<fDesde)return false;
     if(fHasta&&d.fecha>fHasta)return false;
     if(fDte&&+d.tipoDTE!==fDte)return false;
@@ -314,7 +223,7 @@ function renderCompras(){
 
   // Sin ningún filtro activo no cargamos las filas (pueden ser cientos). El
   // usuario debe aplicar un filtro de búsqueda para ver documentos.
-  const hayFiltroC=!!(fMes||fDesde||fHasta||fDte||fQ);
+  const hayFiltroC=!!(fDesde||fHasta||fDte||fQ);
   const tb=document.getElementById('c-tbody');
   const tf=document.getElementById('c-tfoot');
   if(!hayFiltroC){
@@ -355,15 +264,12 @@ function renderCompras(){
       const signo=(dteC(d.tipoDTE)?.signo)||1;
       tN+=(d.neto||0)*signo;tE+=(d.exento||0)*signo;tI+=(d.iva||0)*signo;tO+=(d.otrosImpuestos||0)*signo;tT+=(d.total||0)*signo;
       const dte=dteC(d.tipoDTE);
-      const mesSl=periodoContableCompra(d).slice(5,7);
+      const mesSl=(d.fecha||'').slice(5,7);
       const folioNum=corr[d.id]||'';
       const esManual=d.origen==='asiento';
       const rowStyle=esManual?' style="background:rgba(88,166,255,.04)"':'';
       const origenBadge=esManual?`<div style="font-size:9px;color:var(--info);margin-top:2px">✏ Asiento N°${d.asientoN}</div>`:'';
-      const perC=periodoContableCompra(d);
-      const periodoBadge=d.periodoContable&&d.fecha?.slice(0,7)!==perC?`<div style="font-size:9px;color:var(--info);margin-top:2px" title="Período contable/RCV">RCV ${perC}</div>`:'';
       const distTxt=d.dist&&d.dist.length>1?`📊 ${d.dist.length} categorías`:(d.dist&&d.dist[0]?pdcNm(d.dist[0].cuenta):'');
-      const recVincTxt=d.recepcionesVinculadas&&d.recepcionesVinculadas.length?`<div style="font-size:9px;color:var(--ach);margin-top:2px" title="Conciliada con la recepción física de inventario">📦 ${d.recepcionesVinculadas.map(v=>escOptC(v.folio)).join(', ')}</div>`:'';
       // Las notas de crédito RESTAN: se muestran en negativo y en rojo, igual
       // que como se computan en los totales, el F29 y el libro diario.
       const esNC=signo<0;
@@ -379,12 +285,12 @@ function renderCompras(){
       return `<tr${rowStyle}>
         <td style="text-align:center;width:26px">${chk}</td>
         <td class="tl"><span class="doc-folio">${String(folioNum).padStart(3,'0')}</span></td>
-        <td class="tl" style="font-family:var(--mono);font-size:11px">${d.fecha}${origenBadge}${periodoBadge}</td>
+        <td class="tl" style="font-family:var(--mono);font-size:11px">${d.fecha}${origenBadge}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px;color:${d.fechaVencimiento?'var(--tx)':'var(--mt)'}">${d.fechaVencimiento||'—'}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px">${d.tipoDTE}${esNC?' <span style="font-family:var(--sans);font-size:8px;font-weight:700;color:var(--err);border:1px solid var(--err);border-radius:3px;padding:0 3px;vertical-align:middle">NC</span>':''}${dte?`<div style="font-size:9px;color:var(--mt);font-family:var(--sans);line-height:1.1;margin-top:1px">${dte.nm.slice(0,18)}</div>`:''}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px">${d.numero||''}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px">${rutFmt(d.rutCodigo,d.rutDV)}</td>
-        <td class="tnm">${d.razonSocial||''}${distTxt?`<div style="font-size:10px;color:var(--mt);margin-top:2px">${distTxt}</div>`:''}${recVincTxt}</td>
+        <td class="tnm">${d.razonSocial||''}${distTxt?`<div style="font-size:10px;color:var(--mt);margin-top:2px">${distTxt}</div>`:''}</td>
         <td${cNC}>${sg(d.neto)}</td>
         <td${cNC}>${sg(d.exento)}</td>
         <td${cNC}>${sg(d.iva)}</td>
@@ -406,7 +312,7 @@ function renderCResumen(){
   // documentos del libro + los que vienen de asientos manuales, y las notas de
   // crédito restando.
   todosDocsCompras().forEach(d=>{
-    const m=+(periodoContableCompra(d).slice(5,7))-1;if(m<0||m>11)return;
+    const m=+((d.fecha||'').slice(5,7))-1;if(m<0||m>11)return;
     const sg=(dteC(d.tipoDTE)?.signo)||1;
     porMes[m].neto+=(d.neto||0)*sg;porMes[m].exento+=(d.exento||0)*sg;porMes[m].iva+=(d.iva||0)*sg;porMes[m].otros+=(d.otrosImpuestos||0)*sg;porMes[m].total+=(d.total||0)*sg;porMes[m].cant++;
   });
@@ -438,47 +344,6 @@ function renderCResumen(){
 }
 
 // — Form Compras —
-// V2.11 — referencias tributarias de Notas de Crédito/Débito
-function cfDteChanged(){
-  const t=+document.getElementById('cf-dte')?.value||0;
-  const row=document.getElementById('cf-ref-row');if(row)row.style.display=(t===56||t===61)?'grid':'none';
-  if(t===56||t===61)cfRefrescarDocs();
-}
-
-let _cfRefs=[];
-const escOptC=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function cfAsegurarTipoReferencia(tipo){
-  const sel=document.getElementById('cf-ref-tipo');if(!sel)return;
-  const val=String(+tipo||33);
-  if(![...sel.options].some(o=>o.value===val)){
-    const info=dteC(+tipo);sel.add(new Option(`${val} — ${info?.nm||'Documento tributario'}`,val));
-  }
-  sel.value=val;
-}
-function cfRefrescarDocs(){
-  const sel=document.getElementById('cf-ref-doc');if(!sel)return;
-  const r=rutParse(document.getElementById('cf-rut')?.value||'');
-  const actual={tipo:+document.getElementById('cf-ref-tipo')?.value||0,folio:(document.getElementById('cf-ref-folio')?.value||'').trim(),fecha:document.getElementById('cf-ref-fecha')?.value||''};
-  _cfRefs=r.codigo?todosDocsCompras().filter(d=>d&&d.estado!=='anulado'&&d.rutCodigo===r.codigo&&d.id!==CF.editId)
-    .sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||String(b.numero||'').localeCompare(String(a.numero||''))):[];
-  const ayuda=document.getElementById('cf-ref-ayuda');
-  if(!r.codigo){sel.innerHTML='<option value="">Ingrese el RUT para buscar documentos…</option>';if(ayuda)ayuda.textContent='Selecciona un documento ya registrado para completar la referencia.';return;}
-  if(!_cfRefs.length){sel.innerHTML='<option value="">No hay documentos registrados para este proveedor</option>';if(ayuda)ayuda.textContent='Puedes ingresar la referencia manualmente en los campos inferiores.';return;}
-  sel.innerHTML='<option value="">Seleccionar documento referenciado…</option>'+_cfRefs.map((d,i)=>`<option value="${i}">${escOptC(d.fecha)} · DTE ${+d.tipoDTE||''} N° ${escOptC(d.numero)} · ${escOptC(fmtC(d.total||0))}</option>`).join('');
-  const idx=_cfRefs.findIndex(d=>+d.tipoDTE===actual.tipo&&String(d.numero||'')===actual.folio&&(!actual.fecha||d.fecha===actual.fecha));
-  if(idx>=0)sel.value=String(idx);
-  if(ayuda)ayuda.textContent=`${_cfRefs.length} documento${_cfRefs.length===1?' disponible':'s disponibles'} para este proveedor.`;
-}
-function cfSeleccionarReferencia(valor){
-  if(valor==='')return;
-  const d=_cfRefs[+valor];if(!d)return;
-  cfAsegurarTipoReferencia(d.tipoDTE);
-  document.getElementById('cf-ref-folio').value=d.numero||'';
-  document.getElementById('cf-ref-fecha').value=d.fecha||'';
-  const razon=document.getElementById('cf-ref-razon');
-  if(razon&&!razon.value)razon.value=(+document.getElementById('cf-dte')?.value===61?'Anula / corrige documento seleccionado':'Modifica documento seleccionado');
-}
-
 function abrirCF(){
   fijarCF(null,[{cuenta:'',monto:0,cc:''}]);
   const f=document.getElementById('cf-form');f.style.display='block';f.classList.remove('editing');
@@ -486,10 +351,7 @@ function abrirCF(){
   document.getElementById('cf-fecha').value=today();
   document.getElementById('cf-vence').value='';
   document.getElementById('cf-dte').innerHTML=dteComprasOpts('');
-  ['cf-num','cf-rut','cf-rs','cf-neto','cf-exento','cf-iva','cf-otros','cf-total','cf-ref-folio','cf-ref-fecha','cf-ref-razon'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  cfDteChanged();
-  document.getElementById('cf-iva-tipo').value='recuperable';document.getElementById('cf-iva-pct').value='100';cfTratamientoIVAUI();
-  const ot=document.getElementById('cf-otros-trat');if(ot)ot.value='costo';
+  ['cf-num','cf-rut','cf-rs','cf-neto','cf-exento','cf-iva','cf-otros','cf-total'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('cf-dv').textContent='';
   document.getElementById('cf-dup-warn').style.display='none';
   renderDist();
@@ -504,23 +366,13 @@ function editarCompra(id){
   document.getElementById('cf-fecha').value=d.fecha;
   document.getElementById('cf-vence').value=d.fechaVencimiento||'';
   document.getElementById('cf-dte').innerHTML=dteComprasOpts(d.tipoDTE);
-  cfDteChanged();
-  if(document.getElementById('cf-ref-tipo'))document.getElementById('cf-ref-tipo').value=d.referencia?.tipoDTE||33;
-  if(document.getElementById('cf-ref-folio'))document.getElementById('cf-ref-folio').value=d.referencia?.folio||'';
-  if(document.getElementById('cf-ref-fecha'))document.getElementById('cf-ref-fecha').value=d.referencia?.fecha||'';
-  if(document.getElementById('cf-ref-razon'))document.getElementById('cf-ref-razon').value=d.referencia?.razon||'';
   document.getElementById('cf-num').value=d.numero||'';
   document.getElementById('cf-rut').value=(d.rutCodigo||'')+(d.rutDV||'');
   document.getElementById('cf-rs').value=d.razonSocial||'';
   document.getElementById('cf-neto').value=d.neto||'';
   document.getElementById('cf-exento').value=d.exento||'';
   document.getElementById('cf-iva').value=d.iva||'';
-  const ivaTot=Math.abs(+d.iva||0), ivaRec=d.ivaRecuperable!=null?Math.abs(+d.ivaRecuperable||0):ivaTot;
-  const tipoIVA=d.tratamientoIVA||(d.ivaActivoFijo>0?'activo_fijo':d.ivaNoRecuperable>=ivaTot&&ivaTot>0?'no_recuperable':d.ivaNoRecuperable>0?'proporcional':'recuperable');
-  document.getElementById('cf-iva-tipo').value=tipoIVA;
-  document.getElementById('cf-iva-pct').value=ivaTot?Math.round((ivaRec/ivaTot)*10000)/100:100;cfTratamientoIVAUI();
   document.getElementById('cf-otros').value=d.otrosImpuestos||'';
-  const ot=document.getElementById('cf-otros-trat');if(ot)ot.value=d.tratamientoOtrosImpuestos||(d.otrosImpuestosDetalle?.some(x=>x.tratamiento==='recuperable')?'recuperable':'costo');
   document.getElementById('cf-total').value=d.total||'';
   document.getElementById('cf-dup-warn').style.display='none';
   cfRutInput(document.getElementById('cf-rut').value);
@@ -533,13 +385,12 @@ function cerrarCF(){document.getElementById('cf-form').style.display='none';fija
 function cfRutInput(val){
   const r=rutParse(val);
   const el=document.getElementById('cf-dv');
-  if(!r.raw){el.textContent='';el.className='rut-dv';cfRefrescarDocs();return;}
+  if(!r.raw){el.textContent='';el.className='rut-dv';return;}
   if(r.codigo&&r.valido){el.textContent='✓ '+r.dv;el.className='rut-dv ok';
     const prev=S.compras.find(v=>v.rutCodigo===r.codigo&&v.razonSocial);
     const rs=document.getElementById('cf-rs');
     if(prev&&!rs.value)rs.value=prev.razonSocial;
-    cfRefrescarDocs();
-  }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';cfRefrescarDocs();}
+  }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';}
   else{el.textContent='…';el.className='rut-dv';}
 }
 
@@ -556,15 +407,6 @@ function cfCheckDup(){
     warn.className='doc-dup-warn';warn.style.display='';
     warn.innerHTML=`⚠️ <span>DOCUMENTO DUPLICADO</span><span style="font-weight:400;margin-left:auto;font-size:11px">Ya existe: N° ${String(f).padStart(3,'0')} · ${dup.fecha} · ${rutFmt(dup.rutCodigo,dup.rutDV)} · DTE ${dup.tipoDTE} N°${dup.numero} · ${fmtC(dup.total)}</span>`;
   }else{warn.style.display='none';}
-}
-
-function cfTratamientoIVAUI(){
-  const tipo=document.getElementById('cf-iva-tipo')?.value||'recuperable';
-  const pct=document.getElementById('cf-iva-pct');if(!pct)return;
-  pct.disabled=tipo!=='proporcional';
-  if(tipo==='recuperable'||tipo==='activo_fijo')pct.value='100';
-  if(tipo==='no_recuperable')pct.value='0';
-  if(tipo==='proporcional'&&(!pct.value||+pct.value<0||+pct.value>100))pct.value='50';
 }
 
 function cfCalcTotals(changed){
@@ -601,32 +443,30 @@ function renderDist(){
   // qué es cada cosa para colocarla y ponerle su etiqueta.
   box.innerHTML=CF.dist.map((l,i)=>`<div class="dist-row">
     <div class="dist-num">${i+1}</div>
-    <div class="dist-cd">${inputCuenta({id:`dist-cd-${i}`,value:l.cuenta,onPick:`CF.dist[${i}].cuenta='%CD%';updCfCheck()`,placeholder:'Cuenta de gasto…',clase:'dist-inp'})}<select class="dist-inp" style="margin-top:4px;font-size:10px" title="Tratamiento tributario" onchange="CF.dist[${i}].tratamientoTributario=this.value"><option value="aceptado" ${(l.tratamientoTributario||'aceptado')==='aceptado'?'selected':''}>Tributario: gasto aceptado</option><option value="rechazado" ${l.tratamientoTributario==='rechazado'?'selected':''}>Tributario: gasto rechazado</option></select></div>
-    <div class="dist-mt"><input type="number" class="dist-num-inp money-input" min="0" placeholder="0" value="${l.monto||''}" oninput="CF.dist[${i}].monto=pn(this.value);updCfCheck()"></div>
+    <div class="dist-cd">${inputCuenta({id:`dist-cd-${i}`,value:l.cuenta,onPick:`CF.dist[${i}].cuenta='%CD%';updCfCheck()`,placeholder:'Cuenta de gasto…',clase:'dist-inp'})}</div>
+    <div class="dist-mt"><input type="number" class="dist-num-inp" min="0" placeholder="0" value="${l.monto||''}" oninput="CF.dist[${i}].monto=pn(this.value);updCfCheck()"></div>
     <div class="dist-ccc"><select class="dist-inp" title="Centro de costo" onchange="CF.dist[${i}].cc=this.value">${ccOpts(l.cc||'')}</select></div>
     <div class="dist-del"><button class="btn btn-d" onclick="delDist(${i})" title="Quitar esta línea">✕</button></div>
   </div>`).join('');
   updCfCheck();
 }
-function addDist(){CF.dist.push({cuenta:'',monto:0,cc:'',tratamientoTributario:'aceptado'});renderDist();}
-function delDist(i){if(CF.dist.length>1)CF.dist.splice(i,1);else CF.dist[0]={cuenta:'',monto:0,cc:'',tratamientoTributario:'aceptado'};renderDist();}
+function addDist(){CF.dist.push({cuenta:'',monto:0});renderDist();}
+function delDist(i){if(CF.dist.length>1)CF.dist.splice(i,1);else CF.dist[0]={cuenta:'',monto:0};renderDist();}
 function updCfCheck(){
   const neto=pn(document.getElementById('cf-neto').value);
-  const exento=pn(document.getElementById('cf-exento').value);
-  const base=neto+exento;
   const sum=CF.dist.reduce((s,l)=>s+(l.monto||0),0);
-  const diff=sum-base,ok=base>0&&Math.abs(diff)<=1;
+  const diff=sum-neto,ok=neto>0&&diff===0;
   const box=document.getElementById('cf-check');
   box.className='dist-check '+(ok?'ok':'err');
   document.getElementById('cf-check-ico').textContent=ok?'✅':'⚠️';
-  document.getElementById('cf-check-msg').textContent=ok?'Distribución cuadrada con Neto + Exento':
-    base===0?'Ingresa el neto/exento y distribúyelo en cuentas':
-    diff>0?`Exceso de ${fmtC(diff)} sobre Neto + Exento`:
+  document.getElementById('cf-check-msg').textContent=ok?'Distribución cuadrada con el neto':
+    neto===0?'Ingresa el neto y distribúyelo en cuentas':
+    diff>0?`Exceso de ${fmtC(diff)} sobre el neto`:
     `Faltan ${fmtC(-diff)} por distribuir`;
-  document.getElementById('cf-check-det').innerHTML=`<span>Neto + Exento: ${fmtC(base)}</span> · <span>Distribuido: ${fmtC(sum)}</span>`;
+  document.getElementById('cf-check-det').innerHTML=`<span>Neto: ${fmtC(neto)}</span> · <span>Distribuido: ${fmtC(sum)}</span>`;
 }
 
-async function guardarCompra(){
+function guardarCompra(){
   const fecha=document.getElementById('cf-fecha').value;
   const fechaVencimiento=document.getElementById('cf-vence').value||'';
   const tipoDTE=+document.getElementById('cf-dte').value;
@@ -636,26 +476,8 @@ async function guardarCompra(){
   const neto=pn(document.getElementById('cf-neto').value);
   const exento=pn(document.getElementById('cf-exento').value);
   const iva=pn(document.getElementById('cf-iva').value);
-  const tratamientoIVA=document.getElementById('cf-iva-tipo')?.value||'recuperable';
-  let porcentajeIvaRecuperable=parseFloat(String(document.getElementById('cf-iva-pct')?.value||100).replace(',','.'))||0;
-  porcentajeIvaRecuperable=Math.max(0,Math.min(100,porcentajeIvaRecuperable));
-  if(tratamientoIVA==='recuperable'||tratamientoIVA==='activo_fijo')porcentajeIvaRecuperable=100;
-  if(tratamientoIVA==='no_recuperable')porcentajeIvaRecuperable=0;
-  const ivaRecuperable=Math.round(iva*porcentajeIvaRecuperable/100);
-  const ivaNoRecuperable=iva-ivaRecuperable;
-  const ivaActivoFijo=tratamientoIVA==='activo_fijo'?ivaRecuperable:0;
   const otrosImpuestos=pn(document.getElementById('cf-otros').value);
-  const tratamientoOtrosImpuestos=document.getElementById('cf-otros-trat')?.value||'costo';
-  const otrosImpuestosDetalle=otrosImpuestos?[{tipo:'otro',nombre:'Otros impuestos',monto:otrosImpuestos,tratamiento:tratamientoOtrosImpuestos}]:[];
   const total=pn(document.getElementById('cf-total').value);
-  const prevEdit=CF.editId?S.compras.find(x=>x.id===CF.editId):null;
-  const esNota=tipoDTE===56||tipoDTE===61;
-  const referencia=esNota?{tipoDTE:+document.getElementById('cf-ref-tipo')?.value||33,folio:(document.getElementById('cf-ref-folio')?.value||'').trim(),fecha:document.getElementById('cf-ref-fecha')?.value||'',razon:(document.getElementById('cf-ref-razon')?.value||'').trim()}:null;
-  const refRegistrada=referencia?_cfRefs.find(d=>+d.tipoDTE===referencia.tipoDTE&&String(d.numero||'')===referencia.folio&&(!referencia.fecha||d.fecha===referencia.fecha)):null;
-  if(refRegistrada){referencia.documentoId=refRegistrada.id;referencia.totalOriginal=refRegistrada.total||0;}
-  const esFacturaCompra=tipoDTE===45||tipoDTE===46;
-  const esNotaFacturaCompra=esNota&&([45,46].includes(+referencia?.tipoDTE)||(+prevEdit?.ivaRetenido||0)>0);
-  const usaIvaRetenido=esFacturaCompra||esNotaFacturaCompra;
 
   if(!fecha){toast('⚠️ Ingresa la fecha de emisión','e');return;}
   if(fechaVencimiento&&fechaVencimiento<fecha){toast('⚠️ La fecha de vencimiento no puede ser anterior a la emisión','e');return;}
@@ -666,18 +488,12 @@ async function guardarCompra(){
   if(!r.valido){toast('⚠️ RUT inválido — dígito verificador no coincide','e');return;}
   if(!razonSocial){toast('⚠️ Ingresa la razón social','e');return;}
   if(total<=0){toast('⚠️ El total debe ser mayor a cero','e');return;}
-  if(!usaIvaRetenido&&Math.abs((neto+exento+iva+otrosImpuestos)-total)>1){toast('⚠️ Neto + Exento + IVA + Otros no coincide con el Total','e');return;}
-  if(usaIvaRetenido){
-    const tc=tributacionCompra({tipoDTE,neto,exento,iva,otrosImpuestos,total,ivaRetenido:iva,referencia});
-    if(tc.diferenciaTotal>1){
-      toast(`⚠️ En DTE ${tipoDTE}, el Total debe corresponder al total del documento (${fmtC(tc.totalDocumento)}) o al monto pagadero al proveedor (${fmtC(tc.totalProveedor)}).`,'e');return;
-    }
-  }
+  if(Math.abs((neto+exento+iva+otrosImpuestos)-total)>1){toast('⚠️ Neto + Exento + IVA + Otros no coincide con el Total','e');return;}
 
   const dist=CF.dist.filter(l=>l.cuenta&&l.monto>0);
   if(!dist.length){toast('⚠️ Agrega al menos una cuenta de gasto','e');return;}
   const sumDist=dist.reduce((s,l)=>s+l.monto,0);
-  if(Math.abs(sumDist-(neto+exento))>1){toast('⚠️ La distribución debe cuadrar con Neto + Exento','e');return;}
+  if(Math.abs(sumDist-neto)>1){toast('⚠️ La distribución no cuadra con el neto','e');return;}
 
   const dup=S.compras.find(v=>v.rutCodigo===r.codigo&&+v.tipoDTE===tipoDTE&&v.numero===numero&&v.id!==CF.editId);
   if(dup){
@@ -686,61 +502,28 @@ async function guardarCompra(){
     return;
   }
 
-  if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre el ejercicio antes de registrar o modificar documentos.','e');return;}
-  const fechaVencimientoOrigen=fechaVencimiento
-    ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
-    :'';
-  // V2.22 — Conciliación automática: si ya existe una recepción de inventario con el mismo RUT+tipoDTE+N°, se vincula al guardar la factura.
-  const recepcionesPrevias=prevEdit?.recepcionesVinculadas||[];
-  const recepcionMatch=(!recepcionesPrevias.length&&(tipoDTE===33||tipoDTE===34))?buscarRecepcionParaCompra({tipoDTE,rutCodigo:r.codigo,numero},S.inventario?.recepciones||[]):null;
-  const recepcionesVinculadas=recepcionesPrevias.length?recepcionesPrevias:(recepcionMatch?[{id:recepcionMatch.id,folio:recepcionMatch.folio}]:[]);
-  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaActivoFijo,porcentajeIvaRecuperable,tratamientoIVA,otrosImpuestos,tratamientoOtrosImpuestos,otrosImpuestosDetalle,total,dist,...(referencia?{referencia}:{}),...(usaIvaRetenido?{ivaRetenido:iva,totalIncluyeRetencion:Math.abs(total-(neto+exento+otrosImpuestos+iva))<=1}:{}),...(prevEdit?.periodoContable?{periodoContable:prevEdit.periodoContable,fechaContabilizacion:prevEdit.fechaContabilizacion||fechaContabilizacionCompra(prevEdit),origenRegistro:prevEdit.origenRegistro||'RCV'}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||'',tipoCompra:prevEdit.tipoCompra||'',codigoIvaNoRecuperable:prevEdit.codigoIvaNoRecuperable||'',numeroInternoSII:prevEdit.numeroInternoSII||''}:{}),...(recepcionesVinculadas.length?{recepcionesVinculadas}:{})};
-  const editando=!!CF.editId;
-  if(editando){
-    const i=S.compras.findIndex(x=>x.id===CF.editId); const prev=i>=0?S.compras[i]:null;
-    if(prev&&typeof prev.corrMes==='number'&&periodoContableCompra(prev)===periodoContableCompra(doc))doc.corrMes=prev.corrMes;
-    else doc.corrMes=proxCorrMesCompra(fecha,CF.editId,periodoContableCompra(doc));
-  } else doc.corrMes=proxCorrMesCompra(fecha,null,periodoContableCompra(doc));
-  const rSave=await guardarDocumentoContabilizado('compras',doc,S.compras,editando);
-  if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
-  let avisoExtra='';
-  if(recepcionMatch){
-    const recs=(S.inventario?.recepciones||[]).slice();
-    const ri=recs.findIndex(x=>x.id===recepcionMatch.id);
-    if(ri>=0&&!recs[ri].compraId){
-      recs[ri]={...recs[ri],compraId:doc.id,compraTipoDTE:doc.tipoDTE,compraNumero:doc.numero,compraAnio:S.empresa.anio,estadoContable:'CONCILIADA'};
-      const wr=await window.storage.set('inv-recepciones',JSON.stringify(recs));
-      if(wr&&wr.ok!==false)S.inventario.recepciones=recs;
-      else avisoExtra=' · ⚠️ no se pudo vincular la recepción asociada';
-    }
+  const doc={id:CF.editId||'c_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,dist};
+  if(CF.editId){
+    const i=S.compras.findIndex(x=>x.id===CF.editId);
+    const prev=i>=0?S.compras[i]:null;
+    // Conservar el correlativo si el mes no cambió; reasignar si cambió de mes
+    if(prev&&typeof prev.corrMes==='number'&&(prev.fecha||'').slice(0,7)===fecha.slice(0,7))
+      doc.corrMes=prev.corrMes;
+    else
+      doc.corrMes=proxCorrMesCompra(fecha,CF.editId);
+    if(i>=0)S.compras[i]=doc;toast('✅ Documento actualizado');logAccion('Editó compra',`DTE ${doc.tipoDTE} N°${doc.numero} · ${fmtC(doc.total)}`);
   }
-  toast((editando?'✅ Documento actualizado y contabilizado':'✅ Documento registrado y contabilizado')+(recepcionMatch?` · 🔗 conciliado con recepción ${recepcionMatch.folio}`:'')+avisoExtra,avisoExtra?'e':'ok');
-  logAccion(editando?'Editó compra':'Registró compra',`DTE ${doc.tipoDTE} N°${doc.numero} · ${doc.razonSocial} · ${fmtC(doc.total)}`);
+  else{doc.corrMes=proxCorrMesCompra(fecha);S.compras.push(doc);toast('✅ Documento registrado');logAccion('Registró compra',`DTE ${doc.tipoDTE} N°${doc.numero} · ${doc.razonSocial} · ${fmtC(doc.total)}`);}
+  window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras)).catch(()=>{});
   cerrarCF();rerender();
 }
 
-async function eliminarCompra(id){
+function eliminarCompra(id){
   const d=S.compras.find(x=>x.id===id);if(!d)return;
   if(!confirm(`¿Eliminar documento ${d.tipoDTE} N°${d.numero} de ${d.razonSocial}?\nTotal: ${fmtC(d.total)}`))return;
-  const recepcionesVinculadas=d.recepcionesVinculadas||[];
-  const r=await anularDocumentoContabilizado('compras',d,S.compras);
-  if(!r.ok){toast(r.motivo==='ejercicio-cerrado'?'🔒 El ejercicio está cerrado':'❌ No se pudo guardar la anulación','e');return;}
-  let avisoExtra='';
-  if(recepcionesVinculadas.length){
-    const recs=(S.inventario?.recepciones||[]).slice();
-    let cambio=false;
-    recepcionesVinculadas.forEach(v=>{
-      const ri=recs.findIndex(x=>x.id===v.id);
-      if(ri>=0&&recs[ri].compraId===d.id){recs[ri]={...recs[ri],compraId:null,compraTipoDTE:null,compraNumero:null,compraAnio:null,estadoContable:(recs[ri].tipoDTE===52?'ESPERA_FACTURA':'PENDIENTE_CONCILIACION')};cambio=true;}
-    });
-    if(cambio){
-      const wr=await window.storage.set('inv-recepciones',JSON.stringify(recs));
-      if(wr&&wr.ok!==false)S.inventario.recepciones=recs;
-      else avisoExtra=' · ⚠️ no se pudo desvincular la(s) recepción(es) asociada(s)';
-    }
-  }
-  rerender();toast('🚫 Documento y asiento anulados (se conserva la trazabilidad)'+avisoExtra,avisoExtra?'e':'ok');
+  S.compras=S.compras.filter(x=>x.id!==id);
+  window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras)).catch(()=>{});
+  rerender();toast('🗑 Documento eliminado');
 }
 
 // ═══ IMPORTACIÓN DESDE SII (Registro de Compras CSV) ═══
@@ -794,8 +577,6 @@ function parseSIICompras(text){
   const cNeto=getCol('monto neto','neto');
   const cIvaRec=getCol('iva recuperable','monto iva recuperable');
   const cIvaNoRec=getCol('iva no recuperable','monto iva no recuperable');
-  const cIvaUsoComun=getCol('iva uso común','iva uso comun','iva uso comun');
-  const cIvaActivoFijo=getCol('iva activo fijo','iva activo');
   const cIvaPlano=getCol('monto iva','iva');
   const cTotal=getCol('monto total','total');
   const cOtroImp=getCol('valor otro impuesto','otro impuesto');
@@ -816,18 +597,16 @@ function parseSIICompras(text){
     if(!fecha){descartados++;continue;}
     const neto=Math.abs(parseNumSII(r[cNeto]||'0'));
     const exento=Math.abs(parseNumSII(r[cExento]||'0'));
-    const ivaRecuperable=cIvaRec>=0?Math.abs(parseNumSII(r[cIvaRec]||'0')):null;
-    const ivaNoRecuperable=cIvaNoRec>=0?Math.abs(parseNumSII(r[cIvaNoRec]||'0')):null;
-    const ivaUsoComun=cIvaUsoComun>=0?Math.abs(parseNumSII(r[cIvaUsoComun]||'0')):0;
-    const ivaActivoFijo=cIvaActivoFijo>=0?Math.abs(parseNumSII(r[cIvaActivoFijo]||'0')):0;
-    let iva=(ivaRecuperable||0)+(ivaNoRecuperable||0);
+    let iva=0;
+    if(cIvaRec>=0)iva+=Math.abs(parseNumSII(r[cIvaRec]||'0'));
+    if(cIvaNoRec>=0)iva+=Math.abs(parseNumSII(r[cIvaNoRec]||'0'));
     if(!iva&&cIvaPlano>=0)iva=Math.abs(parseNumSII(r[cIvaPlano]||'0'));
     const total=Math.abs(parseNumSII(r[cTotal]||'0'));
     const otrosImpuestos=cOtroImp>=0?Math.abs(parseNumSII(r[cOtroImp]||'0')):0;
     const numero=String(r[cNro]||'').trim();
     if(!numero||total===0){descartados++;continue;}
 
-    docs.push({fecha,tipoDTE,numero,rutCodigo:rutInfo.codigo,rutDV:rutInfo.dv,razonSocial:(r[cRazon]||'').trim(),neto,exento,iva,ivaRecuperable,ivaNoRecuperable,ivaUsoComun,ivaActivoFijo,tratamientoIVA:ivaActivoFijo>0?'activo_fijo':(ivaNoRecuperable>0?'sii':'recuperable'),otrosImpuestos,tratamientoOtrosImpuestos:'costo',otrosImpuestosDetalle:otrosImpuestos?[{tipo:'otro',nombre:'Otros impuestos RCV',monto:otrosImpuestos,tratamiento:'costo'}]:[],total});
+    docs.push({fecha,tipoDTE,numero,rutCodigo:rutInfo.codigo,rutDV:rutInfo.dv,razonSocial:(r[cRazon]||'').trim(),neto,exento,iva,otrosImpuestos,total});
   }
   return {docs,descartados};
 }
@@ -868,17 +647,13 @@ function mostrarDocsImportados(res,nombreArchivo){
   // manualmente puede tener el número como Number y el CSV lo trae como String.
   const todos=todosDocsCompras();
   res.docs.forEach(d=>{
-    const dupLibro=(S.compras||[]).find(x=>claveDocCompra(x)===claveDocCompra(d));
-    const dup=dupLibro||todos.find(x=>
+    const dup=todos.find(x=>
       x.rutCodigo===d.rutCodigo &&
       +x.tipoDTE===+d.tipoDTE &&
       String(x.numero).trim()===String(d.numero).trim()
     );
     d.dup=dup||null;
-    Object.assign(d,resolverVencimientoImportado(d,dup||null));
     d.incluir=!dup;
-    d.estadoImport=dup?'igual':'nuevo';
-    d.cambiosRCV=[];
     // Pre-poblar cuenta y CC. Prioridad: la clasificación que ya tiene el
     // documento registrado (si es una recarga del mismo periodo), luego la
     // ficha del proveedor. Así una re-importación no pierde el trabajo hecho.
@@ -886,8 +661,6 @@ function mostrarDocsImportados(res,nombreArchivo){
     const distPrev=dup&&Array.isArray(dup.dist)?dup.dist[0]:null;
     d.cuenta=distPrev?.cuenta||ficha?.cuentaDefault||'';
     d.cc=distPrev?.cc||ficha?.ccDefault||'';
-    // Conservar la referencia de nota ya asignada si es una recarga del documento.
-    if(dup?.referencia?.folio&&!d.referencia)d.referencia={...dup.referencia};
     d.fechaOriginal=d.fecha;
   });
 
@@ -900,7 +673,6 @@ function mostrarDocsImportados(res,nombreArchivo){
   IM.periodoMes=+mesTop;
   IM.periodoAnio=+anioTop;
   IM.periodos=periodos;
-  recalcularEstadoImportCompras();
   abrirImportModal();
 }
 
@@ -939,9 +711,6 @@ function abrirImportModal(){
 function cambiarPeriodoImport(){
   IM.periodoMes=+document.getElementById('imp-periodo-mes').value;
   IM.periodoAnio=+document.getElementById('imp-periodo-anio').value;
-  recalcularEstadoImportCompras();
-  // Al cambiar el período, no aplicar cambios SII silenciosamente.
-  IM.docs.forEach(d=>{d.incluir=d.estadoImport==='nuevo'||(IM.modo==='sobrescribir'&&d.estadoImport==='cambio');});
   renderImportModal();
 }
 
@@ -952,19 +721,15 @@ function cambiarPeriodoImport(){
 //                  estaban registrados (mismo RUT + tipo DTE + folio).
 function cambiarModoImport(){
   IM.modo=document.getElementById('imp-modo')?.value||'agregar';
-  recalcularEstadoImportCompras();
-  // Idempotencia: los documentos idénticos nunca vuelven a escribirse. En
-  // sobrescritura sólo se seleccionan nuevos + cambios reales detectados.
-  IM.docs.forEach(d=>{
-    d.incluir=d.estadoImport==='nuevo'||(IM.modo==='sobrescribir'&&d.estadoImport==='cambio');
-  });
+  // Al sobrescribir, los duplicados SÍ entran (son justamente los que se reemplazan)
+  IM.docs.forEach(d=>{d.incluir=IM.modo==='sobrescribir'?true:!d.dup;});
   renderImportModal();
 }
 
 // Documentos del libro (no de asientos) que caen en el periodo seleccionado
 function docsLibroDelPeriodo(){
   const per=`${IM.periodoAnio}-${String(IM.periodoMes).padStart(2,'0')}`;
-  return S.compras.filter(d=>periodoContableCompra(d)===per);
+  return S.compras.filter(d=>(d.fecha||'').slice(0,7)===per);
 }
 
 function cerrarImportModal(){
@@ -972,21 +737,16 @@ function cerrarImportModal(){
   IM.docs=[];  // limpiar in-place (no reasignar; ver nota en cargarArchivoSII)
 }
 
-// La fecha del documento NUNCA se altera durante la importación RCV.
-// El periodo seleccionado se guarda por separado y determina F29, correlativo y asiento.
+// Devuelve la fecha efectiva que se guardará: si "forzar" está activo y el doc está fuera del
+// periodo, retornar el último día del mes del periodo; si no, usar la fecha original.
 function fechaEfectivaImport(d){
-  return d.fechaOriginal;
-}
-function periodoImportSeleccionado(){
-  return `${IM.periodoAnio}-${String(IM.periodoMes).padStart(2,'0')}`;
-}
-function fechaContabilizacionImport(d){
-  const per=periodoImportSeleccionado();
-  const fd=String(d?.fechaOriginal||'');
-  if(fd.slice(0,7)===per)return fd;
-  const [y,m]=per.split('-').map(Number);
-  const dia=new Date(y,m,0).getDate();
-  return `${per}-${String(dia).padStart(2,'0')}`;
+  const forzar=document.getElementById('imp-forzar-periodo')?.checked;
+  const [yOrig,mOrig]=d.fechaOriginal.split('-');
+  const fueraPeriodo=(+yOrig!==IM.periodoAnio||+mOrig!==IM.periodoMes);
+  if(!forzar||!fueraPeriodo)return d.fechaOriginal;
+  // Forzar al último día del mes del periodo (para preservar orden cronológico al cierre)
+  const ultDia=new Date(IM.periodoAnio,IM.periodoMes,0).getDate();
+  return `${IM.periodoAnio}-${String(IM.periodoMes).padStart(2,'0')}-${String(ultDia).padStart(2,'0')}`;
 }
 
 function renderImportModal(){
@@ -994,15 +754,6 @@ function renderImportModal(){
   const dups=IM.docs.filter(d=>d.dup).length;
   const incl=IM.docs.filter(d=>d.incluir).length;
   const conCuenta=IM.docs.filter(d=>d.incluir&&d.cuenta).length;
-  const nuevos=IM.docs.filter(d=>d.estadoImport==='nuevo').length;
-  const iguales=IM.docs.filter(d=>d.estadoImport==='igual').length;
-  const cambiados=IM.docs.filter(d=>d.estadoImport==='cambio').length;
-  const manuales=IM.docs.filter(d=>d.estadoImport==='manual').length;
-  const descuadrados=validarCuadraturaImportCompras();
-  const badIdx=new Set(descuadrados.map(x=>x.idx));
-  const sinCuenta=IM.docs.map((d,idx)=>({...d,idx})).filter(d=>d.incluir&&!d.cuenta);
-  const noAccountIdx=new Set(sinCuenta.map(x=>x.idx));
-  const listos=IM.docs.filter((d,i)=>d.incluir&&d.cuenta&&!badIdx.has(i));
 
   // Info del periodo
   const periodoStr=`${MESES[IM.periodoMes-1]} ${IM.periodoAnio}`;
@@ -1010,6 +761,7 @@ function renderImportModal(){
     const [y,m]=d.fechaOriginal.split('-');
     return +y!==IM.periodoAnio||+m!==IM.periodoMes;
   }).length;
+  const forzar=document.getElementById('imp-forzar-periodo')?.checked;
   let periodoInfo=`Periodo seleccionado: <strong>${periodoStr}</strong>`;
   if(IM.periodos&&IM.periodos.length>1){
     const detallado=IM.periodos.map(([p,c])=>{
@@ -1019,7 +771,7 @@ function renderImportModal(){
     periodoInfo+=`<br><span style="color:var(--mt);font-size:10px">Detectado en archivo: ${detallado}</span>`;
   }
   if(fuera>0){
-    periodoInfo+=`<br><span style="color:var(--info);font-size:11px;margin-top:2px;display:inline-block">✓ ${fuera} documento${fuera===1?'':'s'} con fecha de emisión distinta del período RCV: conservarán su fecha original y se contabilizarán en ${periodoStr}.</span>`;
+    periodoInfo+=`<br><span style="color:${forzar?'var(--info)':'var(--err)'};font-size:11px;margin-top:2px;display:inline-block">${forzar?'✓':'⚠️'} ${fuera} documento${fuera===1?'':'s'} con fecha fuera del periodo ${forzar?`se ajustarán al último día de ${periodoStr}`:'se importarán con su fecha original'}</span>`;
   }
   document.getElementById('imp-periodo-info').innerHTML=periodoInfo;
 
@@ -1028,14 +780,14 @@ function renderImportModal(){
   const sobre=modo==='sobrescribir';
   let avisoModo='';
   if(sobre){
-    const enLibro=docsLibroDelPeriodo().filter(d=>d.estado!=='anulado');
-    const clavesArchivo=new Set(IM.docs.map(claveDocCompra));
+    const enLibro=docsLibroDelPeriodo();
+    const clavesArchivo=new Set(IM.docs.filter(d=>d.incluir).map(claveDocCompra));
     const conservan=enLibro.filter(d=>clavesArchivo.has(claveDocCompra(d))).length;
     const sePierden=enLibro.length-conservan;
     avisoModo=`<div style="background:rgba(210,153,34,.10);border:1px solid rgba(210,153,34,.35);border-radius:6px;padding:9px 12px;margin-top:8px;font-size:11px;line-height:1.5">
-      🔁 <strong>Sobrescribir ${periodoStr}</strong> — se concilian los <strong>${enLibro.length}</strong> documento${enLibro.length===1?'':'s'} activos del libro contra el archivo. Sólo se escriben documentos nuevos o realmente modificados.
+      🔁 <strong>Sobrescribir ${periodoStr}</strong> — se eliminan los <strong>${enLibro.length}</strong> documento${enLibro.length===1?'':'s'} que hoy tiene el libro en ese periodo y se cargan los <strong>${incl}</strong> del archivo.
       <strong style="color:var(--ach)">${conservan}</strong> conservan su correlativo actual; los nuevos toman los números libres del mes.
-      ${sePierden?`<br><span style="color:var(--err)">⚠️ ${sePierden} documento${sePierden===1?'':'s'} del libro no viene${sePierden===1?'':'n'} en el archivo y se anulará${sePierden===1?'':'n'} con trazabilidad.</span>`:''}
+      ${sePierden?`<br><span style="color:var(--err)">⚠️ ${sePierden} documento${sePierden===1?'':'s'} del libro no viene${sePierden===1?'':'n'} en el archivo y se eliminará${sePierden===1?'':'n'}.</span>`:''}
       <br><span style="color:var(--mt)">Los documentos registrados vía asientos manuales no se tocan.</span>
     </div>`;
   }
@@ -1043,132 +795,56 @@ function renderImportModal(){
   // Summary
   document.getElementById('imp-summary').innerHTML=`📊 <strong>${total}</strong> documentos detectados` +
     (IM.descartados?` · ${IM.descartados} descartados (datos incompletos o DTE no soportado)`:'')+
-    ` · <strong style="color:var(--ach)">${nuevos} nuevo${nuevos===1?'':'s'}</strong>`+
-    ` · <strong style="color:var(--mt)">${iguales} sin cambios</strong>`+
-    (cambiados?` · <strong style="color:var(--warn)">${cambiados} con cambios SII</strong>`:'')+
-    (manuales?` · <strong style="color:var(--info)">${manuales} ya en asiento manual</strong>`:'')+
-    ` · Archivo: <code style="font-family:var(--mono);font-size:11px">${IM.archivo||'-'}</code>`+avisoModo+alertaCuadraturaImportCompras(descuadrados)+alertaSinCuentaImportCompras(sinCuenta);
-  document.getElementById('imp-count').textContent=`${listos.length} listos${sinCuenta.length?` · ${sinCuenta.length} sin cuenta`:''}${descuadrados.length?` · ${descuadrados.length} con error contable`:''}`;
+    (dups?` · <strong style="color:${sobre?'var(--info)':'var(--err)'}">${dups} ya registrado${dups===1?'':'s'}</strong>${sobre?' (se reemplazan)':' (se omiten)'}`:'')+
+    ` · Archivo: <code style="font-family:var(--mono);font-size:11px">${IM.archivo||'-'}</code>`+avisoModo;
+  document.getElementById('imp-count').textContent=`${conCuenta}/${incl} con cuenta asignada`;
 
   // Botón OK
   const btnOk=document.getElementById('imp-btn-ok');
-  const ausentes=sobre?docsLibroDelPeriodo().filter(d=>d.estado!=='anulado'&&!new Set(IM.docs.map(claveDocCompra)).has(claveDocCompra(d))).length:0;
-  const nListos=listos.length;
   btnOk.textContent=sobre
-    ?`♻️ Conciliar ${periodoStr}: ${nListos} cambio${nListos===1?'':'s'}${descuadrados.length?` · ${descuadrados.length} pendiente${descuadrados.length===1?'':'s'}`:''}${ausentes?` + ${ausentes} ausencia${ausentes===1?'':'s'}`:''}`
-    :`💾 Aplicar ${nListos} documento${nListos===1?'':'s'}${sinCuenta.length?` · ${sinCuenta.length} sin cuenta`:''}${descuadrados.length?` · ${descuadrados.length} con descuadre`:''}`;
-  btnOk.disabled=(nListos===0&&ausentes===0);
-  btnOk.title=descuadrados.length?'Los documentos con errores contables no se guardarán: quedarán pendientes para revisión':'';
+    ?`♻️ Reemplazar ${periodoStr} con ${incl} documento${incl===1?'':'s'}`
+    :`💾 Importar ${incl} documento${incl===1?'':'s'} al ${periodoStr}`;
+  btnOk.disabled=incl===0;
 
   // Checkbox "todos"
   const chkAll=document.getElementById('imp-all');
-  const seleccionables=IM.docs.filter(d=>d.estadoImport!=='igual'&&d.estadoImport!=='manual').length;
+  const seleccionables=sobre?IM.docs.length:IM.docs.filter(d=>!d.dup).length;
   chkAll.checked=incl>0&&incl===seleccionables;
 
   // Filas: cada una usa buscador dinámico (compra = gasto + activo)
   document.getElementById('imp-rows').innerHTML=IM.docs.map((d,i)=>{
-    const pendiente=badIdx.has(i)||noAccountIdx.has(i);
-    const cls='imp-row'+(d.dup?' dup':'')+(!d.incluir?' excluded':'')+(pendiente?' imp-pending-row':'');
+    const cls='imp-row'+(d.dup?' dup':'')+(!d.incluir?' excluded':'');
     const [y,m]=d.fechaOriginal.split('-');
     const fueraP=+y!==IM.periodoAnio||+m!==IM.periodoMes;
-    const vtoShow=d.fechaVencimiento?`<div style="font-size:9px;color:var(--mt);margin-top:2px" title="${d.fechaVencimientoOrigen==='archivo'?'Vencimiento informado por el archivo':'Vencimiento estimado: emisión + 30 días'}">Vence ${d.fechaVencimiento}${d.fechaVencimientoOrigen==='estimado30d'?' · 30d':''}</div>`:'';
-    const fechaShow=(fueraP
-      ? `<span style="color:var(--err)" title="Fecha documental fuera del período RCV">${d.fechaOriginal}</span><div style="font-size:9px;color:var(--info)">Contab. → ${fechaContabilizacionImport(d)}</div>`
-      : d.fechaOriginal)+vtoShow;
-    const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
-    const estado=d.errorImport
-      ?`<button type="button" class="imp-pending-mini" onclick="delete IM.docs[${i}].errorImport;renderImportModal()" title="${textoSeguroImport(d.errorImport)} · Toca para volver a validar y reintentar">⛔ ERROR</button>`
-      :noAccountIdx.has(i)
-      ?`<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportC(${i})" style="color:var(--warn)">⚠ SIN CUENTA</button>`
-      :pendiente
-      ?`<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportC(${i})">⚠ PENDIENTE</button>`
-      :d.estadoImport==='manual'
-      ?`<span class="dup-badge" style="background:rgba(88,166,255,.12);color:var(--info)" title="Este DTE ya existe dentro de un asiento manual y el importador no lo modificará">YA EN ASIENTO</span>`
-      :d.estadoImport==='igual'
-      ?`<span class="ok-badge" style="background:rgba(139,148,158,.12);color:var(--mt)" title="Huella RCV idéntica: no se volverá a escribir">SIN CAMBIOS</span>`
-      :d.estadoImport==='cambio'
-        ?`<span class="dup-badge" style="background:rgba(210,153,34,.15);color:var(--warn)" title="${cambiosTxt.replace(/"/g,'&quot;')}">CAMBIO SII${typeof d.dup?.corrMes==='number'?' N°'+String(d.dup.corrMes).padStart(3,'0'):''}</span>`
-        :(d.cuenta?`<span class="ok-badge">NUEVO</span>`:`<span style="color:var(--mt);font-size:10px">pendiente</span>`);
+    const fechaShow=fueraP
+      ? `<span style="color:var(--err)" title="Fuera del periodo">${d.fechaOriginal}</span>${forzar?`<div style="font-size:9px;color:var(--info)">→ ${fechaEfectivaImport(d)}</div>`:''}`
+      : d.fechaOriginal;
+    const estado=(d.dup&&!sobre)
+      ?`<span class="dup-badge">DUPLICADO</span>`
+      :(d.dup
+        ?(d.cuenta?`<span class="ok-badge" style="background:rgba(88,166,255,.15);color:var(--info)" title="Ya existe: se reemplaza conservando su correlativo">REEMPLAZA${typeof d.dup.corrMes==='number'?' N°'+String(d.dup.corrMes).padStart(3,'0'):''}</span>`:`<span style="color:var(--mt);font-size:10px">pendiente</span>`)
+        :(d.cuenta?`<span class="ok-badge">LISTO</span>`:`<span style="color:var(--mt);font-size:10px">pendiente</span>`));
     const selHtml=inputCuenta({id:`imp-cd-${i}`,value:d.cuenta||'',
       onPick:`setImportCuenta(${i},'%CD%')`,
       placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'compra'});
     // Selector de centro de costo (opcional)
     const ccHtml=`<select onchange="setImportCC(${i},this.value)" style="width:100%;font-size:11px;padding:3px">${ccOpts(d.cc||'')}</select>`;
-    // Referencia: sólo para notas de crédito/débito (56/61). Permite asociar la
-    // nota a una factura del mismo proveedor, esté en este RCV o ya registrada.
-    const refHtml=refImportHtml(d,i);
-    return `<div id="imp-row-${i}" class="${cls}">
-      <div style="text-align:center"><input type="checkbox" ${d.incluir?'checked':''} ${(d.estadoImport==='igual'||d.estadoImport==='manual')?'disabled':''} onchange="toggleImportDoc(${i},this.checked)"></div>
+    return `<div class="${cls}">
+      <div style="text-align:center"><input type="checkbox" ${d.incluir?'checked':''} ${(d.dup&&!sobre)?'disabled':''} onchange="toggleImportDoc(${i},this.checked)"></div>
       <div style="font-family:var(--mono);font-size:10px">${fechaShow}</div>
       <div style="font-family:var(--mono);font-size:10px">${d.tipoDTE}</div>
       <div style="font-family:var(--mono);font-size:10px">${d.numero}</div>
       <div style="font-family:var(--mono);font-size:10px">${rutFmt(d.rutCodigo,d.rutDV)}</div>
-      <div style="font-size:11px" title="${(d.razonSocial||'').replace(/"/g,'&quot;')}">
-        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="toast('${(d.razonSocial||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}')">${d.razonSocial}</div>
-        <input type="text" value="${(d.glosa||'').replace(/"/g,'&quot;')}" placeholder="Descripción (glosa)…" onclick="event.stopPropagation()" oninput="setImportGlosa(${i},this.value)" style="width:100%;font-size:10px;margin-top:3px;padding:2px 5px;border:1px solid var(--bd);border-radius:3px;background:var(--sf);color:var(--tx)">
-      </div>
+      <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${(d.razonSocial||'').replace(/"/g,'&quot;')}" onclick="toast('${(d.razonSocial||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}')">${d.razonSocial}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmt(d.neto)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmt(d.iva)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmt(d.otrosImpuestos)}</div>
       <div style="text-align:right;font-family:var(--mono);font-weight:600">${fmt(d.total)}</div>
       <div>${selHtml}</div>
       <div>${ccHtml}</div>
-      <div>${refHtml}</div>
       <div>${estado}</div>
     </div>`;
   }).join('');
-}
-
-// ── Referencia de notas (56/61) en el importador ──
-// Candidatos = facturas, notas de débito y notas de crédito del mismo proveedor,
-// tanto del archivo que se está importando como de las ya registradas en el
-// libro (cualquier mes). Se incluyen todos los tipos de factura de compra
-// (30/32/33/34/45/46), la liquidación-factura (43), la ND (56) y la NC (61),
-// porque una nota puede referenciar cualquiera de ellos.
-function referenciasImportDisponibles(d){
-  const rut=d.rutCodigo;
-  const tiposRef=[30,32,33,34,43,45,46,56,61];
-  const vistos=new Set(), cand=[];
-  const agregar=(tipoDTE,folio,fecha,total,origen)=>{
-    const t=+tipoDTE, f=String(folio||'').trim();
-    if(!tiposRef.includes(t)||!f)return;
-    const k=`${t}|${f}`; if(vistos.has(k))return; vistos.add(k);
-    cand.push({tipoDTE:t,folio:f,fecha:fecha||'',total:+total||0,origen});
-  };
-  (IM.docs||[]).forEach(x=>{ if(x!==d&&x.rutCodigo===rut)agregar(x.tipoDTE,x.numero,x.fechaOriginal||x.fecha,x.total,'archivo'); });
-  (S.compras||[]).forEach(x=>{ if(x.estado!=='anulado'&&x.rutCodigo===rut)agregar(x.tipoDTE,x.numero,x.fecha,x.total,'libro'); });
-  cand.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
-  return cand;
-}
-function refImportHtml(d,i){
-  const esNota=+d.tipoDTE===56||+d.tipoDTE===61;
-  if(!esNota)return '<span style="color:var(--mt);font-size:10px">—</span>';
-  const cand=referenciasImportDisponibles(d);
-  const ref=d.referencia||null;
-  const selVal=ref&&ref.folio?`${+ref.tipoDTE||33}|${ref.folio}`:'';
-  const enLista=ref&&ref.folio&&cand.some(c=>`${c.tipoDTE}|${c.folio}`===selVal);
-  const opts=['<option value="">— sin referencia —</option>'];
-  cand.forEach(c=>{
-    const v=`${c.tipoDTE}|${c.folio}`;
-    opts.push(`<option value="${v}::${textoSeguroImport(c.fecha)}" ${v===selVal?'selected':''}>DTE ${c.tipoDTE} N°${textoSeguroImport(c.folio)}${c.fecha?' · '+textoSeguroImport(c.fecha):''}${c.total?' · $'+fmt(c.total):''}${c.origen==='archivo'?' · en este RCV':''}</option>`);
-  });
-  // Referencia manual previa que no está entre los candidatos disponibles.
-  if(ref&&ref.folio&&!enLista)opts.push(`<option value="${+ref.tipoDTE||33}|${textoSeguroImport(ref.folio)}::${textoSeguroImport(ref.fecha||'')}" selected>DTE ${+ref.tipoDTE||33} N°${textoSeguroImport(ref.folio)} · manual</option>`);
-  opts.push(`<option value="__manual__">✎ Otro folio (manual)…</option>`);
-  return `<select onchange="setImportReferencia(${i},this.value)" style="width:100%;font-size:11px;padding:3px">${opts.join('')}</select>`;
-}
-function setImportReferencia(i,val){
-  const d=IM.docs[i]; if(!d)return;
-  if(val==='__manual__'){
-    const folio=prompt('Folio de la factura del proveedor que referencia esta nota:',d.referencia?.folio||'');
-    if(folio&&String(folio).trim())d.referencia={tipoDTE:+d.referencia?.tipoDTE||33,folio:String(folio).trim(),...(d.referencia?.fecha?{fecha:d.referencia.fecha}:{})};
-    renderImportModal();return;
-  }
-  if(!val){delete d.referencia;renderImportModal();return;}
-  const [tf,fecha]=val.split('::');
-  const [t,f]=tf.split('|');
-  d.referencia={tipoDTE:+t||33,folio:f,...(fecha?{fecha}:{})};
-  renderImportModal();
 }
 
 function toggleImportDoc(i,checked){
@@ -1177,12 +853,11 @@ function toggleImportDoc(i,checked){
 }
 function toggleAllImport(checked){
   const sobre=(IM.modo||'agregar')==='sobrescribir';
-  IM.docs.forEach(d=>{if(d.estadoImport!=='igual'&&d.estadoImport!=='manual')d.incluir=checked;});
+  IM.docs.forEach(d=>{if(sobre||!d.dup)d.incluir=checked;});
   renderImportModal();
 }
 function setImportCuenta(i,cuenta){
   IM.docs[i].cuenta=cuenta;
-  delete IM.docs[i].errorImport;
   renderImportModal();
 }
 // Guarda temporalmente la cuenta elegida en el buscador bulk
@@ -1196,7 +871,7 @@ function aplicarCuentaATodos(){
     (document.getElementById('imp-bulk')&&document.getElementById('imp-bulk').value)||'';
   if(!cta){toast('⚠️ Selecciona una cuenta primero','e');return;}
   let n=0;
-  IM.docs.forEach(d=>{if(d.incluir){d.cuenta=cta;delete d.errorImport;n++;}});
+  IM.docs.forEach(d=>{if(d.incluir){d.cuenta=cta;n++;}});
   renderImportModal();
   toast(`✅ Aplicada cuenta a ${n} documento${n===1?'':'s'}`);
 }
@@ -1204,105 +879,26 @@ function aplicarCuentaATodos(){
 // ── Centro de costo en el importador ──
 function setImportCC(i,cc){
   IM.docs[i].cc=cc;
-  delete IM.docs[i].errorImport;
-}
-// Descripción/glosa de la compra: se guarda en el documento y se refleja en el
-// asiento (glosa y descripción de las líneas de gasto). No re-renderiza para no
-// perder el foco mientras se escribe.
-function setImportGlosa(i,val){
-  if(IM.docs[i])IM.docs[i].glosa=val;
 }
 function aplicarCCATodos(){
   const sel=document.getElementById('imp-bulk-cc');
   const cc=sel?sel.value:'';
   // Se aplica también con cc vacío: eso significa "quitar CC a todos"
   let n=0;
-  IM.docs.forEach(d=>{if(d.incluir){d.cc=cc;delete d.errorImport;n++;}});
+  IM.docs.forEach(d=>{if(d.incluir){d.cc=cc;n++;}});
   renderImportModal();
   toast(cc
     ? `✅ Centro de costo aplicado a ${n} documento${n===1?'':'s'}`
     : `✅ Centro de costo quitado de ${n} documento${n===1?'':'s'}`);
 }
 
-// Recuerda, por proveedor, la cuenta y el centro de costo asignados en el
-// importador, guardándolos como default en su ficha auxiliar. Se llama ANTES de
-// persistir los documentos, de modo que ese trabajo manual quede recordado
-// aunque el guardado del lote falle (p. ej. por red): al reimportar, cada
-// proveedor ya viene con su cuenta/CC pre-cargados y no hay que reasignarlos.
-// Sólo completa campos vacíos: nunca pisa una configuración previa del usuario.
-async function recordarFichasProveedor(docs){
-  const asignaciones={};
-  (docs||[]).forEach(d=>{
-    const key=d.rutCodigo;if(!key||(!d.cuenta&&!d.cc))return;
-    if(!asignaciones[key])asignaciones[key]={cuenta:{},cc:{},rutDV:d.rutDV,razonSocial:d.razonSocial};
-    if(d.cuenta)asignaciones[key].cuenta[d.cuenta]=(asignaciones[key].cuenta[d.cuenta]||0)+1;
-    if(d.cc)asignaciones[key].cc[d.cc]=(asignaciones[key].cc[d.cc]||0)+1;
-    if(!asignaciones[key].razonSocial&&d.razonSocial)asignaciones[key].razonSocial=d.razonSocial;
-  });
-  let creadas=0,actualizadas=0;
-  const proveedoresF=fichasAux('proveedor');
-  Object.entries(asignaciones).forEach(([rut,a])=>{
-    const cuentaTop=Object.entries(a.cuenta).sort((x,y)=>y[1]-x[1])[0]?.[0]||'';
-    const ccTop=Object.entries(a.cc).sort((x,y)=>y[1]-x[1])[0]?.[0]||'';
-    const ficha=proveedoresF[rut];
-    if(!ficha){
-      if(!cuentaTop&&!ccTop)return;
-      proveedoresF[rut]={rutCodigo:rut,rutDV:a.rutDV,razonSocial:a.razonSocial||'',cuentaDefault:cuentaTop,ccDefault:ccTop,giro:'',direccion:'',comuna:'',ciudad:'',email:'',telefono:'',notas:''};
-      creadas++;
-    }else{
-      let cambio=false;
-      if(!ficha.cuentaDefault&&cuentaTop){ficha.cuentaDefault=cuentaTop;cambio=true;}
-      if(!ficha.ccDefault&&ccTop){ficha.ccDefault=ccTop;cambio=true;}
-      if(!ficha.razonSocial&&a.razonSocial){ficha.razonSocial=a.razonSocial;cambio=true;}
-      if(!ficha.rutDV&&a.rutDV){ficha.rutDV=a.rutDV;cambio=true;}
-      if(cambio)actualizadas++;
-    }
-  });
-  if(creadas||actualizadas){try{await guardarFichasAux();}catch(e){console.warn('No se pudo guardar ficha auxiliar:',e);}}
-  return {creadas,actualizadas};
-}
-
-async function confirmarImportacion(){
-  const perFecha=`${IM.periodoAnio}-${String(IM.periodoMes).padStart(2,'0')}-01`;
-  if(!puedeOperarFecha(perFecha)){toast('🔒 El período RCV seleccionado está cerrado. Reábrelo antes de importar compras.','e');return;}
-  const seleccionados=IM.docs.filter(d=>d.incluir);
-  // Recordar la clasificación por proveedor ANTES de guardar, para no perderla
-  // si el guardado del lote falla. Captura todo lo asignado (incluye los que
-  // tengan error contable o queden pendientes).
-  const {creadas:fichasCreadas,actualizadas:fichasActualizadas}=await recordarFichasProveedor(IM.docs.filter(d=>d.incluir&&(d.cuenta||d.cc)));
-  const descuadrados=validarCuadraturaImportCompras();
-  const badIdx=new Set(descuadrados.map(x=>x.idx));
-  const sinCuenta=IM.docs.map((d,idx)=>({...d,idx})).filter(d=>d.incluir&&!d.cuenta);
-  const sinCuentaIdx=new Set(sinCuenta.map(x=>x.idx));
-  const incluidos=IM.docs.filter((d,i)=>d.incluir&&d.cuenta&&!badIdx.has(i)&&!sinCuentaIdx.has(i));
-  const modo=IM.modo||'agregar';
-  const enPeriodoActivos=modo==='sobrescribir'?docsLibroDelPeriodo().filter(d=>d.estado!=='anulado'):[];
-  const clavesFuente=new Set(IM.docs.map(claveDocCompra));
-  const ausentesFuente=modo==='sobrescribir'?enPeriodoActivos.filter(d=>!clavesFuente.has(claveDocCompra(d))):[];
-  if(!seleccionados.length&&!ausentesFuente.length){
-    toast(`✅ Importación idempotente: ${IM.docs.filter(d=>d.estadoImport==='igual').length} documento(s) ya estaban idénticos. No se modificó el libro.`);
-    cerrarImportModal();return;
-  }
-  if(descuadrados.length){
-    const detalle=descuadrados.slice(0,8).map(x=>`• DTE ${x.tipoDTE} N° ${x.numero}: ${x.motivo||`diferencia ${fmtC(x.diferencia)}`}`).join('\n');
-    if(!incluidos.length&&!ausentesFuente.length){
-      alert(`⚠️ No hay documentos que pasen la validación contable.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nLos DTE indicados quedan pendientes en el importador para revisión.`);
-      renderImportModal();return;
-    }
-    const ok=confirm(`⚠️ Se detectaron ${descuadrados.length} documento(s) que no pasan la validación contable.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nEstos NO se guardarán. Se procesarán ${incluidos.length} documento(s) válidos y los demás quedarán pendientes en esta ventana para corregir o revisar.\n\n¿Continuar?`);
-    if(!ok){renderImportModal();return;}
-  }
-  if(sinCuenta.length&&!incluidos.length&&!ausentesFuente.length){
-    toast(`⚠️ Asigna una cuenta a los ${sinCuenta.length} documento${sinCuenta.length===1?'':'s'} pendientes`,'e');
-    renderImportModal();return;
-  }
-  const cambiosSeleccionados=incluidos.filter(d=>d.estadoImport==='cambio');
-  if(cambiosSeleccionados.length){
-    const detalle=cambiosSeleccionados.slice(0,8).map(d=>{
-      const cs=(d.cambiosRCV||[]).slice(0,4).map(c=>c.label).join(', ');
-      return `• DTE ${d.tipoDTE} N°${d.numero} ${d.razonSocial||''}: ${cs||'reactivación'}`;
-    }).join('\n');
-    if(!confirm(`⚠️ El SII trae ${cambiosSeleccionados.length} documento(s) con información distinta a la ya contabilizada.\n\n${detalle}${cambiosSeleccionados.length>8?'\n• …':''}\n\nSe conservará la versión anterior en el historial RCV. ¿Aplicar estos cambios?`))return;
+function confirmarImportacion(){
+  const incluidos=IM.docs.filter(d=>d.incluir);
+  if(!incluidos.length){toast('⚠️ No hay documentos para importar','e');return;}
+  const sinCuenta=incluidos.filter(d=>!d.cuenta);
+  if(sinCuenta.length){
+    toast(`⚠️ ${sinCuenta.length} documento${sinCuenta.length===1?' no tiene':'s no tienen'} cuenta asignada`,'e');
+    return;
   }
   // Detectar proveedores nuevos (RUTs que no aparecen en el libro actual)
   const rutsExistentes=new Set(todosDocsCompras().map(x=>x.rutCodigo));
@@ -1316,49 +912,33 @@ async function confirmarImportacion(){
   // Reemplaza el libro del periodo por el contenido del archivo, conservando
   // el correlativo mensual (corrMes), el folio de comprobante y la
   // distribución de gastos de los documentos que ya existían.
+  const modo=IM.modo||'agregar';
   const periodoStrConf=`${MESES[IM.periodoMes-1]} ${IM.periodoAnio}`;
-  // V2.15.4: punto de recuperación antes de una operación masiva RCV.
-  if(window.__snapshotAntesOperacion){
-    const seg=await window.__snapshotAntesOperacion(`Antes de importar RCV compras ${periodoStrConf}`);
-    if(!seg?.ok){
-      const seguir=confirm(`⚠️ No se pudo crear el snapshot previo (${seg?.motivo||'error'}).\n\nLa importación todavía puede continuar, pero no tendrás un punto automático de retorno inmediato.\n\n¿Continuar de todas formas?`);
-      if(!seguir)return;
-    }
-  }
-  const snapCompras=JSON.stringify(S.compras||[]);
-  const snapAsientos=JSON.stringify(S.asientos||[]);
   const prevPorClave=new Map();   // clave → documento anterior
-  S.compras.forEach(d=>{const k=claveDocCompra(d);if(!prevPorClave.has(k)||prevPorClave.get(k)?.estado==='anulado')prevPorClave.set(k,d);});
   let reemplazados=0,depurados=0;
   if(modo==='sobrescribir'){
-    // Se indexa TODO el libro (no solo el periodo) para recuperar identidad,
-    // correlativo y clasificación sin reescribir documentos idénticos.
-    const enPeriodo=enPeriodoActivos;
-    const clavesArchivo=clavesFuente;
+    // Se indexa TODO el libro (no solo el periodo) para poder recuperar el
+    // correlativo aunque el documento cambie de mes al recargarlo.
+    S.compras.forEach(d=>{const k=claveDocCompra(d);if(!prevPorClave.has(k))prevPorClave.set(k,d);});
+    const enPeriodo=docsLibroDelPeriodo();
+    const clavesArchivo=new Set(incluidos.map(claveDocCompra));
     reemplazados=enPeriodo.filter(d=>clavesArchivo.has(claveDocCompra(d))).length;
     depurados=enPeriodo.length-reemplazados;
     const ok=confirm(
       `♻️ Sobrescribir el Libro de Compras de ${periodoStrConf}\n\n`+
-      `• Se concilian los ${enPeriodo.length} documento(s) que hoy tiene el libro en ese periodo; los ausentes quedarán anulados, no eliminados.\n`+
+      `• Se eliminan los ${enPeriodo.length} documento(s) que hoy tiene el libro en ese periodo.\n`+
       `• Se cargan los ${incluidos.length} documento(s) del archivo del SII.\n`+
       `• ${reemplazados} conservan su correlativo mensual y su clasificación de cuentas.\n`+
-      (depurados?`• ⚠️ ${depurados} documento(s) del libro NO vienen en el archivo y se anularán conservando trazabilidad.\n`:'')+
+      (depurados?`• ⚠️ ${depurados} documento(s) del libro NO vienen en el archivo y se eliminarán.\n`:'')+
       `\nLos documentos registrados desde asientos manuales no se modifican.\n\n¿Continuar?`
     );
     if(!ok)return;
     const per=`${IM.periodoAnio}-${String(IM.periodoMes).padStart(2,'0')}`;
-    // V2.4: nunca borrar físicamente. Sólo se anulan los documentos que ya no
-    // vienen en el RCV. Los que siguen presentes se actualizan conservando id,
-    // correlativo, folio y referencias de pago.
-    enPeriodo.filter(d=>!clavesArchivo.has(claveDocCompra(d))).forEach(d=>{
-      d.estado='anulado';d.anuladoEn=new Date().toISOString();d.motivoAnulacion='Depurado por sobrescritura RCV '+per;
-      anularAsientoDocumento('compras',d.id,'Depurado por sobrescritura RCV '+per);
-    });
+    S.compras=S.compras.filter(d=>(d.fecha||'').slice(0,7)!==per);
   }
 
   // Crear registros de compras
-  let agregados=0,fueraPeriodoContable=0;
-  const aplicados=[],pendientesError=[];
+  let agregados=0,normalizados=0;
   const sinCorr=[];   // docs que quedaron sin correlativo (se asigna al final)
   const ts=Date.now();
   // Reservar el rango de folios de comprobante ANTES de crear los docs, así
@@ -1368,43 +948,31 @@ async function confirmarImportacion(){
   // sobrescribir, los que se conservan mantienen el suyo y los nuevos deben
   // tomar números que no choquen con ellos.
   const sinFolio=[];
-  const recepMatches=[]; // V2.22: {recepcionId,docId} — conciliación automática pendiente de persistir
   incluidos.forEach((d,i)=>{
-    const fechaFinal=d.fechaOriginal;
-    const periodoContable=periodoImportSeleccionado();
-    const fechaContabilizacion=fechaContabilizacionImport(d);
-    const fueraDelPeriodo=fechaFinal.slice(0,7)!==periodoContable;
-    // La distribución importada representa la base económica (neto + exento).
-    // El motor V2.8 clasifica otros impuestos e IVA no recuperable antes de llevarlos al costo y
-    // separa el crédito fiscal recuperable (general / activo fijo).
-    // DTE 45/46 (factura de compra): el IVA retenido se modela por separado.
-    // La distribución contiene sólo la base económica; el motor deriva proveedor y retención.
-    const montoDist=d.neto+d.exento; // V2: la distribución representa la base económica; IVA/otros se tratan en el motor
+    const fechaFinal=fechaEfectivaImport(d);
+    if(fechaFinal!==d.fechaOriginal)normalizados++;
+    // Calculamos el gasto como (total - IVA recuperable). Es lo que
+    // efectivamente le cuesta a la empresa. Con esta fórmula:
+    //   - El asiento SIEMPRE cuadra: DEBE(gasto) + DEBE(IVA) = HABER(prov)
+    //   - Absorbe inconsistencias del CSV (cuando neto+iva+otros ≠ total)
+    //   - Los "otros impuestos" quedan implícitamente incluidos en el gasto
+    // DTE 46 (factura de compra): el IVA lo retiene el receptor, así que el
+    // proveedor solo recibe `total` (= neto). El gasto es igual al total.
+    const montoDist=+d.tipoDTE===46 ? d.total : (d.total-d.iva);
     // En modo sobrescribir recuperamos lo que ya estaba registrado para este
     // mismo documento: correlativo, folio de comprobante, vencimiento y la
     // distribución de gastos si sigue cuadrando con el nuevo neto.
-    const prev=prevPorClave.get(claveDocCompra(d))||null;
+    const prev=modo==='sobrescribir'?prevPorClave.get(claveDocCompra(d)):null;
     let dist=[{cuenta:d.cuenta,monto:montoDist,cc:d.cc||''}];
     if(prev&&Array.isArray(prev.dist)&&prev.dist.length>1){
       const sumPrev=prev.dist.reduce((s,l)=>s+(l.monto||0),0);
       if(Math.abs(sumPrev-montoDist)<=1)dist=prev.dist.map(l=>({...l}));
     }
-    // V2.22 — Conciliación automática con recepciones de inventario (misma lógica que el registro manual).
-    const recepcionesPrevias=prev?.recepcionesVinculadas||[];
-    const recepcionMatch=(!recepcionesPrevias.length&&(+d.tipoDTE===33||+d.tipoDTE===34))?buscarRecepcionParaCompra({tipoDTE:d.tipoDTE,rutCodigo:d.rutCodigo,numero:d.numero},S.inventario?.recepciones||[]):null;
-    const recepcionesVinculadas=recepcionesPrevias.length?recepcionesPrevias:(recepcionMatch?[{id:recepcionMatch.id,folio:recepcionMatch.folio}]:[]);
-    if(recepcionMatch)recepMatches.push({recepcionId:recepcionMatch.id,docId:prev?prev.id:'c_imp_'+ts+'_'+i,tipoDTE:d.tipoDTE,numero:d.numero});
     const doc={
       id:prev?prev.id:'c_imp_'+ts+'_'+i,
       folioComp:(prev&&+prev.folioComp)||0,   // correlativo único de comprobante contable
       fecha:fechaFinal,
-      periodoContable,
-      fechaContabilizacion,
-      origenRegistro:'RCV',
-      fechaVencimiento:d.fechaVencimiento||'',
-      fechaVencimientoOrigen:d.fechaVencimientoOrigen||'',
-      fechaRecepcionSII:d.fechaRecepcionSII||'',
-      fechaAcuseSII:d.fechaAcuseSII||'',
+      fechaVencimiento:prev?.fechaVencimiento||'',
       tipoDTE:d.tipoDTE,
       numero:d.numero,
       rutCodigo:d.rutCodigo,
@@ -1413,75 +981,20 @@ async function confirmarImportacion(){
       neto:d.neto,
       exento:d.exento,
       iva:d.iva,
-      ...(d.ivaRecuperable!=null?{ivaRecuperable:d.ivaRecuperable}:{}),
-      ...(d.ivaNoRecuperable!=null?{ivaNoRecuperable:d.ivaNoRecuperable}:{}),
-      ...(d.codigoIvaNoRecuperable?{codigoIvaNoRecuperable:d.codigoIvaNoRecuperable}:{}),
-      ...(d.ivaUsoComun?{ivaUsoComun:d.ivaUsoComun}:{}),
-      ...(d.ivaActivoFijo?{ivaActivoFijo:d.ivaActivoFijo}:{}),
-      ...(d.tratamientoIVA?{tratamientoIVA:d.tratamientoIVA}:{}),
-      otrosImpuestos:d.otrosImpuestos||0,
-      tratamientoOtrosImpuestos:d.tratamientoOtrosImpuestos||'costo',
-      otrosImpuestosDetalle:d.otrosImpuestosDetalle||((d.otrosImpuestos||0)?[{tipo:'otro',nombre:'Otros impuestos RCV',monto:d.otrosImpuestos||0,tratamiento:'costo'}]:[]),
-      ...(d.tipoCompra?{tipoCompra:d.tipoCompra}:{}),
-      ...(d.numeroInternoSII?{numeroInternoSII:d.numeroInternoSII}:{}),
-      // DTE 45/46 importados desde RCV históricamente pueden informar el total
-      // pagadero al proveedor sin sumar el IVA retenido. El motor usa esta marca
-      // para no depender de una excepción dentro de reportes.js.
-      // La retención de IVA se propaga tanto en facturas de compra (45/46) como en
-      // sus notas de crédito (DTE 61 sobre factura de compra), donde el lector del
-      // RCV ya fijó `ivaRetenido`. Sin esto, la NC pierde la retención y el asiento
-      // descuadra exactamente en el monto del IVA retenido.
-      ...((+d.tipoDTE===45||+d.tipoDTE===46||d.ivaRetenido!=null)?{
-        ivaRetenido:d.ivaRetenido!=null?d.ivaRetenido:d.iva,
-        totalSII:d.totalSII!=null?d.totalSII:d.total,
-        totalIncluyeRetencion:(+d.tipoDTE===45||+d.tipoDTE===46)?false:(d.totalIncluyeRetencion!=null?d.totalIncluyeRetencion:false)
-      }:{}),
+      // otrosImpuestos ya está incluido en montoDist (por ser total-iva),
+      // así que lo dejamos en 0 para que genDiario no lo sume dos veces.
+      otrosImpuestos:0,
+      // Guardamos el valor original por si se necesita para reportes SII.
+      otrosImpuestosOriginal:d.otrosImpuestos||0,
       total:d.total,
-      dist,
-      ...(recepcionesVinculadas.length?{recepcionesVinculadas}:{}),
-      // Descripción/glosa de la compra ingresada en el importador (se muestra en el asiento).
-      ...((d.glosa||prev?.glosa)?{glosa:d.glosa||prev.glosa}:{}),
-      // Referencia de nota (56/61) asociada en el importador a una factura del proveedor.
-      ...(d.referencia&&d.referencia.folio?{referencia:{tipoDTE:+d.referencia.tipoDTE||33,folio:String(d.referencia.folio),...(d.referencia.fecha?{fecha:d.referencia.fecha}:{}),...(d.referencia.razon?{razon:d.referencia.razon}:{razon:d.razonSocial||''})}}:{}),
-      estado:'activo',
-      importadoEn:prev?.importadoEn||new Date().toISOString(),
-      ...(prev?{reimportadoEn:new Date().toISOString()}:{}),
-      rcvFingerprint:fingerprintSnapshot(snapshotCompraRCV(d,periodoContable)),
-      rcvVersion:2,
-      ...(prev?{
-        versionAnterior:{fecha:prev.fecha,fechaVencimiento:prev.fechaVencimiento||'',tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total},
-        rcvHistorial:[...(Array.isArray(prev.rcvHistorial)?prev.rcvHistorial:[]),{
-          fecha:new Date().toISOString(),
-          snapshot:snapshotCompraRCV(prev,prev.periodoContable||''),
-          cambios:(d.cambiosRCV||[]).map(c=>({campo:c.campo,anterior:c.anterior,nuevo:c.nuevo}))
-        }].slice(-20)
-      }: {})
+      dist
     };
     // Correlativo mensual: se reutiliza el del documento anterior si existía.
     if(prev&&typeof prev.corrMes==='number')doc.corrMes=prev.corrMes;
-    const idxPrev=S.compras.findIndex(x=>x.id===doc.id);
-    const docAnterior=idxPrev>=0?JSON.parse(JSON.stringify(S.compras[idxPrev])):null;
-    const asientosAntes=JSON.stringify(S.asientos||[]);
-    try{
-      if(idxPrev>=0)S.compras[idxPrev]=doc;else S.compras.push(doc);
-      upsertAsientoDocumento('compras',doc);
-      if(typeof doc.corrMes!=='number')sinCorr.push(doc);
-      if(!doc.folioComp)sinFolio.push(doc);
-      if(fueraDelPeriodo)fueraPeriodoContable++;
-      delete d.errorImport;
-      aplicados.push(d);agregados++;
-    }catch(err){
-      if(idxPrev>=0)S.compras[idxPrev]=docAnterior;
-      else{
-        const creado=S.compras.findIndex(x=>x.id===doc.id);
-        if(creado>=0)S.compras.splice(creado,1);
-      }
-      S.asientos=JSON.parse(asientosAntes);
-      d.errorImport=err?.message||String(err);
-      d.estadoImport='pendiente_error';d.incluir=true;
-      pendientesError.push(d);
-      const rmi=recepMatches.findIndex(m=>m.docId===doc.id);if(rmi>=0)recepMatches.splice(rmi,1);
-    }
+    else sinCorr.push(doc);
+    if(!doc.folioComp)sinFolio.push(doc);
+    S.compras.push(doc);
+    agregados++;
   });
 
   // Asignar folio de comprobante a los documentos que no heredaron uno,
@@ -1503,79 +1016,75 @@ async function confirmarImportacion(){
     const usados={};
     S.compras.forEach(d=>{
       if(typeof d.corrMes!=='number')return;
-      const m=periodoContableCompra(d);if(!m)return;
+      const m=(d.fecha||'').slice(0,7);if(!m)return;
       (usados[m]||(usados[m]=new Set())).add(d.corrMes);
     });
     sinCorr.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')||String(a.numero).localeCompare(String(b.numero)))
       .forEach(doc=>{
-        const m=periodoContableCompra(doc);if(!m)return;
+        const m=(doc.fecha||'').slice(0,7);if(!m)return;
         const set=usados[m]||(usados[m]=new Set());
         let n=1;while(set.has(n))n++;
         doc.corrMes=n;set.add(n);
       });
   }
 
-  try{
-    await persistirClavesCritico([
-      {key:'compras-'+S.empresa.anio,value:JSON.stringify(S.compras)},
-      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
-    ]);
-  }catch(err){
-    S.compras=JSON.parse(snapCompras);S.asientos=JSON.parse(snapAsientos);
-    toast('❌ No se pudo completar la importación. Se revirtieron documentos y asientos.','e');return;
-  }
+  window.storage.set('compras-'+S.empresa.anio,JSON.stringify(S.compras)).catch(()=>toast('❌ Error guardando en storage','e'));
 
-  // V2.22 — Persistir la conciliación automática detectada durante el import (best-effort: no revierte la importación si falla).
-  if(recepMatches.length){
-    const recs=(S.inventario?.recepciones||[]).slice();
-    const porId=new Map();recepMatches.forEach(m=>{if(!porId.has(m.recepcionId))porId.set(m.recepcionId,m);});
-    let cambio=false;
-    porId.forEach(m=>{
-      const ri=recs.findIndex(x=>x.id===m.recepcionId);
-      if(ri>=0&&!recs[ri].compraId){recs[ri]={...recs[ri],compraId:m.docId,compraTipoDTE:m.tipoDTE,compraNumero:m.numero,compraAnio:S.empresa.anio,estadoContable:'CONCILIADA'};cambio=true;}
-    });
-    if(cambio){
-      const wr=await window.storage.set('inv-recepciones',JSON.stringify(recs));
-      if(wr&&wr.ok!==false)S.inventario.recepciones=recs;
-      else console.warn('No se pudo persistir la conciliación automática de recepciones tras el import RCV',wr);
-    }
-  }
-
-  // Auditoría inmutable de cambios RCV. Para altas masivas se registra un
-  // resumen de lote; cuando el SII cambió un documento existente se conserva
-  // además el antes/después individual.
-  aplicados.filter(d=>d.estadoImport==='cambio').forEach(d=>{
-    const prev=d.dup||null;
-    const nuevo=prev?S.compras.find(x=>x.id===prev.id):null;
-    if(nuevo)logCambio('Actualizó compra desde RCV',{entidad:'compra',id:nuevo.id,antes:prev,despues:nuevo,meta:{numeroContable:(S.asientos||[]).find(a=>a.docId===nuevo.id&&a.fuente==='compras')?.numeroContable,tipoDTE:nuevo.tipoDTE,folio:nuevo.numero,periodoContable:nuevo.periodoContable}});
+  // Guardar cuenta y CC como default en la ficha del proveedor.
+  // Reglas:
+  //  - Si el proveedor NO tiene ficha, se crea con los datos actuales.
+  //  - Si tiene ficha pero SIN cuentaDefault/ccDefault, se completan.
+  //  - Si ya tiene cuentaDefault/ccDefault configurados por el usuario,
+  //    NO se sobreescriben (respetamos su configuración).
+  //  - Cuando un proveedor tiene documentos con distinta cuenta en el mismo
+  //    batch, se usa la más frecuente.
+  const asignaciones={};  // rut → { cuenta:{cd→count}, cc:{cd→count}, dv, razon }
+  incluidos.forEach(d=>{
+    const key=d.rutCodigo;
+    if(!key)return;
+    if(!asignaciones[key])asignaciones[key]={cuenta:{},cc:{},rutDV:d.rutDV,razonSocial:d.razonSocial};
+    if(d.cuenta)asignaciones[key].cuenta[d.cuenta]=(asignaciones[key].cuenta[d.cuenta]||0)+1;
+    if(d.cc)asignaciones[key].cc[d.cc]=(asignaciones[key].cc[d.cc]||0)+1;
+    if(!asignaciones[key].razonSocial&&d.razonSocial)asignaciones[key].razonSocial=d.razonSocial;
   });
-  logCambio('Importó lote RCV compras',{entidad:'lote-rcv',id:`compras:${periodoStrConf}:${Date.now()}`,antes:null,despues:null,meta:{periodo:periodoStrConf,archivo:IM.archivo||'',nuevos:aplicados.filter(d=>d.estadoImport==='nuevo').length,cambios:aplicados.filter(d=>d.estadoImport==='cambio').length,conError:pendientesError.length,sinCambios:IM.docs.filter(d=>d.estadoImport==='igual').length,modo}});
+  let fichasCreadas=0, fichasActualizadas=0;
+  const proveedoresF=fichasAux('proveedor');
+  Object.entries(asignaciones).forEach(([rut,a])=>{
+    const cuentaTop=Object.entries(a.cuenta).sort((x,y)=>y[1]-x[1])[0]?.[0]||'';
+    const ccTop=Object.entries(a.cc).sort((x,y)=>y[1]-x[1])[0]?.[0]||'';
+    const ficha=proveedoresF[rut];
+    if(!ficha){
+      // Ficha nueva con datos básicos (se completa el resto luego)
+      proveedoresF[rut]={
+        rutCodigo:rut, rutDV:a.rutDV, razonSocial:a.razonSocial||'',
+        cuentaDefault:cuentaTop, ccDefault:ccTop,
+        giro:'', direccion:'', comuna:'', ciudad:'', email:'', telefono:'', notas:'',
+      };
+      fichasCreadas++;
+    }else{
+      // Completar solo los campos vacíos, respetando lo que el usuario ya haya
+      // configurado manualmente
+      let cambio=false;
+      if(!ficha.cuentaDefault&&cuentaTop){ficha.cuentaDefault=cuentaTop;cambio=true;}
+      if(!ficha.ccDefault&&ccTop){ficha.ccDefault=ccTop;cambio=true;}
+      if(!ficha.razonSocial&&a.razonSocial){ficha.razonSocial=a.razonSocial;cambio=true;}
+      if(!ficha.rutDV&&a.rutDV){ficha.rutDV=a.rutDV;cambio=true;}
+      if(cambio)fichasActualizadas++;
+    }
+  });
+  if(fichasCreadas||fichasActualizadas){
+    guardarFichasAux().catch(()=>{});
+  }
 
-  // Las fichas de proveedor (cuenta/CC por defecto) ya se recordaron al inicio,
-  // antes de persistir (ver recordarFichasProveedor), para no perder ese trabajo
-  // aunque el guardado falle. fichasCreadas/fichasActualizadas se calcularon ahí.
-
-  // Mantener abierta la ventana con todo lo que todavía requiere acción:
-  // descuadre real o falta de cuenta. Antes, los sin cuenta desaparecían de la
-  // vista después de aplicar el resto del lote.
-  const pendientes=[...new Set([...IM.docs.filter((d,i)=>badIdx.has(i)||sinCuentaIdx.has(i)),...pendientesError])];
-  if(pendientes.length){
-    IM.docs=pendientes;
-    IM.docs.forEach(d=>{d.incluir=true;d.estadoImport=d.errorImport?'pendiente_error':(d.cuenta?'pendiente_cuadratura':'pendiente_cuenta');});
-    renderImportModal();
-  }else cerrarImportModal();
+  cerrarImportModal();
   const periodoStr=periodoStrConf;
-  const proveedoresNuevosAplicados=new Set(aplicados.filter(d=>proveedoresNuevos.has(d.rutCodigo)).map(d=>d.rutCodigo)).size;
-  const msgProv=proveedoresNuevosAplicados?` · ${proveedoresNuevosAplicados} proveedor${proveedoresNuevosAplicados===1?'':'es'} nuevo${proveedoresNuevosAplicados===1?'':'s'} detectado${proveedoresNuevosAplicados===1?'':'s'} en auxiliares`:'';
+  const msgProv=proveedoresNuevos.size?` · ${proveedoresNuevos.size} proveedor${proveedoresNuevos.size===1?'':'es'} nuevo${proveedoresNuevos.size===1?'':'s'} detectado${proveedoresNuevos.size===1?'':'s'} en auxiliares`:'';
   const msgFichas=(fichasCreadas||fichasActualizadas)?` · fichas: ${fichasCreadas} nuevas${fichasActualizadas?', '+fichasActualizadas+' completadas':''}`:'';
-  const msgPend=pendientes.length?` · ⚠️ ${pendientes.length} pendiente${pendientes.length===1?'':'s'} de clasificación/revisión`:'';
-  const msgError=pendientesError.length?` · ⛔ ${pendientesError.length} con error aislado`:'';
-  const msgConc=recepMatches.length?` · 🔗 ${recepMatches.length} conciliada${recepMatches.length===1?'':'s'} con recepción de inventario`:'';
   if(modo==='sobrescribir'){
-    toast(`♻️ ${periodoStr} reemplazado — ${agregados} documento${agregados===1?'':'s'} · ${reemplazados} conservaron su correlativo${depurados?` · ${depurados} anulado${depurados===1?'':'s'}`:''}${msgFichas}${msgPend}${msgError}${msgConc}`);
-    logAccion('Sobrescribió compras SII',`${periodoStr}: ${agregados} nuevos/cambiados, ${reemplazados} ya presentes, ${depurados} anulados por ausencia en RCV`);
+    toast(`♻️ ${periodoStr} reemplazado — ${agregados} documento${agregados===1?'':'s'} · ${reemplazados} conservaron su correlativo${depurados?` · ${depurados} eliminado${depurados===1?'':'s'}`:''}${msgFichas}`);
+    logAccion('Sobrescribió compras SII',`${periodoStr}: ${agregados} documentos, ${reemplazados} correlativos reutilizados, ${depurados} eliminados`);
   }else{
-    toast(`✅ ${agregados} documento${agregados===1?'':'s'} importado${agregados===1?'':'s'} al periodo ${periodoStr}${fueraPeriodoContable?` (${fueraPeriodoContable} con fecha documental distinta del período RCV, conservada sin cambios)`:''}${msgProv}${msgFichas}${msgPend}${msgError}${msgConc}`);
+    toast(`✅ ${agregados} documento${agregados===1?'':'s'} importado${agregados===1?'':'s'} al periodo ${periodoStr}${normalizados?` (${normalizados} con fecha normalizada)`:''}${msgProv}${msgFichas}`);
     logAccion('Importó compras SII',`${agregados} documentos${msgFichas}`);
   }
   rerender();
@@ -1592,5 +1101,5 @@ function initImportListener(){
 
 
 export {onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
-        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setImportGlosa, setImportReferencia, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
-        toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, validarCuadraturaImportCompras, CF};
+        renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfCalcTotals, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setBulkCuentaImp, confirmarImportacion, initImportListener,
+        toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, CF};

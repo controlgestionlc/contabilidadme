@@ -1,16 +1,12 @@
 // cierre.js — Cierre de ejercicio, provisiones, corrección monetaria
-import {toast, fmtC, pdcNm, pn} from './core.js';
+import {toast, fmtC, pdcNm} from './core.js';
 import {updateHdr} from './empresa.js';
-import {S,AUTH} from './state.js';
+import {S} from './state.js';
 import {buildMayor} from './reportes.js';
 import {proxFolioAsiento} from './asientos.js';
 import {IND} from './indicadores.js';
 import {rerender} from './ui.js';
-import {puedeEditar} from './auth.js';
-import {logAccion,logCambio} from './firebase.js';
-import {ejercicioCerrado,persistirAsientosCritico,auditoriaIntegridad} from './contabilidad-v2.js';
-import {empresaActiva, marcoInfo, puedeVerEmpresa} from './empresas.js';
-import {regimenInfo} from './regimenes.js';
+import {empresaActiva, marcoInfo} from './empresas.js';
 import './storage.js';
 
 // ═══ FASE 4: AJUSTES DE CIERRE ═══
@@ -19,13 +15,6 @@ import './storage.js';
 // Calcula el resultado del ejercicio (ingresos − gastos) y prepara el asiento de cierre
 // que salda todas las cuentas de resultado (grupos 3 y 4) contra Resultados Acumulados (2303001).
 const CUENTA_RESULTADOS_ACUM='2303001';
-
-function puedeGestionarCierreAnual(){
-  const u=AUTH.user;
-  if(!u?.activo||!['admin','contador'].includes(u.rol))return false;
-  const e=empresaActiva();
-  return !!e&&puedeVerEmpresa(e)&&puedeEditar('cierre');
-}
 function calcularResultadoEjercicio(){
   const M=buildMayor();
   // Cuentas de resultado con saldo
@@ -39,7 +28,7 @@ function renderCierre(){
   const anio=S.empresa.anio;
   const {cuentasRes,ingresos,gastos,resultado}=calcularResultadoEjercicio();
   const el=document.getElementById('cierre-content');
-  const yaCerrado=S.asientos.find(a=>!a.anulado&&(a.tipo==='cierre'||(a.glosa&&a.glosa.includes('Cierre del ejercicio '+anio))));
+  const yaCerrado=S.asientos.find(a=>a.glosa&&a.glosa.includes('Cierre del ejercicio '+anio));
   el.innerHTML=`<div class="card" style="max-width:640px">
     <div class="info-tip" style="margin-bottom:16px">🔒 El <strong>cierre del ejercicio</strong> traspasa el resultado del año (utilidad o pérdida) a la cuenta <strong>Resultados Acumulados</strong>, dejando en cero las cuentas de ingresos y gastos para comenzar el año siguiente.</div>
     <table style="margin-bottom:16px"><tbody>
@@ -48,25 +37,17 @@ function renderCierre(){
       <tr style="background:${resultado>=0?'rgba(46,160,67,.12)':'rgba(248,81,73,.12)'}"><td class="tl" style="padding:11px 12px;font-weight:700;font-size:14px">${resultado>=0?'UTILIDAD':'PÉRDIDA'} DEL EJERCICIO</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:${resultado>=0?'var(--ach)':'var(--err)'}">${fmtC(resultado)}</td></tr>
     </tbody></table>
     ${cuentasRes.length===0?'<div class="empty"><div class="ei">📭</div>No hay cuentas de resultado con movimientos para cerrar.</div>':
-    yaCerrado?`<div class="info-tip" style="background:rgba(210,153,34,.10);border-color:var(--warn)">🔒 Ejercicio ${anio} cerrado con asiento N°${yaCerrado.n}. No se permite generar un segundo cierre.<div style="margin-top:10px"><button class="btn btn-g" onclick="reabrirEjercicio()" ${puedeGestionarCierreAnual()?'':'disabled title="Sin permiso de edición"'}>🔓 Reabrir ejercicio</button><span style="margin-left:8px;font-size:10px;color:var(--mt)">Requiere contador/administrador autorizado y motivo obligatorio.</span></div></div>`:
+    yaCerrado?`<div class="info-tip" style="background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Ya existe un asiento de cierre para ${anio} (N°${yaCerrado.n}). Generar otro duplicaría el efecto.</div>
+      <div style="margin-top:12px"><button class="btn btn-g" onclick="generarAsientoCierre()">Generar otro de todas formas</button></div>`:
     `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-p" onclick="generarAsientoCierre()" ${puedeGestionarCierreAnual()?'':'disabled title="Sin permiso de edición"'}>🔒 Generar asiento de cierre ${anio}</button>
+      <button class="btn btn-p" onclick="generarAsientoCierre()">🔒 Generar asiento de cierre ${anio}</button>
       <span style="font-size:11px;color:var(--mt)">Saldará ${cuentasRes.length} cuentas de resultado contra Resultados Acumulados al 31/dic/${anio}.</span>
     </div>`}
     <div style="margin-top:14px;font-size:10px;color:var(--mt)">Cuenta destino: ${CUENTA_RESULTADOS_ACUM} · ${pdcNm(CUENTA_RESULTADOS_ACUM)}. Recomendado hacerlo después de registrar depreciación y provisiones del año.</div>
   </div>`;
 }
-async function generarAsientoCierre(){
+function generarAsientoCierre(){
   const anio=S.empresa.anio;
-  if(!puedeGestionarCierreAnual()){toast('🚫 No tienes permiso para cerrar este ejercicio en la empresa activa','e');return;}
-  const existente=S.asientos.find(a=>!a.anulado&&(a.tipo==='cierre'||(a.glosa&&a.glosa.includes('Cierre del ejercicio '+anio))));
-  if(existente){toast(`🔒 El ejercicio ${anio} ya está cerrado (Asiento N°${existente.n})`,'e');return;}
-  const aud=auditoriaIntegridad();
-  const criticas=(aud.hallazgos||[]).filter(h=>h.sev==='critica');
-  if(criticas.length){
-    toast(`❌ No se puede cerrar: la Auditoría de Integridad tiene ${criticas.length} hallazgo${criticas.length===1?' crítico':'s críticos'}. Corrígelos antes del cierre.`,'e');
-    return;
-  }
   const {M,cuentasRes,resultado}=calcularResultadoEjercicio();
   if(!cuentasRes.length){toast('⚠️ No hay cuentas de resultado que cerrar','e');return;}
   if(!confirm(`¿Generar el asiento de cierre del ejercicio ${anio}?\n\nSaldará todas las cuentas de ingresos y gastos y traspasará el resultado (${fmtC(resultado)}) a Resultados Acumulados.\n\nEste asiento se registra al 31/dic/${anio}.`))return;
@@ -86,45 +67,11 @@ async function generarAsientoCierre(){
   }else{
     movs.push({cd:CUENTA_RESULTADOS_ACUM,nm:pdcNm(CUENTA_RESULTADOS_ACUM),debe:-resultado,haber:0,desc:'Pérdida del ejercicio '+anio});
   }
-  const cierreId='as_cierre_'+Date.now();
-  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:cierreId,fecha:anio+'-12-31',glosa:'Cierre del ejercicio '+anio,movs,tipo:'cierre',estado:'cerrado',ejercicio:+anio,cerradoEn:new Date().toISOString()});});
-  if(!r.ok){toast('❌ No se pudo persistir el cierre. El ejercicio permanece abierto.','e');return;}
-  const cierreNuevo=S.asientos.find(a=>a.id===cierreId);const folio=cierreNuevo?.numeroContable||cierreNuevo?.n||'?';
-  logAccion('Cerró ejercicio',`Ejercicio ${anio} · asiento N°${folio} · resultado ${fmtC(resultado)}`);
-  logCambio('Cerró ejercicio',{entidad:'asiento',id:cierreId,antes:null,despues:cierreNuevo,meta:{numeroContable:cierreNuevo?.numeroContable,tipo:'cierre',ejercicio:+anio}});
+  const folio=proxFolioAsiento();
+  S.asientos.push({id:'as_'+Date.now(),n:folio,fecha:anio+'-12-31',glosa:'Cierre del ejercicio '+anio,movs});
+  window.storage.set('asientos-'+anio,JSON.stringify(S.asientos)).catch(()=>{});
   toast('✅ Asiento N°'+folio+' de cierre generado ('+fmtC(resultado)+')');
   renderCierre();updateHdr();
-}
-
-// Reapertura formal: conserva el asiento de cierre, pero lo anula con trazabilidad.
-// Administradores y contadores autorizados pueden reabrir su empresa. El motivo queda tanto en el asiento como
-// en audit_log para poder reconstruir quién, cuándo y por qué abrió el período.
-async function reabrirEjercicio(){
-  const anio=S.empresa.anio;
-  if(!puedeGestionarCierreAnual()){toast('🚫 No tienes permiso para reabrir este ejercicio en la empresa activa','e');return;}
-  const cierre=(S.asientos||[]).find(a=>!a.anulado&&a.tipo==='cierre'&&(+((a.ejercicio)||String(a.fecha||'').slice(0,4))===+anio));
-  if(!cierre){toast(`El ejercicio ${anio} ya está abierto`);return;}
-  const anteriorCierre=JSON.parse(JSON.stringify(cierre));
-  const motivo=(prompt(`Motivo de reapertura del ejercicio ${anio}:\n\nEste dato quedará en la auditoría.`)||'').trim();
-  if(motivo.length<10){toast('⚠️ Ingresa un motivo de al menos 10 caracteres','e');return;}
-  if(!confirm(`¿Reabrir el ejercicio ${anio}?\n\nSe anulará contablemente el asiento de cierre N°${cierre.n}, pero se conservará su trazabilidad.\n\nMotivo: ${motivo}`))return;
-  const snap=JSON.stringify(S.asientos||[]);
-  cierre.anulado=true;
-  cierre.estado='reabierto';
-  cierre.reabiertoEn=new Date().toISOString();
-  cierre.reapertura={motivo,usuario:(AUTH.user&&AUTH.user.email)||'',fecha:cierre.reabiertoEn};
-  try{
-    const r=await window.storage.set('asientos-'+anio,JSON.stringify(S.asientos));
-    if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia');
-  }catch(e){
-    S.asientos=JSON.parse(snap);
-    toast('❌ No se pudo persistir la reapertura. El ejercicio continúa cerrado.','e');return;
-  }
-  const numCierre=cierre.numeroContable||cierre.n;
-  logAccion('Reabrió ejercicio',`Ejercicio ${anio} · cierre N°${numCierre} · motivo: ${motivo}`);
-  logCambio('Reabrió ejercicio',{entidad:'asiento',id:cierre.id,antes:anteriorCierre,despues:cierre,meta:{numeroContable:cierre.numeroContable,tipo:'cierre',ejercicio:+anio,motivo}});
-  toast(`🔓 Ejercicio ${anio} reabierto`);
-  renderCierre();updateHdr();rerender();
 }
 
 // ── PROVISIONES ──
@@ -149,7 +96,7 @@ function renderProvisiones(){
     <div class="card-title">🏖️ Provisión de Feriado Legal (Vacaciones)</div>
     <div class="info-tip" style="margin-bottom:12px">Estima el costo de los días de vacaciones acumulados por el personal. Genera: cargo a <strong>Vacaciones</strong> (gasto) / abono a <strong>Provisión Vacaciones</strong> (pasivo).</div>
     <div class="fg">
-      <div class="grp"><label>Monto a provisionar</label><input type="number" class="money-input" id="prov-fer-monto" placeholder="0" oninput="previewProvFer()"></div>
+      <div class="grp"><label>Monto a provisionar</label><input type="number" id="prov-fer-monto" placeholder="0" oninput="previewProvFer()"></div>
     </div>
     <div style="font-size:11px;color:var(--mt);margin-bottom:8px">Referencia: sueldos del año = ${fmtC(sueldosAnio)}. Regla general: ~1,25 días por mes trabajado por remuneración diaria.</div>
     <div id="prov-fer-preview" style="margin:10px 0"></div>
@@ -166,13 +113,12 @@ function previewProvInc(){
   if(el)el.innerHTML=monto>0?`<div class="info-tip" style="font-size:12px">Provisión: <strong>${fmtC(monto)}</strong> (${pct}% de ${fmtC(saldo)})</div>`:'';
 }
 function previewProvFer(){
-  const monto=pn(document.getElementById('prov-fer-monto').value);
+  const monto=+document.getElementById('prov-fer-monto').value||0;
   const el=document.getElementById('prov-fer-preview');
   if(el)el.innerHTML=monto>0?`<div class="info-tip" style="font-size:12px">Provisión feriado: <strong>${fmtC(monto)}</strong></div>`:'';
 }
-async function generarProvisionIncobrables(){
+function generarProvisionIncobrables(){
   const anio=S.empresa.anio;
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de generar provisiones.','e');return;}
   const M=buildMayor();
   const saldo=M['1104001']?Math.abs(M['1104001'].saldo):0;
   const pct=+document.getElementById('prov-inc-pct').value||0;
@@ -184,15 +130,14 @@ async function generarProvisionIncobrables(){
     {cd:'1105001',nm:pdcNm('1105001'),debe:0,haber:monto,desc:'Estimación clientes incobrables'},
   ];
   const folio=proxFolioAsiento();
-  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha:anio+'-12-31',glosa:'Provisión incobrables '+anio,movs,tipo:'ajuste-cierre'});});
-  if(!r.ok){toast('❌ No se pudo guardar la provisión. La operación NO se contabilizó.','e');return;}
+  S.asientos.push({id:'as_'+Date.now(),n:folio,fecha:anio+'-12-31',glosa:'Provisión incobrables '+anio,movs});
+  window.storage.set('asientos-'+anio,JSON.stringify(S.asientos)).catch(()=>{});
   toast('✅ Asiento N°'+folio+' — provisión incobrables '+fmtC(monto));
   renderProvisiones();updateHdr();
 }
-async function generarProvisionFeriado(){
+function generarProvisionFeriado(){
   const anio=S.empresa.anio;
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de generar provisiones.','e');return;}
-  const monto=pn(document.getElementById('prov-fer-monto').value);
+  const monto=+document.getElementById('prov-fer-monto').value||0;
   if(monto<=0){toast('⚠️ Ingresa el monto a provisionar','e');return;}
   if(!confirm(`¿Generar provisión de feriado legal por ${fmtC(monto)}?`))return;
   const movs=[
@@ -200,8 +145,8 @@ async function generarProvisionFeriado(){
     {cd:'2105004',nm:pdcNm('2105004'),debe:0,haber:monto,desc:'Provisión vacaciones'},
   ];
   const folio=proxFolioAsiento();
-  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha:anio+'-12-31',glosa:'Provisión feriado '+anio,movs,tipo:'ajuste-cierre'});});
-  if(!r.ok){toast('❌ No se pudo guardar la provisión. La operación NO se contabilizó.','e');return;}
+  S.asientos.push({id:'as_'+Date.now(),n:folio,fecha:anio+'-12-31',glosa:'Provisión feriado '+anio,movs});
+  window.storage.set('asientos-'+anio,JSON.stringify(S.asientos)).catch(()=>{});
   toast('✅ Asiento N°'+folio+' — provisión feriado '+fmtC(monto));
   renderProvisiones();updateHdr();
 }
@@ -216,16 +161,7 @@ function avisoMarcoCM(){
   if(marco==='ifrs-pyme'||marco==='ifrs-full'){
     return `<div class="info-tip" style="margin-bottom:16px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Esta empresa lleva contabilidad bajo <strong>${marcoInfo(marco).nm}</strong>. La <strong>corrección monetaria del Art. 41 LIR no forma parte de las NIIF</strong>: es un ajuste tributario chileno. Bajo NIIF los activos se miden a costo o valor razonable según corresponda, y solo se reexpresa en economías hiperinflacionarias (NIC 29), que no es el caso de Chile. Este módulo queda como referencia tributaria.</div>`;
   }
-  // Advertencia según el régimen real de la empresa: 14 D N°3 y 14 D N°8 (y
-  // renta presunta) NO están sujetos a corrección monetaria del Art. 41 LIR.
-  const reg=regimenInfo(e&&e.regimen);
-  if(reg&&reg.correccionMonetaria===false){
-    return `<div class="info-tip" style="margin-bottom:16px;background:rgba(248,81,73,.10);border-color:var(--err)">⛔ Tu empresa está en régimen <strong>${reg.corto} · ${reg.nm}</strong>, que <strong>NO está sujeto a corrección monetaria</strong> del Art. 41 LIR: estos contribuyentes no reajustan sus registros ni registran asientos por este concepto. Este módulo queda solo como <strong>referencia informativa</strong>; no generes asientos de CM.</div>`;
-  }
-  if(reg&&reg.correccionMonetaria===true){
-    return `<div class="info-tip" style="margin-bottom:16px;background:rgba(46,160,67,.08);border-color:var(--ach)">ℹ️ Régimen <strong>${reg.corto} · ${reg.nm}</strong>: sujeto a corrección monetaria del Art. 41 LIR. Usa el factor oficial del SII para el año.</div>`;
-  }
-  return `<div class="info-tip" style="margin-bottom:16px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Verifica el régimen tributario de tu empresa: los regímenes <strong>Pro-Pyme (14 D N°3 y 14 D N°8)</strong> y la <strong>renta presunta</strong> NO están sujetos a corrección monetaria del Art. 41 LIR. Este módulo es informativo.</div>`;
+  return `<div class="info-tip" style="margin-bottom:16px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Si tu empresa está en régimen <strong>14 D N°3 Pro-Pyme General, NO está sujeta a corrección monetaria</strong> del Art. 41 LIR (estos contribuyentes no reajustan sus registros). Este módulo es <strong>informativo</strong>; verifica tu régimen antes de usarlo.</div>`;
 }
 
 // ── CORRECCIÓN MONETARIA (informativa; 14 D N°3 está exento) ──
@@ -258,4 +194,4 @@ function previewCM(){
 }
 
 
-export {CUENTA_RESULTADOS_ACUM, calcularResultadoEjercicio, renderCierre, generarAsientoCierre, reabrirEjercicio, renderProvisiones, previewProvInc, previewProvFer, generarProvisionIncobrables, generarProvisionFeriado, renderCorreccion, previewCM};
+export {CUENTA_RESULTADOS_ACUM, calcularResultadoEjercicio, renderCierre, generarAsientoCierre, renderProvisiones, previewProvInc, previewProvFer, generarProvisionIncobrables, generarProvisionFeriado, renderCorreccion, previewCM};

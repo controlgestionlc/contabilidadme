@@ -5,7 +5,7 @@
  *
  * Por qué siempre va primero a la red
  * -----------------------------------
- * Los módulos se versionan con el import map de index.html. Un
+ * Los 59 módulos se versionan con un import map que genera _release.py. Un
  * service worker con la estrategia habitual (cache-first) volvería a meter el
  * problema que ese import map vino a resolver: el usuario publicaría un arreglo
  * y seguiría ejecutando el código de ayer, sin ningún indicio. En un sistema
@@ -16,22 +16,19 @@
  * exactamente lo que está publicado.
  */
 
-// Esta línea se actualiza en cada publicación: al cambiar el nombre,
+// _release.py reescribe esta línea en cada publicación: al cambiar el nombre,
 // la caché anterior se descarta entera en activate.
-const CACHE = 'contabilidad-1790629685';
+const CACHE = 'contabilidad-1790687481';
 
 // Lo mínimo para que la aplicación abra sin red. Los módulos JS y el CSS se van
 // guardando solos a medida que se usan (ver fetch), así no hay que mantener a
-// mano una lista de archivos que se desincroniza al primer módulo nuevo.
+// mano una lista de 59 archivos que se desincroniza al primer módulo nuevo.
 const BASE = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './img/rabf-app-icon.png',
-  './img/rabf-brand-transparent.png',
-  './img/rabf-logo.png',
 ];
 
 self.addEventListener('install', e => {
@@ -61,13 +58,6 @@ self.addEventListener('fetch', e => {
   // se dejan pasar tal cual: tienen su propia caché y sus propias reglas, y
   // cachear respuestas de la base de datos sería servir datos contables viejos.
   if (url.origin !== self.location.origin) return;
-
-  // El manifiesto de versión nunca se sirve desde la caché. Es la fuente de
-  // verdad que permite a una instalación antigua saber que debe actualizarse.
-  if (url.pathname.endsWith('/version.json')) {
-    e.respondWith(fetch(new Request(req,{cache:'no-store'})));
-    return;
-  }
 
   // `no-cache` obliga a revalidar contra el servidor en vez de aceptar lo que
   // tenga la caché HTTP del navegador. Sin esto, el service worker iría a la

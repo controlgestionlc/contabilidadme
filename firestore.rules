@@ -7,14 +7,15 @@ rules_version = '2';
 //  VERSIÓN FINAL — aislamiento estricto, lista para pegar en
 //  Firebase → Firestore Database → Reglas → Publicar (reemplaza TODO).
 //
-//  Estas reglas corresponden al modelo productivo actual. La colección
-//  `empresas_acl` se mantiene automáticamente al crear, compartir, reclamar o
-//  eliminar empresas, y cada documento de `contabilidad_data` se persiste con
-//  su campo `empresa`. Las antiguas herramientas manuales de preparación y
-//  reparación de aislamiento fueron retiradas de la interfaz en V2.16.1.
+//  ⚠️  Requisito previo: la base tiene que estar migrada.
+//      Configuración → Sistema → 🔒 Aislamiento por empresa → "Preparar",
+//      hasta que el panel quede en verde. La migración hace dos cosas:
+//        1. crea un documento en `empresas_acl` por cada empresa del catálogo
+//        2. estampa el campo `empresa` en todos los documentos existentes
+//      Si se publican estas reglas antes, la app deja de leer sus propios datos.
 //
-//  Si se migra una base histórica anterior al modelo multiempresa, la migración
-//  debe realizarse de forma controlada antes de publicar estas reglas.
+//  Si algo sale mal, la consola de Firebase guarda el historial de reglas
+//  publicadas y permite volver a la versión anterior en un clic.
 //
 //  Modelo de datos
 //  ───────────────
@@ -109,10 +110,8 @@ service cloud.firestore {
     // `_empresaActiva:<email>` guarda qué empresa dejó abierta cada usuario:
     // sólo su dueño puede tocarlo.
     function globalPropio(id) {
-      return id == '_empresaActiva:' + correo();
-    }
-    function globalAdmin(id) {
-      return id == '_empresas' || id == '_migrado_multiempresa';
+      return !id.matches('^_empresaActiva:.*')
+        || id == '_empresaActiva:' + correo();
     }
 
     // ═══ usuarios ═══════════════════════════════════════════════════════════
@@ -166,8 +165,7 @@ service cloud.firestore {
 
     // ═══ empresas_acl — quién puede ver cada empresa ════════════════════════
     match /empresas_acl/{empresaId} {
-      allow read: if activo()
-        && (esAdmin() || (hayAcl(empresaId) && correo() in resource.data.miembros) || resource.data.creadoPor == correo());
+      allow read: if activo();
 
       // Crear el ACL de una empresa: debes quedar tú como dueño.
       // (La migración de empresas heredadas la hace un administrador.)
@@ -215,21 +213,16 @@ service cloud.firestore {
       // documento a otra empresa o cree basura fuera de su ámbito.
       allow create, update: if escribe()
         && request.resource.data.empresa == empresaDeId(docId)
-        && (esGlobal(docId) ? (globalPropio(docId) || (esAdmin() && globalAdmin(docId))) : miembro(empresaDeId(docId)));
+        && (esGlobal(docId) ? globalPropio(docId) : miembro(empresaDeId(docId)));
 
       allow delete: if escribe()
-        && (esGlobal(docId) ? (globalPropio(docId) || (esAdmin() && globalAdmin(docId))) : miembro(empresaDeId(docId)));
+        && (esGlobal(docId) ? globalPropio(docId) : miembro(empresaDeId(docId)));
     }
 
     // ═══ audit_log — sólo agregar, nadie borra su rastro ════════════════════
     match /audit_log/{id} {
       allow read: if esAdmin();
-      // El actor no puede atribuir la acción a otro usuario. Además, la empresa
-      // declarada debe ser una empresa a la que pertenece (o _global para admin).
-      allow create: if activo()
-        && request.resource.data.usuario == correo()
-        && request.resource.data.empresa is string
-        && (request.resource.data.empresa == '_global' ? esAdmin() : miembro(request.resource.data.empresa));
+      allow create: if activo();
       allow update, delete: if false;
     }
 

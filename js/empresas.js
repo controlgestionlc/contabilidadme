@@ -10,7 +10,7 @@
 import {toast} from './core.js';
 import {AUTH} from './state.js';
 import {REGIMEN_DEFAULT} from './regimenes.js';
-import {guardarACLEmpresa, borrarACLEmpresa, miembrosDe, aclDisponible} from './acl.js';
+import {guardarACLEmpresa, borrarACLEmpresa, asegurarACLEmpresa, miembrosDe, aclDisponible} from './acl.js';
 
 // Marcos contables disponibles
 export const MARCOS=[
@@ -183,7 +183,11 @@ const ULTIMA_ACL={};   // id → firma escrita en esta sesión
 // de Firestore no pueden leer el catálogo (es un JSON dentro de un string).
 async function refrescarACL(){
   if(!aclDisponible())return;
+  // Las reglas sólo dejan tocar la ficha al dueño o a un admin: intentar las
+  // demás sólo llena la consola de "sin permisos" y demora las propias.
+  const admin=esAdminActual();
   for(const e of EMPRESAS.todas){
+    if(!admin&&!esDuenioDeEmpresa(e))continue;
     const f=firmaACL(e);
     if(ULTIMA_ACL[e.id]===f)continue;
     if(await guardarACLEmpresa(e))ULTIMA_ACL[e.id]=f;
@@ -213,6 +217,20 @@ export async function guardarCatalogo(){
 
 export const empresaActiva=()=>EMPRESAS.todas.find(e=>e.id===EMPRESAS.activa)||null;
 
+// Antes de leer los datos de una empresa, su ficha de acceso tiene que estar en
+// la nube (las reglas la consultan en cada lectura). Se ESPERA a propósito:
+// refrescarACL corre en segundo plano y, con una empresa recién creada, la
+// lectura le ganaba a la escritura de la ficha y todo quedaba bloqueado.
+export async function asegurarAccesoEmpresa(id){
+  const e=EMPRESAS.todas.find(x=>x.id===(id||EMPRESAS.activa));
+  if(!e)return 'ok';
+  const puede=esAdminActual()||esDuenioDeEmpresa(e);
+  const r=await asegurarACLEmpresa(e,emailActual(),{puedeEscribir:puede});
+  if(r==='escrita')ULTIMA_ACL[e.id]=firmaACL(e);
+  if(r==='sin-permiso'||r==='error')console.warn('Acceso a la empresa',e.id,'→',r);
+  return r;
+}
+
 // ── Operaciones ──
 export async function crearEmpresa(nombre,rut,marco,regimen){
   // El id debe ser único aunque se creen dos empresas en el mismo milisegundo
@@ -225,6 +243,7 @@ export async function crearEmpresa(nombre,rut,marco,regimen){
     creadoPor:emailActual()||'',      // dueño = quien la crea
     compartidaCon:[]});
   await guardarCatalogo();
+  await asegurarAccesoEmpresa(id);   // la ficha debe existir antes de usarla
   return id;
 }
 

@@ -1,5 +1,5 @@
 // remuneraciones.js — Liquidaciones de sueldo (AFP, salud, cesantía, IUSC)
-import {toast, fmtC, MESES, pdcNm, pn} from './core.js';
+import {toast, fmtC, MESES, pdcNm} from './core.js';
 import {updateHdr} from './empresa.js';
 import {S} from './state.js';
 import {logAccion} from './firebase.js';
@@ -7,7 +7,6 @@ import {proxFolioAsiento} from './asientos.js';
 import {getIndicadores, IND, calcularGratificacion, topeGratificacionMensual,
         getIUSCTabla, calcularIUSCDetalle, IUSC_TABLA_OFICIAL} from './indicadores.js';
 import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal} from './previsional.js';
-import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import './storage.js';
 
 let REMF={editId:null}; // form trabajador (estado interno)
@@ -34,7 +33,7 @@ function calcularIUSC(baseTributable,utm){
 }
 // UF/UTM del mes: guardadas en empresa (editables). Defaults referenciales.
 function getUF(){return +document.getElementById('rem-uf')?.value||IND('uf');}
-function getUTM(){return pn(document.getElementById('rem-utm')?.value)||IND('utm');}
+function getUTM(){return +document.getElementById('rem-utm')?.value||IND('utm');}
 
 // Calcula la liquidación completa de un trabajador con UF/UTM dados
 // Modo de gratificación de un trabajador. Los registros antiguos (sin
@@ -125,7 +124,6 @@ function abrirFormTrabajador(){
   ['grat','otros','colacion','movilizacion'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='0';});
   document.getElementById('remf-salud').value='fonasa';
   document.getElementById('remf-contrato').value='indefinido';
-  cargarLREForm({});
   // Los trabajadores nuevos parten con la gratificación legal en porcentaje
   document.getElementById('remf-gratmodo').value='pct';
   document.getElementById('remf-gratpct').value=getIndicadores().gratifPct??25;
@@ -155,42 +153,22 @@ function onSaludChange(){
   document.getElementById('remf-plan-wrap').style.display=isIsapre?'':'none';
   previewLiq();
 }
-function leerLRETrabajador(){
-  const g=id=>document.getElementById(id)?.value??'';
-  return {
-    fechaInicio:g('remf-lre-inicio'),fechaTermino:g('remf-lre-termino'),causalTermino:g('remf-lre-causal'),
-    region:g('remf-lre-region'),comuna:g('remf-lre-comuna'),tipoImpuesto:g('remf-lre-impuesto')||'1',
-    jornada:g('remf-lre-jornada')||'101',diasTrabajados:g('remf-lre-dias')||'30',diasLicencia:g('remf-lre-licencia'),diasVacaciones:g('remf-lre-vacaciones'),
-    discapacidad:g('remf-lre-discapacidad')||'0',pensionadoVejez:g('remf-lre-vejez')||'0',tecnicoExtranjero:g('remf-lre-extranjero')||'0',
-    apvIndividual:g('remf-lre-apv')||'0',apvColectivo:g('remf-lre-apvc')||'0',indemnizacionTodoEvento:g('remf-lre-ite')||'0',
-    otrosCodigo:g('remf-lre-otros')||'2111'
-  };
-}
-function cargarLREForm(lre={}){
-  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v??'';};
-  set('remf-lre-inicio',lre.fechaInicio||'');set('remf-lre-termino',lre.fechaTermino||'');set('remf-lre-causal',lre.causalTermino||'');
-  set('remf-lre-region',lre.region||'');set('remf-lre-comuna',lre.comuna||'');set('remf-lre-impuesto',lre.tipoImpuesto||'1');
-  set('remf-lre-jornada',lre.jornada||'101');set('remf-lre-dias',lre.diasTrabajados??'30');set('remf-lre-licencia',lre.diasLicencia||'');set('remf-lre-vacaciones',lre.diasVacaciones||'');
-  set('remf-lre-discapacidad',lre.discapacidad||'0');set('remf-lre-vejez',lre.pensionadoVejez||'0');set('remf-lre-extranjero',lre.tecnicoExtranjero||'0');
-  set('remf-lre-apv',lre.apvIndividual||'0');set('remf-lre-apvc',lre.apvColectivo||'0');set('remf-lre-ite',lre.indemnizacionTodoEvento||'0');set('remf-lre-otros',lre.otrosCodigo||'2111');
-}
 function leerFormTrabajador(){
   return {
     nombre:document.getElementById('remf-nombre').value.trim(),
     rut:document.getElementById('remf-rut').value.trim(),
     cargo:document.getElementById('remf-cargo').value.trim(),
-    base:pn(document.getElementById('remf-base').value),
+    base:+document.getElementById('remf-base').value||0,
     gratifModo:document.getElementById('remf-gratmodo')?.value||'pct',
     gratifPct:+document.getElementById('remf-gratpct')?.value||0,
-    grat:pn(document.getElementById('remf-grat').value),
-    otros:pn(document.getElementById('remf-otros').value),
-    colacion:pn(document.getElementById('remf-colacion').value),
-    movilizacion:pn(document.getElementById('remf-movilizacion').value),
+    grat:+document.getElementById('remf-grat').value||0,
+    otros:+document.getElementById('remf-otros').value||0,
+    colacion:+document.getElementById('remf-colacion').value||0,
+    movilizacion:+document.getElementById('remf-movilizacion').value||0,
     afp:document.getElementById('remf-afp').value,
     salud:document.getElementById('remf-salud').value,
     plan:+document.getElementById('remf-plan').value||0,
     contrato:document.getElementById('remf-contrato').value,
-    lre:leerLRETrabajador(),
   };
 }
 function previewLiq(){
@@ -248,7 +226,6 @@ function editarTrabajador(id){
   document.getElementById('remf-salud').value=t.salud||'fonasa';
   document.getElementById('remf-plan').value=t.plan||0;
   document.getElementById('remf-contrato').value=t.contrato||'indefinido';
-  cargarLREForm(t.lre||{});
   onSaludChange();previewLiq();
   f.scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -256,13 +233,13 @@ function eliminarTrabajador(id){
   const t=S.trabajadores.find(x=>x.id===id);if(!t)return;
   if(!confirm(`¿Eliminar al trabajador "${t.nombre}"?`))return;
   S.trabajadores=S.trabajadores.filter(x=>x.id!==id);
-  window.storage.set('trabajadores',JSON.stringify(S.trabajadores)).then(r=>{if(!r||r.ok===false)toast('❌ No se pudo guardar la eliminación del trabajador','e');}).catch(e=>{console.error(e);toast('❌ No se pudo guardar la eliminación del trabajador','e');});
+  window.storage.set('trabajadores',JSON.stringify(S.trabajadores)).catch(()=>{});
   renderRemuneraciones();updateHdr();toast('🗑 Trabajador eliminado');
 }
 function onParamRem(){
   // Guardar UF/UTM en empresa y re-render
   S.empresa.remUF=getUF();S.empresa.remUTM=getUTM();
-  window.storage.set('empresa',JSON.stringify(S.empresa)).then(r=>{if(!r||r.ok===false)toast('❌ No se pudieron guardar UF/UTM','e');}).catch(e=>{console.error(e);toast('❌ No se pudieron guardar UF/UTM','e');});
+  window.storage.set('empresa',JSON.stringify(S.empresa)).catch(()=>{});
   renderRemuneraciones();
   if(document.getElementById('rem-form').style.display!=='none')previewLiq();
 }
@@ -367,9 +344,8 @@ function verLiquidacion(id){
   </div>`;
   document.getElementById('rem-content').innerHTML=html;
 }
-async function generarAsientoRemuneraciones(){
+function generarAsientoRemuneraciones(){
   const anio=S.empresa.anio;
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de generar remuneraciones.','e');return;}
   const mesNum=+document.getElementById('rem-mes').value||1;
   const uf=getUF(),utm=getUTM();
   if(!S.trabajadores.length){toast('⚠️ No hay trabajadores','e');return;}
@@ -382,10 +358,7 @@ async function generarAsientoRemuneraciones(){
     totPatronal+=l.patronal.total;
   });
   if(totSueldo<=0){toast('⚠️ No hay montos','e');return;}
-  // Último día calendario real del mes: evita fechas inexistentes como
-  // 2026-02-30 y mantiene el asiento dentro del período de remuneraciones.
-  const ultimoDia=new Date(anio,mesNum,0).getDate();
-  const fecha=`${anio}-${String(mesNum).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
+  const fecha=`${anio}-${String(mesNum).padStart(2,'0')}-30`;
   if(!confirm(`¿Generar asiento de remuneraciones de ${MESES[mesNum-1]} ${anio}?\n\n${S.trabajadores.length} trabajadores\nLíquido a pagar: ${fmtC(totLiq)}\nAporte patronal: ${fmtC(totPatronal)}`))return;
   const movs=[];
   // DEBE: gasto en sueldos (imponible + no imponible)
@@ -403,11 +376,11 @@ async function generarAsientoRemuneraciones(){
     movs.push({cd:'2104001',nm:pdcNm('2104001'),debe:0,haber:totPatronal,desc:'Aporte patronal por pagar'});
   }
   const folio=proxFolioAsiento();
-  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha,glosa:`Remuneraciones ${MESES[mesNum-1]} ${anio}`,movs,tipo:'remuneraciones',periodo:`${anio}-${String(mesNum).padStart(2,'0')}`,indicadoresLiquidacion:{uf,utm}});});
-  if(!r.ok){toast('❌ No se pudo guardar el asiento de remuneraciones. La operación NO se contabilizó.','e');return;}
+  S.asientos.push({id:'as_'+Date.now(),n:folio,fecha,glosa:`Remuneraciones ${MESES[mesNum-1]} ${anio}`,movs});
+  window.storage.set('asientos-'+anio,JSON.stringify(S.asientos)).catch(()=>{});
   toast('✅ Asiento N°'+folio+' de remuneraciones ('+fmtC(totLiq)+' líquido)');
   renderRemuneraciones();updateHdr();
 }
 
 
-export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};
+export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};

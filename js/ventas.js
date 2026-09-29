@@ -1,77 +1,22 @@
 // ventas.js — Libro de ventas (documentos individuales)
 import {toast, pn, today, MESES, IVA, DTE_VENTAS, dteV, rutParse, rutFmt, rutDV, fmt, fmtC, CUENTAS_INGRESO} from './core.js';
-import {leerArchivo,resolverVencimientoImportado} from './importadorsii.js';
+import {leerArchivo} from './importadorsii.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import {rerender} from './ui.js';
 import {S} from './state.js';
-import {logAccion,logCambio} from './firebase.js';
+import {logAccion} from './firebase.js';
 import {mesRango, mesOpts, dteVentasOpts, foliosMensuales} from './helpers.js';
 import {todosDocsVentas, abrirAsientoDesde, proxFolioComprobante} from './asientos.js';
 import './storage.js';
-import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
-import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
-import {asientoVenta} from './motor-contable.js';
-import {validarMovimientosPDC} from './pdc-reglas.js';
 
 // Estado del formulario de ventas (interno del módulo)
 // Mismo cuidado que con AF y CF: este objeto se publica en window desde app.js,
 // así que se muta, nunca se reasigna. Hoy sólo lo lee este módulo, pero dejarlo
 // como `let` reasignable es la trampa que ya costó dos bugs silenciosos.
 const VF={editId:null};
-const textoSeguroImportV=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fijarVF=editId=>{VF.editId=editId==null?null:editId;};
 let IMV={docs:[]}; // estado del importador SII de ventas
-
-function validarCuadraturaImportVentas(){
-  const out=[];
-  IMV.docs.forEach((d,i)=>{
-    if(!d.incluir)return;
-    const doc={...d,id:d.dup?.id||`preview-v-${i}`,fecha:d.fechaOriginal||d.fecha,
-      formaPago:d.dup?.formaPago||d.fp||'clientes',cuentaIngreso:d.dup?.cuentaIngreso||d.cuenta||''};
-    try{
-      const a=asientoVenta(doc);
-      const vp=validarMovimientosPDC(a.movs||[]);
-      if(!a.cuadre?.ok||!vp.ok){
-        const motivos=[];
-        if(!a.cuadre?.ok)motivos.push(`Debe y Haber difieren en ${fmtC(a.cuadre?.diferencia||0)}`);
-        if(!vp.ok)motivos.push(vp.errores[0]);
-        out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:a.cuadre?.diferencia||0,motivo:motivos.join(' · '),tipo:!vp.ok?'pdc':'cuadratura'});
-      }else if(d.errorImport){
-        out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:d.errorImport,tipo:'guardado'});
-      }
-    }catch(err){
-      out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:err?.message||String(err),tipo:'preview'});
-    }
-  });
-  return out;
-}
-
-function enfocarPendienteImportV(i){
-  const el=document.getElementById('impv-row-'+i);
-  if(!el)return;
-  el.scrollIntoView({behavior:'smooth',block:'center'});
-  el.classList.add('imp-pending-focus');
-  setTimeout(()=>el.classList.remove('imp-pending-focus'),1800);
-}
-
-function alertaCuadraturaImport(lista){
-  if(!lista.length)return '';
-  const items=lista.slice(0,8).map(x=>`<button type="button" class="imp-pending-link" onclick="enfocarPendienteImportV(${x.idx})">DTE ${x.tipoDTE} N° ${textoSeguroImportV(x.numero)} · ${textoSeguroImportV(x.motivo||`diferencia ${fmtC(x.diferencia)}`)}</button>`).join('');
-  return `<div class="imp-pending-alert"><strong>⚠️ ${lista.length} documento${lista.length===1?'':'s'} no pasarían la validación contable.</strong><div class="imp-pending-links">${items}${lista.length>8?`<span>… y ${lista.length-8} más</span>`:''}</div><span>Se detectaron antes de guardar. Los documentos válidos sí pueden importarse; estos quedarán pendientes para corregir su cuenta, auxiliar, centro de costo o cuadratura.</span></div>`;
-}
-
-function recalcularEstadoImportVentas(){
-  IMV.docs.forEach(d=>{
-    const prev=d.dup;
-    if(!prev){d.estadoImport='nuevo';d.cambiosRCV=[];if(d.incluir==null)d.incluir=true;return;}
-    if(prev.origen==='asiento'){d.estadoImport='manual';d.cambiosRCV=[];d.incluir=false;return;}
-    const cmp=compararVentaRCV(d,prev);
-    d.cambiosRCV=cmp.cambios;d.rcvFingerprint=cmp.fingerprint;
-    if(prev.estado==='anulado'){d.estadoImport='cambio';d.cambiosRCV=[{campo:'estado',label:'Estado',anterior:'Anulado',nuevo:'Activo'},...d.cambiosRCV];}
-    else d.estadoImport=cmp.igual?'igual':'cambio';
-  });
-}
 
 // ═══ VENTAS — Documentos individuales ═══
 // Computa folio correlativo por mes: retorna {[docId]: folioNumero}
@@ -106,56 +51,35 @@ function toggleVSelAll(marcados){
 function limpiarVSel(){VF_SEL.clear();renderVentas();}
 async function cambiarFPVSel(nuevaFP){
   if(!VF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de modificar ventas.','e');return;}
-  const cerrados=(S.ventas||[]).filter(d=>VF_SEL.has(d.id)&&!puedeOperarFecha(d.fecha));
-  if(cerrados.length){toast(`🔒 ${cerrados.length} venta(s) pertenecen a períodos cerrados.`, 'e');return;}
   const fpLbl=nuevaFP==='clientes'?'a crédito (Cliente)':nuevaFP==='banco'?'al contado (Banco)':nuevaFP;
-  const snapV=JSON.stringify(S.ventas||[]),snapA=JSON.stringify(S.asientos||[]);
+  // Solo se pueden modificar los documentos del libro (no los que vienen de un
+  // asiento manual, que se editan desde el asiento).
   let cambiados=0, omitidos=0;
-  try{
-    S.ventas.forEach(d=>{
-      if(!VF_SEL.has(d.id)||d.estado==='anulado')return;
-      if(d.formaPago!==nuevaFP){d.formaPago=nuevaFP;upsertAsientoDocumento('ventas',d);cambiados++;}
-    });
-    omitidos=VF_SEL.size-S.ventas.filter(d=>VF_SEL.has(d.id)).length;
-    if(!cambiados&&!omitidos){toast('Los documentos ya tenían esa forma de pago');return;}
-    await persistirClavesCritico([
-      {key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)},
-      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
-    ]);
-  }catch(e){
-    S.ventas=JSON.parse(snapV);S.asientos=JSON.parse(snapA);
-    toast('❌ No se pudo guardar el cambio. No se aplicaron modificaciones.','e');return;
-  }
+  S.ventas.forEach(d=>{
+    if(!VF_SEL.has(d.id))return;
+    if(d.formaPago!==nuevaFP){d.formaPago=nuevaFP;cambiados++;}
+  });
+  // ¿Había seleccionados que no están en el libro (vienen de asientos)?
+  omitidos=VF_SEL.size-S.ventas.filter(d=>VF_SEL.has(d.id)).length;
+  if(!cambiados&&!omitidos){toast('Los documentos ya tenían esa forma de pago');return;}
   VF_SEL.clear();
+  try{await window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas));}catch(e){}
   toast(`✅ ${cambiados} documento${cambiados===1?'':'s'} marcado${cambiados===1?'':'s'} ${fpLbl}${omitidos?` · ${omitidos} omitido${omitidos===1?'':'s'} (vienen de asientos)`:''}`);
   logAccion('Cambió forma de pago masivamente',`${cambiados} ventas → ${nuevaFP}`);
   rerender();
 }
 async function eliminarVSel(){
-  const cerrados=(S.ventas||[]).filter(d=>VF_SEL.has(d.id)&&!puedeOperarFecha(d.fecha));
-  if(cerrados.length){toast(`🔒 ${cerrados.length} documento(s) pertenecen a períodos cerrados. Reabre esos períodos antes de anular.`, 'e');return;}
   if(!VF_SEL.size){toast('⚠️ No hay documentos seleccionados','e');return;}
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de anular ventas.','e');return;}
   const n=VF_SEL.size;
-  if(!confirm(`¿Anular ${n} documento${n===1?'':'s'} de venta seleccionado${n===1?'':'s'}?
-
-Los documentos y sus asientos se conservarán para trazabilidad.`))return;
-  const snapV=JSON.stringify(S.ventas||[]),snapA=JSON.stringify(S.asientos||[]);
-  let borrados=0;
-  try{
-    S.ventas.forEach(d=>{if(VF_SEL.has(d.id)&&d.estado!=='anulado'){d.estado='anulado';d.anuladoEn=new Date().toISOString();anularAsientoDocumento('ventas',d.id,'anulación masiva');borrados++;}});
-    await persistirClavesCritico([
-      {key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)},
-      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
-    ]);
-  }catch(e){
-    S.ventas=JSON.parse(snapV);S.asientos=JSON.parse(snapA);
-    toast('❌ No se pudo guardar la anulación. No se aplicaron cambios.','e');return;
-  }
+  if(!confirm(`¿Eliminar ${n} documento${n===1?'':'s'} de venta seleccionado${n===1?'':'s'}?\n\nEsta acción no se puede deshacer.`))return;
+  // Filtrar el array (solo se pueden eliminar los que no vienen de un asiento)
+  const antes=S.ventas.length;
+  S.ventas=S.ventas.filter(d=>!VF_SEL.has(d.id));
+  const borrados=antes-S.ventas.length;
   VF_SEL.clear();
-  toast(`🚫 ${borrados} documento${borrados===1?'':'s'} anulado${borrados===1?'':'s'}`);
-  logAccion('Anuló ventas masivamente',`${borrados} documentos`);
+  try{await window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas));}catch(e){}
+  toast(`🗑 ${borrados} documento${borrados===1?'':'s'} eliminado${borrados===1?'':'s'}`);
+  logAccion('Eliminó ventas masivamente',`${borrados} documentos`);
   rerender();
 }
 
@@ -294,47 +218,6 @@ function renderVResumen(){
 }
 
 // — Form Ventas —
-// V2.11 — referencias tributarias de Notas de Crédito/Débito
-function vfDteChanged(){
-  const t=+document.getElementById('vf-dte')?.value||0;
-  const row=document.getElementById('vf-ref-row');if(row)row.style.display=(t===56||t===61)?'grid':'none';
-  if(t===56||t===61)vfRefrescarDocs();
-}
-
-let _vfRefs=[];
-const escOptV=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function vfAsegurarTipoReferencia(tipo){
-  const sel=document.getElementById('vf-ref-tipo');if(!sel)return;
-  const val=String(+tipo||33);
-  if(![...sel.options].some(o=>o.value===val)){
-    const info=dteV(+tipo);sel.add(new Option(`${val} — ${info?.nm||'Documento tributario'}`,val));
-  }
-  sel.value=val;
-}
-function vfRefrescarDocs(){
-  const sel=document.getElementById('vf-ref-doc');if(!sel)return;
-  const r=rutParse(document.getElementById('vf-rut')?.value||'');
-  const actual={tipo:+document.getElementById('vf-ref-tipo')?.value||0,folio:(document.getElementById('vf-ref-folio')?.value||'').trim(),fecha:document.getElementById('vf-ref-fecha')?.value||''};
-  _vfRefs=r.codigo?todosDocsVentas().filter(d=>d&&d.estado!=='anulado'&&d.rutCodigo===r.codigo&&d.id!==VF.editId)
-    .sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||String(b.numero||'').localeCompare(String(a.numero||''))):[];
-  const ayuda=document.getElementById('vf-ref-ayuda');
-  if(!r.codigo){sel.innerHTML='<option value="">Ingrese el RUT para buscar documentos…</option>';if(ayuda)ayuda.textContent='Selecciona un documento ya registrado para completar la referencia.';return;}
-  if(!_vfRefs.length){sel.innerHTML='<option value="">No hay documentos registrados para este cliente</option>';if(ayuda)ayuda.textContent='Puedes ingresar la referencia manualmente en los campos inferiores.';return;}
-  sel.innerHTML='<option value="">Seleccionar documento referenciado…</option>'+_vfRefs.map((d,i)=>`<option value="${i}">${escOptV(d.fecha)} · DTE ${+d.tipoDTE||''} N° ${escOptV(d.numero)} · ${escOptV(fmtC(d.total||0))}</option>`).join('');
-  const idx=_vfRefs.findIndex(d=>+d.tipoDTE===actual.tipo&&String(d.numero||'')===actual.folio&&(!actual.fecha||d.fecha===actual.fecha));
-  if(idx>=0)sel.value=String(idx);
-  if(ayuda)ayuda.textContent=`${_vfRefs.length} documento${_vfRefs.length===1?' disponible':'s disponibles'} para este cliente.`;
-}
-function vfSeleccionarReferencia(valor){
-  if(valor==='')return;
-  const d=_vfRefs[+valor];if(!d)return;
-  vfAsegurarTipoReferencia(d.tipoDTE);
-  document.getElementById('vf-ref-folio').value=d.numero||'';
-  document.getElementById('vf-ref-fecha').value=d.fecha||'';
-  const razon=document.getElementById('vf-ref-razon');
-  if(razon&&!razon.value)razon.value=(+document.getElementById('vf-dte')?.value===61?'Anula / corrige documento seleccionado':'Modifica documento seleccionado');
-}
-
 function abrirVF(){
   fijarVF(null);
   const f=document.getElementById('vf-form');f.style.display='block';f.classList.remove('editing');
@@ -342,8 +225,7 @@ function abrirVF(){
   document.getElementById('vf-fecha').value=today();
   document.getElementById('vf-vence').value='';
   document.getElementById('vf-dte').innerHTML=dteVentasOpts('');
-  ['vf-num','vf-rut','vf-rs','vf-neto','vf-exento','vf-iva','vf-otros','vf-total','vf-ref-folio','vf-ref-fecha','vf-ref-razon'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  vfDteChanged();
+  ['vf-num','vf-rut','vf-rs','vf-neto','vf-exento','vf-iva','vf-otros','vf-total'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('vf-fp').value='banco';
   document.getElementById('vf-dv').textContent='';
   document.getElementById('vf-dup-warn').style.display='none';
@@ -360,11 +242,6 @@ function editarVenta(id){
   document.getElementById('vf-fecha').value=d.fecha;
   document.getElementById('vf-vence').value=d.fechaVencimiento||'';
   document.getElementById('vf-dte').innerHTML=dteVentasOpts(d.tipoDTE);
-  vfDteChanged();
-  if(document.getElementById('vf-ref-tipo'))document.getElementById('vf-ref-tipo').value=d.referencia?.tipoDTE||33;
-  if(document.getElementById('vf-ref-folio'))document.getElementById('vf-ref-folio').value=d.referencia?.folio||'';
-  if(document.getElementById('vf-ref-fecha'))document.getElementById('vf-ref-fecha').value=d.referencia?.fecha||'';
-  if(document.getElementById('vf-ref-razon'))document.getElementById('vf-ref-razon').value=d.referencia?.razon||'';
   document.getElementById('vf-num').value=d.numero||'';
   document.getElementById('vf-rut').value=(d.rutCodigo||'')+(d.rutDV||'');
   document.getElementById('vf-rs').value=d.razonSocial||'';
@@ -388,13 +265,12 @@ function cerrarVF(){document.getElementById('vf-form').style.display='none';fija
 function vfRutInput(val){
   const r=rutParse(val);
   const el=document.getElementById('vf-dv');
-  if(!r.raw){el.textContent='';el.className='rut-dv';vfRefrescarDocs();return;}
+  if(!r.raw){el.textContent='';el.className='rut-dv';return;}
   if(r.codigo&&r.valido){el.textContent='✓ '+r.dv;el.className='rut-dv ok';
     const prev=S.ventas.find(v=>v.rutCodigo===r.codigo&&v.razonSocial);
     const rs=document.getElementById('vf-rs');
     if(prev&&!rs.value)rs.value=prev.razonSocial;
-    vfRefrescarDocs();
-  }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';vfRefrescarDocs();}
+  }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';}
   else{el.textContent='…';el.className='rut-dv';}
 }
 
@@ -439,7 +315,7 @@ function vfCalcTotals(changed){
 }
 function vfAutoCalc(){vfCalcTotals('neto');}
 
-async function guardarVenta(){
+function guardarVenta(){
   const fecha=document.getElementById('vf-fecha').value;
   const fechaVencimiento=document.getElementById('vf-vence').value||'';
   const tipoDTE=+document.getElementById('vf-dte').value;
@@ -474,31 +350,19 @@ async function guardarVenta(){
   }
 
   const cuentaIngreso=_vfCuentaSel||(document.getElementById('vf-cuenta')?.dataset.cd)||'';
-  const esNota=tipoDTE===56||tipoDTE===61;
-  const referencia=esNota?{tipoDTE:+document.getElementById('vf-ref-tipo')?.value||33,folio:(document.getElementById('vf-ref-folio')?.value||'').trim(),fecha:document.getElementById('vf-ref-fecha')?.value||'',razon:(document.getElementById('vf-ref-razon')?.value||'').trim()}:null;
-  const refRegistrada=referencia?_vfRefs.find(d=>+d.tipoDTE===referencia.tipoDTE&&String(d.numero||'')===referencia.folio&&(!referencia.fecha||d.fecha===referencia.fecha)):null;
-  if(refRegistrada){referencia.documentoId=refRegistrada.id;referencia.totalOriginal=refRegistrada.total||0;}
-  if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
-  if(!puedeOperarFecha(fecha)){toast('🔒 El período contable de esta fecha está cerrado. Reabre el período antes de registrar o modificar documentos.','e');return;}
-  const prevEdit=VF.editId?S.ventas.find(x=>x.id===VF.editId):null;
-  const fechaVencimientoOrigen=fechaVencimiento
-    ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
-    :'';
-  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(referencia?{referencia}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||''}:{})};
-  const editando=!!VF.editId;
-  const rSave=await guardarDocumentoContabilizado('ventas',doc,S.ventas,editando);
-  if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
-  toast(editando?'✅ Documento actualizado y contabilizado':'✅ Documento registrado y contabilizado');
-  logAccion(editando?'Editó venta':'Registró venta',`DTE ${doc.tipoDTE} N°${doc.numero} · ${doc.razonSocial} · ${fmtC(doc.total)}`);
+  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso};
+  if(VF.editId){const i=S.ventas.findIndex(x=>x.id===VF.editId);if(i>=0)S.ventas[i]=doc;toast('✅ Documento actualizado');logAccion('Editó venta',`DTE ${doc.tipoDTE} N°${doc.numero} · ${fmtC(doc.total)}`);}
+  else{S.ventas.push(doc);toast('✅ Documento registrado');logAccion('Registró venta',`DTE ${doc.tipoDTE} N°${doc.numero} · ${doc.razonSocial} · ${fmtC(doc.total)}`);}
+  window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas)).catch(()=>{});
   cerrarVF();rerender();
 }
 
-async function eliminarVenta(id){
+function eliminarVenta(id){
   const d=S.ventas.find(x=>x.id===id);if(!d)return;
   if(!confirm(`¿Eliminar documento ${d.tipoDTE} N°${d.numero} de ${d.razonSocial}?\nTotal: ${fmtC(d.total)}`))return;
-  const r=await anularDocumentoContabilizado('ventas',d,S.ventas);
-  if(!r.ok){toast(r.motivo==='ejercicio-cerrado'?'🔒 El ejercicio está cerrado':'❌ No se pudo guardar la anulación','e');return;}
-  rerender();toast('🚫 Documento y asiento anulados (se conserva la trazabilidad)');
+  S.ventas=S.ventas.filter(x=>x.id!==id);
+  window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas)).catch(()=>{});
+  rerender();toast('🗑 Documento eliminado');
 }
 
 
@@ -541,21 +405,16 @@ function mostrarVentasImportadas(res,nombreArchivo){
   // Duplicados: comparación como string para tolerar tipos mixtos.
   const todos=todosDocsVentas();
   res.docs.forEach(d=>{
-    const dupLibro=(S.ventas||[]).find(x=>claveRCV(x)===claveRCV(d));
-    const dup=dupLibro||todos.find(x=>
+    const dup=todos.find(x=>
       x.rutCodigo===d.rutCodigo &&
       +x.tipoDTE===+d.tipoDTE &&
       String(x.numero).trim()===String(d.numero).trim()
     );
     d.dup=dup||null;
-    Object.assign(d,resolverVencimientoImportado(d,dup||null));
     d.incluir=!dup;
-    d.estadoImport=dup?'igual':'nuevo';
-    d.cambiosRCV=[];
-    d.fechaOriginal=d.fecha;
     const ficha=fichaAux('cliente',d.rutCodigo);
-    d.cuenta=dup?.cuentaIngreso||ficha?.cuentaDefault||'';
-    d.fp=dup?.formaPago||'clientes';
+    d.cuenta=ficha?.cuentaDefault||'';
+    d.fp='banco';
   });
 
   // Mutar IMV in-place (NO reasignar): window.IMV apunta a este mismo objeto y
@@ -567,7 +426,6 @@ function mostrarVentasImportadas(res,nombreArchivo){
   IMV.archivo=nombreArchivo;
   IMV.periodoMes=+mesTop;
   IMV.periodoAnio=+anioTop;
-  recalcularEstadoImportVentas();
   abrirImportModalVentas();
 }
 
@@ -605,7 +463,7 @@ function cambiarPeriodoImportV(){
 }
 
 function toggleAllImportV(v){
-  IMV.docs.forEach(d=>{if(d.estadoImport!=='igual'&&d.estadoImport!=='manual')d.incluir=v;});
+  IMV.docs.forEach(d=>{if(!d.dup)d.incluir=v;});
   renderImportModalVentas();
 }
 
@@ -618,54 +476,42 @@ function aplicarCuentaATodosV(){
   const cd=_bulkCuentaImpV||(bulkInp?bulkInp.dataset.cd:'')||
     (document.getElementById('impv-bulk')&&document.getElementById('impv-bulk').value)||'';
   if(!cd){toast('⚠️ Elige una cuenta primero','e');return;}
-  IMV.docs.forEach(d=>{if(d.incluir){d.cuenta=cd;delete d.errorImport;}});
+  IMV.docs.forEach(d=>{if(d.incluir)d.cuenta=cd;});
   renderImportModalVentas();
 }
 
 function renderImportModalVentas(){
+  const forzar=document.getElementById('impv-forzar-periodo').checked;
   const box=document.getElementById('impv-rows');
-  const descuadrados=validarCuadraturaImportVentas();
-  const badIdx=new Set(descuadrados.map(x=>x.idx));
+
 
   const filas=IMV.docs.map((d,i)=>{
-    const pendiente=badIdx.has(i);
-    const fechaBase=d.fechaOriginal||d.fecha;
-    const fechaMostrar=fechaBase+(d.fechaVencimiento?`<div style="font-size:9px;color:var(--mt);margin-top:2px" title="${d.fechaVencimientoOrigen==='archivo'?'Vencimiento informado por el archivo':'Vencimiento estimado: emisión + 30 días'}">Vence ${d.fechaVencimiento}${d.fechaVencimientoOrigen==='estimado30d'?' · 30d':''}</div>`:'');
-    const cambiosTxt=(d.cambiosRCV||[]).map(c=>`${c.label}: ${valorCambio(c.anterior)} → ${valorCambio(c.nuevo)}`).join(' · ');
-    const estado=d.errorImport
-      ? `<button type="button" class="imp-pending-mini" onclick="delete IMV.docs[${i}].errorImport;renderImportModalVentas()" title="${textoSeguroImportV(d.errorImport)} · Toca para volver a validar y reintentar">⛔ error</button>`
-      :pendiente
-      ? `<button type="button" class="imp-pending-mini" onclick="enfocarPendienteImportV(${i})">⚠ pendiente</button>`
-      :d.estadoImport==='manual'
-      ? '<span style="color:var(--info);font-size:10px" title="Este DTE ya existe en un asiento manual; el importador no lo modifica">↔ ya en asiento</span>'
-      :d.estadoImport==='igual'
-      ? '<span style="color:var(--mt);font-size:10px" title="Huella RCV idéntica; no se vuelve a escribir">✓ sin cambios</span>'
-      :d.estadoImport==='cambio'
-        ? `<span style="color:var(--warn);font-size:10px" title="${cambiosTxt.replace(/"/g,'&quot;')}">⚠️ cambio SII</span>`
-        :(d.incluir?'<span style="color:var(--ach);font-size:10px">✓ nuevo</span>':'<span style="color:var(--mt);font-size:10px">omitido</span>');
+    const fechaMostrar=forzar
+      ? `${IMV.periodoAnio}-${String(IMV.periodoMes).padStart(2,'0')}-${d.fechaOriginal?d.fechaOriginal.slice(8,10):String(d.fecha).slice(8,10)}`
+      : d.fecha;
+    const estado=d.dup
+      ? '<span style="color:var(--warn);font-size:10px">⚠️ duplicado</span>'
+      : (d.incluir?'<span style="color:var(--ach);font-size:10px">✓ nuevo</span>':'<span style="color:var(--mt);font-size:10px">omitido</span>');
     // Por defecto todas las ventas van al auxiliar de clientes (cuenta por
     // cobrar). El usuario cambia a "Banco" las que sean realmente al contado.
     if(!d.fp)d.fp='clientes';
-    const fpSel=`<select onchange="IMV.docs[${i}].fp=this.value;delete IMV.docs[${i}].errorImport;renderImportModalVentas()" style="width:100%;font-size:11px;padding:3px">
+    const fpSel=`<select onchange="IMV.docs[${i}].fp=this.value" style="width:100%;font-size:11px;padding:3px">
       <option value="banco" ${d.fp==='banco'?'selected':''}>💵 Banco</option>
       <option value="clientes" ${d.fp==='clientes'?'selected':''}>📇 Cliente</option>
       <option value="deudores" ${d.fp==='deudores'?'selected':''}>📋 Deudor</option>
     </select>`;
-    return `<div id="impv-row-${i}" class="imp-row${pendiente?' imp-pending-row':''}" style="display:grid;grid-template-columns:26px 90px 60px 80px 120px 1fr 90px 80px 80px 100px 180px 110px 80px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--bd);font-size:11px;align-items:center">
-      <div style="text-align:center">${(d.estadoImport==='igual'||d.estadoImport==='manual')?'':`<input type="checkbox" ${d.incluir?'checked':''} onchange="IMV.docs[${i}].incluir=this.checked;renderImportModalVentas()">`}</div>
+    return `<div class="imp-row" style="display:grid;grid-template-columns:26px 90px 60px 80px 120px 1fr 90px 80px 80px 100px 180px 110px 80px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--bd);font-size:11px;align-items:center">
+      <div style="text-align:center">${d.dup?'':`<input type="checkbox" ${d.incluir?'checked':''} onchange="IMV.docs[${i}].incluir=this.checked;renderImportModalVentas()">`}</div>
       <div>${fechaMostrar}</div>
       <div>${d.tipoDTE}</div>
       <div>${d.numero}</div>
       <div>${rutFmt(d.rutCodigo,d.rutDV)}</div>
-      <div title="${(d.razonSocial||'').replace(/"/g,'&quot;')}">
-        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="toast('${(d.razonSocial||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}')">${d.razonSocial}</div>
-        <input type="text" value="${(d.glosa||'').replace(/"/g,'&quot;')}" placeholder="Descripción (glosa)…" onclick="event.stopPropagation()" oninput="IMV.docs[${i}].glosa=this.value" style="width:100%;font-size:10px;margin-top:3px;padding:2px 5px;border:1px solid var(--bd);border-radius:3px;background:var(--sf);color:var(--tx)">
-      </div>
+      <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${(d.razonSocial||'').replace(/"/g,'&quot;')}" onclick="toast('${(d.razonSocial||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}')">${d.razonSocial}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.neto)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.iva)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.otrosImpuestos||0)}</div>
       <div style="text-align:right;font-family:var(--mono);font-weight:600">${fmtC(d.total)}</div>
-      <div>${inputCuenta({id:`impv-cd-${i}`,value:d.cuenta||'',onPick:`IMV.docs[${i}].cuenta='%CD%';delete IMV.docs[${i}].errorImport;renderImportModalVentas()`,placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'ingreso'})}</div>
+      <div>${inputCuenta({id:`impv-cd-${i}`,value:d.cuenta||'',onPick:`IMV.docs[${i}].cuenta='%CD%';renderImportModalVentas()`,placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'ingreso'})}</div>
       <div>${fpSel}</div>
       <div>${estado}</div>
     </div>`;
@@ -673,65 +519,30 @@ function renderImportModalVentas(){
 
   box.innerHTML=filas;
 
-  const nuevos=IMV.docs.filter(d=>d.estadoImport==='nuevo').length;
-  const iguales=IMV.docs.filter(d=>d.estadoImport==='igual').length;
-  const cambiados=IMV.docs.filter(d=>d.estadoImport==='cambio').length;
-  const manuales=IMV.docs.filter(d=>d.estadoImport==='manual').length;
+  const nuevos=IMV.docs.filter(d=>!d.dup).length;
   const incluidos=IMV.docs.filter(d=>d.incluir).length;
   const conCuenta=IMV.docs.filter(d=>d.incluir&&d.cuenta).length;
-  const listos=IMV.docs.filter((d,i)=>d.incluir&&!badIdx.has(i)).length;
 
   const summary=document.getElementById('impv-summary');
   if(summary){
-    summary.innerHTML=`📄 <strong>${IMV.docs.length}</strong> documentos en <em>${IMV.archivo||''}</em> · <strong style="color:var(--ach)">${nuevos}</strong> nuevos · <strong style="color:var(--mt)">${iguales}</strong> sin cambios${cambiados?` · <strong style="color:var(--warn)">${cambiados}</strong> con cambios SII`:''}${manuales?` · <strong style="color:var(--info)">${manuales}</strong> ya en asiento manual`:''}${IMV.descartados?' · '+IMV.descartados+' descartados':''}${alertaCuadraturaImport(descuadrados)}`;
+    summary.innerHTML=`📄 <strong>${IMV.docs.length}</strong> documentos detectados en <em>${IMV.archivo||''}</em> · <strong>${nuevos}</strong> nuevos · <strong>${IMV.docs.length-nuevos}</strong> duplicados${IMV.descartados?' · '+IMV.descartados+' descartados':''}`;
   }
   const info=document.getElementById('impv-periodo-info');
-  if(info)info.textContent=descuadrados.length?`${listos} listos · ${descuadrados.length} pendientes por validación contable`:`${incluidos} para importar · ${conCuenta} con cuenta asignada`;
+  if(info)info.textContent=`${incluidos} para importar · ${conCuenta} con cuenta asignada`;
   const cnt=document.getElementById('impv-count');
   if(cnt)cnt.textContent=`${incluidos} seleccionados`;
-  const btn=document.getElementById('impv-btn-ok');
-  if(btn){btn.disabled=listos===0;btn.textContent=`💾 Aplicar ${listos}${descuadrados.length?` · dejar ${descuadrados.length} pendiente${descuadrados.length===1?'':'s'}`:''}`;btn.title=descuadrados.length?'Los documentos con errores contables no se guardarán: quedarán pendientes para revisión':'';}
 }
 
-async function confirmarImportacionV(){
-  const perFecha=`${IMV.periodoAnio}-${String(IMV.periodoMes).padStart(2,'0')}-01`;
-  if(!puedeOperarFecha(perFecha)){toast('🔒 El período seleccionado está cerrado. Reábrelo antes de importar el RCV de ventas.','e');return;}
-  const seleccionados=IMV.docs.filter(d=>d.incluir);
-  const descuadrados=validarCuadraturaImportVentas();
-  const badIdx=new Set(descuadrados.map(x=>x.idx));
-  const incluidos=IMV.docs.filter((d,i)=>d.incluir&&!badIdx.has(i));
-  if(!seleccionados.length){
-    toast(`✅ Importación idempotente: ${IMV.docs.filter(d=>d.estadoImport==='igual').length} documento(s) ya estaban idénticos. No se modificó el libro.`);
-    cerrarImportModalVentas();return;
-  }
-  if(descuadrados.length){
-    const detalle=descuadrados.slice(0,8).map(x=>`• DTE ${x.tipoDTE} N° ${x.numero}: ${x.motivo||`diferencia ${fmtC(x.diferencia)}`}`).join('\n');
-    if(!incluidos.length){
-      alert(`⚠️ No hay documentos que pasen la validación contable.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nLos DTE indicados quedan pendientes en el importador para revisión.`);
-      renderImportModalVentas();return;
-    }
-    const ok=confirm(`⚠️ Se detectaron ${descuadrados.length} documento(s) que no pasan la validación contable.\n\n${detalle}${descuadrados.length>8?'\n• …':''}\n\nEstos NO se guardarán. Se procesarán ${incluidos.length} documento(s) válidos y los demás quedarán pendientes en esta ventana para corregir o revisar.\n\n¿Continuar?`);
-    if(!ok){renderImportModalVentas();return;}
-  }
-  const enPeriodoCerrado=incluidos.filter(d=>!puedeOperarFecha(d.fechaOriginal||d.fecha));
-  if(enPeriodoCerrado.length){
-    toast(`🔒 ${enPeriodoCerrado.length} venta(s) tienen fecha documental en un período contable cerrado. Reabre esos períodos antes de importarlas.`,'e');
-    return;
-  }
+function confirmarImportacionV(){
+  const incluidos=IMV.docs.filter(d=>d.incluir);
+  if(!incluidos.length){toast('⚠️ No hay documentos seleccionados','e');return;}
   const sinCuenta=incluidos.filter(d=>!d.cuenta);
   if(sinCuenta.length){
     if(!confirm(`⚠️ Hay ${sinCuenta.length} documentos sin cuenta de ingreso asignada.\n\nSe importarán igual pero deberás asignarles cuenta después. ¿Continuar?`))return;
   }
-  const cambiosSeleccionados=incluidos.filter(d=>d.estadoImport==='cambio');
-  if(cambiosSeleccionados.length){
-    const detalle=cambiosSeleccionados.slice(0,8).map(d=>{
-      const cs=(d.cambiosRCV||[]).slice(0,4).map(c=>c.label).join(', ');
-      return `• DTE ${d.tipoDTE} N°${d.numero} ${d.razonSocial||''}: ${cs||'reactivación'}`;
-    }).join('\n');
-    if(!confirm(`⚠️ El RCV trae ${cambiosSeleccionados.length} venta(s) con información distinta a la contabilizada.\n\n${detalle}${cambiosSeleccionados.length>8?'\n• …':''}\n\nSe conservará la versión anterior en el historial RCV. ¿Aplicar?`))return;
-  }
 
-  const anio=IMV.periodoAnio;
+  const forzar=document.getElementById('impv-forzar-periodo').checked;
+  const anio=IMV.periodoAnio, mes=String(IMV.periodoMes).padStart(2,'0');
 
   // Detectar clientes nuevos
   const rutsExistentes=new Set(todosDocsVentas().map(v=>v.rutCodigo));
@@ -748,102 +559,41 @@ async function confirmarImportacionV(){
     if(!confirm(`El archivo es de ${anio} pero el año activo es ${S.empresa.anio}.\n\nSi importas ahora, los documentos irán al libro de ${S.empresa.anio}. Para importarlos en ${anio}, cambia primero de año con el selector del encabezado.\n\n¿Continuar de todas formas?`))return;
   }
 
-  // V2.15.4: punto de recuperación antes de una importación masiva.
-  if(window.__snapshotAntesOperacion){
-    const periodoTxt=`${String(IMV.periodoMes).padStart(2,'0')}-${IMV.periodoAnio}`;
-    const seg=await window.__snapshotAntesOperacion(`Antes de importar RCV ventas ${periodoTxt}`);
-    if(!seg?.ok){
-      const seguir=confirm(`⚠️ No se pudo crear el snapshot previo (${seg?.motivo||'error'}).\n\nLa importación todavía puede continuar, pero no tendrás un punto automático de retorno inmediato.\n\n¿Continuar de todas formas?`);
-      if(!seguir)return;
-    }
-  }
-
-  // S.ventas es un array plano (el año lo define storage). Cada documento
-  // importado debe crear también su asiento maestro V2.
+  // S.ventas es un array plano (el año lo define storage). Reproducimos el
+  // patrón de guardarVenta() individual: push al array y persistir.
   if(!Array.isArray(S.ventas))S.ventas=[];
-  const snapVentas=JSON.stringify(S.ventas||[]);
-  const snapAsientos=JSON.stringify(S.asientos||[]);
 
   let importados=0;
-  const aplicados=[],pendientesError=[];
   // Reservar rango de folios de comprobante para las ventas.
   let folioNext=proxFolioComprobante();
   incluidos.forEach((d,i)=>{
-    const prev=d.dup||null;
-    const fecha=d.fechaOriginal||d.fecha; // fecha documental RCV: nunca se fuerza al período
-    const folioCandidato=prev?.folioComp||folioNext;
-    const doc={
-      id:prev?.id||('v_imp_'+Date.now()+'_'+i),
-      folioComp:folioCandidato,   // el existente conserva comprobante
+    let fecha=d.fecha;
+    if(forzar){
+      const dia=String(d.fecha).slice(8,10)||'01';
+      fecha=`${anio}-${mes}-${dia}`;
+    }
+    S.ventas.push({
+      id:'v_imp_'+Date.now()+'_'+i,
+      folioComp:folioNext++,   // correlativo único de comprobante contable
       fecha, tipoDTE:d.tipoDTE, numero:d.numero,
-      fechaVencimiento:d.fechaVencimiento||'',
-      fechaVencimientoOrigen:d.fechaVencimientoOrigen||'',
-      fechaRecepcionSII:d.fechaRecepcionSII||'',
-      fechaAcuseSII:d.fechaAcuseSII||'',
+      fechaVencimiento:'',
       rutCodigo:d.rutCodigo, rutDV:d.rutDV, razonSocial:d.razonSocial,
       neto:d.neto, exento:d.exento, iva:d.iva,
       otrosImpuestos:d.otrosImpuestos||0, total:d.total,
-      formaPago:prev?.formaPago||d.fp||'clientes',
-      cuentaIngreso:prev?.cuentaIngreso||d.cuenta||'',
-      ...((d.glosa||prev?.glosa)?{glosa:d.glosa||prev.glosa}:{}),
-      estado:'activo',
-      importadoEn:prev?.importadoEn||new Date().toISOString(),
-      ...(prev?{reimportadoEn:new Date().toISOString()}:{}),
-      rcvFingerprint:fingerprintSnapshot(snapshotVentaRCV(d)),
-      rcvVersion:2,
-      ...(prev?{
-        versionAnterior:{fecha:prev.fecha,fechaVencimiento:prev.fechaVencimiento||'',tipoDTE:prev.tipoDTE,numero:prev.numero,neto:prev.neto,exento:prev.exento,iva:prev.iva,otrosImpuestos:prev.otrosImpuestos,total:prev.total},
-        rcvHistorial:[...(Array.isArray(prev.rcvHistorial)?prev.rcvHistorial:[]),{
-          fecha:new Date().toISOString(),snapshot:snapshotVentaRCV(prev),
-          cambios:(d.cambiosRCV||[]).map(c=>({campo:c.campo,anterior:c.anterior,nuevo:c.nuevo}))
-        }].slice(-20)
-      }: {})
-    };
-    const idxPrev=S.ventas.findIndex(x=>x.id===doc.id);
-    const docAnterior=idxPrev>=0?JSON.parse(JSON.stringify(S.ventas[idxPrev])):null;
-    const asientosAntes=JSON.stringify(S.asientos||[]);
-    try{
-      if(idxPrev>=0)S.ventas[idxPrev]=doc;else S.ventas.push(doc);
-      upsertAsientoDocumento('ventas',doc);
-      if(!prev)folioNext++;
-      delete d.errorImport;
-      aplicados.push(d);importados++;
-    }catch(err){
-      if(idxPrev>=0)S.ventas[idxPrev]=docAnterior;
-      else{
-        const creado=S.ventas.findIndex(x=>x.id===doc.id);
-        if(creado>=0)S.ventas.splice(creado,1);
-      }
-      S.asientos=JSON.parse(asientosAntes);
-      d.errorImport=err?.message||String(err);
-      d.estadoImport='pendiente_error';d.incluir=true;
-      pendientesError.push(d);
-    }
+      formaPago:d.fp||'banco',
+      cuentaIngreso:d.cuenta||'',
+    });
+    importados++;
   });
 
-  try{
-    await persistirClavesCritico([
-      {key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)},
-      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
-    ]);
-  }catch(err){
-    S.ventas=JSON.parse(snapVentas);S.asientos=JSON.parse(snapAsientos);
-    toast('❌ No se pudo completar la importación. Se revirtieron ventas y asientos.','e');return;
-  }
-
-  aplicados.filter(d=>d.estadoImport==='cambio').forEach(d=>{
-    const prev=d.dup||null;
-    const nuevo=prev?S.ventas.find(x=>x.id===prev.id):null;
-    if(nuevo)logCambio('Actualizó venta desde RCV',{entidad:'venta',id:nuevo.id,antes:prev,despues:nuevo,meta:{numeroContable:(S.asientos||[]).find(a=>a.docId===nuevo.id&&a.fuente==='ventas')?.numeroContable,tipoDTE:nuevo.tipoDTE,folio:nuevo.numero}});
-  });
-  logCambio('Importó lote RCV ventas',{entidad:'lote-rcv',id:`ventas:${S.empresa.anio}:${Date.now()}`,antes:null,despues:null,meta:{archivo:IMV.archivo||'',nuevos:aplicados.filter(d=>d.estadoImport==='nuevo').length,cambios:aplicados.filter(d=>d.estadoImport==='cambio').length,conError:pendientesError.length,sinCambios:IMV.docs.filter(d=>d.estadoImport==='igual').length}});
+  window.storage.set('ventas-'+S.empresa.anio,JSON.stringify(S.ventas)).catch(()=>toast('❌ Error guardando en storage','e'));
 
   // Crear/completar la ficha del cliente para TODOS los documentos importados,
   // tenga o no cuenta de ingreso asignada. Si el cliente no existe, se crea la
   // ficha con los datos básicos (RUT, razón social) para editarla luego; si el
   // documento trae cuenta, se guarda como cuenta por defecto.
   const asignaciones={};  // rut → {cuenta:{cd→count}, dv, razon}
-  aplicados.forEach(d=>{
+  incluidos.forEach(d=>{
     const key=d.rutCodigo;
     if(!key)return;
     if(!asignaciones[key])asignaciones[key]={cuenta:{},rutDV:d.rutDV,razonSocial:d.razonSocial};
@@ -872,28 +622,20 @@ async function confirmarImportacionV(){
     }
   });
   if(fichasCreadas||fichasActualizadas){
-    guardarFichasAux().catch(e=>console.warn('No se pudo guardar ficha auxiliar:',e));
+    guardarFichasAux().catch(()=>{});
   }
 
-  const pendientesCuadratura=[...new Set([...IMV.docs.filter((d,i)=>badIdx.has(i)),...pendientesError])];
-  if(pendientesCuadratura.length){
-    IMV.docs=pendientesCuadratura;
-    IMV.docs.forEach(d=>{d.incluir=true;d.estadoImport=d.errorImport?'pendiente_error':'pendiente_cuadratura';});
-    renderImportModalVentas();
-  }else cerrarImportModalVentas();
-  const clientesNuevosAplicados=new Set(aplicados.filter(d=>clientesNuevos.has(d.rutCodigo)).map(d=>d.rutCodigo)).size;
-  const msgClientes=clientesNuevosAplicados?` · ${clientesNuevosAplicados} clientes nuevos detectados en auxiliares`:'';
+  cerrarImportModalVentas();
+  const msgClientes=clientesNuevos.size?` · ${clientesNuevos.size} clientes nuevos detectados en auxiliares`:'';
   const msgFichas=(fichasCreadas||fichasActualizadas)?` · fichas: ${fichasCreadas} nuevas${fichasActualizadas?', '+fichasActualizadas+' completadas':''}`:'';
-  const msgPend=pendientesCuadratura.length?` · ⚠️ ${pendientesCuadratura.length} pendiente${pendientesCuadratura.length===1?'':'s'} por validación`:'';
-  const msgError=pendientesError.length?` · ⛔ ${pendientesError.length} con error aislado`:'';
-  toast(`✅ ${importados} venta${importados===1?'':'s'} nueva${importados===1?'':'s'}/actualizada${importados===1?'':'s'}${msgClientes}${msgFichas}${msgPend}${msgError}`);
-  logAccion('Conciliación RCV ventas',`${importados} documentos nuevos/actualizados${msgFichas}`);
+  toast(`✅ ${importados} ventas importadas${msgClientes}${msgFichas}`);
+  logAccion('Importó ventas SII',`${importados} documentos${msgFichas}`);
   rerender();
 }
 
 
 export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
-        renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV, enfocarPendienteImportV,
-        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
-        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, VF};
+        renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV,
+        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
+        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, VF};

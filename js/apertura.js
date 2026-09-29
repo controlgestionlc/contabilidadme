@@ -128,8 +128,8 @@ function apRenderLineas(){
       <div class="linea-num">${i+1}</div>
       <div>${inputCuenta({id:`ap-cd-${i}`,value:l.cd,onPick:`apLCd(${i},'%CD%')`,placeholder:'Código o nombre…'})}</div>
       <div><input type="text" class="linea-inp" placeholder="Observación" value="${l.desc||''}" oninput="APF.lineas[${i}].desc=this.value"></div>
-      <div><input type="number" class="linea-num-inp money-input" min="0" placeholder="0" value="${l.debe||''}" oninput="apLVal(${i},'debe',this.value)"></div>
-      <div><input type="number" class="linea-num-inp money-input" min="0" placeholder="0" value="${l.haber||''}" oninput="apLVal(${i},'haber',this.value)"></div>
+      <div><input type="number" class="linea-num-inp" min="0" placeholder="0" value="${l.debe||''}" oninput="apLVal(${i},'debe',this.value)"></div>
+      <div><input type="number" class="linea-num-inp" min="0" placeholder="0" value="${l.haber||''}" oninput="apLVal(${i},'haber',this.value)"></div>
       <div style="text-align:center"><button class="btn btn-d" onclick="apDelLinea(${i})">✕</button></div>
     </div>${auxHtml}`;
   }).join('');
@@ -309,22 +309,6 @@ function initBalanceImportListener(){
   }
 }
 
-// Convierte la celda de saldo a número entero. Guiones y textos → 0.
-function aNumeroSaldo(c){
-  if(typeof c==='number')return isNaN(c)?0:Math.round(c);
-  let t=String(c).trim();
-  if(/^[-–—]+$/.test(t))return 0;
-  let neg=false;
-  if(/^\(.*\)$/.test(t)){neg=true;t=t.slice(1,-1);}
-  t=t.replace(/[$\s]/g,'');
-  if(t.startsWith('-')||t.startsWith('−')){neg=!neg;t=t.slice(1);}
-  // Formato chileno: puntos de miles y coma decimal
-  t=t.replace(/\./g,'').replace(',','.');
-  const n=+t;
-  if(!t||isNaN(n))return 0;
-  return Math.round(neg?-n:n);
-}
-
 // Procesa matriz de filas: detecta cuentas analíticas (código de 7 dígitos)
 // Formato esperado: columnas de Activo (cod/nom/saldo) y columnas de Pasivo (cod/nom/saldo) en la misma fila
 function procesarBalanceXLSX(rows){
@@ -337,44 +321,6 @@ function procesarBalanceXLSX(rows){
   // van seguidos de otro número o de nada.
   const tieneNombre=(v)=>/[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(String(v||''));
 
-  // ── ¿Dónde empieza el lado PASIVO? ──
-  // Antes se decidía con "¿el código está en la primera mitad de la fila?".
-  // Eso depende del ancho de la hoja: si Excel guarda formato o una nota en
-  // columnas lejanas (hasta la Z, por ejemplo), la "mitad" se corre a la
-  // derecha y TODAS las cuentas quedaban del lado Activo, o sea al Debe.
-  // Ahora el lado se toma, en este orden, de:
-  //   1) el encabezado: la columna donde aparece "PASIVO";
-  //   2) la posición de las columnas de códigos (la de más a la izquierda es
-  //      Activo, las demás Pasivo), si hay códigos en dos columnas distintas;
-  //   3) el primer dígito del código (1 = Activo, 2 = Pasivo/Patrimonio), si
-  //      el balance viene en una sola columna.
-  let colPasivo=null;
-  rows.forEach(row=>{
-    if(!Array.isArray(row)||colPasivo!=null)return;
-    row.forEach((c,j)=>{
-      if(colPasivo==null&&typeof c==='string'&&/PASIVO/i.test(c)&&!esAnalitico(c))colPasivo=j;
-    });
-  });
-  const colsCodigo=new Set();
-  rows.forEach(row=>{
-    if(!Array.isArray(row))return;
-    for(let i=0;i<row.length-1;i++)if(esAnalitico(row[i])&&tieneNombre(row[i+1]))colsCodigo.add(i);
-  });
-  const colsOrden=[...colsCodigo].sort((a,b)=>a-b);
-  // Un encabezado "PASIVO" a la izquierda de toda columna de códigos no sirve
-  // de frontera (sería un título suelto); en ese caso se ignora.
-  if(colPasivo!=null&&colsOrden.length&&colPasivo<=colsOrden[0])colPasivo=null;
-  let criterio='encabezado';
-  if(colPasivo==null&&colsOrden.length>=2){
-    // La frontera queda justo después de la primera columna de códigos
-    colPasivo=colsOrden[0]+1;criterio='columnas';
-  }
-  if(colPasivo==null)criterio='codigo';
-  const ladoDe=(i,cd)=>{
-    if(criterio==='codigo')return cd[0]==='1'?'A':'P';
-    return i>=colPasivo?'P':'A';
-  };
-
   rows.forEach(row=>{
     if(!Array.isArray(row))return;
     for(let i=0;i<row.length-1;i++){
@@ -382,29 +328,21 @@ function procesarBalanceXLSX(rows){
       if(esAnalitico(v)&&tieneNombre(row[i+1])){
         const cd=String(v).trim();
         const nm=String(row[i+1]||'').trim();
-        // El saldo es la PRIMERA celda con contenido después del nombre.
-        // Antes se buscaba "el primer número" en las 3 celdas siguientes, y si
-        // el saldo venía como guion ("-", típico del formato contable para
-        // cero) se saltaba el guion y tomaba el CÓDIGO de la cuenta de pasivo
-        // de al lado como si fuera el monto. Ahora:
-        //  - se detiene al llegar a otro código de cuenta;
-        //  - un guion o un texto que no es número cuenta como saldo 0;
-        //  - acepta negativos con signo o entre paréntesis: (5.335.946).
         let saldo=null;
         for(let j=i+2;j<Math.min(i+5,row.length);j++){
           const c=row[j];
-          if(c==null||(typeof c==='string'&&!c.trim()))continue;
-          if(esAnalitico(c)&&tieneNombre(row[j+1]))break;   // otra cuenta: esta no tiene saldo
-          saldo=aNumeroSaldo(c);
-          break;
+          if(typeof c==='number'&&!isNaN(c)){saldo=Math.round(c);break;}
+          if(typeof c==='string'&&c.trim()&&!isNaN(+c.replace(/[.,\s]/g,''))){saldo=Math.round(+c.replace(/[.,\s]/g,''));break;}
         }
         if(saldo===null||saldo===0)continue;
-        const lado=ladoDe(i,cd);
+        // Determinar en qué LADO del balance aparece la cuenta según la columna donde está el código.
+        // Si aparece en la primera mitad de columnas → lado Activo, segunda mitad → lado Pasivo.
+        // Esto es más confiable que deducir solo del código, porque algunos balances mezclan signos.
+        const lado=i<row.length/2?'A':'P';
         cuentas.push({cd,nm,saldo,lado,grupo:cd[0]});
       }
     }
   });
-  IMB.criterio=criterio;
 
   if(!cuentas.length){
     toast('⚠️ No se detectaron cuentas. Verifica que el archivo tenga códigos numéricos de 7 dígitos.','e');
@@ -454,14 +392,6 @@ function renderImpBalModal(){
     `Activos (Debe): <strong>${fmtC(tD)}</strong> · Pasivos+Patrimonio (Haber): <strong>${fmtC(tH)}</strong>` +
     (cuadra?' · <span style="color:var(--ach)">✓ CUADRA</span>':
      ` · <span style="color:var(--err)">⚠️ ${diff>0?'falta Haber':'falta Debe'}: ${fmtC(Math.abs(diff))}</span>`);
-  // Aviso si alguna cuenta quedó en un lado que no calza con su código
-  // (un 1xxxxxx leído como Pasivo o un 2xxxxxx como Activo): suele indicar
-  // que la planilla tiene otro formato y conviene revisar antes de cargar.
-  const cruzadas=IMB.lineas.filter(l=>(l.cd[0]==='1'&&l._lado==='P')||(l.cd[0]==='2'&&l._lado==='A'));
-  if(cruzadas.length){
-    document.getElementById('impbal-summary').innerHTML+=
-      `<div style="margin-top:6px;color:var(--warn);font-size:11px">⚠️ ${cruzadas.length} cuenta${cruzadas.length===1?'':'s'} quedó en un lado que no calza con su código (${cruzadas.slice(0,4).map(l=>l.cd).join(', ')}${cruzadas.length>4?'…':''}). Revisa que Activo esté a la izquierda y Pasivo/Patrimonio a la derecha.</div>`;
-  }
 
   const btn=document.getElementById('impbal-btn-ok');
   btn.disabled=!cuadra||incl.length===0;
