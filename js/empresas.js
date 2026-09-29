@@ -3,14 +3,15 @@
 // separa ventas, compras, asientos, PDC, indicadores, etc.
 //
 // Claves en storage:
-//   _empresas          → catálogo [{id,nombre,rut,marco}]
+//   _empresas          → catálogo maestro [{id,nombre,rut,marco}] (admin)
+//   _empresas_u:<email>→ empresas creadas por ese usuario
 //   _empresaActiva     → id de la empresa en uso
 //   <id>:ventas-2026   → datos de esa empresa (el prefijo lo aplica storage.js)
 
 import {toast} from './core.js';
 import {AUTH} from './state.js';
 import {REGIMEN_DEFAULT} from './regimenes.js';
-import {guardarACLEmpresa, borrarACLEmpresa, miembrosDe, aclDisponible} from './acl.js';
+import {guardarACLEmpresa, borrarACLEmpresa, asegurarACLEmpresa, miembrosDe, aclDisponible} from './acl.js';
 
 // Marcos contables disponibles
 export const MARCOS=[
@@ -36,6 +37,7 @@ export const EMPRESAS={
   todas:[],        // catálogo completo (lo que se persiste)
   activa:null,
   errorCarga:null, // por qué no se pudo leer el catálogo (null = todo bien)
+  sinEmpresas:false, // rol Consulta sin ninguna empresa compartida
 };
 
 const emailActual=()=>((AUTH.user&&AUTH.user.email)||'').toLowerCase();
@@ -108,32 +110,120 @@ export async function migrarSiHaceFalta(){
   return {migradas,yaHecha:false};
 }
 
-// ── Catálogo ──
+// ── Catálogo repartido por usuario (V2.21.20) ──
+//
+// Antes todo el catálogo vivía en un solo documento `_empresas`, pero las
+// reglas sólo dejan escribirlo a un administrador. Un Contador que creaba su
+// empresa la veía en su equipo y NUNCA llegaba a la nube: al volver a entrar
+// la app no la encontraba, le fabricaba otra con un id nuevo y todo lo hecho
+// quedaba colgando de un id que ya nadie conocía.
+//
+// Ahora el catálogo se arma con varios documentos:
+//   _empresas               → catálogo maestro (sólo lo escribe un admin)
+//   _empresas_u:<email>     → empresas que creó ese usuario (lo escribe él,
+//                             o un admin)
+// Cada empresa tiene UN documento hogar (HOGAR[id]); guardar reescribe sólo
+// los documentos cuyo contenido cambió y que este usuario puede escribir.
+// El acceso real a los datos lo siguen decidiendo `empresas_acl` y las reglas.
+const DOC_MAESTRO='_empresas';
+const PREF_USUARIO='_empresas_u:';
+const docUsuario=email=>PREF_USUARIO+String(email||'').toLowerCase();
+const HOGAR={};                 // id empresa → documento donde vive
+const DOCS=new Map();           // documento → {ok, ultimo:JSON guardado/leído}
+const correoDe=e=>String((e&&e.creadoPor)||'').trim().toLowerCase();
+
+// Une el maestro con los catálogos de usuario. Reglas de confianza:
+//  · de un catálogo de usuario sólo vale lo que ese usuario dice ser suyo
+//    (nadie se adjudica empresas ajenas escribiendo en su propio documento);
+//  · si el maestro tiene la misma empresa con OTRO dueño, gana el maestro;
+//  · si el maestro la tiene sin dueño o con el mismo dueño, gana el del
+//    usuario (reclamo de heredada, o edición más reciente de su dueño).
+export function unirCatalogos(maestro,porUsuario){
+  const mapa=new Map(),hogar={};
+  (maestro||[]).forEach(e=>{if(e&&e.id){mapa.set(e.id,e);hogar[e.id]=DOC_MAESTRO;}});
+  (porUsuario||[]).forEach(({doc,email,lista})=>{
+    const yo=String(email||'').toLowerCase();
+    (lista||[]).forEach(e=>{
+      if(!e||!e.id||correoDe(e)!==yo)return;
+      const prev=mapa.get(e.id);
+      if(prev&&correoDe(prev)&&correoDe(prev)!==yo)return;
+      mapa.set(e.id,e);hogar[e.id]=doc;
+    });
+  });
+  return {todas:[...mapa.values()],hogar};
+}
+
+// Qué documento escribir y con qué contenido. Un usuario común sólo escribe
+// su propio documento, con todas las empresas de las que es dueño. Un admin
+// escribe el maestro y los documentos de usuario, según el hogar de cada una.
+export function repartirCatalogo(todas,hogar,{admin,email}){
+  const yo=String(email||'').toLowerCase();
+  const mio=docUsuario(yo);
+  const out=new Map();
+  if(!admin){
+    out.set(mio,todas.filter(e=>correoDe(e)===yo));
+    return out;
+  }
+  todas.forEach(e=>{
+    const d=hogar[e.id]||DOC_MAESTRO;
+    if(!out.has(d))out.set(d,[]);
+    out.get(d).push(e);
+  });
+  return out;
+}
+
+const parse=v=>{try{const x=v?JSON.parse(v):[];return Array.isArray(x)?x:[];}catch(e){return [];}};
+
 export async function cargarEmpresas(){
   // ── Por qué esto es tan cuidadoso ──
-  // Al abrir en un equipo NUEVO (el móvil, por ejemplo) no hay nada en local:
-  // todo tiene que venir de la nube. Si esa lectura falla —reglas, red, sesión
-  // a medio iniciar— el catálogo se ve vacío. La versión anterior creaba
-  // entonces una empresa "Mi Empresa" y la GUARDABA, pisando en la nube el
-  // catálogo real y llevándose el problema de vuelta al PC.
-  //
-  // Ahora se distingue "la nube dice que no hay nada" de "no pude leer la
-  // nube". En el segundo caso no se crea ni se guarda NADA: se marca el error
-  // y la interfaz lo muestra en vez de fabricar una empresa vacía.
+  // Si una lectura falla —reglas, red, sesión a medio iniciar— el catálogo se
+  // ve vacío. Crear y guardar algo en ese estado pisaría el catálogo real.
+  // Se distingue "la nube dice que no hay nada" de "no pude leer la nube".
   EMPRESAS.errorCarga=null;
-  const rc=await window.storage.leerGlobalConEstado('_empresas');
+  EMPRESAS.sinEmpresas=false;
+  DOCS.clear();
+  const yo=emailActual();
+  const admin=esAdminActual();
+
+  // 1) Maestro
+  const rc=await window.storage.leerGlobalConEstado(DOC_MAESTRO);
   if(rc.fuente==='error'){
     EMPRESAS.errorCarga=rc.error||'No se pudo leer el catálogo de empresas';
-    EMPRESAS.todas=[];
-    try{EMPRESAS.todas=rc.value?JSON.parse(rc.value):[];}catch(e){}
+    EMPRESAS.todas=parse(rc.value);
     aplicarVisibilidad();
     console.error('No se pudo cargar el catálogo de empresas:',rc.error);
     return EMPRESAS;   // sin tocar la nube
   }
-  try{EMPRESAS.todas=rc.value?JSON.parse(rc.value):[];}catch(e){EMPRESAS.todas=[];}
-  // Nunca crear el catálogo por defecto sin haber confirmado la nube: si hay
-  // Firestore activo y no respondió, preferimos no escribir.
-  const nubeConfirmada=!rc.huboNube||rc.fuente!=='error';
+  const maestro=parse(rc.value);
+  DOCS.set(DOC_MAESTRO,{ok:true,ultimo:JSON.stringify(maestro)});
+
+  // 2) Catálogos de usuario (el propio siempre, aunque la consulta falle)
+  const lst=await window.storage.listarIdsGlobales(PREF_USUARIO);
+  const ids=new Set(lst.ids||[]);
+  if(yo)ids.add(docUsuario(yo));
+  const porUsuario=[];
+  for(const doc of ids){
+    const r=await window.storage.leerGlobalConEstado(doc);
+    const email=doc.slice(PREF_USUARIO.length);
+    if(r.fuente==='error'){
+      DOCS.set(doc,{ok:false,ultimo:null});
+      if(email===yo){
+        // Sin leer el propio no se puede guardar sin pisarlo
+        EMPRESAS.errorCarga=r.error||'No se pudo leer tu catálogo de empresas';
+      }
+      continue;
+    }
+    const lista=parse(r.value);
+    DOCS.set(doc,{ok:true,ultimo:r.fuente==='nube'?JSON.stringify(lista):null});
+    porUsuario.push({doc,email,lista});
+  }
+  const u=unirCatalogos(maestro,porUsuario);
+  EMPRESAS.todas=u.todas;
+  Object.keys(HOGAR).forEach(k=>delete HOGAR[k]);
+  Object.assign(HOGAR,u.hogar);
+  if(EMPRESAS.errorCarga){aplicarVisibilidad();return EMPRESAS;}
+  if(!lst.ok)console.warn('No se pudieron listar los catálogos de usuario: sólo se ven el maestro y el propio',lst.error);
+
   // Empresa activa: primero la del usuario, si no la global (compatibilidad)
   EMPRESAS.activa=null;
   try{
@@ -146,24 +236,24 @@ export async function cargarEmpresas(){
       EMPRESAS.activa=r?r.value:null;
     }catch(e){}
   }
-  // Si no hay ninguna, crear la empresa por defecto (migración desde monoempresa)
-  if(!EMPRESAS.todas.length&&nubeConfirmada){
+  // Sistema recién instalado: sólo un admin crea la empresa inicial del maestro
+  if(!EMPRESAS.todas.length&&admin){
     const def={id:'emp1',nombre:'Mi Empresa',rut:'',marco:'tributaria',
-      creada:new Date().toISOString(),creadoPor:emailActual()||'',compartidaCon:[]};
-    EMPRESAS.todas=[def];
+      creada:new Date().toISOString(),creadoPor:yo||'',compartidaCon:[]};
+    EMPRESAS.todas=[def];HOGAR.emp1=DOC_MAESTRO;
     EMPRESAS.activa='emp1';
     await guardarCatalogo();
   }
   aplicarVisibilidad();
-  // Sin catálogo y sin poder confirmar la nube: no se inventa nada.
-  if(!EMPRESAS.todas.length&&!nubeConfirmada){
-    EMPRESAS.errorCarga='No se pudo confirmar el catálogo en la nube';
-    return EMPRESAS;
-  }
   // Si el usuario no puede ver la empresa activa, cae a la primera visible.
-  // Si no tiene ninguna visible, se le crea una propia: nunca queda sin trabajar.
+  // Si no tiene ninguna, se le crea una propia (salvo rol Consulta, que no
+  // puede escribir: a ése se le avisa que pida que le compartan una).
   if(!EMPRESAS.activa||!EMPRESAS.lista.find(e=>e.id===EMPRESAS.activa)){
     if(!EMPRESAS.lista.length){
+      if(AUTH.user&&AUTH.user.rol==='consulta'){
+        EMPRESAS.sinEmpresas=true;EMPRESAS.activa=null;
+        return EMPRESAS;
+      }
       const nombre=(AUTH.user&&AUTH.user.nombre)?`Empresa de ${AUTH.user.nombre}`:'Mi Empresa';
       const id=await crearEmpresa(nombre,'','tributaria');
       EMPRESAS.activa=id;
@@ -172,6 +262,9 @@ export async function cargarEmpresas(){
     }
     await window.storage.setGlobal(claveActiva(),EMPRESAS.activa);
   }
+  // Un admin, al entrar, deja al día las fichas de acceso de todo el catálogo
+  // (repara las que hayan quedado a medias). En segundo plano.
+  if(admin)refrescarACL();
   return EMPRESAS;
 }
 
@@ -181,9 +274,13 @@ const ULTIMA_ACL={};   // id → firma escrita en esta sesión
 
 // Replica en `empresas_acl` los cambios de dueño/compartidos, porque las reglas
 // de Firestore no pueden leer el catálogo (es un JSON dentro de un string).
+// Las reglas sólo dejan tocar la ficha al dueño o a un admin: intentar las
+// demás sólo llena la consola de "sin permisos" y demora las propias.
 async function refrescarACL(){
   if(!aclDisponible())return;
+  const admin=esAdminActual();
   for(const e of EMPRESAS.todas){
+    if(!admin&&!esDuenioDeEmpresa(e))continue;
     const f=firmaACL(e);
     if(ULTIMA_ACL[e.id]===f)continue;
     if(await guardarACLEmpresa(e))ULTIMA_ACL[e.id]=f;
@@ -192,26 +289,60 @@ async function refrescarACL(){
 
 export async function guardarCatalogo(){
   // Salvaguarda: si el catálogo no se pudo leer, escribirlo pisaría en la nube
-  // el de todos los equipos con lo poco que tengamos en memoria.
+  // lo de todos con lo poco que tengamos en memoria.
   if(EMPRESAS.errorCarga){
     console.warn('No se guarda el catálogo: no se pudo leer primero');
-    return;
+    return false;
   }
-  // Se persiste el catálogo COMPLETO: si se guardara sólo lo visible, un
-  // usuario borraría del catálogo las empresas de los demás sin querer.
-  // fusionar:true — dos usuarios creando su empresa a la vez no se pisan
-  const r=await window.storage.setGlobal('_empresas',JSON.stringify(EMPRESAS.todas),{fusionar:true});
-  // Si hubo fusión, el catálogo bueno es el que volvió: adoptarlo para que la
-  // pantalla muestre también la empresa que creó el otro usuario.
-  if(r&&r.fusionado&&r.value){
-    try{EMPRESAS.todas=JSON.parse(r.value);}catch(e){}
+  const admin=esAdminActual(), yo=emailActual();
+  if(!admin&&!yo){console.warn('No se guarda el catálogo: usuario sin email');return false;}
+  // Un usuario común guarda en su documento todo lo que es suyo: ése pasa a
+  // ser el hogar de esas empresas (incluidas las heredadas que reclamó).
+  if(!admin)EMPRESAS.todas.forEach(e=>{if(correoDe(e)===yo)HOGAR[e.id]=docUsuario(yo);});
+  // Documentos a revisar: los que tienen contenido ahora y los que lo tenían
+  // al leer (para que una empresa que se fue de un documento salga de él).
+  const plan=repartirCatalogo(EMPRESAS.todas,HOGAR,{admin,email:yo});
+  if(admin)DOCS.forEach((info,doc)=>{if(info.ok&&!plan.has(doc))plan.set(doc,[]);});
+  let ok=true;
+  for(const [doc,lista] of plan){
+    const info=DOCS.get(doc);
+    if(info&&!info.ok){console.warn('No se guarda',doc,': no se pudo leer');ok=false;continue;}
+    const json=JSON.stringify(lista);
+    if(info&&info.ultimo===json)continue;           // sin cambios
+    if(!info&&!lista.length)continue;               // nada que crear
+    const r=await window.storage.setGlobal(doc,json,{fusionar:true});
+    if(r&&r.conflicto){ok=false;continue;}
+    let final=json;
+    if(r&&r.fusionado&&r.value){
+      // Otro equipo escribió en el intermedio: adoptar lo fusionado
+      final=r.value;
+      parse(r.value).forEach(x=>{
+        if(!x||!x.id)return;
+        const i=EMPRESAS.todas.findIndex(e=>e.id===x.id);
+        if(i<0){EMPRESAS.todas.push(x);HOGAR[x.id]=doc;}
+      });
+    }
+    DOCS.set(doc,{ok:true,ultimo:final});
   }
   if(EMPRESAS.activa)await window.storage.setGlobal(claveActiva(),EMPRESAS.activa);
   aplicarVisibilidad();
   refrescarACL();   // en segundo plano: no debe frenar el guardado
+  return ok;
 }
 
 export const empresaActiva=()=>EMPRESAS.todas.find(e=>e.id===EMPRESAS.activa)||null;
+
+// Antes de leer los datos de una empresa, su ficha de acceso tiene que estar
+// en la nube (las reglas la consultan en cada lectura). Se ESPERA a propósito.
+export async function asegurarAccesoEmpresa(id){
+  const e=EMPRESAS.todas.find(x=>x.id===(id||EMPRESAS.activa));
+  if(!e)return 'ok';
+  const puede=esAdminActual()||esDuenioDeEmpresa(e);
+  const r=await asegurarACLEmpresa(e,emailActual(),{puedeEscribir:puede});
+  if(r==='escrita')ULTIMA_ACL[e.id]=firmaACL(e);
+  if(r==='sin-permiso'||r==='error')console.warn('Acceso a la empresa',e.id,'→',r);
+  return r;
+}
 
 // ── Operaciones ──
 export async function crearEmpresa(nombre,rut,marco,regimen){
@@ -224,7 +355,10 @@ export async function crearEmpresa(nombre,rut,marco,regimen){
     creada:new Date().toISOString(),
     creadoPor:emailActual()||'',      // dueño = quien la crea
     compartidaCon:[]});
+  // Hogar: el maestro si la crea un admin; si no, el catálogo del usuario
+  HOGAR[id]=esAdminActual()?DOC_MAESTRO:docUsuario(emailActual());
   await guardarCatalogo();
+  await asegurarAccesoEmpresa(id);   // la ficha debe existir antes de usarla
   return id;
 }
 
@@ -244,6 +378,9 @@ export async function asignarDuenio(id,email){
   if(!e)return false;
   e.creadoPor=String(email||'').trim().toLowerCase();
   e.compartidaCon=(e.compartidaCon||[]).filter(x=>String(x).toLowerCase()!==e.creadoPor);
+  // Un traspaso hecho por un admin deja la empresa en el maestro: ya no
+  // depende del catálogo del dueño anterior.
+  if(esAdminActual())HOGAR[id]=DOC_MAESTRO;
   await guardarCatalogo();
   return true;
 }
@@ -333,6 +470,7 @@ export async function recuperarEmpresa(id,nombre,rut){
     compartidaCon:[],
     recuperada:new Date().toISOString(),
   });
+  HOGAR[id]=esAdminActual()?DOC_MAESTRO:docUsuario(emailActual());
   await guardarCatalogo();
   return true;
 }

@@ -15,6 +15,13 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.20',fecha:'29-09-2026',titulo:'Empresas creadas por usuarios no administradores',items:[
+    {tipo:'correccion',txt:'Un usuario Contador que creaba su empresa la veía solo en su equipo: nunca llegaba a la nube, al volver a entrar se le creaba otra vacía y lo trabajado no aparecía. Ahora cada usuario guarda sus empresas en su propio catálogo en la nube, y el administrador sigue viéndolas todas.'},
+    {tipo:'correccion',txt:'Al crear una empresa nueva, la app espera que su ficha de acceso quede en la nube antes de leer los datos. Antes la lectura se adelantaba, la nube la rechazaba y el guardado quedaba bloqueado toda la sesión.'},
+    {tipo:'cambio',txt:'Un usuario de solo Consulta sin empresas compartidas ya no recibe una empresa vacía: se le avisa que pida que le compartan una.'},
+    {tipo:'cambio',txt:'Si el guardado se bloquea por falta de permisos, el aviso lo dice y explica qué hacer.'},
+    {tipo:'correccion',txt:'Al abrir la app, la carga se cortaba a medio camino por un error interno del respaldo en Excel: no se activaban el respaldo automático, la guardia de prueba/producción, los permisos del menú ni los grupos de navegación. Corregido.'},
+  ]},
   {version:'V2.21.19',fecha:'28-09-2026',titulo:'Inventario: folios correlativos',items:[
     {tipo:'cambio',txt:'Los folios de inventario ahora son correlativos por tipo: ENT-000001 (entrada), SAL-000001 (salida), TRA-000001 (traspaso), AJE-000001 y AJS-000001 (ajustes), TOMA-000001, OC-000001 y REC-000001.'},
     {tipo:'cambio',txt:'El folio de un movimiento nuevo se asigna al guardar, contra la lista más reciente de la nube, para que dos equipos no tomen el mismo número. El formulario muestra el próximo correlativo como referencia.'},

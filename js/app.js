@@ -11,7 +11,7 @@ import {FS, initFirestore, logAccion} from './firebase.js';
 import './storage.js';
 import {registrarUI} from './ui.js';
 import {initTema, cambiarTema, aplicarTema} from './tema.js';
-import {EMPRESAS, MARCOS, marcoInfo, cargarEmpresas, empresaActiva, crearEmpresa,
+import {EMPRESAS, MARCOS, marcoInfo, cargarEmpresas, empresaActiva, crearEmpresa, asegurarAccesoEmpresa,
         eliminarEmpresa, actualizarEmpresa, activarEmpresa, migrarSiHaceFalta,
         aplicarVisibilidad, puedeVerEmpresa} from './empresas.js';
 import {renderEmpresas, abrirFormEmpresa, cerrarFormEmpresa, editarEmpresaCat,
@@ -171,7 +171,7 @@ import {abrirBusqueda, cerrarBusqueda, ejecutarBusqueda, navBusqueda,
 import {prepararImpresion} from './impresion.js';
 import {renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios} from './folios-sii.js';
 import {exportarExcelManual, conectarBD, fsBackupToCloud, fsRestoreFromCloud,
-        importarExcelBD, initBDImportListener, bdRestaurarHandle, BD} from './backup.js';
+        importarExcelBD, initBDImportListener, bdRestaurarHandle, bdStatusSet, BD} from './backup.js';
 
 // ═══ STORAGE ═══
 // Guarda todo el estado en curso. `silencioso` lo usa el autoguardado para no
@@ -352,8 +352,17 @@ async function initApp(){
     nav('empresas');
     return;
   }
+  // Rol Consulta sin empresas compartidas: no hay nada que abrir
+  if(EMPRESAS.sinEmpresas){
+    toast('ℹ️ Aún no tienes empresas asignadas. Pide a un administrador o al dueño que te comparta una.','e');
+    nav('empresas');
+    return;
+  }
   window.storage.setPrefijo(EMPRESAS.activa);
   renderSelectorEmpresa();
+  // La ficha de acceso de la empresa activa tiene que estar en la nube ANTES
+  // del cruce: si no, las reglas niegan la lectura y el guardado se bloquea.
+  await asegurarAccesoEmpresa(EMPRESAS.activa);
 
   // ── Cruce con la nube ANTES de dejar trabajar ──
   // Arrancar con una foto vieja es la causa de fondo de los conflictos y de que
@@ -634,6 +643,7 @@ async function recargarEmpresaActiva(){
   // Resetear estado en memoria
   S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];
   S.activos=[];S.trabajadores=[];S.apertura=null;
+  await asegurarAccesoEmpresa(EMPRESAS.activa);
   S.inventario={cargado:false,grupos:[],bodegas:[],productos:[],movimientos:[],tomas:[],ordenesCompra:[],recepciones:[]};
   S.empresa={...S.empresa,nombre:'',rut:'',domicilio:'',giro:'',codigo:'',ciudad:'',comuna:'',rep:'',rutrep:''};
   // Cargar datos de la nueva empresa

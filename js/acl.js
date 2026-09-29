@@ -38,6 +38,7 @@ export function miembrosDe(e){
 
 // Último error de escritura, útil para diagnóstico técnico.
 export const ACL_ERR={ultimo:null};
+export const esErrorPermisos=msg=>/permission|insufficient|permisos/i.test(String(msg||''));
 
 // Escribe (o actualiza) el documento ACL de una empresa
 export async function guardarACLEmpresa(e){
@@ -51,6 +52,31 @@ export async function guardarACLEmpresa(e){
     },{merge:true});
     return true;
   }catch(err){console.warn('ACL set',e.id,err);ACL_ERR.ultimo=err.message||String(err);return false;}
+}
+
+// Garantiza que la ficha de acceso de UNA empresa exista y te incluya ANTES de
+// leer sus datos. Sin esto, una empresa recién creada se leía antes de que su
+// ficha llegara a la nube (refrescarACL corre en segundo plano): las reglas
+// respondían "sin permisos", storage lo tomaba como lectura fallida y bloqueaba
+// el guardado de toda la sesión.
+// Devuelve 'ok' | 'escrita' | 'sin-permiso' | 'error'.
+export async function asegurarACLEmpresa(e,email,{puedeEscribir=false}={}){
+  if(!aclDisponible()||!e||!e.id)return 'ok';
+  const yo=String(email||'').trim().toLowerCase();
+  const esperado=miembrosDe(e).slice().sort().join(',');
+  try{
+    const d=await FS.db.collection(COLL).doc(e.id).get();
+    if(d.exists){
+      const miembros=((d.data()||{}).miembros||[]).map(x=>String(x).toLowerCase());
+      if(miembros.slice().sort().join(',')===esperado)return 'ok';
+      if(!puedeEscribir)return miembros.includes(yo)?'ok':'sin-permiso';
+    }else if(!puedeEscribir)return 'sin-permiso';
+  }catch(err){
+    // Las reglas niegan leer una ficha inexistente o ajena: si te corresponde
+    // escribirla, se intenta igual; si no, no hay acceso.
+    if(!puedeEscribir){ACL_ERR.ultimo=err.message||String(err);return esErrorPermisos(err.message)?'sin-permiso':'error';}
+  }
+  return (await guardarACLEmpresa(e))?'escrita':(esErrorPermisos(ACL_ERR.ultimo)?'sin-permiso':'error');
 }
 
 export async function borrarACLEmpresa(id){

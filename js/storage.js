@@ -703,6 +703,24 @@ initDispositivo();
       }
     },
 
+    // Ids de documentos globales que empiezan con `pref` (p. ej. los catálogos
+    // por usuario `_empresas_u:<email>`). En la nube se consulta por el campo
+    // `empresa=='_global'`, que las reglas permiten a todo usuario activo; sin
+    // nube se usan las copias locales. ok:false = no se pudo confirmar.
+    async listarIdsGlobales(pref){
+      const locales=[];
+      try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
+        if(k&&k.startsWith(prefix+pref))locales.push(k.slice(prefix.length));}}catch(e){}
+      if(!FS.enabled||!FS.db)return {ok:true,ids:locales,fuente:'local'};
+      try{
+        const snap=await FS.db.collection(COLL).where('empresa','==','_global').get();
+        return {ok:true,ids:snap.docs.map(d=>d.id).filter(id=>id.startsWith(pref)),fuente:'nube'};
+      }catch(e){
+        console.warn('FS listar globales',pref,e);
+        return {ok:false,ids:locales,fuente:'error',error:e.message||String(e)};
+      }
+    },
+
     async getGlobal(key){
       const local=getLocal(key);
       if(FS.enabled){

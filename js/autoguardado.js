@@ -79,8 +79,13 @@ export async function guardarTodoAhora(){
       bloq.map(b=>'  · '+b.clave+' — '+b.motivo).join('\n')+'\n\n'+
       'La app los está mostrando vacíos, y guardar ahora escribiría ese vacío\n'+
       'encima de tus datos reales. Por eso no se guarda nada.\n\n'+
-      'Recarga la página cuando vuelva la conexión: si se leen bien, el\n'+
-      'guardado se desbloquea solo.');
+      (bloq.some(b=>/permission|insufficient|permisos/i.test(b.motivo))
+        ? 'Motivo: la nube dice que NO tienes permiso sobre esta empresa.\n'+
+          'Si la creaste tú, recarga la página: la ficha de acceso se repara sola.\n'+
+          'Si te la compartieron, pide al dueño o a un administrador que entre\n'+
+          'a la app (al iniciar sesión un administrador repara los accesos).'
+        : 'Recarga la página cuando vuelva la conexión: si se leen bien, el\n'+
+          'guardado se desbloquea solo.'));
     return;
   }
   if(!hayCambiosConfirmados()){
