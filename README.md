@@ -1,424 +1,1072 @@
-# Contabilidad — Sistema contable chileno
+# Contabilidad
 
-Aplicación web de contabilidad para empresas chilenas, con soporte multiempresa, orientación agrícola/forestal y cumplimiento tributario SII.
+Sistema web contable, tributario y de control para empresas chilenas, diseñado para operar con múltiples empresas y ejercicios, integración con Firebase/Firestore, control de acceso por usuarios, importación del Registro de Compras y Ventas (RCV), generación de asientos maestros, libros contables, auxiliares, F29, remuneraciones, activos fijos, cierres y herramientas de preparación productiva.
 
-**Stack:** HTML + 39 módulos ES nativos + CSS. Sin build, sin npm, sin frameworks. Firebase (Auth + Firestore) para autenticación y sincronización.
+> **Estado actual:** V2.21.1 · compilación `v2026.09.16-1826`, publicada el 16-09-2026. Sistema operativo en producción con validación contable central, control de acceso por empresa, actualización PWA obligatoria, inventario multibodega, tomas físicas, carga masiva y órdenes de compra.
+
+La fuente funcional de la versión es `js/changelog.js`. `version.json`, las etiquetas visibles de `index.html`, el import map y la caché de `sw.js` deben conservar la misma revisión en cada publicación.
 
 ---
 
-## Instalación
+## Inventario multibodega — movimientos y tomas físicas
 
-### Probar localmente
-Los módulos ES **no funcionan abriendo el archivo con doble clic** (`file://`). Necesitas un servidor:
+El menú **Inventario → Control de Inventario** incorpora un auxiliar permanente y separado para cada empresa. Los productos, grupos, subgrupos, bodegas y movimientos no se reinician al cambiar de ejercicio; el año activo sigue determinando la contabilidad, mientras las existencias mantienen continuidad histórica.
 
-```bash
-cd app-modular
-python3 -m http.server 8000
+La fuente de verdad es el libro de movimientos vigentes. Desde él se reconstruyen las cantidades, los lotes y el costo promedio ponderado por producto y bodega. Se soportan entradas, salidas y traspasos con múltiples líneas, lote y vencimiento, documento, tercero y centro de costo. Las anulaciones conservan trazabilidad y recalculan automáticamente los saldos.
+
+Las tomas físicas se realizan por bodega y pueden abarcar todos los productos o sólo saldos existentes, con filtro opcional por grupo. El conteo distingue lotes y vencimientos, exige registrar explícitamente los ceros y admite lotes encontrados durante el conteo. El flujo separa preparación, cierre, autorización, devolución y rechazo. Al autorizar, los sobrantes y faltantes generan movimientos de ajuste y quedan ligados al folio de la toma.
+
+Desde la pestaña **Productos** se puede descargar una plantilla Excel e importar el catálogo en forma masiva. Antes de guardar, el sistema muestra una vista previa de filas nuevas, actualizaciones, omisiones y errores. La validación comprende códigos, EAN, tipos, unidades, cuentas contables, stock mínimo y campos lógicos. Los grupos y subgrupos ausentes se crean automáticamente. La importación no carga existencias ni costos iniciales, porque esos valores deben conservar trazabilidad mediante movimientos.
+
+Cada línea conserva la hora de su conteo. Si después ocurren entradas, salidas o traspasos, la autorización incorpora su efecto al objetivo actual antes de calcular el ajuste, por lo que la bodega no necesita quedar bloqueada. El control de versión evita que dos equipos sobrescriban silenciosamente la misma toma.
+
+La conciliación automática que marcará una recepción como contabilizada cuando aparezca su DTE en Compras queda como siguiente integración. La recepción física ya conserva RUT, tipo y número documental para realizar ese enlace sin crear una segunda fuente de stock ni duplicar asientos.
+
+### Órdenes de compra y recepciones
+
+La pestaña **Órdenes de compra** permite preparar borradores, emitir órdenes por proveedor, bodega y centro de costo, registrar precios netos y descuentos, y controlar cantidades pedidas, recibidas y pendientes. Las órdenes pueden quedar emitidas, parcialmente recibidas, completamente recibidas, cerradas con saldo o anuladas.
+
+Cada recepción admite guía, factura afecta, factura exenta u otro documento. Se controla que la cantidad no supere el saldo de la orden y, cuando el producto trabaja con lotes, se exige lote y fecha de vencimiento. El registro de la recepción, la actualización de la orden y la entrada valorizada al inventario se guardan conjuntamente. El costo de entrada corresponde al precio neto de la orden después del descuento.
+
+La anulación de una recepción también anula su entrada, pero sólo cuando la mercadería aún está disponible en la bodega y lote originales. Las facturas quedan identificadas como pendientes de conciliación contable con el DTE capturado en Compras; de este modo la recepción física no crea anticipadamente una segunda contabilización.
+
+---
+
+
+## Control de descuadres y operación móvil de Comprobantes
+
+En teléfonos, **Comprobantes** utiliza fichas verticales en vez de obligar a navegar una tabla horizontal ancha. Cada ficha mantiene visibles el número, fecha, origen, glosa y los totales **Debe / Haber** en dos columnas iguales. La tabla completa se conserva en escritorio.
+
+El campo **Buscar por glosa o cuenta** está optimizado para Android/PWA: la lista se filtra con una espera breve mientras se escribe y, al actualizarse, recupera automáticamente el foco y la posición del cursor. Esto evita que el teclado virtual se cierre tras ingresar el primer carácter.
+
+Los descuadres se detectan sobre el Diario completo. Cuando existe uno, la alerta muestra el **N° de comprobante como acción clicable**: al tocarlo, la aplicación abre el documento de Compras/Ventas, el asiento manual, la apertura o el honorario correspondiente. La alerta no se almacena manualmente; se recalcula desde los movimientos, por lo que desaparece automáticamente cuando Debe y Haber vuelven a cuadrar.
+
+En los importadores **RCV Compras** y **RCV Ventas**, cada DTE seleccionado se simula contablemente antes de persistir. Si un DTE produciría un asiento descuadrado, se informa antes de guardar y queda marcado como **pendiente por cuadratura**. Los documentos cuadrados del mismo lote pueden procesarse normalmente; los problemáticos no se incorporan a los libros ni al F29 y permanecen en la ventana del importador para revisión. Tocar el DTE de la alerta lleva directamente a su fila/ficha.
+
+
+## Actualizaciones obligatorias de la aplicación
+
+Desde **V2.15.9.4** toda instalación PWA verifica `version.json` contra la versión que está ejecutando. La comprobación se realiza al iniciar la aplicación, al recuperar conexión, al volver desde segundo plano y periódicamente mientras permanece abierta.
+
+Cuando el servidor anuncia una versión distinta, la aplicación entra en estado **Actualización obligatoria**: bloquea la interfaz, impide nuevas escrituras en `storage.set`, `storage.setMany` y `storage.delete`, solicita la actualización del service worker, elimina las cachés PWA antiguas y recarga con una URL versionada. El usuario no puede continuar contabilizando con la versión anterior.
+
+Si el equipo está sin conexión, la PWA puede seguir abriendo con su respaldo offline; la verificación se repite automáticamente al recuperar internet. El archivo `version.json` nunca se responde desde la caché del service worker.
+
+> La obligatoriedad automática aplica a partir de la primera instalación de V2.15.9.4 o posterior. Una instalación anterior debe actualizarse una vez a esta versión para incorporar el verificador.
+
+
+## 1. Arquitectura general
+
+La aplicación es un frontend web estático publicado en GitHub Pages y utiliza Firebase para autenticación, control de usuarios y persistencia remota. Mantiene lógica contable y tributaria en módulos JavaScript separados, con un motor contable central y validaciones previas a toda persistencia crítica.
+
+Componentes principales:
+
+- **Frontend:** HTML, CSS y JavaScript ES Modules.
+- **Hosting:** GitHub Pages.
+- **Autenticación:** Firebase Authentication con correo y contraseña.
+- **Base de datos:** Cloud Firestore.
+- **Persistencia local:** almacenamiento local para caché y estado operativo. Los formularios incompletos permanecen sólo en memoria durante la sesión y se descartan al cerrar.
+- **PWA:** manifest y service worker con cache-busting por versión.
+- **Backups:** respaldo Excel + snapshots de recuperación en Firebase.
+- **Auditoría:** registro de acciones críticas y trazabilidad de cambios.
+
+La configuración Firebase se encuentra en `js/firebase-config.js`. Las reglas de seguridad se encuentran en `firestore.rules`.
+
+---
+
+## 2. Inicio de sesión y seguridad de acceso
+
+La aplicación exige autenticación mediante correo y contraseña.
+
+Comportamiento actual:
+
+- Al cerrar la app o el navegador, al volver a abrir se solicita login nuevamente.
+- Un refresco de la página dentro de la misma sesión puede conservar la sesión activa.
+- La persistencia de autenticación está configurada para no mantener sesiones permanentes entre cierres completos.
+- El sistema no utiliza un perfil local como sustituto de la autenticación Firebase.
+- Se dispone de recuperación de contraseña.
+- El registro de nuevos usuarios queda sujeto al control administrativo definido por la aplicación.
+
+El login fue simplificado en V2.15.9.3 para mostrar únicamente los controles de acceso, registro y recuperación de contraseña.
+
+---
+
+## 3. Usuarios, roles y permisos
+
+El sistema trabaja con usuarios autenticados y control de permisos.
+
+Roles operativos soportados por la arquitectura actual:
+
+- **Administrador:** configuración, usuarios, cierres, reaperturas, modo PRUEBA/PRODUCCIÓN, recuperación y operaciones críticas.
+- **Contador:** operación contable y tributaria según permisos habilitados.
+- **Consulta / perfiles restringidos:** acceso de lectura o capacidades limitadas según ACL.
+
+Firestore aplica reglas de seguridad para impedir escrituras no autorizadas. Las ACL de empresas y los documentos de usuario son parte del control server-side.
+
+Las ACL se mantienen automáticamente desde el catálogo de empresas. Las antiguas herramientas visibles **“Verificar / Preparar aislamiento / Reparar accesos”** eran utilidades de migración y fueron retiradas en V2.16.1; no forman parte de la operación normal ni son necesarias en una instalación productiva ya migrada.
+
+Las acciones críticas pueden dejar registro de:
+
+- usuario;
+- fecha y hora;
+- empresa y ejercicio;
+- entidad e ID afectado;
+- estado anterior y nuevo;
+- campos modificados;
+- motivo de reapertura o corrección;
+- hash de estados cuando corresponde.
+
+---
+
+## 4. Empresas y ejercicios contables
+
+La aplicación permite trabajar con múltiples empresas y ejercicios contables.
+
+Cada empresa puede almacenar, entre otros:
+
+- razón social;
+- RUT;
+- domicilio;
+- comuna/ciudad;
+- giro comercial;
+- código de actividad SII;
+- ejercicio contable;
+- configuración tributaria y operacional.
+
+El sistema mantiene una empresa activa por usuario y contexto de trabajo. Los datos de cada ejercicio se separan mediante claves específicas por año.
+
+---
+
+## 5. Modo PRUEBA y PRODUCCIÓN
+
+Cada empresa/ejercicio dispone de un modo operacional explícito.
+
+### PRUEBA
+
+- Es el estado inicial.
+- Las escrituras de negocio pueden quedar bloqueadas al iniciar una nueva sesión.
+- Un administrador puede habilitar temporalmente las escrituras de prueba para esa sesión.
+- El permiso temporal desaparece al cerrar la app/navegador.
+
+### PRODUCCIÓN
+
+La activación exige:
+
+- panel de Preparación Productiva sin bloqueantes;
+- checklist manual completo;
+- prueba de concurrencia aprobada;
+- respaldo y recuperación validados;
+- regresión contable aprobada;
+- período piloto certificado;
+- confirmación explícita de administrador.
+
+Al activar PRODUCCIÓN se genera un **Acta de Habilitación** con empresa, ejercicio, versión, administrador, período piloto, checklist, controles técnicos y huella SHA-256.
+
+---
+
+## 6. Plan de cuentas
+
+El Plan de Cuentas es configurable y soporta:
+
+- cuentas activas e inactivas;
+- cuentas agrupadoras y de movimiento;
+- clasificación contable;
+- reglas de auxiliares;
+- reglas de centros de costo;
+- obligatoriedad de centro de costo por cuenta;
+- cuentas tributarias especiales utilizadas por el motor contable.
+
+La validación central impide contabilizar en cuentas inexistentes, inactivas o agrupadoras cuando no corresponde.
+
+---
+
+## 7. Motor contable central
+
+`js/motor-contable.js` concentra la generación contable de documentos relevantes.
+
+La aplicación trabaja con **asientos maestros persistidos**. Reportes, auxiliares y procesos tributarios privilegian esos asientos por sobre reconstrucciones ad hoc.
+
+El motor incluye lógica para:
+
+- ventas;
+- compras;
+- documentos exentos;
+- Notas de Crédito y Débito;
+- DTE 45/46;
+- IVA retenido;
+- IVA recuperable y no recuperable;
+- IVA proporcional o de uso común;
+- IVA crédito fiscal de activo fijo;
+- otros impuestos recuperables o incorporados al costo;
+- gastos rechazados;
+- honorarios;
+- pagos;
+- F29;
+- depreciación;
+- remuneraciones;
+- apertura y cierre.
+
+Todo asiento nuevo o modificado pasa por una validación central antes de persistirse.
+
+---
+
+## 8. Validación contable central
+
+`js/asiento-validacion.js` funciona como puerta obligatoria de integridad.
+
+Bloquea, entre otros:
+
+- asientos descuadrados;
+- cuentas inexistentes;
+- cuentas inactivas;
+- cuentas agrupadoras usadas incorrectamente;
+- movimientos con Debe y Haber simultáneos;
+- importes negativos o líneas inválidas;
+- auxiliares obligatorios faltantes;
+- centros de costo obligatorios faltantes o inexistentes;
+- documentos asociados inexistentes o anulados;
+- referencias DTE inconsistentes;
+- pagos asociados a documentos inexistentes;
+- modificaciones en períodos cerrados;
+- intentos de mover un asiento desde un período cerrado a otro abierto.
+
+La misma validación se aplica durante fusiones o escrituras críticas en Firestore.
+
+---
+
+## 9. Correlativo contable definitivo
+
+Los asientos disponen de `numeroContable` definitivo, separado del ID técnico y de correlativos históricos.
+
+Características:
+
+- numeración por empresa y ejercicio;
+- reserva mediante transacción Firebase;
+- evita duplicaciones entre equipos;
+- los números reservados no se reutilizan;
+- auditoría detecta asientos sin número o números duplicados;
+- Libro Diario y comprobantes privilegian el número contable definitivo.
+
+Los asientos históricos pueden migrarse para recibir correlativo definitivo.
+
+---
+
+## 10. Compras
+
+El módulo de Compras permite ingreso manual e importación desde RCV.
+
+Tratamientos soportados:
+
+- documentos afectos y exentos;
+- DTE 45 y 46;
+- NC y ND con referencia;
+- IVA recuperable;
+- IVA no recuperable;
+- IVA proporcional;
+- IVA de activo fijo;
+- otros impuestos;
+- gastos aceptados o rechazados;
+- distribución por cuentas y centros de costo.
+
+### Fecha documental vs período contable RCV
+
+La fecha original del DTE **no se modifica**.
+
+Ejemplo:
+
+- Fecha DTE: 15-08-2026
+- Período RCV: 2026-09
+- Fecha de contabilización: 30-09-2026
+
+El documento conserva 15-08-2026, pero se contabiliza y participa en F29 del período 2026-09.
+
+Las compras importadas guardan, cuando corresponde:
+
+- `fecha`;
+- `periodoContable`;
+- `fechaContabilizacion`;
+- `origenRegistro`;
+- historial y fingerprint RCV.
+
+---
+
+## 11. Ventas
+
+El módulo de Ventas permite ingreso manual e importación desde RCV.
+
+Incluye:
+
+- facturas;
+- boletas;
+- documentos exentos;
+- Notas de Crédito;
+- Notas de Débito;
+- referencia obligatoria para NC/ND;
+- generación y actualización de asiento maestro;
+- anulación lógica coordinada con contabilidad.
+
+La importación conserva la fecha documental original y controla períodos contables cerrados.
+
+---
+
+## 12. Importación RCV idempotente y control de cambios
+
+`js/rcv-control.js` agrega control de idempotencia y trazabilidad.
+
+Reimportar el mismo archivo o los mismos documentos no debe producir cambios innecesarios.
+
+Cada DTE puede clasificarse como:
+
+- **Nuevo**;
+- **Sin cambios**;
+- **Cambio SII**;
+- **Ya contabilizado en asiento manual**.
+
+Si el SII presenta una variación material, el sistema detecta los campos modificados antes de reemplazar información sensible. El documento puede conservar historial de versiones RCV anteriores.
+
+El modo de conciliación de período completo puede anular lógicamente documentos que desaparecen del RCV sin borrar físicamente su historial.
+
+---
+
+## 13. Pagos y cobranzas
+
+Los pagos se registran mediante asientos contables y constituyen la fuente maestra para el saldo de documentos.
+
+El sistema evita depender de una segunda lista paralela de pagos en cada documento, salvo compatibilidad histórica.
+
+Se soportan:
+
+- pagos/cobros de documentos;
+- pagos parciales;
+- asociación del asiento con uno o más documentos;
+- edición posterior de fecha, glosa y cuenta de banco/caja;
+- incorporación o retiro de documentos desde el comprobante de pago;
+- movimientos tipo Abono o Cargo, con contrapartida de banco/caja recalculada automáticamente;
+- anulación o eliminación controlada del comprobante, restituyendo el saldo de los documentos;
+- selección masiva limitada a los documentos que cumplen el filtro visible;
+- identificación de documentos vencidos y días de atraso;
+- cálculo de saldo pendiente;
+- validación contra documentos existentes;
+- conciliación mediante auxiliares.
+
+---
+
+## 14. Honorarios
+
+Desde V2.17, los honorarios se registran desde **Comprobantes → Nuevo honorario** y se tratan como documentos pagables del proveedor, sin incorporarlos al Libro de Compras ni al IVA del F29.
+
+Reconocimiento típico:
+
+- gasto por honorario bruto;
+- retención de segunda categoría;
+- honorarios por pagar.
+
+El gasto puede distribuirse entre varias cuentas y centros de costo. El prestador se selecciona mediante búsqueda por nombre, RUT o código de auxiliar; si no existe, su ficha de proveedor puede crearse desde el mismo formulario.
+
+Se admiten boletas con retención (tipo interno 70) y sin retención (tipo interno 71). La tasa se determina según el año; el líquido queda en Honorarios por Pagar y posteriormente puede pagarse desde **Pagos y Cobros**. La retención participa en el control correspondiente del F29.
+
+---
+
+## 15. Auxiliares
+
+El sistema dispone de auxiliares para clientes, proveedores y otros terceros vinculados a documentos y asientos.
+
+Los auxiliares pueden mostrar:
+
+- documentos asociados;
+- pagos y abonos;
+- saldos pendientes;
+- movimientos contables;
+- conciliación entre documento y asiento.
+- notas de crédito/débito agrupadas bajo el documento referenciado;
+- pagos/cobros agrupados bajo la factura u honorario que abonan;
+- estado de cuenta y antigüedad de saldos sin duplicar documentos ni pagos.
+
+El motor privilegia información derivada de asientos maestros.
+
+---
+
+## 16. Centros de costo
+
+La aplicación incluye centros de costo configurables y asignables a movimientos contables.
+
+Funciones principales:
+
+- creación y administración;
+- asignación por línea de asiento;
+- obligatoriedad por cuenta;
+- control de existencia;
+- reportes y análisis por centro de costo.
+
+---
+
+## 17. Libro Diario, Mayor y reportes
+
+El sistema genera información contable desde los asientos maestros.
+
+Incluye:
+
+- Libro Diario;
+- Libro Mayor;
+- Balance de Comprobación;
+- Balance de 8 columnas;
+- Balance General;
+- Estado de Resultados;
+- comprobantes;
+- reportes contables;
+- saldos por cuenta;
+- reportes auxiliares;
+- reportes por centro de costo.
+
+La suite de regresión verifica que Diario, Mayor y Balance mantengan coherencia matemática.
+
+---
+
+## 18. F29 y control tributario mensual
+
+El módulo tributario calcula y concilia información relevante del Formulario 29.
+
+Actualmente contempla códigos y componentes como:
+
+- débito fiscal;
+- crédito fiscal;
+- NC y ND;
+- compras exentas;
+- ventas exentas;
+- IVA crédito activo fijo;
+- IVA retenido por factura de compra;
+- remanente anterior;
+- remanente siguiente;
+- IVA a pagar;
+- PPM;
+- retenciones de honorarios;
+- total núcleo F29.
+
+La aplicación distingue:
+
+- **F29 calculado por el sistema**;
+- **F29 efectivamente declarado**.
+
+Una declaración presentada conserva snapshot histórico. Cambios posteriores en documentos no reescriben silenciosamente el F29 presentado.
+
+El remanente del período siguiente utiliza el valor declarado del período anterior cuando existe una declaración presentada.
+
+---
+
+## 19. Conciliación F29, provisión, pago y Mayor
+
+El sistema compara por período:
+
+- calculado;
+- declarado;
+- contabilidad de origen;
+- asiento de provisión/compensación;
+- pagos acumulados;
+- saldo pendiente;
+- sobrepago;
+- Mayor.
+
+Los pagos F29 pueden ser parciales y múltiples. El sistema propone el saldo restante y evita sobrepagar un componente sin corrección previa.
+
+Estados posibles incluyen:
+
+- borrador;
+- pendiente de pago;
+- pago parcial;
+- conciliado;
+- revisar.
+
+El tratamiento del PPM evita duplicar el activo cuando éste ya fue provisionado antes del pago.
+
+---
+
+## 20. Activo fijo
+
+El módulo de activo fijo separa tratamiento financiero y tributario.
+
+Puede almacenar:
+
+- valor contable;
+- valor tributario;
+- valor residual;
+- vida útil financiera;
+- vida útil tributaria;
+- método de depreciación;
+- fecha de inicio de depreciación;
+- vínculo con compra de origen.
+
+La depreciación contable genera asientos maestros y la conciliación de Renta puede comparar depreciación financiera con depreciación tributaria.
+
+---
+
+## 21. Remuneraciones
+
+El sistema incluye módulo de remuneraciones y libro de remuneraciones.
+
+Puede trabajar con:
+
+- haberes y descuentos;
+- cotizaciones;
+- provisiones;
+- asientos contables;
+- reportes del período;
+- parámetros previsionales configurables.
+
+---
+
+## 22. Renta y gastos rechazados
+
+El módulo de Renta puede utilizar información contable y ajustes tributarios.
+
+Incluye tratamiento de:
+
+- gastos rechazados identificados en compras/asientos;
+- depreciación contable vs tributaria;
+- depreciación instantánea cuando corresponda a la configuración;
+- conciliaciones para determinación de resultado tributario.
+
+---
+
+## 23. Apertura y cierre de ejercicio
+
+La aplicación permite:
+
+- asiento de apertura;
+- cierre anual;
+- bloqueo de ejercicio cerrado;
+- reapertura administrativa con motivo obligatorio;
+- conservación del asiento de cierre y trazabilidad del estado.
+
+Antes del cierre anual pueden ejecutarse validaciones de integridad.
+
+---
+
+## 24. Cierre contable mensual
+
+Además del cierre anual, cada período mensual puede cerrarse.
+
+Un período cerrado bloquea:
+
+- altas;
+- modificaciones;
+- anulaciones;
+- eliminación lógica/física no permitida;
+- movimientos cuya fecha contable pertenezca al mes cerrado.
+
+La reapertura mensual requiere administrador y motivo, dejando auditoría.
+
+Para compras importadas, el bloqueo se evalúa según la **fecha/período de contabilización**, no según la fecha documental original.
+
+---
+
+## 25. Auditoría de Integridad
+
+`js/integridad.js` revisa consistencia contable, documental y tributaria.
+
+Controles relevantes:
+
+- asientos balanceados;
+- documento ↔ asiento;
+- asientos huérfanos;
+- duplicaciones;
+- auxiliares requeridos;
+- IVA documento vs asiento;
+- IVA mensual;
+- pagos y referencias;
+- F29 duplicado o inconsistente;
+- cierres duplicados;
+- movimientos posteriores al cierre;
+- reglas del PDC;
+- activos fijos;
+- numeración contable definitiva;
+- coherencia RCV;
+- períodos cerrados.
+
+Los hallazgos se clasifican por severidad y algunos son bloqueantes para cierre o producción.
+
+---
+
+## 26. Regresión contable automática
+
+La aplicación incluye una suite de regresión ejecutada en memoria.
+
+La batería actual cubre escenarios como:
+
+- venta afecta;
+- venta exenta;
+- NC/ND;
+- compra neta/exenta;
+- IVA recuperable;
+- IVA no recuperable;
+- IVA proporcional;
+- activo fijo;
+- DTE 45/46;
+- fecha documental vs período RCV;
+- honorarios;
+- pagos parciales;
+- auxiliares;
+- F29 y remanente declarado;
+- depreciación;
+- remuneraciones;
+- cierre mensual;
+- validación central;
+- Diario = Mayor = Balance.
+
+La regresión es un criterio de Preparación Productiva.
+
+---
+
+## 27. Autoguardado seguro y formularios incompletos
+
+El autoguardado sincroniza únicamente **datos ya confirmados**. Un formulario que el usuario todavía está completando no se contabiliza ni se envía a Firebase.
+
+Desde V2.16.21, los campos incompletos permanecen sólo en memoria durante la sesión actual:
+
+- no se persisten en `localStorage`;
+- no reaparecen después de cerrar y volver a abrir la app;
+- se pueden retomar desde **Configuración → Sistema y Respaldos → Borradores de esta sesión** mientras la app siga abierta;
+- se eliminan al pulsar **Cancelar**, cerrar el formulario con `X`, usar Atrás sobre ese formulario o cerrar la aplicación.
+
+Sólo una acción explícita de Guardar, Registrar o Contabilizar confirma el dato. El encabezado no muestra un estado global de borrador; sólo informa cambios confirmados pendientes de sincronización y el último guardado.
+
+---
+
+## 28. Persistencia y concurrencia
+
+La capa `storage.js` controla persistencia local/remota, revisiones y operaciones multi-clave.
+
+Características:
+
+- escrituras versionadas;
+- revisión de conflictos;
+- `setMany()` transaccional para cambios relacionados;
+- protección de persistencia crítica;
+- rollback de estado en operaciones coordinadas cuando corresponde;
+- guardia PRUEBA/PRODUCCIÓN;
+- validación contable previa a asientos;
+- fusión y control de revisiones.
+
+La aplicación incluye una prueba operacional de concurrencia para ejecutarse realmente desde dos equipos.
+
+---
+
+## 29. Backups Excel
+
+El módulo de backup permite exportar información relevante a Excel.
+
+El respaldo preserva documentos, asientos y metadata extendida necesaria para reconstrucción, incluyendo campos incorporados en versiones recientes como:
+
+- número contable;
+- tipo/fuente;
+- IDs documentales;
+- referencias;
+- período contable;
+- fecha de contabilización;
+- clasificación IVA;
+- historial RCV;
+- detalle F29;
+- datos de activo fijo;
+- cierres mensuales.
+
+La restauración incluye validaciones y puede ejecutarse en modo de simulación antes de aplicar cambios reales.
+
+---
+
+## 30. Recuperación ante desastre
+
+Además del Excel, el sistema mantiene snapshots de recuperación en Firebase.
+
+Características:
+
+- hasta 6 snapshots por empresa/ejercicio;
+- snapshots manuales y automáticos;
+- snapshot previo a operaciones riesgosas;
+- manifiesto de contenidos;
+- SHA-256 por clave;
+- verificación de integridad;
+- restauración sólo por administrador;
+- creación de snapshot `pre-restauracion` antes de aplicar una recuperación;
+- confirmación explícita `RESTAURAR`.
+
+Los snapshots incluyen configuración PRUEBA/PRODUCCIÓN y certificación piloto.
+
+---
+
+## 31. Preparación Productiva
+
+La aplicación dispone de un panel que muestra si el sistema está preparado para producción.
+
+Entre sus controles se consideran:
+
+- integridad contable;
+- regresión contable;
+- numeración definitiva;
+- persistencia;
+- concurrencia real;
+- auditoría;
+- cierre mensual;
+- respaldo y restauración;
+- snapshot vigente;
+- certificación piloto;
+- checklist de puesta en marcha.
+
+Los elementos que requieren una prueba real no se marcan automáticamente como aprobados sólo porque el código exista.
+
+---
+
+## 32. Certificación de piloto mensual
+
+Antes de PRODUCCIÓN puede certificarse un mes piloto comparando el sistema con referencias externas.
+
+Se pueden contrastar, entre otros:
+
+### RCV Ventas
+
+- número de documentos;
+- neto;
+- exento;
+- IVA;
+- total.
+
+### RCV Compras
+
+- número de documentos;
+- neto;
+- exento;
+- IVA;
+- total.
+
+### F29
+
+- código 538;
+- código 537;
+- código 77;
+- código 89;
+- código 91.
+
+La certificación queda asociada a usuario, fecha, período, referencias externas y valores calculados por la aplicación.
+
+---
+
+## 33. Puesta en marcha asistida
+
+El panel de puesta en marcha reúne todos los requisitos necesarios para activar PRODUCCIÓN.
+
+Incluye:
+
+- empresa y ejercicio;
+- versión desplegada;
+- período piloto certificado;
+- checklist manual;
+- controles técnicos;
+- requisitos pendientes;
+- botón de activación productiva cuando todo está aprobado;
+- generación del Acta de Habilitación.
+
+El acta se conserva en historial y puede descargarse como HTML para archivo o impresión.
+
+---
+
+## 34. Service Worker y actualización de versiones
+
+La aplicación usa un service worker para funcionamiento PWA y caché de respaldo.
+
+En cada publicación, el proceso de liberación debe:
+
+- genera un nuevo cache-busting para todos los módulos JS;
+- actualiza la URL de `app.js`;
+- cambia el nombre de caché del service worker;
+- evita que distintos equipos trabajen con combinaciones de módulos de versiones antiguas y nuevas.
+
+Al publicar una versión nueva conviene reemplazar todos los archivos del repositorio, no sólo `index.html`.
+
+---
+
+## 35. Publicación
+
+Flujo recomendado:
+
+1. Probar la versión en modo PRUEBA.
+2. Ejecutar regresión contable.
+3. Revisar Auditoría de Integridad.
+4. Confirmar prueba de concurrencia desde dos equipos.
+5. Crear y verificar snapshot.
+6. Descargar respaldo externo.
+7. Certificar un período piloto.
+8. Revisar Preparación Productiva.
+9. Generar Acta de Habilitación y activar PRODUCCIÓN.
+
+El paquete V2.21.1 no incluye el auxiliar `_release.py`. Por ello, antes de publicar una versión posterior se debe actualizar de forma coordinada:
+
+- `APP_VERSION` y la primera entrada de `CHANGELOG` en `js/changelog.js`;
+- `meta[name="app-version"]`, `meta[name="app-release"]`, versión del login e import map en `index.html`;
+- `version`, `release`, `revision` y `publicadoEn` en `version.json`;
+- nombre de caché en `sw.js`.
+
+No se debe cambiar uno de estos identificadores de forma aislada, porque una PWA instalada podría mezclar archivos de distintas publicaciones.
+
+---
+
+## 36. Archivos principales
+
+```text
+index.html                 Interfaz principal
+firestore.rules            Reglas de seguridad Firestore
+manifest.webmanifest       Configuración PWA
+sw.js                      Service Worker
+css/                       Estilos
+icons/                     Iconos
+js/app.js                  Arranque y exposición de acciones UI
+js/state.js                Estado de aplicación
+js/storage.js              Persistencia local/Firestore
+js/firebase.js             Integración Firebase
+js/auth.js                 Login y autenticación
+js/empresa.js              Datos de empresa
+js/empresas.js             Empresas y selección
+js/pdc.js                  Plan de Cuentas
+js/motor-contable.js       Motor contable
+js/asiento-validacion.js   Validación contable central
+js/asientos.js             Asientos manuales/gestión
+js/compras.js              Compras y RCV
+js/ventas.js               Ventas y RCV
+js/rcv-control.js          Idempotencia/control de cambios RCV
+js/pagos.js                Pagos y cobranzas
+js/pagoeditor.js           Edición de comprobantes de pago/cobro
+js/honorarios.js           Honorarios
+js/honorariodoc.js         Honorarios como documento pagable
+js/auxiliares.js           Auxiliares
+js/activofijo.js           Activo fijo
+js/remuneraciones.js       Remuneraciones
+js/tributario.js           F29 y cálculo tributario
+js/libroscv.js             Libros mensuales de Compras y Ventas
+js/lre-dt.js               Exportación Libro de Remuneraciones DT
+js/cierres-mensuales.js    Cierres y reaperturas mensuales
+js/renta.js                Renta/ajustes tributarios
+js/cierre.js               Cierre de ejercicio
+js/integridad.js           Auditoría de Integridad
+js/hardening.js            Preparación Productiva
+js/regresion-contable.js   Suite de regresión
+js/recovery.js             Snapshots y recuperación
+js/preproduccion.js        PRUEBA/PRODUCCIÓN y acta
+js/piloto.js               Certificación de piloto
+js/autoguardado.js         Borradores y autoguardado seguro
+js/correlativo-contable.js Numeración definitiva
+js/audit.js                Auditoría de acciones
+js/backup.js               Backup/restauración Excel
+js/inventario.js           Interfaz y persistencia del inventario multibodega
+js/inventario-motor.js     Stock, lotes, traspasos y valorización PPP
 ```
-Abre `http://localhost:8000`.
-
-### Publicar en GitHub Pages
-Sube `index.html`, la carpeta `js/` y la carpeta `css/` a la **raíz** del repositorio, manteniendo la estructura. Son ~40 archivos y las rutas relativas importan: no basta con subir uno solo.
 
 ---
 
-## Funcionalidades
+## 37. Límites y criterios de operación
 
-### Registros
-- **Libro de Ventas** — documentos individuales con DTE, RUT, formas de pago, filtros por rango de fechas
-- **Libro de Compras** — con distribución de gastos por cuenta e importador desde el registro del SII
-- **Honorarios** — retención de 2ª categoría con tasa automática por año (Ley 21.133)
-- **Asientos Manuales** — partidas libres con buscador de cuentas, modal de documentos auxiliares, duplicar y anular
-- **Auxiliares** — por cliente/proveedor, con análisis de antigüedad de saldos (aging)
+La aplicación incorpora controles fuertes, pero la preparación productiva no debe basarse sólo en que el código compile.
 
-### Reportes
-Libro Diario · Libro Mayor · Balance General (con comparativo entre años) · Estado de Resultados estructurado · Flujo de Caja (realizado y proyectado) · Conciliación Bancaria (manual o cargando cartola)
+Antes de operar con información definitiva se deben realizar pruebas reales de:
 
-### Tributario SII
-- **Formulario 29** — IVA mensual con arrastre de remanente, PPM y retenciones
-- **PPM** — pago provisional mensual
-- **Exportar XML SII** — libros de compra/venta en formato IECV (esquema LibroCV_v10)
+- autenticación y permisos;
+- dos usuarios/equipos concurrentes;
+- importación repetida del mismo RCV;
+- cierre y reapertura mensual;
+- F29 declarado y pagos parciales;
+- backup y restauración;
+- pérdida temporal de conexión;
+- piloto mensual contra datos conocidos.
 
-### Activo fijo y cierre
-Activos fijos con depreciación lineal y acelerada · Provisiones (incobrables, feriado legal) · Corrección monetaria (informativa) · Cierre de ejercicio
-
-### Remuneraciones
-Liquidaciones completas con AFP, salud (Fonasa o isapre con plan en UF del FUN), seguro de cesantía e impuesto único de 2ª categoría. La liquidación separa el 7% legal del adicional isapre. Incluye aporte patronal desglosado (SIS, mutual, AFC, caja) con la institución de destino de cada componente.
-
-### Centros de costo
-Dos niveles (centro principal → subcentro) para clasificar gastos por área: Administración, Transporte, Área Maderas, predios agrícolas, etc.
-
-Tres tipos de centro:
-- **Operativo** — sus costos van directo a resultado
-- **Inversión en curso** — acumula costos capitalizables según una curva de % por año
-- **Capitalizado** — ya se traspasaron a activo fijo
-
-Las inversiones en curso permiten **cierre mensual manual** (solo administradores) que traspasa los gastos del mes repartiéndolos entre activo y costo del período, y **capitalización final** a activo fijo.
-
-### Multiempresa
-Cada empresa tiene sus datos completamente aislados: plan de cuentas, libros, asientos, indicadores y centros propios. Se cambia con el selector del encabezado. Cada empresa elige su marco contable (tributaria chilena PCGA, NIIF para PYMEs o NIIF plenas).
-
-### Sistema
-Autenticación con roles (admin, contador, consulta) y permisos por sección · Gestión de usuarios · Registro de actividad (audit log) · Búsqueda global (Ctrl+K) · Export/import Excel · Sincronización con Firestore · Impresión con encabezado oficial · Tres temas visuales · Diseño responsive
+El sistema está diseñado para bloquear o advertir cuando alguno de estos controles no ha sido certificado.
 
 ---
 
-## Configuración importante
+## 38. Versión documentada
 
-### Indicadores (Configuración → Indicadores)
-Valores que **debes mantener actualizados**:
-- **UF** (cambia a diario), **UTM** y **UTA** (mensuales), dólar y euro
-- Botón **"Traer valores del Banco Central"** que los consulta automáticamente desde mindicador.cl
-- Topes imponibles (AFP/salud 90 UF, cesantía 135,2 UF), ingreso mínimo
-- Tasas: AFP 10%, salud 7%, cesantía 0,6%, factor corrección monetaria
-- **Retención de honorarios**: tabla por año según Ley 21.133 (2026: 15,25%, sube hasta 17% en 2028). Se aplica la tasa del año en que se emite la boleta
+**V2.21.1 · `v2026.09.16-1826`**  
+Documentación actualizada el 16-09-2026 a partir de los módulos, metadatos de publicación y changelog incluidos en este ZIP.
 
-### Previsional (dentro de Indicadores)
-- Comisiones de las 7 AFP (editables)
-- Aporte del empleador: SIS 1,62%, mutual (base 0,90% + adicional por riesgo), AFC 2,4% indefinido / 3% plazo fijo, caja de compensación
-- Instituciones: mutual (ACHS, Mutual CChC, IST, ISL) y caja
+Cambios funcionales recientes incorporados a esta documentación:
 
-⚠️ **La tasa adicional de mutualidad viene en 0%**: depende del riesgo de tu actividad y te la notifica tu mutual. Cárgala para que el costo empresa quede exacto.
+- conciliación exacta de los importadores RCV contra el Total informado por el SII;
+- tolerancia por documento en importaciones masivas y corrección individual de pendientes;
+- referencia de NC/ND contra documentos del mismo proveedor, incluida factura de compra;
+- glosa editable por documento en la importación RCV;
+- montos enteros con separador de miles en campos monetarios;
+- asiento manual en ventana emergente con tres líneas iniciales;
+- pagos/cobros editables, anulables y asociados a uno o varios documentos;
+- honorarios integrados como documentos de proveedor y distribuibles entre varias cuentas;
+- Balance de 8 columnas y accesos rápidos a reportes;
+- ajustes del LRE, corrección monetaria por régimen y advertencia de aceptación tácita RCV;
+- identificación de versión sincronizada en el login y marca RABF en Inicio.
+- primera etapa del inventario multiempresa con productos, bodegas, lotes, vencimientos, movimientos y PPP.
 
-### Año agrícola
-Los costos de las inversiones en curso se agrupan por **temporada de mayo a abril**. La temporada 2025/26 va del 1-may-2025 al 30-abr-2026.
+### V2.19.6 — Correcciones tributarias críticas
+
+- El IUSC contabilizado en remuneraciones se muestra en el código 48 del F29 y se suma al código 91.
+- El código 504 usa el remanente reajustado por la variación de la UTM entre períodos; la UTM se conserva por mes y la falta de datos genera una advertencia.
+- Los asientos de remuneraciones usan el último día calendario real del mes.
+- La depreciación acelerada general del Art. 31 N°5 usa un tercio de la vida normal con piso de un año. El régimen del N°5 bis no se presume ni se aplica automáticamente.
+- La corrección monetaria deudora se reversa como agregado y la acreedora como deducción para regímenes que no la aplican.
+- Los selectores de referencia admiten el DTE 61 y se actualizó la etiqueta de jornada ordinaria LRE.
+
+### V2.19.7 — Identidad visual RABF
+
+- Nuevo icono RABF Contabilidad para la aplicación instalada, favicon, Apple Touch y variantes PWA normal y maskable.
+- La cabecera y la portada de selección de empresas utilizan el nuevo logotipo.
+- La marca de agua RABF se centra en el área visible de Inicio y adapta su tamaño a escritorio y móvil.
+
+### V2.19.8 — Tasa IDPC 0% en Pro Pyme Transparente
+
+- El guardado de la empresa conserva correctamente una tasa `0%` y sólo usa la tasa legal predeterminada cuando el campo está realmente vacío.
+- Para el régimen 14 D N°8, la tasa se normaliza obligatoriamente a `0%`.
+- Estado de Resultados ignora cualquier `25%` histórico erróneo guardado en una empresa 14 D N°8 y no descuenta IDPC.
+
+### V2.19.9 — Logotipo RABF adaptado al tema
+
+- La imagen RABF suministrada se usa como identidad del login, cabecera, favicon e iconos de la aplicación instalada.
+- La pantalla Inicio muestra el mismo diseño como marca de agua centrada detrás de la selección de empresas.
+- El logotipo tiene fondo transparente: el área que lo rodea conserva el color del tema activo. La opacidad se ajusta para temas claros y oscuros.
+
+
+## Navegación móvil y botón Atrás
+
+En Android/PWA, el botón Atrás se maneja como navegación interna. Si existe un modal, formulario o una sección anterior, se vuelve a esa capa. Desde Inicio, el primer Atrás sólo muestra el aviso **“Presiona Atrás nuevamente para salir”** y la aplicación permanece abierta con la sesión activa. Únicamente un segundo Atrás dentro de 2,2 segundos inicia la salida. Este flujo no ejecuta `signOut()`; si el sistema operativo realmente cierra la PWA y luego se inicia una nueva ejecución, vuelve a aplicarse el login obligatorio.
+
+## Libro de Remuneraciones Electrónico — Dirección del Trabajo
+
+El módulo **Remuneraciones → Libro de Remuneraciones** puede generar el archivo de carga masiva para el Libro de Remuneraciones Electrónico (LRE) de Mi DT.
+
+La exportación **CSV Mi DT** utiliza la estructura oficial de conceptos del LRE, separador punto y coma (`;`), encabezados del tipo `Nombre concepto(código)`, fechas en formato `dd/mm/aaaa`, montos enteros y codificación ANSI/Windows-1252. El archivo se nombra `rutempleador_aaaamm.csv`.
+
+La ficha de cada trabajador contiene un bloque **Datos Libro de Remuneraciones Electrónico (Dirección del Trabajo)** con los antecedentes que no forman parte de la liquidación normal pero sí son exigidos por el LRE: fecha de inicio/término y causal, región/comuna de prestación, tipo de impuesto, tipo de jornada, días trabajados/licencia/vacaciones, discapacidad o pensión de invalidez, pensión de vejez, técnico extranjero, APV/APVC e indemnización a todo evento. AFP, FONASA/ISAPRE, AFC, CCAF y organismo administrador de la Ley 16.744 se relacionan con la configuración previsional del sistema.
+
+Antes de generar el archivo, **Validar LRE** revisa campos obligatorios y consistencia básica. Si existen errores, el CSV no se descarga. Se recomienda cerrar el mes de remuneraciones antes de generar el archivo definitivo, de modo que la declaración se base en la fotografía mensual ya pagada y no en datos provisionales.
+
+El archivo generado es una ayuda para la carga masiva. La aceptación definitiva depende de las validaciones de forma y fondo de la Dirección del Trabajo en Mi DT, por lo que debe revisarse el informe de procesamiento emitido por esa plataforma.
 
 ---
 
-## Arquitectura
+## Experiencia móvil
 
-Dependencias en una sola dirección, sin ciclos.
+Desde V2.16.2 la aplicación está diseñada para poder operar desde teléfonos como dispositivo de trabajo y no sólo como visor.
 
+En pantallas de hasta 768 px se aplica una interfaz específica:
+
+- una barra de contexto muestra siempre el módulo actual y ofrece accesos directos a **Volver** e **Inicio**;
+- el menú principal funciona como drawer lateral y muestra empresa activa, ejercicio, módulos y cierre de sesión;
+- el encabezado se compacta para priorizar navegación y guardado;
+- formularios, filtros, tarjetas y KPIs reducen espaciado y tipografía sin quitar campos;
+- los formularios de compras, ventas y asientos reorganizan sus campos para evitar cifras cortadas;
+- tablas con muchas columnas usan desplazamiento horizontal **dentro de la tabla**, evitando desplazar toda la aplicación;
+- los modales usan la pantalla completa del teléfono, con encabezado y acciones persistentes;
+- filtros y grupos de botones se envuelven automáticamente;
+- textos técnicos y nombres largos se ajustan dentro de sus contenedores;
+- se respetan las áreas seguras (`safe-area`) de Android/iOS/PWA;
+- el botón Atrás de Android cierra primero modales/formularios o vuelve al módulo anterior antes de ofrecer salir de la aplicación.
+
+### Criterio responsive
+
+La interfaz utiliza tres niveles principales:
+
+- **Escritorio:** más de 768 px, navegación lateral permanente y mayor densidad de información.
+- **Móvil/Tablet pequeña:** 341–768 px, drawer, barra de contexto y diseño compacto.
+- **Teléfono angosto:** hasta 340 px, KPIs y grids críticos bajan a una columna y se ocultan indicadores secundarios del header.
+
+En móvil se prioriza que los montos, fechas, cuentas y acciones sean utilizables. Cuando una tabla contable contiene demasiadas columnas para representarse sin perder significado, se conserva su estructura y se habilita scroll horizontal táctil dentro de ella en vez de reducir los datos hasta volverlos ilegibles.
+
+## Ajuste de columnas monetarias en móvil — V2.16.4
+
+Las vistas tributarias y contables críticas reservan espacio fijo para cifras monetarias largas. En teléfonos, las columnas de importes no se dimensionan según valores pequeños como `$ 0`; se diseñan para soportar montos de aproximadamente 12 caracteres visibles incluyendo signo monetario, separadores de miles y eventual signo negativo.
+
+Ejemplos de referencia:
+
+```text
+$999.999.999
+-$99.999.999
 ```
-Capa 0  core · state · ui · tema · salida · buscadorcuentas
-Capa 1  firebase · storage
-Capa 2  helpers · pdc · empresa · indicadores · previsional · centroscosto
-Capa 3  auth · usuarios · audit · empresas
-Capa 4  asientos · ventas · compras · honorarios · apertura
-        activofijo · remuneraciones
-Capa 5  reportes · auxiliares · tributario · cierre · flujocaja
-        conciliacion · xmlsii · busqueda · backup · impresion
-        (+ las UI: previsional-ui · centroscosto-ui · empresas-ui)
-Capa 6  app  (orquestador)
-```
 
-`app.js` importa todo, define el routing y publica en `window` las ~160 funciones que el HTML usa en sus `onclick`.
+Se aplican estas reglas:
 
-### Cómo se rompieron los ciclos
-| Ciclo | Solución |
-|---|---|
-| auth ↔ audit | `logAccion` (escritura) → firebase.js; `renderAuditLog` (vista) → audit.js |
-| auth ↔ app | auth expone `setOnAuthReady(fn)`; app.js registra el arranque |
-| ventas ↔ asientos | helpers de bajo nivel → helpers.js |
-| varios ↔ app | `ui.js` con wrappers de `rerender`/`nav`; app.js inyecta con `registrarUI()` |
+- montos alineados a la derecha;
+- números tabulares (`font-variant-numeric: tabular-nums`);
+- el importe nunca se parte en dos líneas;
+- en F29 y Renta se reduce primero el ancho del código y luego la tipografía descriptiva antes de sacrificar la columna monetaria;
+- en PPM se compacta la columna Mes y se priorizan Base y PPM;
+- en Comprobantes tipo, Debe y Haber tienen exactamente el mismo ancho en móvil.
 
-### Detalles técnicos
-- **`PDC` se muta in-place** (`splice`), nunca se reasigna: los módulos ES no permiten reasignar un import
-- **Estado de formularios interno**: `AF`, `VF`, `CF`, `REMF`, `AFB` se declaran en su módulo y se publican en `window` porque el HTML los usa en `onclick`
-- **Multiempresa**: `storage.js` prefija todas las claves con el id de empresa (`emp1:ventas-2026`). Transparente para el resto de módulos
-- **Migración automática**: los datos de la versión monoempresa pasan a "Mi Empresa" la primera vez
+### Ajustes monetarios en móvil (V2.16.4)
+En Formulario 29, Estado de Resultados y Balance General las columnas monetarias tienen un ancho reservado para importes grandes (por ejemplo `$999.999.999` o `-$99.999.999`). La descripción utiliza el espacio restante y puede envolver texto sin superponerse al monto. En F29 la columna de código queda limitada al espacio necesario para códigos de hasta cinco caracteres.
 
----
+## Impresión en hojas foliadas SII
+El sistema incluye un módulo para contribuyentes autorizados a llevar contabilidad computacional en hojas sueltas. Permite registrar rangos de folios físicos previamente autorizados/timbrados, preparar Libro Diario, Mayor, Caja e Inventarios y Balances, calibrar márgenes con una prueba en hoja blanca y reservar folios antes de imprimir. Los folios reservados deben posteriormente confirmarse como usados o inutilizados y nunca se reutilizan automáticamente. El módulo es un control operativo de impresión: no reemplaza la solicitud de autorización de contabilidad computacional ni el timbraje/autorización del SII.
 
-## Sesión y seguridad
+### Centros de costo normales y capitalizables
+Los subcentros pueden utilizarse en empresas comerciales sin ninguna lógica de activación: el tipo **Normal** es el valor por defecto y equivale a **Sin Capitalización**. En ese modo solo se acumulan y analizan costos por centro. Las opciones de fecha de inicio, curva, porcentajes y cuenta de costo para cierre/capitalización se muestran únicamente cuando el tipo es **Inversión en curso**. Se conserva compatibilidad con centros históricos de tipo `operativo` y `capitalizado`.
 
-- **Persistencia SESSION**: la sesión sobrevive a recargas (F5) pero se pierde al cerrar la pestaña o el navegador
-- **Botón 💾 en la barra superior**: se pone amarillo y late cuando hay cambios sin guardar
-- **Guardado automático** (`js/autoguardado.js`): cada 30 s / 1 / 2 / 5 min a elección, al cambiar de
-  pestaña o minimizar, y como último recurso en `pagehide` (ahí sólo alcanza localStorage, pero el
-  dato no se pierde y sube en el próximo arranque). Se activa y configura en Configuración → Sistema;
-  la preferencia es por dispositivo
-- **Salida que ofrece guardar**: al cerrar sesión con trabajo pendiente, Aceptar guarda y sale;
-  Cancelar se queda. Si el guardado falla, recién ahí pregunta si quiere salir perdiendo los cambios
-- **Aviso al salir**: si hay cambios sin guardar, avisa antes de cerrar, recargar o cerrar sesión
-- **Botón atrás (Android)**: cierra modales → vuelve a la pantalla inicial → pregunta si salir
-- **Indicador en el encabezado**: "● Sin guardar" o "✓ Guardado HH:MM"
+## Asociación automática de DTE desde asientos
 
-Para cambiar el comportamiento de sesión, en `js/auth.js`:
-```js
-firebase.auth.Auth.Persistence.SESSION  // actual
-firebase.auth.Auth.Persistence.NONE     // pide clave hasta al recargar
-firebase.auth.Auth.Persistence.LOCAL    // recuerda siempre
-```
+Al editar un comprobante de venta o compra, el botón **DTE** no obliga a volver a digitar información que ya está contenida en el asiento. El sistema intenta reconstruir automáticamente el documento desde las líneas contables: fecha de emisión, RUT, razón social, número, descripción, Neto, Exento, IVA, otros impuestos y Total.
 
-### Reglas de Firestore
+En una venta, el Total se obtiene desde la cuenta auxiliar del cliente, el IVA desde **IVA Débito Fiscal (2103003)** y otros impuestos identificables desde **Otros Impuestos por Pagar (2103004)**. En una compra, el Total se toma desde Proveedores, el IVA identificable desde las cuentas de crédito fiscal y otros impuestos recuperables desde **1108006**. En facturas de compra DTE 45/46 se incorpora además el IVA retenido registrado en **2103005** para reconstruir el total documental.
 
-El archivo **`firestore.rules`** del repositorio contiene las reglas endurecidas.
-Cada usuario sólo lee y escribe los datos de las empresas de las que es miembro,
-el rol `consulta` no puede escribir, nadie puede cambiar su propio rol y el
-registro de auditoría es inmutable.
+Los valores existentes en el documento origen o RCV siempre tienen prioridad. La inferencia contable sólo rellena campos que están vacíos, por lo que no reemplaza información tributaria real. Una vez seleccionado el tipo de DTE, el sistema determina si la base corresponde a Neto o Exento. En el caso habitual, el usuario sólo debe seleccionar el tipo de documento e indicar la fecha de vencimiento antes de asociarlo.
 
-#### Cómo funciona el aislamiento
+## V2.16.16 — Base Neto/Exento automática al asociar DTE
+- Al abrir el modal DTE desde un asiento de Venta o Compra, el sistema completa **Neto/Exento, IVA, Otros impuestos y Total** desde las líneas contables disponibles.
+- Si existe IVA identificable, se reconstruye la base afecta y se muestra inmediatamente en **Neto**, incluso antes de elegir el tipo SII.
+- Si no existe IVA y todavía no se ha elegido el tipo de documento, la base se muestra provisionalmente en **Exento**; al seleccionar el DTE se reclasifica automáticamente si corresponde a un documento afecto.
+- La reclasificación automática sólo opera mientras la base no haya sido editada manualmente por el usuario.
+- Se toleran diferencias de hasta 2 pesos producidas por redondeo del IVA, evitando crear montos exentos ficticios por reversión matemática de la tasa 19%.
+- En un caso como Total `$531.243.316` e IVA `$84.820.361`, el sistema completa Neto `$446.422.955` al abrir el documento.
 
-Las reglas no saben parsear JSON ni leer el prefijo del id en una consulta, así
-que la app mantiene dos cosas para ellas:
 
-| Qué | Dónde | Para qué |
-|---|---|---|
-| `empresas_acl/<empresaId>` | colección propia | `{creadoPor, miembros:[emails]}` — las reglas leen `miembros` |
-| campo `empresa` | en cada doc de `contabilidad_data` | permite consultar con `where('empresa','==',id)` |
 
-`js/acl.js` mantiene el ACL al día cada vez que se crea, comparte, reclama o
-elimina una empresa. `js/storage.js` estampa el campo `empresa` en cada escritura.
+## Identificación de versión en el login
 
-#### Puesta en marcha (en este orden — importante)
+La pantalla de inicio de sesión muestra en su parte inferior la **versión funcional vigente** de la aplicación y la leyenda **“Desarrollado por R.A.B.F. · 2026”**. La versión visible se sincroniza con la primera entrada del changelog durante el proceso de publicación, evitando mantener textos de versión duplicados.
 
-0. **Abre la colección nueva en tus reglas actuales.** `empresas_acl` no existe
-   todavía, así que Firestore la bloquea por defecto y la migración no puede
-   crear las fichas. Agrega este bloque a las reglas que ya tienes y publica:
-   ```
-   match /empresas_acl/{empresaId} {
-     allow read, write: if esUsuarioActivo();
-   }
-   ```
-   Es temporal: al publicar `firestore.rules` completo queda sustituido por la
-   versión estricta. Si te saltas este paso, el panel te lo dirá con el bloque
-   listo para copiar.
-1. **Prepara la base con las reglas VIEJAS todavía publicadas.**
-   Entra como administrador → Configuración → Sistema → 🔒 Aislamiento por empresa →
-   **Preparar aislamiento**. Crea las fichas de acceso y marca los documentos
-   existentes. No toca ningún dato contable.
-2. **Verifica.** El mismo panel debe quedar en verde: *"La base está lista"*.
-3. **Publica** el contenido de `firestore.rules` en
-   Firebase → Firestore Database → Reglas → Publicar.
-4. **Vuelve a verificar** desde la app. Aquí el panel cambia de modo: con las
-   reglas endurecidas publicadas, la consulta sin filtro que usaba el recuento
-   completo se rechaza **a propósito**, así que el diagnóstico pasa a contar los
-   documentos **empresa por empresa** y a contrastarlos con lo guardado en este
-   equipo. Que ese recuento se rechace es la señal de que el aislamiento está
-   activo, no un error.
-   Si aparecen documentos que este equipo tiene y la nube ya no deja leer
-   (quedaron sin marcar), el botón **🛠 Reparar documentos** los vuelve a subir
-   —hazlo desde el equipo con la información más al día.
-`firestore.rules` viene en su **versión estricta**: una empresa sin ficha de
-acceso queda fuera del alcance de todos menos los administradores. Si hay que
-migrar una base desde cero y el paso 1 no puede completarse con las reglas ya
-publicadas, agrega temporalmente `|| !hayAcl(emp)` como tercera condición de la
-función `miembro()` y bórralo apenas el panel quede en verde.
 
-Si compartes una empresa y el otro usuario no la ve, usa **Reparar accesos** en
-el mismo panel: reescribe las fichas desde el catálogo.
+## Borradores de sesión y navegación lateral
 
-#### Consecuencias a tener en cuenta
+Los formularios en edición no se guardan automáticamente como operaciones contables. Mientras la app permanece abierta, **Configuración → Sistema y Respaldos → Borradores de esta sesión** permite ver y retomar un formulario incompleto. Estos datos no se almacenan entre ejecuciones: al cerrar la app se eliminan.
 
-- **Alta de usuarios**: un administrador puede invitar a cualquiera desde
-  Configuración → Usuarios (pre-autoriza el email con su rol). Quien se registra
-  por su cuenta queda siempre inactivo y de sólo consulta hasta que un admin lo
-  apruebe. En ambos casos el id del documento tiene que ser el email que lleva
-  dentro.
-- **Proyecto nuevo desde cero**: el atajo "primer usuario = admin" que trae la app
-  no se puede validar desde las reglas, así que queda prohibido. Crea a mano el
-  primer documento en la consola de Firebase:
-  `usuarios/<tu-email>` = `{email, nombre, rol:'admin', activo:true, pendiente:false}`.
-- **Auto-promoción del usuario único**: la red de seguridad de `auth.js` que
-  promueve a admin al único usuario del sistema deja de funcionar por la misma
-  razón. Se arregla desde la consola.
-- **El catálogo `_empresas` sigue siendo escribible** por cualquier usuario con
-  permiso de escritura: es un único documento compartido. El aislamiento protege
-  los *datos*, no la lista de nombres de empresa.
-- **"Descargar de la nube"** ahora consulta empresa por empresa en lugar de traer
-  la colección completa (una consulta sin filtro se rechaza entera).
+Cada formulario dispone de **Cancelar** al final. Cancelar cierra el formulario y descarta sus campos incompletos sin tocar documentos ya contabilizados. Cerrar con `X` o usar Atrás sobre el formulario aplica el mismo criterio.
 
----
+El menú lateral utiliza categorías plegables para reducir desplazamiento y evitar perderse, especialmente en móvil. Las categorías actuales son **Registros, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración**. Al tocar una categoría se despliegan sus módulos; al entrar en un módulo, su categoría queda recordada como la activa. **Comprobantes forma parte de Registros**, junto a los demás módulos de captura y operación diaria.
 
-## Validación
+## Guardado total y reanudación móvil
 
-Cada entrega se valida en Node con stubs del DOM:
-- Los 39 módulos cargan en cadena sin ciclos
-- **27 secciones** se renderizan y dibujan contenido real
-- **12 formularios** abren sin error
-- Cobertura de `onclick`: todas las funciones que el HTML invoca están publicadas
-- Cálculos verificados contra fuentes oficiales: liquidaciones de sueldo, retención de honorarios, IUSC, F29, depreciación, capitalización por curva
+La aplicación protege cada clave de Firestore mediante una revisión (`rev`) para evitar que dos equipos se sobrescriban. En Android/PWA el sistema operativo puede recrear el contexto JavaScript al volver desde segundo plano; cuando eso ocurre, la memoria temporal de revisiones puede perderse aunque `localStorage` conserve la última copia correctamente sincronizada.
 
-### Lo que Node NO cubre
-El DOM real, los eventos y Firebase. Antes de dar por buena una versión, prueba en el navegador: login/logout, guardar en cada sección, reportes, export/import Excel, sincronización, búsqueda (Ctrl+K), impresión y uso en móvil.
+Desde V2.16.19, **Guardar Todo** puede reconstruir esa revisión únicamente si la copia local persistida coincide exactamente con el contenido actual de Firestore. Si no coincide, el guardado se bloquea y exige sincronización/revisión, manteniendo intacta la protección de concurrencia. Los errores de Guardar Todo muestran además la clave afectada.
 
----
+En el menú móvil, **Sistema y Respaldos** aparece una sola vez dentro de **Configuración**. El bloque de acciones conserva únicamente **Guardar Todo**.
 
-## Limitaciones conocidas
+## V2.16.21 — Borradores sólo de sesión y cancelación explícita
+- Los campos de formularios incompletos ya **no se persisten en localStorage** ni se restauran al volver a abrir la aplicación.
+- Al iniciar V2.16.21 se purgan automáticamente borradores persistentes creados por versiones anteriores.
+- El gestor de Configuración pasa a mostrar **Borradores de esta sesión**: sirven únicamente para retomar un formulario mientras la app sigue abierta.
+- El encabezado deja de mostrar `Borrador sin confirmar`; sólo informa cambios ya confirmados pendientes de sincronización o el último guardado.
+- **Guardar Todo** no convierte ni respalda formularios incompletos: el usuario debe usar el Guardar/Registrar del formulario o Cancelar.
+- Todo formulario de ingreso debe tener un botón **Cancelar** al final. Si un módulo no lo incorpora explícitamente, la capa común agrega uno.
+- Cancelar, cerrar con `X` o usar Atrás sobre un formulario elimina sus campos incompletos de la sesión y no escribe en Firebase.
+- Al cerrar la PWA/app, cualquier formulario incompleto restante se descarta automáticamente.
 
-- **XML SII**: el archivo cumple el formato de datos, pero para presentarlo al SII debe **firmarse digitalmente** con certificado electrónico. Eso no se puede hacer desde un sitio web estático
-- **IFRS**: el marco contable por empresa hoy adapta advertencias y el encabezado de reportes. Una implementación NIIF completa requeriría plan de cuentas por naturaleza, estados en formato NIIF, notas, deterioro (NIC 36), arrendamientos (NIIF 16) e impuestos diferidos (NIC 12)
-- **Corrección monetaria**: el régimen 14 D N°3 Pro-Pyme General **no está sujeto** a la CM del Art. 41 LIR. El módulo es informativo
-- **Indicadores automáticos**: dependen de mindicador.cl, un servicio externo gratuito. Si está caído, los valores se ingresan a mano
 
-- **Comprobantes — eliminar**: desde el modal se puede eliminar cualquier comprobante.
-  Un comprobante manual borra su asiento (y ofrece "Anular" como alternativa, que
-  conserva el N° correlativo); uno de apertura borra el asiento N°0; uno automático
-  de ventas o compras borra el **documento que lo origina**, porque el comprobante
-  es su reflejo y no existe por separado. Honorarios queda fuera: su comprobante
-  resume todas las boletas del mes, así que manda al libro correspondiente.
-- **Comprobantes — tabla**: código, cuenta y montos se dimensionan según su
-  contenido y siempre caben enteros; la descripción absorbe el espacio sobrante y
-  es la única que se corta, con el texto completo en el tooltip.
-- **Signo de presentación en los informes**: `buildMayor` guarda `saldo = debe − haber`,
-  así que las cuentas de pasivo, patrimonio e ingreso quedan con saldo negativo. Para
-  presentarlas hay que **invertir el signo**, nunca tomar el valor absoluto: con
-  `Math.abs`, una cuenta de activo con saldo acreedor (un banco sobregirado) se muestra
-  sumando en vez de restando y el balance descuadra en el DOBLE de ese saldo. El helper
-  `saldoPres(cd,saldo)` centraliza la regla y lo usan Balance, Mayor, EERR y comparativo.
-- **Aviso de saldos invertidos**: el Balance lista las cuentas que quedaron con saldo
-  contrario a su naturaleza (excluyendo las correctoras de activo, donde es normal),
-  porque casi siempre son datos pendientes de cargar.
-- **Eliminar empresa**: tres pasos. El segundo pregunta SÓLO por los datos (Cancelar ahí
-  conserva la información, la empresa se elimina igual del listado) y el tercero es la
-  salida de emergencia donde Cancelar aborta todo. Antes el segundo Cancelar se
-  interpretaba como "no borres los datos" y la empresa desaparecía igual del catálogo,
-  que es exactamente lo que la gente creía estar evitando.
-- **Empresas recuperables**: eliminar sin borrar datos deja las claves `<id>:…` intactas.
-  La sección Empresas lista esas empresas huérfanas —leyendo su nombre y RUT de la propia
-  ficha guardada— y permite volver a registrarlas con SU MISMO id, que es lo que hace que
-  reaparezcan con todos sus libros.
-- **Buscador global (Ctrl+K)**: al elegir un resultado se abre **su comprobante**, que es la
-  vista con el registro completo y su asiento. Antes sólo navegaba a la sección: si el
-  documento era de otro mes —o si ya estabas ahí— no pasaba nada visible y el clic parecía
-  perderse. Funciona para ventas, compras, asientos manuales, honorarios y apertura; los
-  resultados que tienen comprobante se marcan con 📄. Las cuentas del plan, trabajadores y
-  activos siguen navegando a su sección.
-- **Abrir en un equipo nuevo (móvil)**: ahí no hay nada en local y todo tiene que venir de
-  Firestore. `storage.leerGlobalConEstado(clave)` distingue **"la nube dice que no hay nada"**
-  de **"no pude leer la nube"** — `getGlobal` devolvía `null` en ambos casos. Con esa
-  distinción, `cargarEmpresas` ya no crea una empresa por defecto cuando la lectura falla:
-  marca `EMPRESAS.errorCarga`, la sección Empresas muestra qué pasó y no se escribe nada.
-  Antes, un fallo de lectura en el móvil creaba "Mi Empresa" y la **guardaba**, pisando en la
-  nube el catálogo real de todos los equipos. `guardarCatalogo` tampoco escribe si el
-  catálogo no se pudo leer primero.
-- **Candado contra la pérdida silenciosa** (`storage.js`): toda lectura que falla se parece
-  a "no hay datos" — la sección aparece vacía y el primer guardado escribe ese vacío encima
-  del dato bueno. Ahora `leerConEstado(clave)` distingue el error y **bloquea la escritura**
-  de esa clave hasta que se lea bien. El candado vive en storage a propósito: protege a
-  todos los módulos, al `saveAll` y al autoguardado sin que cada uno tenga que acordarse.
-  El botón de la barra superior pasa a **🚫 Guardado bloqueado** y explica qué claves y por
-  qué. Se libera solo en cuanto la lectura vuelve a funcionar (basta recargar).
-- **Identidad de dispositivo** (`js/dispositivo.js`): cada navegador donde se abre la app
-  recibe un id permanente y un nombre editable ("PC oficina", "Celular Rodrigo"), visible en
-  Configuración → Sistema. Firma cada escritura en la nube.
-- **Versión por documento y fusión** (`storage.js`): cada documento lleva `rev` (contador) y
-  el dispositivo que lo escribió. Guardar abre una **transacción**: si la rev de la nube ya
-  no es la que se leyó, otro equipo escribió en el intermedio y NO se sobrescribe.
-  Los libros son listas de registros con `id`, así que se **fusionan por id** — lo del otro
-  equipo se conserva, lo propio se agrega, y en empates gana la edición local. Lo que no es
-  una lista con id (ficha de empresa, indicadores) no se puede fusionar solo: se frena, no
-  se escribe nada y se avisa a quién pertenece la versión de la nube.
-  Detalle honesto: en una fusión, un registro borrado localmente que el otro equipo todavía
-  tenía **revive**. Es el mal menor frente a perder su trabajo completo, y se avisa.
-  La condición de conflicto mira SÓLO la revisión, no el id del dispositivo: dos pestañas
-  del mismo navegador comparten id y se habrían pisado igual.
-- **Lápidas** (`storage.js`): fusionar por id tenía un agujero — un registro borrado acá que
-  el otro equipo todavía tenía **revivía**, porque "no está en mi lista" no distingue entre
-  "nunca lo tuve" y "lo borré". Ahora cada documento guarda un mapa `borrados` {id: fecha}
-  que viaja con él, y la fusión excluye esos ids vengan de donde vengan. Se detecta solo:
-  `baseline` recuerda los ids de la última lectura o escritura buena, y lo que desaparece de
-  una escritura a la siguiente es un borrado — ningún módulo tiene que avisar nada. Si un id
-  con lápida se vuelve a crear a propósito, la lápida se levanta (y no la resucita la unión
-  con las lápidas de la nube).
-- **Cruce al iniciar sesión**: antes de dejar trabajar, la app lee de la nube TODAS las
-  claves de la empresa activa, con una pantalla de progreso. Demora un poco la apertura a
-  cambio de atacar la causa de fondo: un equipo que arranca con una foto vieja es el que
-  después genera conflictos. Al terminar, cada clave queda con su revisión, su baseline de
-  ids y sus lápidas al día. Si alguna no se pudo leer, avisa y deja el guardado bloqueado.
-- **Claves globales compartidas**: `_empresas` es el único documento que escriben TODOS los
-  usuarios, y cada uno guarda el catálogo COMPLETO. Dos personas creando su empresa a la vez
-  se borraban la del otro del listado (los datos sobrevivían, pero la empresa desaparecía).
-  Ahora `setGlobal(clave,valor,{fusionar:true})` le aplica el mismo control de versión y
-  fusión por id que a los libros, y `guardarCatalogo` adopta el catálogo fusionado para que
-  la pantalla muestre también lo que creó el otro. Las demás claves globales son de un solo
-  usuario (`_empresaActiva:<email>`) o se escriben una vez: ahí gana la última escritura,
-  que es lo correcto para una preferencia.
-- **Botón atrás en el móvil** (`js/salida.js`): en el celular el atrás es EL botón que se
-  usa, y cerrar la pestaña de un toque obliga a iniciar sesión de nuevo. Ahora escala por
-  capas: cierra el modal abierto → cierra el buscador o el menú → cierra el formulario en
-  pantalla → vuelve a la pantalla inicial → y sólo entonces **pregunta** si salir, con un
-  diálogo propio de la página que ofrece "Seguir trabajando", "Guardar y salir" (si hay
-  cambios pendientes) y "Salir".
-  Tres motivos por los que antes se cerraba igual: los modales se buscaban por
-  `style.display` pero se abren con la clase `open` (nunca se detectaban); varios caminos
-  salían sin reponer la entrada centinela del historial, y sin centinela el siguiente atrás
-  abandona la página; y usaba `confirm()` dentro de `popstate`, que Android Chrome ignora
-  con frecuencia. La centinela ahora se repone SIEMPRE y de inmediato.
-  `initAvisoSalida` es idempotente: dos manejadores harían dos cosas por cada toque.
-- **Centro de costo sólo en cuentas de resultado**: en los asientos manuales, la columna de
-  centro de costo aparece únicamente cuando la cuenta es de **gasto/costo** (`tp:'C'`,
-  prefijo 3) o de **ingreso** (`tp:'I'`, prefijo 4). Un centro de costo responde "¿dónde se
-  gastó / de dónde vino esto?", pregunta que no aplica a un banco, un proveedor o el capital:
-  activo y pasivo son saldos, no consumo. En esas cuentas el campo queda desactivado y
-  explica por qué. Si se cambia la cuenta a una que no admite centro, el que hubiera se
-  descarta —para que no viaje invisible hasta el guardado— y `guardarAsiento` lo vuelve a
-  comprobar como red de seguridad. `aceptaCentroCosto(cd)` mira el `tp` del plan y cae al
-  prefijo del código si la cuenta no está en el plan (cargada desde Excel, por ejemplo).
-- **Modal DTE al terminar el monto, no al primer dígito**: la apertura automática vivía en
-  `oninput`, así que saltaba con la primera tecla y tapaba el campo mientras se escribía.
-  Se movió a `lValFmtBlur` — se abre al salir del campo (tab o clic fuera), con el monto ya
-  completo.
-- **Buscador dinámico de auxiliares** (`inputAux` en `buscadorcuentas.js`): el RUT del
-  cliente/proveedor se escribía a mano. Ahora se busca por código o por nombre sobre las
-  fichas cargadas, muestra el giro y al elegir rellena RUT, dígito verificador y razón
-  social. Un RUT sin ficha sigue siendo válido: sólo no hay nada que autocompletar.
-- **Distribución del gasto tomada del asiento**: la cuenta de gasto ya está en el asiento
-  (es la contrapartida de la línea del proveedor). El modal la trae de ahí, recordando de
-  qué línea salió, y si en el modal se elige otra cuenta, **se actualiza la línea del
-  asiento** — son el mismo hecho económico y no pueden quedar discrepando.
 
-## Detalle de auxiliares del Balance de Apertura (`js/aperturaaux.js`)
 
-El asiento de apertura dice "Facturas por Cobrar: $4.859.531.273". Ese número cuadra el
-balance, pero no sirve para trabajar: no se sabe qué facturas lo componen, de qué clientes,
-ni cuáles están vencidas — y cuando llega un pago, no hay documento contra el cual imputarlo.
+## V2.16.24 — Vencimiento automático en Compras y Ventas
 
-Este módulo captura ese detalle documento por documento (RUT, razón social, tipo de DTE,
-número, emisión, vencimiento, monto y **saldo pendiente**), para clientes, proveedores y
-honorarios por pagar. Vive en la sección **Apertura**, en la tarjeta "📒 Detalle de
-auxiliares".
+Los capturadores SII de Compras y Ventas normalizan la fecha de vencimiento de cada DTE. Si el archivo CSV/Excel trae una columna de vencimiento, la fecha se conserva exactamente; si no existe o viene vacía, el sistema calcula **30 días corridos desde la fecha de emisión**.
 
-- **La regla que lo mantiene honesto**: la suma de los saldos capturados de una cuenta debe
-  ser igual al monto de esa cuenta en el asiento de apertura. La diferencia se muestra en
-  vivo y guardar sin cuadrar exige una confirmación explícita.
-- **Dónde viven los datos**: `S.apertura.auxDocs`, dentro del propio asiento de apertura,
-  para que viajen con él al exportar, importar y respaldar.
-- **Carga**: fila a fila con el buscador dinámico de auxiliares, o desde Excel con plantilla
-  descargable. El importador tolera variantes de nombres de columna, fechas `dd-mm-aaaa`,
-  `aaaa-mm-dd` y seriales de Excel, y reporta las filas con problemas sin abortar el resto.
-- **Para qué sirve**: los documentos entran al auxiliar como documentos normales **con su
-  fecha real de emisión** (no la del asiento de apertura), así que el aging los clasifica por
-  su antigüedad verdadera y Pagos y Cobros puede imputar contra facturas anteriores al
-  sistema.
+La fecha queda guardada en `fechaVencimiento` y se utiliza en auxiliares de clientes/proveedores, pagos y cobros, antigüedad de saldos y proyección de flujo de caja. El origen se conserva internamente como `archivo`, `estimado30d` o `manual`.
 
-## Publicar una versión (`_release.py`)
+En una reimportación se aplica una prioridad segura: una fecha manual o histórica existente no se reemplaza por una estimación; una fecha real ya registrada tampoco se pierde si un archivo posterior no trae vencimiento; y una fecha real informada por el SII puede reemplazar una estimación previa de 30 días.
 
-`index.html` cargaba `js/app.js?v=<epoch>`, pero app.js importa los otros ~50 módulos con
-rutas estáticas **sin versión**. El navegador se quedaba con la copia vieja de cada uno: se
-publicaba un arreglo en `apertura.js` y el usuario seguía ejecutando el de ayer, sin ningún
-indicio de que algo iba mal. Fue exactamente lo que pasó con la tarjeta de auxiliares — el
-código estaba publicado, el navegador servía el módulo anterior.
+La previsualización del importador muestra `Vence AAAA-MM-DD`; cuando la fecha fue calculada se identifica como `30d`.
 
-`_release.py` lo resuelve sin build: genera un **import map** que apunta cada módulo a su URL
-con la versión. Los import maps aceptan especificadores tipo URL, así que `./core.js` dentro
-de app.js queda redirigido a `./js/core.js?v=<epoch>`.
+## V2.16.23 — Cierres mensuales y anuales para contadores
 
-    python3 _release.py v2026.08.22-0130
-
-Actualiza el import map, el `?v=` de app.js y la versión visible en la barra superior. Hay que
-correrlo **en cada publicación**; si no, el problema vuelve.
-- **Asientos manuales dentro de Comprobantes**: "Asientos Manuales" dejó de ser un módulo
-  aparte. Tenía su propio listado de sólo los manuales, cuando Comprobantes ya muestra el
-  libro diario completo — dos listas del mismo hecho, y había que saber en cuál buscar.
-  Ahora el formulario vive dentro de la sección Comprobantes y se abre con **"+ Nuevo
-  Asiento"**. `abrirForm`, `editarAsiento` y `duplicarAsiento` navegan primero a Comprobantes
-  (`irAComprobantes()`): si no, al llamarlos desde el Diario o el buscador el formulario se
-  abría en una sección invisible. `renderAsientos()` sobrevive con un guard —varios flujos la
-  llaman tras guardar— y `renderSec('asientos')` redirige a Comprobantes por si queda algún
-  enlace viejo.
-- **Desbordes en móvil**: tres causas distintas, arregladas de raíz en vez de con más
-  breakpoints.
-  1. `.bal-layout` usaba `1fr 1fr` con un breakpoint por ancho de pantalla. En el móvil con
-     "vista de escritorio" el viewport es ancho pero la pantalla no, así que el breakpoint no
-     disparaba y la columna de pasivos quedaba fuera. Ahora es
-     `repeat(auto-fit,minmax(330px,1fr))`: colapsa cuando NO CABE, sin depender del viewport.
-  2. `tbody td.tl` lleva `white-space:nowrap` para las tablas de listado, pero en el balance
-     eso hacía que el nombre de la cuenta empujara la tabla y sacara los montos de la
-     pantalla. En `.bal-layout` el nombre envuelve y el monto es el que nunca se parte.
-  3. Las líneas del asiento tienen columnas fijas que suman ~900px y empujaban la página
-     entera. Ahora van dentro de `.lineas-scroll`, que scrollea horizontalmente sólo esa caja
-     (y se desactiva bajo 720px, donde ya existe la vista apilada).
-  Más una red de seguridad: `main{overflow-x:hidden}` y `min-width:0` en secciones y tarjetas
-  —lo que permite a un hijo de grid/flex encogerse en vez de fijar el mínimo por su contenido.
+- `Cierres Mensuales` es un módulo propio dentro de `Cierre de Ejercicio`; ya no depende de `Auditoría de Integridad`.
+- Administradores y contadores con permiso de edición pueden cerrar/reabrir meses de las empresas que tienen asignadas o compartidas.
+- La reapertura mensual exige un motivo de al menos 10 caracteres y queda registrada en auditoría.
+- El cierre anual y su reapertura también pueden ser ejecutados por contadores autorizados en la empresa activa, manteniendo las validaciones y trazabilidad existentes.
+- `Auditoría de Integridad` sigue siendo exclusiva de administración. Los cierres continúan ejecutando sus validaciones internas; si existen hallazgos críticos, el contador recibe un bloqueo y debe solicitar revisión al administrador.

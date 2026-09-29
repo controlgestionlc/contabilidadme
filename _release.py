@@ -12,6 +12,11 @@ La solución sin build: un import map que apunta cada módulo a su URL con la
 versión. Los import maps aceptan especificadores tipo URL, así que `./js/x.js`
 dentro de app.js queda redirigido a `./js/x.js?v=<epoch>`.
 
+El mismo problema existe con `css/styles.css`, cargado con un <link> normal
+sin import map: se le agrega/renueva su propio `?v=<epoch>` en cada release
+(ver paso 1b) para que un cambio de CSS no quede pegado en la caché del
+navegador ni en la del service worker.
+
 Uso:  python3 _release.py v2026.08.22-0130
 """
 import json,os,re,sys,time
@@ -19,6 +24,16 @@ import json,os,re,sys,time
 version=sys.argv[1] if len(sys.argv)>1 else 'v'+time.strftime('%Y.%m.%d-%H%M')
 epoch=str(int(time.time()))
 modulos=sorted(f for f in os.listdir('js') if f.endswith('.js'))
+
+# Versión funcional visible (V2.x.y) tomada de la primera entrada del CHANGELOG.
+# Así el login no depende de editar otro valor manualmente al publicar.
+release='';
+try:
+    ch=open('js/changelog.js',encoding='utf-8').read()
+    m=re.search(r"\{version:'(V[^']+)'",ch)
+    if m: release=m.group(1)
+except Exception:
+    pass
 
 imports={f'./js/{m}':f'./js/{m}?v={epoch}' for m in modulos}
 mapa=('<!-- Cache-busting: sin esto el navegador sirve los módulos viejos aunque\n'
@@ -36,10 +51,30 @@ anc=re.search(r'[ \t]*<script type="module" src="js/app\.js[^"]*"></script>',s)
 if not anc: sys.exit('no se encontró el <script> de app.js')
 s=s[:anc.start()]+mapa+'\n'+f'<script type="module" src="js/app.js?v={epoch}"></script>'+s[anc.end():]
 
+# 1b. Hoja de estilos: mismo problema que los módulos JS, pero con un <link>
+# normal (sin import map). Se le agrega/actualiza el cache-busting a mano.
+if re.search(r'<link rel="stylesheet" href="css/styles\.css(\?v=[^"]*)?">', s):
+    s=re.sub(r'<link rel="stylesheet" href="css/styles\.css(\?v=[^"]*)?">',
+              f'<link rel="stylesheet" href="css/styles.css?v={epoch}">', s)
+else:
+    sys.exit('no se encontró el <link> de styles.css')
+
 # 2. Versión visible en la barra superior
 s=re.sub(r'v20\d\d\.\d\d\.\d\d-\d{4}',version,s)
+s=re.sub(r'(<meta name="app-version" content=")[^"]+(">)',r'\1'+version+r'\2',s)
+if release:
+    if re.search(r'<meta name="app-release" content="[^"]+">',s):
+        s=re.sub(r'(<meta name="app-release" content=")[^"]+(">)',r'\1'+release+r'\2',s)
+    else:
+        s=s.replace('<meta name="app-version" content="'+version+'">','<meta name="app-version" content="'+version+'">\n<meta name="app-release" content="'+release+'">')
 
 open('index.html','w',encoding='utf-8').write(s)
+
+# 2b. Manifiesto de versión para instalaciones PWA ya abiertas. Se consulta
+# con cache:no-store y permite forzar la actualización cuando cambia.
+open('version.json','w',encoding='utf-8').write(json.dumps({
+    'version':version,'release':release or None,'revision':epoch,'publicadoEn':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
+},ensure_ascii=False,indent=2)+'\n')
 
 # 3. Nombre de la caché del service worker
 #

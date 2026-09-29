@@ -50,9 +50,30 @@ html[data-theme="sap-dark"]{
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px;display:flex;flex-direction:column}
+.login-brand-logo{display:block;width:min(48vw,170px);height:auto;margin:0 auto 14px;filter:drop-shadow(0 8px 24px rgba(0,0,0,.14))}
 header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;height:54px;display:flex;align-items:center;gap:14px;flex-shrink:0;z-index:10}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;white-space:nowrap}
-.logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--logo1),var(--logo2));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px}
+/* Accesos directos de la barra superior (solo escritorio) */
+.quick-nav{display:flex;align-items:center;gap:6px;margin-left:10px}
+.qn-btn{background:var(--sf2,rgba(255,255,255,.03));border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-size:16px;line-height:1;cursor:pointer;padding:6px 9px;transition:background .12s,border-color .12s,transform .05s}
+.qn-btn:hover{background:var(--sf);border-color:var(--ac,#3fb950)}
+.qn-btn:active{transform:translateY(1px)}
+.qn-btn.active{border-color:var(--ac,#3fb950);background:rgba(63,185,80,.14)}
+@media (max-width:768px){.quick-nav{display:none}}
+/* Marca de agua RABF en la pantalla de inicio (selección de empresas) */
+#s-inicio{position:relative;min-height:calc(100vh - 86px);background:var(--bg)}
+#s-inicio>#inicio-content{position:relative;z-index:1}
+.inicio-watermark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(42vw,360px);pointer-events:none;z-index:0}
+.inicio-watermark img{display:block;width:100%;height:auto;opacity:.11}
+html[data-theme="sap-light"] .inicio-watermark img{opacity:.075}
+html[data-theme="dark"] .inicio-watermark img,html[data-theme="sap-dark"] .inicio-watermark img{opacity:.13}
+@media (max-width:768px){#s-inicio{min-height:calc(100vh - 118px)}.inicio-watermark{width:min(58vw,280px)}}
+/* Balance de 8 columnas */
+.tbl-bal8 .c-num,.tbl-bal8 th.c-num{text-align:right;font-family:var(--mono);white-space:nowrap}
+.tbl-bal8 th{font-size:10px;text-transform:uppercase;letter-spacing:.03em}
+.tbl-bal8 td,.tbl-bal8 th{padding:4px 8px}
+.logo-icon{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.logo-icon img{display:block;width:100%;height:100%;object-fit:cover}
 .hdr-empresa{flex:1;text-align:center;color:var(--mt);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Bloque de contexto de la barra lateral: empresa activa + ejercicio */
 .nav-contexto{padding:12px 14px;border-bottom:1px solid var(--bd);background:var(--sf2)}
@@ -104,7 +125,8 @@ main{flex:1;overflow-y:auto;overflow-x:hidden;padding:22px 24px;min-width:0}
 label{font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em}
 input[type=text],input[type=number],input[type=date],select,textarea{background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:7px 10px;font-family:var(--sans);font-size:13px;width:100%;transition:border-color .15s}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ac)}
-input[type=number],input[type=date]{font-family:var(--mono)}
+input[type=number],input[type=date],input.money-input{font-family:var(--mono)}
+input.money-input{text-align:right;font-variant-numeric:tabular-nums}
 .tw{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead th{background:var(--sf2);color:var(--mt);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:7px 9px;text-align:right;border:1px solid var(--bd);white-space:nowrap}
@@ -121,8 +143,8 @@ td.cel-trunc{text-align:left;font-family:var(--sans);color:var(--tx);padding:4px
 tbody tr:hover td{background:rgba(255,255,255,.02)}
 tfoot td{background:var(--sf2);font-weight:700;padding:7px 9px;border:1px solid var(--bd);text-align:right;font-family:var(--mono);font-size:12px;color:var(--ach)}
 tfoot td.tl{text-align:left;font-family:var(--sans);color:var(--tx)}
-td input[type=number]{background:transparent;border:none;color:var(--tx);text-align:right;padding:3px 4px;width:100%;font-size:12px;min-width:72px}
-td input[type=number]:focus{background:rgba(46,160,67,.08);outline:none;border-radius:3px}
+td input[type=number],td input.money-input{background:transparent;border:none;color:var(--tx);text-align:right;padding:3px 4px;width:100%;font-size:12px;min-width:72px}
+td input[type=number]:focus,td input.money-input:focus{background:rgba(46,160,67,.08);outline:none;border-radius:3px}
 td input[type=text]{background:transparent;border:none;color:var(--tx);padding:3px 4px;font-size:12px;width:100%}
 td input[type=text]:focus{background:rgba(46,160,67,.08);outline:none;border-radius:3px}
 td select{background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--sans)}
@@ -154,6 +176,15 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 /* ASIENTOS FORM */
 .as-form{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:20px;margin-bottom:16px}
 .as-form.editing{border-color:var(--info);box-shadow:0 0 0 2px rgba(88,166,255,.15)}
+/* El formulario de asiento vive fijo en Comprobantes (modo registro): la
+   pantalla abre con él listo y el buscador del encabezado queda a la vista.
+   Antes era ventana flotante (V2.16.34); se volvió a la forma en línea porque
+   un overlay permanente taparía el buscador y la lista. */
+#as-form{padding:0;border:0;background:transparent;margin:0 0 16px}
+#as-form .as-modal-panel{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px}
+#as-form.editing{box-shadow:none}
+#as-form.editing .as-modal-panel{border-color:var(--info);box-shadow:0 0 0 2px rgba(88,166,255,.18)}
+@media(max-width:640px){#as-form .as-modal-panel{padding:14px}}
 .as-meta{display:grid;grid-template-columns:180px 1fr;gap:12px;margin-bottom:16px;align-items:end}
 /* Las líneas del asiento tienen columnas de ancho fijo que suman ~900px. En un
    contenedor más angosto empujaban la página entera. Ahora scrollean dentro de
@@ -385,10 +416,10 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .linea-dte-badge .ldb-info b{color:var(--ach)}
 .linea-dte-badge button{padding:3px 8px;font-size:10px}
 /* IMPORT SII */
-.imp-row{display:grid;grid-template-columns:26px 90px 45px 70px 105px 1.5fr 75px 75px 75px 90px 170px 150px 70px;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(48,54,61,.5);align-items:center;font-size:11px}
+.imp-row{display:grid;grid-template-columns:26px 88px 42px 66px 112px minmax(180px,2fr) 78px 76px 76px 92px 155px 135px 145px 68px;min-width:1360px;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(48,54,61,.5);align-items:center;font-size:11px}
 .imp-row.dup{background:rgba(248,81,73,.08)}
 .imp-row.excluded{opacity:.4}
-.imp-row-hdr{display:grid;grid-template-columns:26px 90px 45px 70px 105px 1.5fr 75px 75px 75px 90px 170px 150px 70px;gap:6px;padding:8px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
+.imp-row-hdr{display:grid;grid-template-columns:26px 88px 42px 66px 112px minmax(180px,2fr) 78px 76px 76px 92px 155px 135px 145px 68px;min-width:1360px;gap:6px;padding:8px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
 .imp-row input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 .imp-row select{background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:3px 5px;border-radius:4px;font-size:11px;width:100%;font-family:var(--sans)}
 .imp-row .dup-badge{display:inline-block;background:rgba(248,81,73,.2);color:var(--err);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:3px}
@@ -451,12 +482,12 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   .nav-contexto{padding:10px 12px}
   .btn-save-all{font-size:11px;padding:6px 10px}
   #user-badge{display:none!important} /* el usuario/logout vive en el nav en móvil */
-  #nav-user-block-m{margin-top:16px}
-  /* Nav como drawer deslizable */
-  nav{position:fixed;top:0;left:0;height:100vh;width:250px;max-width:82vw;z-index:60;
+  #nav-user-block-m{margin-top:16px;position:sticky;bottom:0;background:var(--sf);padding-bottom:max(12px,env(safe-area-inset-bottom))!important}
+  /* Nav como drawer deslizable, debajo de la barra superior (48px en móvil) para no tapar el nombre de la empresa */
+  nav{position:fixed;top:48px;left:0;height:calc(100vh - 48px);width:250px;max-width:82vw;z-index:60;
     transform:translateX(-100%);transition:transform .25s ease;box-shadow:2px 0 16px rgba(0,0,0,.4);padding-top:14px}
   nav.open{transform:translateX(0)}
-  #nav-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:55}
+  #nav-overlay{position:fixed;top:48px;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:55}
   #nav-overlay.open{display:block!important}
   .nav-item{padding:11px 16px;font-size:14px} /* táctil más grande */
   .nav-mobile-only{display:block!important}
@@ -566,8 +597,8 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .inicio-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}
 .inicio-hola{font-size:22px;font-weight:700}
 .inicio-sub{font-size:12px;color:var(--mt);margin-top:4px}
-.inicio-logo{width:42px;height:42px;flex:0 0 auto;background:linear-gradient(135deg,var(--logo1),var(--logo2));
-  border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;opacity:.9}
+.inicio-logo{width:48px;height:48px;flex:0 0 auto;border-radius:11px;overflow:hidden;box-shadow:0 5px 18px rgba(0,0,0,.22)}
+.inicio-logo img{display:block;width:100%;height:100%;object-fit:cover}
 
 .inicio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 .inicio-emp{display:flex;flex-direction:column;gap:5px;text-align:left;width:100%;min-width:0;
@@ -954,3 +985,594 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   .sec-hdr>div{flex-wrap:wrap;min-width:0;max-width:100%}
   .sec-hdr .btn{flex:0 0 auto}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.2 — EXPERIENCIA MÓVIL PRODUCTIVA
+   Objetivo: que toda la aplicación sea operable desde 320–768 px sin que una
+   tabla, formulario, modal o grupo de botones expulse contenido del viewport.
+   Escritorio mantiene sus reglas previas; este bloque sólo endurece móvil.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#mobile-context{display:none}
+
+@media (max-width:768px){
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{font-size:12px;min-width:0}
+  header{
+    position:relative;z-index:70;min-width:0;height:48px;padding:0 8px;gap:6px;overflow:hidden;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+  }
+  #nav-toggle{flex:0 0 auto;padding:3px 8px!important;font-size:17px!important}
+  header .logo{flex:0 0 auto;min-width:0;gap:4px}
+  header .logo-icon{width:28px;height:28px;font-size:14px}
+  #entorno-badge{max-width:72px;overflow:hidden;text-overflow:ellipsis;padding:3px 6px!important;font-size:8px!important}
+  #save-indicator{display:none!important} /* en móvil el ícono de Guardar ya indica el estado; el texto competía por espacio y se cortaba */
+  .btn-save-all{flex:0 0 auto!important;width:34px!important;height:34px!important;padding:0!important;justify-content:center;font-size:15px!important}
+  .btn-save-all .save-lbl{display:none!important}
+
+  /* Contexto persistente: nombre del módulo + volver + inicio. */
+  #mobile-context{
+    display:flex;align-items:center;gap:8px;min-height:44px;flex:0 0 auto;
+    padding:5px 8px;background:var(--sf);border-bottom:1px solid var(--bd);z-index:45;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+  }
+  #mobile-context button{
+    width:34px;height:34px;flex:0 0 34px;border:1px solid var(--bd);border-radius:8px;
+    background:var(--sf2);color:var(--tx);font-size:23px;line-height:1;display:grid;place-items:center;
+  }
+  #mobile-home{font-size:20px!important}
+  .mobile-context-text{flex:1;min-width:0;text-align:left}
+  #mobile-section-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)}
+  #mobile-section-sub{font-size:9px;color:var(--mt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
+  .layout{min-height:0;min-width:0}
+  main{
+    padding:10px 8px 22px;min-width:0;width:100%;
+    overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+    padding-bottom:max(22px,env(safe-area-inset-bottom));
+  }
+  .section,.card,.card-np,.as-form,.doc-form,.aux-card,.asiento-item{min-width:0;max-width:100%}
+  .card{padding:12px;border-radius:7px;margin-bottom:10px}
+  .card-np{margin-bottom:10px}
+  .card-title{font-size:9px;margin-bottom:10px;letter-spacing:.05em}
+  .sec-hdr{margin-bottom:10px;padding-bottom:9px;gap:7px}
+  .sec-title{font-size:15px;line-height:1.25}
+  .sec-sub{font-size:9.5px;line-height:1.45}
+  .sec-hdr>div:last-child,.save-row,.filter-row,.acc-bulk{max-width:100%;display:flex;flex-wrap:wrap;gap:6px}
+  .save-row{justify-content:flex-end;position:relative}
+
+  /* Formularios: densos, legibles y sin controles fuera de pantalla. */
+  .fg{gap:8px}
+  .grp{min-width:0;gap:2px}
+  label{font-size:8.5px;letter-spacing:.045em;line-height:1.25}
+  input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{
+    max-width:100%;min-width:0;font-size:12px;padding:7px 8px;border-radius:6px;line-height:1.25;
+  }
+  textarea{min-height:72px;resize:vertical}
+  .btn{max-width:100%;font-size:11px;padding:7px 9px;line-height:1.2}
+  .btn:not(.btn-icon-mobile){white-space:normal;text-align:center;justify-content:center}
+  .sec-hdr .btn,.filter-row .btn,.save-row .btn{flex:0 1 auto}
+  .filter-row input,.filter-row select{min-width:0;flex:1 1 130px}
+
+  /* KPIs: 2 columnas; números largos se encogen sin cortar. */
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:10px}
+  .kpi{min-width:0;padding:9px}
+  .kpi-lbl{font-size:8px;margin-bottom:4px;line-height:1.25}
+  .kpi-val{font-size:14px;overflow-wrap:anywhere}
+
+  /* Tablas: nunca agrandar el viewport. Las tablas de muchas columnas se
+     desplazan dentro de su caja, con columnas más densas y scroll táctil. */
+  .tw,.rep-scroll,.cmp-tbl-wrap,.lineas-scroll{
+    width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+    scrollbar-width:thin;border-radius:6px;
+  }
+  .tw{-webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 14px),rgba(0,0,0,.65) 100%)}
+  .tw:focus-within{-webkit-mask-image:none}
+  table{font-size:10px;max-width:none}
+  thead th{font-size:8px;padding:5px 6px;letter-spacing:.035em}
+  tbody td,tfoot td{font-size:10px;padding:5px 6px}
+  tbody td.tl,tbody td.tnm{padding:5px 6px}
+  /* Sólo tablas con muchas columnas fuerzan ancho de trabajo. */
+  .tw table:has(tr > *:nth-child(6)){min-width:620px}
+  .tw table:has(tr > *:nth-child(9)){min-width:820px}
+  .tw table:has(tr > *:nth-child(12)){min-width:1040px}
+  td input[type=number],td input[type=text],td select{font-size:10px;min-width:64px;padding:4px}
+
+  /* Tabs y barras de acciones horizontales: desplazables, no cortadas. */
+  .aux-tabs,.tabs,.tab-row,.toolbar,.action-row{
+    max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;white-space:nowrap;
+  }
+  .aux-tabs::-webkit-scrollbar,.tabs::-webkit-scrollbar,.tab-row::-webkit-scrollbar{display:none}
+
+  /* Modales como hoja de trabajo a pantalla completa: header/footer visibles. */
+  .modal-bkd{padding:0;align-items:stretch;overflow:hidden}
+  .modal-box{
+    max-width:none;width:100%;height:100dvh;max-height:100dvh;margin:0;border-radius:0;border-left:0;border-right:0;
+    padding:12px 10px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;
+    padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom));
+  }
+  .modal-hdr{position:sticky;top:-12px;z-index:20;background:var(--bg);padding-top:8px;padding-bottom:9px;margin-bottom:10px}
+  .modal-title{font-size:13px;line-height:1.3}
+  .modal-sub{font-size:9.5px}
+  .modal-close{font-size:22px;min-width:34px;min-height:34px}
+  .modal-footer{
+    position:sticky;bottom:-12px;z-index:20;background:var(--bg);margin-top:auto;padding:9px 0 8px;
+    flex-wrap:wrap;gap:6px
+  }
+  .modal-footer .btn{flex:1 1 120px}
+
+  /* Drawer: usa alto dinámico y áreas seguras. */
+  nav{height:100dvh;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom));width:276px;max-width:88vw}
+  .nav-label{font-size:8.5px;padding:8px 13px 3px}
+  .nav-item{padding:9px 13px;font-size:12px;gap:8px;min-height:38px}
+  .nav-icon{font-size:13px}
+  .nav-contexto{padding:9px 11px}
+  .nav-ctx-nombre{font-size:11px;margin-bottom:6px}
+  .nav-contexto select{font-size:11px;padding:6px 7px}
+
+  /* Mensajes y bloques informativos: texto compacto pero respirable. */
+  .empty,.info-tip,.eerr-aviso{font-size:10.5px;line-height:1.5}
+  .badge{font-size:8px;padding:2px 6px}
+  .as-glosa,.aux-rs{font-size:11px}
+}
+
+@media (max-width:420px){
+  main{padding-left:6px;padding-right:6px}
+  .card{padding:10px}
+  .sec-title{font-size:14px}
+  .kpi-val{font-size:13px}
+  /* En teléfonos angostos, botones de cabecera quedan compactos por contenido. */
+  .sec-hdr .btn{font-size:10px;padding:6px 8px}
+  .filter-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%}
+  .filter-row>*{min-width:0!important;width:100%!important}
+  .filter-row>.full,.filter-row>button:only-child{grid-column:1/-1}
+  /* Grids genéricos de dos columnas que no tengan semántica especial bajan a una. */
+  .fg{grid-template-columns:1fr}
+  .doc-grid{grid-template-columns:1fr 1fr}
+  .doc-grid-totals{grid-template-columns:1fr 1fr}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+}
+
+@media (max-width:340px){
+  #save-indicator{display:none}
+  #entorno-badge{display:none!important}
+  #mobile-context{min-height:40px;padding-top:3px;padding-bottom:3px}
+  #mobile-context button{width:31px;height:31px;flex-basis:31px}
+  .kpi-grid{grid-template-columns:1fr}
+  .doc-grid,.doc-grid-totals{grid-template-columns:1fr}
+}
+
+@media (max-width:768px){
+  /* Anchos mínimos inline heredados de escritorio que sí pertenecen a filtros
+     y controles (no a tablas): en móvil deben poder encogerse. */
+  #vf-search,#cf-search,#cmp-year-bal,#cmp-year-res,#f29-mes,
+  #imp-bulk-wrap,#impv-bulk-wrap,#imp-bulk-cc,
+  .filter-row .ac-wrap,.sec-hdr .ac-wrap{min-width:0!important;max-width:100%!important}
+  #imp-bulk-wrap,#impv-bulk-wrap{flex-basis:100%!important}
+  #imp-bulk-cc{flex:1 1 180px!important}
+
+  /* Cualquier imagen/canvas/gráfico generado debe respetar la tarjeta. */
+  .section img,.section canvas,.section svg{max-width:100%;height:auto}
+  pre,code{max-width:100%;overflow-wrap:anywhere}
+
+  /* Evitar que textos técnicos, RUT, hashes o nombres largos expandan cards. */
+  .section p,.section div,.section span{overflow-wrap:break-word}
+  .mono,[style*="font-family:var(--mono)"]{overflow-wrap:anywhere}
+
+  /* Importador SII Compras: el contenedor flex del modal comprimía el listado
+     de cientos de DTE hasta dejar visible sólo la barra horizontal. Se reserva
+     una zona táctil estable y cada documento se presenta como ficha vertical. */
+  #imp-modal .card-np{
+    flex:0 0 auto;height:min(52dvh,480px);min-height:280px;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    background:var(--bg);padding:6px
+  }
+  #imp-modal .imp-row-hdr{display:none}
+  #imp-modal .imp-row{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    min-width:0;width:100%;gap:7px 10px;margin:0 0 8px;padding:10px;
+    border:1px solid var(--bd);border-radius:8px;background:var(--sf);
+    align-items:start;font-size:10px;box-sizing:border-box
+  }
+  #imp-modal .imp-row>div{min-width:0;overflow:visible;white-space:normal!important}
+  #imp-modal .imp-row>div:nth-child(1){grid-column:1;grid-row:1}
+  #imp-modal .imp-row>div:nth-child(14){grid-column:2;grid-row:1;text-align:right}
+  #imp-modal .imp-row>div:nth-child(6){grid-column:1/-1;font-size:11px!important;font-weight:700}
+  #imp-modal .imp-row>div:nth-child(11),
+  #imp-modal .imp-row>div:nth-child(12),
+  #imp-modal .imp-row>div:nth-child(13){grid-column:1/-1}
+  #imp-modal .imp-row>div:nth-child(n+2):nth-child(-n+13)::before{
+    display:block;margin-bottom:2px;color:var(--mt);font-size:8px;
+    font-weight:800;letter-spacing:.04em;text-transform:uppercase
+  }
+  #imp-modal .imp-row>div:nth-child(2)::before{content:'Fecha'}
+  #imp-modal .imp-row>div:nth-child(3)::before{content:'DTE'}
+  #imp-modal .imp-row>div:nth-child(4)::before{content:'N° documento'}
+  #imp-modal .imp-row>div:nth-child(5)::before{content:'RUT'}
+  #imp-modal .imp-row>div:nth-child(6)::before{content:'Proveedor'}
+  #imp-modal .imp-row>div:nth-child(7)::before{content:'Neto'}
+  #imp-modal .imp-row>div:nth-child(8)::before{content:'IVA'}
+  #imp-modal .imp-row>div:nth-child(9)::before{content:'Otros'}
+  #imp-modal .imp-row>div:nth-child(10)::before{content:'Total'}
+  #imp-modal .imp-row>div:nth-child(11)::before{content:'Cuenta contable'}
+  #imp-modal .imp-row>div:nth-child(12)::before{content:'Centro de costo'}
+  #imp-modal .imp-row>div:nth-child(13)::before{content:'Referencia (nota)'}
+  #imp-modal .imp-row>div:nth-child(7),#imp-modal .imp-row>div:nth-child(8),
+  #imp-modal .imp-row>div:nth-child(9),#imp-modal .imp-row>div:nth-child(10){text-align:left!important}
+  #imp-modal .imp-row .ac-wrap,#imp-modal .imp-row input,#imp-modal .imp-row select{
+    width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box
+  }
+
+  /* El importador de Ventas comparte el mismo patrón y necesita la misma
+     reserva de altura. Sus estilos inline de escritorio se sobreescriben sólo
+     dentro del modal móvil. */
+  #impv-modal .card-np{
+    flex:0 0 auto;height:min(52dvh,480px);min-height:280px;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    background:var(--bg);padding:6px
+  }
+  #impv-modal .imp-row-hdr{display:none!important}
+  #impv-modal .imp-row{
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    min-width:0!important;width:100%!important;gap:7px 10px!important;
+    margin:0 0 8px!important;padding:10px!important;border:1px solid var(--bd)!important;
+    border-radius:8px;background:var(--sf);align-items:start!important;box-sizing:border-box
+  }
+  #impv-modal .imp-row>div{min-width:0;overflow:visible!important;white-space:normal!important}
+  #impv-modal .imp-row>div:nth-child(1){grid-column:1;grid-row:1}
+  #impv-modal .imp-row>div:nth-child(13){grid-column:2;grid-row:1;text-align:right}
+  #impv-modal .imp-row>div:nth-child(6),#impv-modal .imp-row>div:nth-child(11),
+  #impv-modal .imp-row>div:nth-child(12){grid-column:1/-1}
+  #impv-modal .imp-row>div:nth-child(6){font-size:11px!important;font-weight:700}
+  #impv-modal .imp-row>div:nth-child(n+2):nth-child(-n+12)::before{
+    display:block;margin-bottom:2px;color:var(--mt);font-size:8px;
+    font-weight:800;letter-spacing:.04em;text-transform:uppercase
+  }
+  #impv-modal .imp-row>div:nth-child(2)::before{content:'Fecha'}
+  #impv-modal .imp-row>div:nth-child(3)::before{content:'DTE'}
+  #impv-modal .imp-row>div:nth-child(4)::before{content:'N° documento'}
+  #impv-modal .imp-row>div:nth-child(5)::before{content:'RUT'}
+  #impv-modal .imp-row>div:nth-child(6)::before{content:'Cliente'}
+  #impv-modal .imp-row>div:nth-child(7)::before{content:'Neto'}
+  #impv-modal .imp-row>div:nth-child(8)::before{content:'IVA'}
+  #impv-modal .imp-row>div:nth-child(9)::before{content:'Otros'}
+  #impv-modal .imp-row>div:nth-child(10)::before{content:'Total'}
+  #impv-modal .imp-row>div:nth-child(11)::before{content:'Cuenta de ingreso'}
+  #impv-modal .imp-row>div:nth-child(12)::before{content:'Forma de pago'}
+  #impv-modal .imp-row>div:nth-child(7),#impv-modal .imp-row>div:nth-child(8),
+  #impv-modal .imp-row>div:nth-child(9),#impv-modal .imp-row>div:nth-child(10){text-align:left!important}
+  #impv-modal .imp-row .ac-wrap,#impv-modal .imp-row input,#impv-modal .imp-row select{
+    width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box
+  }
+
+  /* Resumen de asientos/auxiliares: metadatos apilables. */
+  .asiento-hdr,.aux-hdr{min-width:0}
+  .asiento-hdr>* ,.aux-hdr>*{min-width:0}
+  .cuadre-det{margin-left:0;flex-wrap:wrap;gap:5px 10px;font-size:9.5px}
+  .as-cuadre{flex-wrap:wrap;padding:8px 10px;font-size:10.5px}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.3 — AJUSTE FINO DE COLUMNAS MONETARIAS EN MÓVIL
+   Requisito: mostrar montos de hasta ~12 caracteres visibles (incluyendo $,
+   signo y separadores de miles) sin partirlos ni colapsar la columna.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.money-cell{
+  white-space:nowrap!important;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+
+@media (max-width:768px){
+  /* Comprobantes tipo: Cuenta/Descripción ocupan fila completa; Debe/Haber
+     comparten exactamente el mismo ancho. */
+  #ct-modal .ct-linea-hdr{display:none!important}
+  #ct-modal .ct-linea-row{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    gap:7px!important;
+    padding:9px!important;
+    margin-bottom:9px!important;
+    border:1px solid var(--bd);
+    border-radius:8px;
+    background:var(--sf2);
+    align-items:end!important;
+  }
+  #ct-modal .ct-linea-row>div{min-width:0}
+  #ct-modal .ct-linea-row>div:nth-child(1),
+  #ct-modal .ct-linea-row>div:nth-child(2){grid-column:1/-1}
+  #ct-modal .ct-linea-row>div:nth-child(3),
+  #ct-modal .ct-linea-row>div:nth-child(4){grid-column:auto}
+  #ct-modal .ct-linea-row>div:nth-child(5){grid-column:1/-1;text-align:right!important}
+  #ct-modal .ct-linea-row>div:nth-child(1)::before,
+  #ct-modal .ct-linea-row>div:nth-child(2)::before,
+  #ct-modal .ct-linea-row>div:nth-child(3)::before,
+  #ct-modal .ct-linea-row>div:nth-child(4)::before{
+    display:block;margin:0 0 3px;font-size:8px;font-weight:700;color:var(--mt);
+    text-transform:uppercase;letter-spacing:.045em
+  }
+  #ct-modal .ct-linea-row>div:nth-child(1)::before{content:"Cuenta"}
+  #ct-modal .ct-linea-row>div:nth-child(2)::before{content:"Descripción"}
+  #ct-modal .ct-linea-row>div:nth-child(3)::before{content:"Debe"}
+  #ct-modal .ct-linea-row>div:nth-child(4)::before{content:"Haber"}
+  #ct-modal .linea-num-inp{width:100%!important;min-width:0!important;text-align:right;font-variant-numeric:tabular-nums}
+
+  /* F29: código estrecho, descripción flexible y monto monetario real. */
+  .f29-table{width:100%!important;table-layout:fixed}
+  .f29-table .f29-cod{width:38px!important;min-width:38px!important;max-width:38px!important;padding-left:4px!important;padding-right:4px!important;text-align:center;font-size:9px!important}
+  .f29-table .f29-desc{width:auto!important;font-size:10px!important;line-height:1.25;padding:7px 7px!important;overflow-wrap:normal!important;word-break:normal}
+  .f29-table .f29-monto{width:118px!important;min-width:118px!important;max-width:118px!important;padding:7px 7px!important;font-size:11px!important;white-space:nowrap!important}
+  .f29-table tr:last-child .f29-desc,.f29-table tr:last-child .f29-monto{font-size:11.5px!important}
+
+  /* PPM: dejar la mayor parte del ancho a los valores, especialmente PPM. */
+  .ppm-table{width:100%!important;table-layout:fixed}
+  .ppm-table .ppm-mes{width:76px!important;min-width:76px!important;max-width:76px!important;font-size:10px!important;padding:6px 5px!important}
+  .ppm-table .ppm-base{width:auto!important;min-width:0!important;font-size:10.5px!important;padding:6px 7px!important;white-space:nowrap!important}
+  .ppm-table .ppm-monto{width:116px!important;min-width:116px!important;max-width:116px!important;font-size:10.5px!important;padding:6px 7px!important;white-space:nowrap!important}
+  .ppm-table thead .ppm-base,.ppm-table thead .ppm-monto{font-size:8px!important;white-space:normal!important;line-height:1.15}
+
+  /* Renta: evitar el scroll que ocultaba el inicio de las descripciones y
+     reservar una columna estable para importes largos. */
+  .renta-table-wrap{overflow-x:hidden!important;width:100%;max-width:100%}
+  .renta-rli-table{width:100%!important;min-width:0!important;table-layout:fixed}
+  .renta-rli-table .renta-cod{width:32px!important;min-width:32px!important;max-width:32px!important;padding:6px 3px!important;text-align:center;font-size:8.5px!important}
+  .renta-rli-table .renta-desc{width:auto!important;font-size:10px!important;line-height:1.25;padding:7px 6px!important;overflow-wrap:normal!important;word-break:normal}
+  .renta-rli-table .renta-monto{width:118px!important;min-width:118px!important;max-width:118px!important;padding:7px 7px!important;font-size:10.5px!important;white-space:nowrap!important}
+  .renta-rli-table tr[style*="background"] .renta-desc,
+  .renta-rli-table tr[style*="background"] .renta-monto{font-size:11px!important}
+}
+
+@media (max-width:380px){
+  .f29-table .f29-cod{width:34px!important;min-width:34px!important;max-width:34px!important}
+  .f29-table .f29-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10.5px!important}
+  .ppm-table .ppm-mes{width:68px!important;min-width:68px!important;max-width:68px!important;font-size:9.5px!important}
+  .ppm-table .ppm-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10px!important}
+  .renta-rli-table .renta-cod{width:28px!important;min-width:28px!important;max-width:28px!important}
+  .renta-rli-table .renta-monto{width:112px!important;min-width:112px!important;max-width:112px!important;font-size:10px!important}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.4 — Columnas monetarias F29 / Resultados / Balance
+   - Código F29 reservado sólo para hasta 5 caracteres.
+   - Importes con ancho estable para ~$999.999.999 / -$99.999.999.
+   - La descripción absorbe el ancho restante y envuelve dentro de su celda.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.report-money-table{width:100%;}
+.report-money-table .report-col-desc{width:auto}
+.report-money-table .report-col-money{width:132px}
+.report-money-table td:last-child{
+  white-space:nowrap;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+
+@media (max-width:768px){
+  /* F29: 5 caracteres de código máximo + monto productivo. */
+  .f29-table{table-layout:fixed!important;width:100%!important}
+  .f29-table col.f29-col-cod{width:48px!important}
+  .f29-table col.f29-col-desc{width:auto!important}
+  .f29-table col.f29-col-monto{width:132px!important}
+  .f29-table .f29-cod{
+    width:48px!important;min-width:48px!important;max-width:48px!important;
+    padding-left:3px!important;padding-right:3px!important;
+    font-size:9.5px!important;white-space:nowrap!important;text-align:center!important;
+  }
+  .f29-table .f29-desc{
+    min-width:0!important;width:auto!important;
+    padding:7px 6px!important;font-size:9.8px!important;line-height:1.22!important;
+    white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal!important;
+  }
+  .f29-table .f29-monto{
+    width:132px!important;min-width:132px!important;max-width:132px!important;
+    padding:7px 8px!important;font-size:10.8px!important;white-space:nowrap!important;
+    text-align:right!important;overflow:visible!important;
+  }
+  .f29-table tr:last-child .f29-desc{font-size:10.7px!important}
+  .f29-table tr:last-child .f29-monto{font-size:11.2px!important}
+
+  /* Estado de Resultados y Balance: misma geometría monetaria. */
+  #resultados-content .report-money-table,
+  #balance-content .report-money-table{
+    width:100%!important;table-layout:fixed!important;min-width:0!important;
+  }
+  #resultados-content .report-money-table col.report-col-money,
+  #balance-content .report-money-table col.report-col-money{width:132px!important}
+  #resultados-content .report-money-table td:first-child,
+  #balance-content .report-money-table td:first-child{
+    min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;
+  }
+  #resultados-content .report-money-table td:last-child,
+  #balance-content .report-money-table td:last-child{
+    width:132px!important;min-width:132px!important;max-width:132px!important;
+    padding-left:7px!important;padding-right:8px!important;
+    white-space:nowrap!important;text-align:right!important;
+    font-size:10.8px!important;font-variant-numeric:tabular-nums;
+  }
+  #resultados-content .report-money-table td:first-child{font-size:10.5px!important;line-height:1.25}
+  #balance-content .report-money-table td:first-child{font-size:10.5px!important;line-height:1.25}
+  #resultados-content .report-money-table tr[style*="background"] td:last-child,
+  #balance-content .report-money-table tr[style*="background"] td:last-child,
+  #resultados-content .report-money-table tr.rtot td:last-child,
+  #balance-content .report-money-table tr.rtot td:last-child{font-size:11.2px!important}
+}
+
+@media (max-width:380px){
+  .f29-table col.f29-col-cod{width:44px!important}
+  .f29-table col.f29-col-monto{width:124px!important}
+  .f29-table .f29-cod{width:44px!important;min-width:44px!important;max-width:44px!important;font-size:9px!important}
+  .f29-table .f29-monto{width:124px!important;min-width:124px!important;max-width:124px!important;font-size:10.2px!important}
+  #resultados-content .report-money-table col.report-col-money,
+  #balance-content .report-money-table col.report-col-money{width:124px!important}
+  #resultados-content .report-money-table td:last-child,
+  #balance-content .report-money-table td:last-child{width:124px!important;min-width:124px!important;max-width:124px!important;font-size:10.2px!important}
+}
+
+/* ═══ V2.16.5 — Hojas foliadas SII ═══ */
+.fsii-card{margin-bottom:14px}.fsii-card .card-title{font-size:14px;font-weight:800;margin-bottom:12px}.fsii-range-kpis,.fsii-preview-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.fsii-range-kpis span,.fsii-preview-grid>div{padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg2);display:flex;flex-direction:column;gap:2px}.fsii-range-kpis b,.fsii-preview-grid b{font-family:var(--mono);font-size:13px}.fsii-range-kpis small,.fsii-preview-grid small{font-size:9px;color:var(--mt);text-transform:uppercase}.fsii-actions,.fsii-actions-main{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.fsii-actions-main{margin:12px 0}.check-line{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:var(--tx);margin:8px 0}.check-line input{width:auto!important;margin-top:1px}.badge.warn{background:rgba(210,153,34,.12);color:#b7791f;border:1px solid rgba(210,153,34,.3)}.badge.err{background:rgba(248,81,73,.1);color:var(--err);border:1px solid rgba(248,81,73,.25)}
+
+/* Libros mensuales Compra/Venta — control y conciliación con RCV SII */
+.lcv-portada{display:flex;justify-content:space-between;gap:18px;padding:16px 18px;margin-bottom:12px;border:1px solid var(--bd);border-radius:10px;background:var(--sf);text-transform:uppercase}.lcv-portada>div{display:flex;flex-direction:column;gap:3px}.lcv-portada>div:last-child{text-align:right}.lcv-portada strong{font-size:14px}.lcv-portada span{font-size:10px;color:var(--mt)}.lcv-filtros{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.lcv-filtros select{min-width:180px}.lcv-nota{padding:9px 12px;margin-bottom:12px;border-radius:7px;background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.25);color:var(--info);font-size:11px}.lcv-resumen,.lcv-grupo{margin-bottom:14px}.lcv-resumen .card-title{padding:13px 15px 0;font-size:13px;font-weight:800}.lcv-efecto{display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--bd);font-size:10px;background:var(--sf2)}.lcv-efecto span{font-family:var(--mono)}.lcv-grupo-title{display:flex;justify-content:space-between;gap:12px;padding:12px 15px;border-bottom:1px solid var(--bd);background:var(--sf2)}.lcv-grupo-title span{font-size:11px;color:var(--mt)}.lcv-detalle{font-size:10px;white-space:nowrap}.lcv-detalle th{font-size:9px}.lcv-ok,.lcv-validacion{padding:10px 13px;border-radius:8px;margin:10px 0 14px;font-size:11px;line-height:1.5}.lcv-ok{color:var(--ach);background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3)}.lcv-validacion.warn{color:var(--warn);background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.35)}.lcv-validacion.error{color:var(--err);background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.35)}.lcv-validacion hr{border:0;border-top:1px solid currentColor;opacity:.2;margin:8px 0}
+@media(max-width:700px){.lcv-portada{flex-direction:column}.lcv-portada>div:last-child{text-align:left}.lcv-filtros{display:grid!important;grid-template-columns:1fr 1fr}.lcv-filtros>*{min-width:0!important;width:100%!important}.lcv-filtros select:nth-child(3){grid-column:1/-1}.lcv-grupo-title{flex-direction:column;gap:3px}}
+/* Impresión de Libros de Compras/Ventas: hoja CARTA HORIZONTAL. El detalle tiene
+   hasta 14 columnas y en vertical se desbordaba. En horizontal, con table-layout
+   fijo al 100% del ancho y fuente reducida, todas las columnas caben en la hoja. */
+@page libroscv{size:letter landscape;margin:8mm}
+@media print{
+  #s-libroscv{page:libroscv;font-size:8pt}
+  .lcv-portada{border:1px solid #333;background:#fff;color:#000}
+  .lcv-portada span{color:#333}
+  .lcv-ok,.lcv-validacion{display:none}
+  .lcv-grupo{break-before:page;border:0}
+  .lcv-grupo:first-of-type{break-before:auto}
+  .lcv-resumen,.lcv-grupo{box-shadow:none}
+  /* Impresión siempre en blanco y negro, sea cual sea el tema de pantalla. */
+  #s-libroscv,#s-libroscv .card-np,#s-libroscv .lcv-grupo,#s-libroscv .lcv-resumen,#s-libroscv .lcv-grupo-title{background:#fff!important;color:#000!important}
+  #s-libroscv .lcv-detalle td,#s-libroscv .lcv-resumen td{background:#fff!important;color:#000!important}
+  #s-libroscv .lcv-detalle th,#s-libroscv .lcv-resumen th,#s-libroscv tfoot td{background:#eee!important;color:#000!important}
+  /* El envoltorio no debe recortar ni desplazar: a ancho completo, sin scroll ni
+     máscara de degradado. */
+  #s-libroscv .tw{overflow:visible!important;-webkit-mask-image:none!important;mask-image:none!important}
+  #s-libroscv table{width:100%!important;border-collapse:collapse}
+  /* Detalle: layout fijo para que el ancho total nunca supere la hoja. Fuente
+     sans e interletra ajustada para que hasta los montos de 9 dígitos entren
+     completos en su celda sin recortarse (validado con Chromium a 6pt). */
+  .lcv-detalle{table-layout:fixed;width:100%;font-size:6pt}
+  .lcv-detalle th{font-size:5.8pt;white-space:normal;word-break:break-word}
+  .lcv-detalle th,.lcv-detalle td{padding:1px 1.5px;border:.4pt solid #999;overflow:hidden}
+  /* Números en una línea, fuente proporcional y algo condensada para que quepan;
+     el texto largo (razón social, referencia) envuelve. */
+  .lcv-detalle td{white-space:nowrap;font-family:var(--sans);letter-spacing:-.2px}
+  .lcv-detalle td.tl{white-space:normal;word-break:break-word;letter-spacing:normal}
+  /* Anchos: correlativo angosto, razón social más ancha; el resto reparte parejo. */
+  .lcv-detalle th:nth-child(1),.lcv-detalle td:nth-child(1){width:3.2%}
+  .lcv-detalle th:nth-child(5),.lcv-detalle td:nth-child(5){width:12%}
+  /* Resumen: cabe holgado, sólo se achica la fuente. */
+  .lcv-resumen table{font-size:7pt}
+  .lcv-resumen th{font-size:6.5pt}
+}
+#folio-print-root{display:none}
+@media(max-width:768px){.fsii-range-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.fsii-preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fsii-margins{grid-template-columns:repeat(2,minmax(0,1fr))!important}.fsii-actions-main .btn{flex:1 1 190px}.fsii-card .tw{overflow-x:auto}.fsii-card .tw table{min-width:620px}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   V2.16.13 — Comprobantes móvil + pendientes de cuadratura RCV
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cmp-alert-link{
+  appearance:none;border:1px solid rgba(248,81,73,.45);background:rgba(248,81,73,.04);
+  color:var(--err);border-radius:7px;padding:4px 8px;font-family:var(--mono);
+  font-size:11px;font-weight:800;cursor:pointer;line-height:1.2
+}
+.cmp-alert-link:hover,.cmp-alert-link:focus-visible{background:rgba(248,81,73,.14);outline:2px solid rgba(248,81,73,.18);outline-offset:1px}
+.cmp-mobile-list{display:none}
+
+.imp-pending-alert{
+  margin-top:10px;padding:10px 12px;border:1px solid var(--err);border-radius:8px;
+  background:rgba(248,81,73,.08);color:var(--err);font-size:11px;line-height:1.45
+}
+.imp-pending-alert>span{display:block;color:var(--mt);margin-top:7px}
+.imp-pending-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.imp-pending-link,.imp-pending-mini{
+  appearance:none;border:1px solid rgba(248,81,73,.4);background:var(--sf);color:var(--err);
+  border-radius:6px;padding:4px 7px;font:700 10px/1.2 var(--mono);cursor:pointer
+}
+.imp-pending-mini{padding:3px 5px;font-family:inherit;font-size:9px}
+.imp-pending-row{background:rgba(248,81,73,.055)!important;box-shadow:inset 3px 0 0 var(--err)}
+.imp-pending-focus{animation:impPendingPulse .45s ease-in-out 0s 3 alternate}
+@keyframes impPendingPulse{from{box-shadow:inset 3px 0 0 var(--err),0 0 0 0 rgba(248,81,73,.05)}to{box-shadow:inset 3px 0 0 var(--err),0 0 0 3px rgba(248,81,73,.22)}}
+
+@media (max-width:768px){
+  /* Comprobantes deja de ser una tabla horizontal en teléfonos. */
+  #comprobantes-content .cmp-desktop-wrap{display:none!important}
+  #comprobantes-content .cmp-mobile-list{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px}
+  .cmp-mobile-card{
+    min-width:0;border:1px solid var(--bd);border-radius:9px;background:var(--sf);padding:9px;
+    box-shadow:0 1px 2px rgba(0,0,0,.025);cursor:pointer
+  }
+  .cmp-mobile-card.is-error{border-color:rgba(248,81,73,.55);background:rgba(248,81,73,.035)}
+  .cmp-mobile-head{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:7px;align-items:center;font-size:9.5px;color:var(--mt)}
+  .cmp-mobile-head strong{font:800 11px/1.2 var(--mono);color:var(--tx);white-space:nowrap}
+  .cmp-mobile-origin{justify-self:end;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cmp-origin);background:color-mix(in srgb,var(--cmp-origin) 10%,transparent);padding:2px 6px;border-radius:99px;font-weight:700}
+  .cmp-mobile-glosa{font-size:11px;font-weight:600;line-height:1.3;margin:7px 0;overflow-wrap:anywhere}
+  .cmp-mobile-error{display:inline-block;margin-left:6px;color:var(--err);font-size:9px;font-weight:800;white-space:nowrap}
+  .cmp-mobile-money{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px;margin:7px 0}
+  .cmp-mobile-money>div{min-width:0;border:1px solid var(--bd);border-radius:7px;padding:6px 8px;background:var(--bg2);text-align:right}
+  .cmp-mobile-money small{display:block;font-size:8px;font-weight:800;color:var(--mt);letter-spacing:.05em;margin-bottom:2px}
+  .cmp-mobile-money strong{display:block;font:800 12px/1.15 var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cmp-mobile-card.is-error .cmp-mobile-money strong{color:var(--err)}
+  .cmp-mobile-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--mt);font-size:9px}
+  .cmp-mobile-action{flex:0 0 auto!important;white-space:nowrap!important;font-size:9px!important;padding:5px 8px!important}
+
+  /* Filtros de Comprobantes: dos columnas estables y sin anchos heredados. */
+  #comprobantes-content>.filter-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px!important;width:100%}
+  #comprobantes-content>.filter-row>.f-lbl,
+  #comprobantes-content>.filter-row>.doc-count{grid-column:1/-1;width:100%!important}
+  #comprobantes-content>.filter-row>div,
+  #comprobantes-content>.filter-row>input,
+  #comprobantes-content>.filter-row>select,
+  #comprobantes-content>.filter-row>button{min-width:0!important;width:100%!important;max-width:100%!important}
+  #comprobantes-content>.filter-row .ac-lista{min-width:min(92vw,320px)!important}
+
+  .imp-pending-links{display:grid;grid-template-columns:1fr;gap:5px}
+  .imp-pending-link{text-align:left;width:100%;white-space:normal}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   V2.16.18 — Menú lateral por categorías + gestor de borradores
+   ═══════════════════════════════════════════════════════════════ */
+.nav-home{margin-bottom:4px}
+.nav-group{border-top:1px solid transparent}
+.nav-group-toggle{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 13px;background:transparent;border:0;color:var(--tx);cursor:pointer;
+  font-family:var(--sans);font-size:11px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.055em;text-align:left;user-select:none;
+}
+.nav-group-toggle:hover{background:var(--sf2)}
+.nav-group-toggle>span:first-child{display:flex;align-items:center;min-width:0;gap:7px}
+.nav-cat-icon{font-size:13px;width:18px;text-align:center;flex:0 0 18px}
+.nav-chevron{font-size:20px;line-height:1;color:var(--mt);transition:transform .15s ease}
+.nav-group.open>.nav-group-toggle{background:var(--sf2);color:var(--ac)}
+.nav-group.open>.nav-group-toggle .nav-chevron{transform:rotate(90deg)}
+.nav-group-items{display:none;padding-bottom:4px}
+.nav-group.open>.nav-group-items{display:block}
+.nav-group-items .nav-item{padding-left:21px}
+.nav-group-items .nav-item .nav-icon{opacity:.9}
+
+.draft-list{display:flex;flex-direction:column;gap:8px}
+.draft-item{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border:1px solid var(--bd);background:var(--bg);border-radius:8px;padding:10px 11px;
+}
+.draft-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.draft-main strong{font-size:12px;color:var(--tx)}
+.draft-main span{font-size:10px;color:var(--mt)}
+.draft-main small{font-size:9.5px;color:var(--mt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-actions{display:flex;gap:6px;flex:0 0 auto}
+.draft-actions .btn{padding:6px 9px;font-size:10px}
+
+@media(max-width:768px){
+  .nav-group-toggle{padding:11px 13px;font-size:11px;min-height:42px}
+  .nav-group-items .nav-item{padding-left:27px}
+  .draft-item{align-items:stretch;flex-direction:column}
+  .draft-main small{white-space:normal;overflow:visible}
+  .draft-actions{width:100%}
+  .draft-actions .btn{flex:1}
+}
+/* ═══ INVENTARIO MULTIBODEGA ═══ */
+.inv-actions,.inv-right{display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px}.inv-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:14px}.inv-kpis>div{background:var(--sf);border:1px solid var(--bd);border-radius:9px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}.inv-kpis small,.inv-doc-grid small{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--mt)}.inv-kpis strong{font-family:var(--mono);font-size:18px}.inv-kpis .warn{border-color:rgba(210,153,34,.55);background:rgba(210,153,34,.07)}.inv-kpis .warn strong{color:var(--warn)}
+.inv-tabs{display:flex;gap:5px;overflow-x:auto;margin:0 0 12px;padding-bottom:2px}.inv-tabs button{border:1px solid var(--bd);background:var(--sf);color:var(--mt);border-radius:7px;padding:8px 12px;white-space:nowrap;cursor:pointer;font-size:11px;font-weight:650}.inv-tabs button.active{background:var(--ach);border-color:var(--ach);color:#fff}.inv-toolbar{display:flex;gap:8px;align-items:end;padding:11px}.inv-toolbar input{flex:1;min-width:180px}.inv-toolbar select{min-width:180px}.inv-toolbar>.btn{margin-left:auto}.inv-toolbar-actions{display:flex;gap:7px;margin-left:auto;white-space:nowrap}
+.inv-table-wrap{overflow:auto;max-width:100%}.inv-table{width:100%;border-collapse:collapse;font-size:11px;min-width:840px}.inv-table th{font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--mt);background:var(--sf2);white-space:nowrap}.inv-table th,.inv-table td{padding:8px 10px;border-bottom:1px solid var(--bd);vertical-align:middle}.inv-table td.num,.inv-table th.num{text-align:right;font-family:var(--mono);white-space:nowrap}.inv-table td small{display:block;color:var(--mt);font-size:9px;margin-top:2px}.inv-table tfoot td{background:var(--sf2);font-size:10px}.inv-table .btn{padding:4px 8px;font-size:10px}.inv-negativo{background:rgba(248,81,73,.07)}.inv-anulado{opacity:.55;text-decoration-color:var(--err)}
+.badge.inv-ok{background:rgba(63,185,80,.12);color:var(--ach)}.badge.inv-warn{background:rgba(210,153,34,.14);color:var(--warn)}.badge.inv-bad{background:rgba(248,81,73,.13);color:var(--err)}.badge.inv-muted{background:var(--sf2);color:var(--mt)}.badge.inv-type-entrada,.badge.inv-type-ajuste_entrada{background:rgba(63,185,80,.12);color:var(--ach)}.badge.inv-type-salida,.badge.inv-type-ajuste_salida{background:rgba(248,81,73,.1);color:var(--err)}.badge.inv-type-traspaso{background:rgba(88,166,255,.12);color:var(--info)}.inv-mini{font-size:8px;color:var(--info);border:1px solid currentColor;padding:1px 4px;border-radius:4px;margin-left:6px}.inv-card-title{padding:12px 14px;border-bottom:1px solid var(--bd);font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.05em}
+.inv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}.inv-master-card{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.inv-master-card h3{font-size:14px;margin:4px 0}.inv-master-card p{color:var(--mt);font-size:11px;margin:5px 0 10px}.inv-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.inv-chips span{font-size:9px;padding:3px 7px;border:1px solid var(--bd);border-radius:100px;background:var(--sf2)}.inv-chips em{font-size:10px;color:var(--mt)}
+.inv-kpis.inv-kpis-4{grid-template-columns:repeat(4,minmax(0,1fr))}.inv-toma-table{min-width:1120px}.inv-count-input{width:92px!important;min-width:72px;text-align:right;padding:6px 7px!important}.inv-diferencia{background:rgba(210,153,34,.055)}.inv-pos{color:var(--ach)}.inv-neg{color:var(--err)}.inv-review-actions{display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;margin-top:12px;padding:11px;background:color-mix(in srgb,var(--sf) 94%,transparent);border:1px solid var(--bd);border-radius:9px;z-index:2}.badge.inv-toma-en_proceso,.badge.inv-toma-devuelta{background:rgba(88,166,255,.12);color:var(--info)}.badge.inv-toma-pendiente_autorizacion{background:rgba(210,153,34,.14);color:var(--warn)}.badge.inv-toma-aplicada{background:rgba(63,185,80,.12);color:var(--ach)}.badge.inv-toma-rechazada{background:rgba(248,81,73,.13);color:var(--err)}
+.inv-upload-box{display:flex;flex-direction:column;gap:8px;border:2px dashed var(--bd);border-radius:10px;padding:22px;margin:12px 0;background:var(--sf2);text-align:center}.inv-upload-box input{margin:auto;max-width:100%}.inv-upload-box span{font-size:10px;color:var(--mt)}.inv-import-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}.inv-import-summary span{display:flex;flex-direction:column;gap:3px;border:1px solid var(--bd);border-radius:8px;padding:10px;background:var(--sf2);font-size:9px;text-transform:uppercase;color:var(--mt)}.inv-import-summary b{font:700 19px var(--mono);color:var(--tx)}.inv-import-summary .inv-ok{border-color:rgba(63,185,80,.35)}.inv-import-summary .inv-info{border-color:rgba(88,166,255,.35)}.inv-import-summary .inv-bad{border-color:rgba(248,81,73,.35)}.inv-import-preview{max-height:48vh;border:1px solid var(--bd);border-radius:8px}.badge.inv-import-nuevo{background:rgba(63,185,80,.12);color:var(--ach)}.badge.inv-import-actualiza{background:rgba(88,166,255,.12);color:var(--info)}.badge.inv-import-omite{background:var(--sf2);color:var(--mt)}.badge.inv-import-error{background:rgba(248,81,73,.13);color:var(--err)}
+.inv-oc-line{position:relative;display:grid;grid-template-columns:minmax(240px,2fr) repeat(3,minmax(110px,1fr)) minmax(120px,1fr) 30px;gap:8px;align-items:end;padding:9px 0;border-bottom:1px solid var(--bd)}.inv-oc-line label,.inv-rec-line label{display:flex;flex-direction:column;gap:5px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mt)}.inv-oc-line input,.inv-oc-line select,.inv-rec-line input{width:100%;box-sizing:border-box}.inv-line-total{display:flex;flex-direction:column;gap:4px;text-align:right;padding-bottom:7px}.inv-line-total small{font-size:9px;color:var(--mt);text-transform:uppercase}.inv-line-total strong{font-family:var(--mono)}.inv-oc-totales{display:flex;justify-content:flex-end;gap:18px;padding:13px;margin-top:10px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px}.inv-oc-totales span{display:flex;gap:8px;font-size:11px}.inv-oc-totales b{font-family:var(--mono)}.inv-rec-line{display:grid;grid-template-columns:minmax(240px,2fr) repeat(3,minmax(120px,1fr)) minmax(110px,auto);gap:9px;align-items:end;padding:10px 0;border-bottom:1px solid var(--bd)}.inv-rec-line>div:first-child{display:flex;flex-direction:column;gap:3px}.inv-rec-line small{color:var(--mt);font-size:9px}.inv-rec-actions{display:flex;gap:5px;justify-content:flex-end}.inv-rec-actions .btn{padding:6px 8px;font-size:9px}.inv-kpi-text{font-family:var(--sans)!important;font-size:13px!important}.inv-oc-recs{margin-top:12px}.badge.inv-oc-borrador{background:var(--sf2);color:var(--mt)}.badge.inv-oc-emitida{background:rgba(88,166,255,.12);color:var(--info)}.badge.inv-oc-parcial{background:rgba(210,153,34,.14);color:var(--warn)}.badge.inv-oc-recibida{background:rgba(63,185,80,.12);color:var(--ach)}.badge.inv-oc-cerrada_parcial{background:rgba(163,113,247,.12);color:#a371f7}.badge.inv-oc-anulada{background:rgba(248,81,73,.13);color:var(--err)}
+.inv-modal-box{max-width:1040px}.inv-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.inv-form-grid label,.inv-line label{display:flex;flex-direction:column;gap:5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mt)}.inv-form-grid .span2{grid-column:1/-1}.inv-form-grid input,.inv-form-grid select,.inv-form-grid textarea,.inv-line input,.inv-line select{width:100%;box-sizing:border-box}.inv-form-grid .inv-check{flex-direction:row;align-items:center;gap:8px;padding-top:18px;font-size:11px;text-transform:none;color:var(--tx)}.inv-form-grid .inv-check input{width:auto}.inv-lines{margin-top:16px;border:1px solid var(--bd);border-radius:8px;padding:0 11px 11px}.inv-lines .inv-card-title{margin:0 -11px 10px}.inv-line{position:relative;display:grid;grid-template-columns:minmax(230px,2fr) repeat(4,minmax(110px,1fr)) 30px;gap:8px;align-items:end;padding:9px 0;border-bottom:1px solid var(--bd)}.inv-line small{font-size:9px;color:var(--mt);text-transform:none;font-weight:400}.inv-line-del{width:28px;height:32px;border:1px solid var(--bd);background:transparent;color:var(--err);border-radius:5px;cursor:pointer;font-size:18px}.inv-lines>.btn{margin-top:10px}.inv-alert{border:1px solid rgba(210,153,34,.4);background:rgba(210,153,34,.08);color:var(--warn);padding:9px 12px;border-radius:8px;margin-bottom:12px;font-size:11px}.inv-alert.error{border-color:rgba(248,81,73,.35);background:rgba(248,81,73,.07);color:var(--err)}.inv-doc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}.inv-doc-grid>div{border:1px solid var(--bd);border-radius:7px;padding:9px;display:flex;flex-direction:column;gap:3px}.inv-doc-grid strong{font-size:11px}.inv-nota{padding:10px 12px;margin-top:10px;background:var(--sf2);border-radius:7px;font-size:11px}
+@media(max-width:820px){.inv-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.inv-kpis>div:nth-child(4){grid-column:span 2}.inv-kpis.inv-kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}.inv-toolbar{align-items:stretch;flex-wrap:wrap}.inv-toolbar input,.inv-toolbar select,.inv-toolbar .btn{width:100%;margin:0}.inv-toolbar-actions{width:100%;margin:0;display:grid;grid-template-columns:1fr}.inv-form-grid{grid-template-columns:1fr}.inv-form-grid .span2{grid-column:auto}.inv-line{grid-template-columns:1fr 1fr;padding-right:34px}.inv-line>label:first-child{grid-column:1/-1}.inv-line-del{position:absolute;right:0;top:10px}.inv-doc-grid{grid-template-columns:1fr 1fr}.inv-review-actions{position:static;flex-wrap:wrap}.inv-review-actions .btn{flex:1}.inv-oc-line{grid-template-columns:1fr 1fr;padding-right:34px}.inv-oc-line>label:first-child{grid-column:1/-1}.inv-line-total{align-items:flex-start;text-align:left}.inv-rec-line{grid-template-columns:1fr 1fr}.inv-rec-line>div:first-child{grid-column:1/-1}.inv-oc-totales{flex-direction:column;gap:7px}}
+@media(max-width:480px){.inv-kpis{grid-template-columns:1fr 1fr}.inv-kpis strong{font-size:15px}.inv-master-card{flex-direction:column}.inv-line{grid-template-columns:1fr}.inv-line>label:first-child{grid-column:auto}.inv-doc-grid{grid-template-columns:1fr}.inv-import-summary{grid-template-columns:1fr 1fr}}
