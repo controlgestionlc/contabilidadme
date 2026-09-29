@@ -15,6 +15,10 @@ const APP_VERSION='v2026.09.21-2310';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.24',fecha:'29-09-2026',titulo:'Tema Claro por defecto',items:[
+    {tipo:'cambio',txt:'El tema predeterminado ahora es Claro. Al abrir esta versión, quien tenía el tema Oscuro pasa una sola vez a Claro; después se respeta la elección de cada equipo.'},
+    {tipo:'cambio',txt:'Los temas se llaman Claro, Oscuro y Noche. Quien usaba los temas anteriores con otro nombre conserva el mismo aspecto.'},
+  ]},
   {version:'V2.21.23',fecha:'29-09-2026',titulo:'Empresas eliminadas que volvían a aparecer',items:[
     {tipo:'correccion',txt:'Una empresa eliminada por su dueño podía volver a aparecer al entrar de nuevo, si había quedado una copia en el catálogo principal. Ahora el catálogo del dueño guarda una marca de eliminación que manda sobre cualquier copia, y cuando el administrador entra, esa copia se limpia sola.'},
     {tipo:'correccion',txt:'Si la nube rechaza el cambio del catálogo, la app ahora lo avisa y deja la empresa en el listado. Antes la borraba solo en este equipo, como si se hubiera guardado, y reaparecía al volver a entrar.'},

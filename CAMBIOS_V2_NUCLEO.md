@@ -1,5 +1,10 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.21.24 — Tema Claro por defecto
+
+- Ids de tema: `claro` (predeterminado, en `:root`), `dark` (Oscuro), `noche`. `sap-light`/`sap-dark` se traducen solos.
+- Migración única (`tema-claro-v2.21.24` en localStorage): quien tenía `dark` guardado pasa a `claro`, porque hasta ahora `initTema` grababa `dark` aunque nadie lo eligiera.
+
 ## V2.21.23 — Lápidas en el catálogo por usuario
 
 - `eliminarEmpresa` deja `{id, creadoPor, eliminada}` en `_empresas_u:<dueño>`; `unirCatalogos` la aplica sobre copias con el mismo dueño o sin dueño (p. ej. el maestro).

@@ -2,8 +2,26 @@
 /* ═══ TEMAS ═══
    Se aplican con data-theme en <html>. Todo el CSS usa estas variables. */
 
-/* Tema por defecto: oscuro original (verde) */
-:root,html[data-theme="dark"]{
+/* Claro — tema por defecto: fondo neutro, azul de acción */
+:root,html[data-theme="claro"]{
+  --bg:#f5f6f7;      /* fondo aplicación */
+  --sf:#ffffff;      /* tarjetas y paneles */
+  --sf2:#eaecee;     /* encabezados de tabla, hover */
+  --bd:#d9d9d9;      /* bordes */
+  --ac:#0a6ed1;      /* azul (acción principal) */
+  --ach:#0854a0;     /* azul hover */
+  --tx:#32363a;      /* texto principal */
+  --mt:#6a6d70;      /* texto secundario */
+  --err:#bb0000;     /* negativo */
+  --warn:#e9730c;    /* crítico */
+  --info:#0a6ed1;
+  --acc:#0a6ed1;  /* alias histórico de --ac */
+  --logo1:#0a6ed1;--logo2:#0854a0;
+  --mono:'IBM Plex Mono',monospace;--sans:'Sora',sans-serif;
+}
+
+/* Oscuro — el tema original (verde) */
+html[data-theme="dark"]{
   --bg:#0d1117;--sf:#161b22;--sf2:#21262d;--bd:#30363d;
   --ac:#2ea043;--ach:#3fb950;--tx:#e6edf3;--mt:#8b949e;
   --err:#f85149;--warn:#d29922;--info:#58a6ff;
@@ -12,31 +30,13 @@
   --mono:'IBM Plex Mono',monospace;--sans:'Sora',sans-serif;
 }
 
-/* SAP Fiori claro — fondo neutro, azul corporativo SAP */
-html[data-theme="sap-light"]{
-  --bg:#f5f6f7;      /* fondo aplicación */
-  --sf:#ffffff;      /* tarjetas y paneles */
-  --sf2:#eaecee;     /* encabezados de tabla, hover */
-  --bd:#d9d9d9;      /* bordes */
-  --ac:#0a6ed1;      /* azul SAP (acción principal) */
-  --ach:#0854a0;     /* azul SAP hover */
-  --tx:#32363a;      /* texto principal */
-  --mt:#6a6d70;      /* texto secundario */
-  --err:#bb0000;     /* negativo SAP */
-  --warn:#e9730c;    /* crítico SAP */
-  --info:#0a6ed1;
-  --acc:#0a6ed1;  /* alias histórico de --ac */
-  --logo1:#0a6ed1;--logo2:#0854a0;
-  --mono:'IBM Plex Mono',monospace;--sans:'Sora',sans-serif;
-}
-
-/* SAP oscuro — Fiori Horizon dark */
-html[data-theme="sap-dark"]{
+/* Noche — oscuro azulado */
+html[data-theme="noche"]{
   --bg:#12171c;
   --sf:#1c2228;
   --sf2:#272d33;
   --bd:#3a4149;
-  --ac:#4db1ff;      /* azul SAP claro sobre oscuro */
+  --ac:#4db1ff;      /* azul claro sobre oscuro */
   --ach:#7ac6ff;
   --tx:#eaecee;
   --mt:#a9b4be;
@@ -65,8 +65,8 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;hei
 #s-inicio>#inicio-content{position:relative;z-index:1}
 .inicio-watermark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(42vw,360px);pointer-events:none;z-index:0}
 .inicio-watermark img{display:block;width:100%;height:auto;opacity:.11}
-html[data-theme="sap-light"] .inicio-watermark img{opacity:.075}
-html[data-theme="dark"] .inicio-watermark img,html[data-theme="sap-dark"] .inicio-watermark img{opacity:.13}
+html[data-theme="claro"] .inicio-watermark img{opacity:.075}
+html[data-theme="dark"] .inicio-watermark img,html[data-theme="noche"] .inicio-watermark img{opacity:.13}
 @media (max-width:768px){#s-inicio{min-height:calc(100vh - 118px)}.inicio-watermark{width:min(58vw,280px)}}
 /* Balance de 8 columnas */
 .tbl-bal8 .c-num,.tbl-bal8 th.c-num{text-align:right;font-family:var(--mono);white-space:nowrap}

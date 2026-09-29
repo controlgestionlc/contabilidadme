@@ -127,7 +127,7 @@ function renderSistema(){
   const guardado=estadoTexto('save-indicator','—');
   const nube=estadoTexto('fs-indicator','Sin información');
   const excel=estadoTexto('db-indicator','Sin carpeta vinculada');
-  const temaActual=document.documentElement.getAttribute('data-theme')||'dark';
+  const temaActual=document.documentElement.getAttribute('data-theme')||'claro';
 
   const tarjeta=(icono,titulo,sub,cuerpo)=>`<div class="card" style="margin-bottom:0">
     <div style="font-size:15px;font-weight:700">${icono} ${titulo}</div>
