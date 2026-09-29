@@ -13,13 +13,14 @@ import {S} from './state.js';
 
 // Estructura guardada en S.centros (clave 'centros' por empresa):
 // [{id, nivel:1, nombre, codigo}, {id, nivel:2, padre:<idPredio>, nombre, codigo,
-//   estado:'formacion'|'productivo'|'capitalizado', fechaInicio, capitalizadoEn}]
+//   estado:'normal'|'operativo'|'formacion'|'capitalizado', fechaInicio, capitalizadoEn}]
 
 // Tipo de centro: define si sus costos se capitalizan o van directo a resultado.
 export const CC_ESTADOS=[
-  {id:'operativo',    nm:'Operativo',      desc:'Sus costos van directo a resultado (administración, transporte, etc.)'},
+  {id:'normal',       nm:'Normal',          desc:'Centro de costo estándar, sin capitalización. Ideal para empresas comerciales y áreas administrativas.'},
+  {id:'operativo',    nm:'Operativo',       desc:'Centro operativo sin capitalización (se mantiene por compatibilidad con centros existentes).'},
   {id:'formacion',    nm:'Inversión en curso', desc:'Acumula costos capitalizables según una curva por año'},
-  {id:'capitalizado', nm:'Capitalizado',   desc:'Sus costos ya se traspasaron a activo fijo'},
+  {id:'capitalizado', nm:'Capitalizado',    desc:'Sus costos ya se traspasaron a activo fijo'},
 ];
 
 // ── Curvas de capitalización ──
@@ -31,6 +32,7 @@ export const CC_ESTADOS=[
 // Las plantillas agrícolas son solo un punto de partida: se pueden editar
 // libremente o usar "Personalizada" para cualquier tipo de proyecto.
 export const CURVAS_DEFAULT=[
+  {id:'none',      nm:'Sin Capitalización',pcts:[0]},
   {id:'cerezo',    nm:'Cerezos',      pcts:[100,100,100,50,0]},
   {id:'manzano',   nm:'Manzanos',     pcts:[100,100,100,50,0]},
   {id:'arandano',  nm:'Arándanos',    pcts:[100,100,50,0]},
@@ -41,7 +43,7 @@ export const CURVAS_DEFAULT=[
   {id:'obra',      nm:'Obra / proyecto (100% hasta terminar)',pcts:[100,100,100]},
   {id:'custom',    nm:'Personalizada',pcts:[100,100,50,0]},
 ];
-export const curvaInfo=id=>CURVAS_DEFAULT.find(c=>c.id===id)||CURVAS_DEFAULT[0];
+export const curvaInfo=id=>CURVAS_DEFAULT.find(c=>c.id===id)||CURVAS_DEFAULT.find(c=>c.id==='cerezo')||CURVAS_DEFAULT[0];
 
 // ── Temporada / ejercicio de costos ──
 // Por defecto la temporada va de MAYO a ABRIL (año agrícola chileno), que es
@@ -69,6 +71,10 @@ export const temporadaRango=t=>({
 // Si el año supera la curva, ya es 100% costo (0% activo).
 export function pctCapitalizacion(centro,anio){
   if(!centro)return 0;
+  // Los centros normales/operativos nunca capitalizan, aunque conserven
+  // campos históricos de una configuración anterior.
+  if(!['formacion','capitalizado'].includes(centro.estado))return 0;
+  if(centro.curva==='none')return 0;
   const pcts=(centro.pctsCapitalizacion&&centro.pctsCapitalizacion.length)
     ? centro.pctsCapitalizacion
     : curvaInfo(centro.curva).pcts;
@@ -129,11 +135,11 @@ export function crearCentro({nivel,nombre,codigo,padre,estado,fechaInicio,curva,
   S.centros.push({
     id, nivel:+nivel, nombre, codigo:codigo||'',
     padre:nivel===2?padre:null,
-    estado:nivel===2?(estado||'formacion'):null,
+    estado:nivel===2?(estado||'normal'):null,
     fechaInicio:fechaInicio||'',
-    curva:nivel===2?(curva||'cerezo'):null,
+    curva:nivel===2?(curva||'none'):null,
     pctsCapitalizacion:nivel===2?(pctsCapitalizacion||null):null,
-    cuentaCosto:nivel===2?(cuentaCosto||'3101003'):null, // cuenta de costo del huerto
+    cuentaCosto:nivel===2?(cuentaCosto||null):null, // solo se usa en centros con capitalización
     capitalizadoEn:null,
   });
   return id;

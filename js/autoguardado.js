@@ -1,21 +1,13 @@
-// autoguardado.js — Guardado automático y salida segura
+// autoguardado.js — Autoguardado seguro
 //
-// Tres redes de protección, de menos a más agresiva:
-//
-//   1. Temporizador: cada N segundos, si hay cambios pendientes, guarda solo.
-//   2. Al dejar la pestaña (cambiar de pestaña, minimizar, bloquear el móvil):
-//      guarda en ese momento, que es cuando la gente cree que "ya terminó".
-//   3. Al cerrar: `pagehide` alcanza a escribir en localStorage aunque el
-//      navegador ya no espere promesas — Firestore puede no alcanzar, pero el
-//      dato no se pierde y sube en el próximo arranque.
-//
-// La preferencia es POR DISPOSITIVO (localStorage, como el tema): alguien puede
-// querer el autoguardado en su computador de la oficina y no en un equipo
-// prestado.
+// Desde V2.16.21 los formularios incompletos viven sólo durante la sesión:
+//   · BORRADOR DE SESIÓN: texto aún no confirmado -> memoria, nunca Firebase.
+//   · CONFIRMADO: estado de negocio ya aceptado -> puede sincronizarse a Firebase.
+// Al cerrar la aplicación, los formularios incompletos se descartan.
 
 import {toast} from './core.js';
 import {AUTH} from './state.js';
-import {haySinGuardar} from './salida.js';
+import {haySinGuardar, hayBorrador, hayCambiosConfirmados} from './salida.js';
 
 const CLAVE='cv:_autoguardado';
 const OPCIONES=[30,60,120,300];      // segundos ofrecidos en la interfaz
@@ -39,11 +31,13 @@ function grabarPreferencia(){
 // ¿Tiene sentido guardar ahora?
 // Con claves bloqueadas por una lectura fallida NO se guarda nada automático:
 // el autoguardado es justamente el que convertiría el error en pérdida.
-const procede=()=>!!(AUTH.user&&haySinGuardar()&&!AG.guardando&&window.saveAll
+const procede=()=>!!(AUTH.user&&hayCambiosConfirmados()&&!AG.guardando&&window.saveAll
                      &&!(window.storage&&window.storage.hayBloqueos&&window.storage.hayBloqueos()));
 
 // Guardado silencioso: sin toast, salvo que falle
 export async function guardarAuto(motivo){
+  // Los formularios incompletos permanecen sólo en memoria durante esta sesión.
+  // Nunca se persisten ni se transforman en una operación contable por el temporizador.
   if(!procede())return false;
   AG.guardando=true;
   try{
@@ -85,19 +79,23 @@ export async function guardarTodoAhora(){
       bloq.map(b=>'  · '+b.clave+' — '+b.motivo).join('\n')+'\n\n'+
       'La app los está mostrando vacíos, y guardar ahora escribiría ese vacío\n'+
       'encima de tus datos reales. Por eso no se guarda nada.\n\n'+
-      (bloq.some(b=>/permission|insufficient|permisos/i.test(b.motivo))
-        ? 'Motivo: la nube dice que NO tienes permiso sobre esta empresa. Si la\n'+
-          'creaste tú, recarga la página (se repara sola). Si te la compartieron,\n'+
-          'pide a un administrador: Configuración → Sistema → Reparar accesos.'
-        : 'Recarga la página cuando vuelva la conexión: si se leen bien, el\n'+
-          'guardado se desbloquea solo.'));
+      'Recarga la página cuando vuelva la conexión: si se leen bien, el\n'+
+      'guardado se desbloquea solo.');
     return;
   }
-  if(!haySinGuardar()){toast('✓ No hay cambios pendientes');return;}
+  if(!hayCambiosConfirmados()){
+    if(hayBorrador())toast('Completa el formulario y usa Guardar/Registrar, o Cancelar para descartarlo.');
+    else toast('✓ No hay cambios pendientes');
+    return;
+  }
   await window.saveAll();
 }
 
 // Refleja en el botón de la barra superior si hay algo pendiente
+// Ojo: el innerHTML siempre debe conservar <span class="save-lbl">…</span>
+// alrededor del texto — es lo que el CSS usa para ocultar la etiqueta y dejar
+// sólo el ícono en móvil. Perder ese span (por ejemplo, poniendo un string
+// plano) rompe ese comportamiento sin que sea evidente por qué.
 export function actualizarBotonGuardar(){
   const btn=document.getElementById('btn-guardar-todo');
   if(!btn)return;
@@ -106,18 +104,17 @@ export function actualizarBotonGuardar(){
   if(bloq.length){
     btn.classList.remove('pendiente');
     btn.classList.add('bloqueado');
-    btn.innerHTML='🚫 Guardado bloqueado';
+    btn.innerHTML='<span aria-hidden="true">🚫</span><span class="save-lbl">Guardado bloqueado</span>';
     btn.title='No se pudieron leer '+bloq.length+' registro(s) desde la nube ('+bloq.map(b=>b.clave).join(', ')+
       '). No se guarda nada para no sobrescribirlos. Recarga la página cuando vuelva la conexión.';
     return;
   }
   btn.classList.remove('bloqueado');
-  const sucio=haySinGuardar();
+  const sucio=hayCambiosConfirmados();
   btn.classList.toggle('pendiente',sucio);
-  btn.title=sucio
-    ? 'Hay cambios sin guardar — haz clic para guardarlos ahora'
-    : 'Todo guardado'+(AG.activo?` · autoguardado cada ${etiquetaIntervalo(AG.segundos)}`:'');
-  btn.innerHTML=sucio?'💾 Guardar •':'💾 Guardar';
+  btn.title=sucio ? 'Hay cambios confirmados sin sincronizar — haz clic para guardarlos ahora'
+    : 'Todo guardado'+(AG.activo?` · sincronización automática cada ${etiquetaIntervalo(AG.segundos)}`:'');
+  btn.innerHTML=`<span aria-hidden="true">💾</span><span class="save-lbl">Guardar${sucio?' •':''}</span>`;
 }
 
 // ── Salida segura ──
@@ -129,7 +126,8 @@ export async function confirmarSalida(accion='salir'){
     `Aceptar  → guardar y ${accion}\n`+
     `Cancelar → volver sin ${accion}`);
   if(!guardar)return false;
-  const ok=await window.saveAll();
+  let ok=true;
+  if(hayCambiosConfirmados())ok=await window.saveAll();
   if(!ok){
     return confirm('No se pudo guardar.\n\n¿Quieres '+accion+' de todas formas y perder esos cambios?');
   }
@@ -146,11 +144,6 @@ export function initAutoguardado(){
   });
   window.addEventListener('blur',()=>guardarAuto('pierde el foco'));
 
-  // Último recurso al cerrar: no se pueden esperar promesas, pero storage
-  // escribe en localStorage de forma síncrona, así que el dato queda salvado.
-  window.addEventListener('pagehide',()=>{
-    if(AUTH.user&&haySinGuardar()&&window.saveAll){try{window.saveAll({silencioso:true});}catch(e){}}
-  });
 
   actualizarBotonGuardar();
 }

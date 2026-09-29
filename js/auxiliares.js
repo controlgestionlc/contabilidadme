@@ -4,11 +4,12 @@ import {S} from './state.js';
 import {todosDocsVentas, todosDocsCompras, CUENTAS_AUX, esAux, abrirAsientoDesde} from './asientos.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import {docsApertura, tipoDeCuenta} from './aperturaaux.js';
-import {ordenarConNotas} from './auxdocs.js';
+import {ordenarConNotas, refFolioDoc} from './auxdocs.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {ccOpts} from './centroscosto.js';
 import {logAccion} from './firebase.js';
 import {rerender} from './ui.js';
+import {pagosDocumento} from './motor-contable.js';
 
 let AUX_TAB='c';       // 'c'=clientes | 'p'=proveedores
 let AUX_VIEW='detalle';// 'detalle' | 'aging'
@@ -104,18 +105,30 @@ function renderAuxiliares(){
     if(d.razonSocial)bucket[k].razonSocial=d.razonSocial;
   });
 
-  // 3) Movimientos manuales SIN DTE (pagos, ajustes) — solo los que NO tienen .dte
+  // 3) Movimientos contra el auxiliar que NO son el documento en sí: pagos,
+  //    cobros y ajustes manuales.
+  //    Los asientos de DOCUMENTO (facturas, NC/ND, honorarios) ya quedaron
+  //    contados como documento en los pasos 1/2, así que se excluyen aquí. Si no,
+  //    el movimiento de proveedor/cliente de cada factura se contaba dos veces
+  //    (una como DTE y otra como falso "Pago"), duplicando el saldo. El motor V2
+  //    marca esos asientos con tipo 'documento' (antes se detectaban por m.dte,
+  //    que ya no se usa en los asientos automáticos).
   S.asientos.forEach(a=>{
     if(a.anulado)return;
+    if(a.tipo==='documento'||a.tipo==='apertura')return;
     (a.movs||[]).forEach(m=>{
       if(!m.rutCodigo||!esAux(m.cd))return;
-      if(m.dte)return; // ya contado en paso 1/2 como DTE
+      if(m.dte)return; // línea de un asiento manual que representa un DTE ya contado
       const tipo=CUENTAS_AUX[m.cd];
       const bucket=tipo==='cliente'?clientes:proveedores;
       const k=m.rutCodigo;
       if(!bucket[k])bucket[k]={rutCodigo:k,rutDV:m.rutDV,razonSocial:m.razonSocial||'',docs:[],total:0};
       const mov=tipo==='cliente'?(m.debe||0)-(m.haber||0):(m.haber||0)-(m.debe||0);
-      bucket[k].docs.push({tipo:'manual',fecha:a.fecha,glosa:a.glosa,asientoId:a.id,asientoN:a.n,desc:m.desc||'',debe:m.debe||0,haber:m.haber||0,montoSigno:mov});
+      // Si el movimiento es un pago/cobro que referencia un documento (el asiento
+      // de pago guarda docId y folio en cada línea), se etiqueta para colgarlo
+      // bajo su factura en el auxiliar, en vez de mostrarlo como línea suelta.
+      bucket[k].docs.push({tipo:'manual',fecha:a.fecha,glosa:a.glosa,asientoId:a.id,asientoN:a.n,desc:m.desc||'',debe:m.debe||0,haber:m.haber||0,montoSigno:mov,
+        esPago:a.tipo==='pago',refDocId:m.docId||'',refFolio:(m.folio!=null&&m.folio!=='')?String(m.folio):''});
       bucket[k].total+=mov;
       if(m.razonSocial)bucket[k].razonSocial=m.razonSocial;
     });
@@ -239,7 +252,7 @@ function renderAuxDetalle(data,el){
           const orig=arrOrig.find(x=>x.id===d.docOriginalId);
           if(orig){
             const total=(orig.total||0)*signo;
-            const pagado=(orig.pagos||[]).reduce((s,p)=>s+(p.monto||0),0);
+            const pagado=pagosDocumento(orig,AUX_TAB==='c'?'cliente':'proveedor',S.asientos).reduce((s,p)=>s+(p.monto||0),0);
             const saldoPendiente=total-pagado;
             if(pagado>0&&Math.abs(saldoPendiente)<1){
               estadoPago=`<span style="background:rgba(46,160,67,.15);color:var(--ach);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:6px">✓ PAGADO</span>`;
@@ -258,10 +271,11 @@ function renderAuxDetalle(data,el){
           const orig=arrOrig.find(x=>x.id===d.docOriginalId);
           const tipoAux=AUX_TAB==='c'?'cliente':'proveedor';
           if(orig){
-            refNota=orig.folioRef
+            const ref=refFolioDoc(orig);
+            refNota=ref
               ? `<span style="background:rgba(46,160,67,.13);color:var(--ach);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:6px;cursor:pointer"
-                   title="Asociada a la factura N°${orig.folioRef}. Pulsa para cambiarla."
-                   onclick="event.stopPropagation();abrirAsociarNota('${orig.id}','${d.rutCodigo||a.rutCodigo}','${tipoAux}','auxiliares')">🔗 REF. N°${orig.folioRef}</span>`
+                   title="Asociada a la factura N°${ref}. Pulsa para cambiarla."
+                   onclick="event.stopPropagation();abrirAsociarNota('${orig.id}','${d.rutCodigo||a.rutCodigo}','${tipoAux}','auxiliares')">🔗 REF. N°${ref}</span>`
               : `<span style="background:rgba(255,193,7,.15);color:var(--warn);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:6px;cursor:pointer"
                    title="Sin folio de referencia: se descuenta de la factura más antigua con saldo. Pulsa para asociarla a la que corresponde."
                    onclick="event.stopPropagation();abrirAsociarNota('${orig.id}','${a.rutCodigo}','${tipoAux}','auxiliares')">⚠ SIN REFERENCIA · Asociar</span>`;
@@ -275,10 +289,13 @@ function renderAuxDetalle(data,el){
           <td style="font-weight:600;color:${saldo>=0?'var(--ach)':'var(--err)'}">${fmtC(saldo)}</td>
         </tr>`;
       }else{
-        // Movimiento manual sin DTE (pagos, ajustes)
-        return `<tr style="background:rgba(88,166,255,.04)">
+        // Movimiento manual sin DTE (pagos, ajustes). Si es un pago colgado de
+        // su factura (nivel 1), se indenta para que se lea junto a ella.
+        const hijaPago=d.__nivel===1;
+        const lbl=d.esPago?(AUX_TAB==='c'?'Cobro recibido':'Pago realizado'):'💰 Movimiento';
+        return `<tr style="background:rgba(88,166,255,.04)"${hijaPago?' class="aux-nota-hija"':''}>
           <td class="tl" style="font-family:var(--mono);font-size:10px">${d.fecha}</td>
-          <td class="tl" style="font-size:11px"><span style="color:var(--info);font-weight:600;cursor:pointer" onclick="abrirAsientoDesde('${d.asientoId}')">💰 Pago — Asiento N°${d.asientoN||''}</span><div style="color:var(--mt);font-size:10px;margin-top:1px">${d.glosa||''}${d.desc?' — '+d.desc:''}</div></td>
+          <td class="tl" style="font-size:11px${hijaPago?';padding-left:22px':''}"><span style="color:var(--info);font-weight:600;cursor:pointer" onclick="abrirAsientoDesde('${d.asientoId}')">${hijaPago?'↳ ':''}${lbl} — Asiento N°${d.asientoN||''}</span><div style="color:var(--mt);font-size:10px;margin-top:1px">${d.glosa||''}${d.desc?' — '+d.desc:''}</div></td>
           <td>${d.debe?fmt(d.debe):'–'}</td>
           <td>${d.haber?fmt(d.haber):'–'}</td>
           <td style="font-weight:600;color:${saldo>=0?'var(--ach)':'var(--err)'}">${fmtC(saldo)}</td>
@@ -458,12 +475,16 @@ function renderAuxAging(data,elArg){
 // Permite editar la ficha de un cliente/proveedor desde el mismo listado,
 // para asignar cuenta y CC por defecto sin salir a Excel.
 let FICHA_EDIT={rutCodigo:'',rutDV:'',razonSocial:'',tipo:'',esNueva:false};
+let FICHA_ON_SAVED=null;   // callback opcional tras crear una ficha (ej. desde honorarios)
 
 // Abre el editor para crear un auxiliar manualmente desde cero (RUT editable).
-function abrirFichaAuxNueva(){
-  const tipo=AUX_TAB==='c'?'cliente':'proveedor';
+// opts (opcional): {tipo, rutInput, razonSocial, onSaved} para abrirlo desde
+// otro flujo (ej. "Nuevo honorario") forzando el tipo y precargando datos.
+function abrirFichaAuxNueva(opts={}){
+  const tipo=opts.tipo||(AUX_TAB==='c'?'cliente':'proveedor');
   FICHA_EDIT={rutCodigo:'',rutDV:'',razonSocial:'',tipo,esNueva:true};
-  renderFichaModal({},tipo,true);
+  FICHA_ON_SAVED=typeof opts.onSaved==='function'?opts.onSaved:null;
+  renderFichaModal({},tipo,true,{rut:opts.rutInput||'',rs:opts.razonSocial||''});
 }
 
 function abrirFichaAux(rutCodigo,rutDV,razonSocial){
@@ -472,12 +493,14 @@ function abrirFichaAux(rutCodigo,rutDV,razonSocial){
   renderFichaModal(ficha,FICHA_EDIT.tipo,false);
 }
 
-function renderFichaModal(ficha,tipo,esNueva){
+function renderFichaModal(ficha,tipo,esNueva,prefill={}){
   const modal=document.getElementById('ficha-modal');
   const cont=document.getElementById('ficha-modal-body');
   if(!modal||!cont)return;
   const tipoLbl=tipo==='cliente'?'cliente':'proveedor';
   const filtroCta=tipo==='cliente'?'ingreso':'compra';
+  const preRut=(prefill.rut||'').replace(/"/g,'&quot;');
+  const preRs=(prefill.rs||'').replace(/"/g,'&quot;');
 
   // Bloque de identificación: editable si es nueva, fijo si se está editando.
   const identBlock=esNueva
@@ -485,10 +508,10 @@ function renderFichaModal(ficha,tipo,esNueva){
         <div style="font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:8px">Nuevo ${tipoLbl}</div>
         <div class="fg">
           <div class="grp rut-wrap"><label>RUT</label>
-            <input type="text" id="ficha-rut" placeholder="Ej: 76.543.210-8" value="" oninput="fichaRutInput(this.value)">
+            <input type="text" id="ficha-rut" placeholder="Ej: 76.543.210-8" value="${preRut}" oninput="fichaRutInput(this.value)">
             <span class="rut-dv" id="ficha-rut-dv"></span>
           </div>
-          <div class="grp full"><label>Razón social</label><input type="text" id="ficha-rs" placeholder="Nombre del ${tipoLbl}" value=""></div>
+          <div class="grp full"><label>Razón social</label><input type="text" id="ficha-rs" placeholder="Nombre del ${tipoLbl}" value="${preRs}"></div>
         </div>
         <div id="ficha-rut-warn" style="font-size:11px;color:var(--err);margin-top:2px;display:none"></div>
       </div>`
@@ -594,6 +617,9 @@ async function guardarFichaAuxUI(){
   cerrarFichaAux();
   toast(`✅ Ficha de ${razonSocial} ${esNueva?'creada':'actualizada'}`);
   logAccion(`${esNueva?'Creó':'Editó'} ficha de ${tipo}`,`${razonSocial} (${rutFmt(rutCodigo,rutDV)})`);
+  // Si se abrió desde otro flujo (ej. "Nuevo honorario"), devolver el control
+  // ahí con la ficha recién creada, sin recargar la vista de auxiliares.
+  if(FICHA_ON_SAVED){const cb=FICHA_ON_SAVED;FICHA_ON_SAVED=null;cb(ficha);return;}
   // Si es nueva, dejarla visible buscándola por su RUT
   if(esNueva)AUX_Q=rutCodigo;
   rerender();

@@ -3,6 +3,7 @@
 
 import {FS, fsStatusSet} from './firebase.js';
 import {DISPOSITIVO, initDispositivo} from './dispositivo.js';
+import {compressToBase64, decompressFromBase64} from './lzstring.js';
 initDispositivo();
 
 // ═══ SHIM DE STORAGE — Firestore + localStorage fallback ═══
@@ -14,6 +15,30 @@ initDispositivo();
   const prefix='cv:';
   const COLL='contabilidad_data'; // colección Firestore
 
+  // ── Compresión del valor guardado en Firestore ──
+  // Un documento Firestore no puede superar 1 MB. El libro de asientos del año
+  // crecía como un único string JSON y al pasar ~1 MB la escritura fallaba con
+  // "The value of property value is longer than 1048487 bytes". Comprimimos los
+  // valores grandes con lz-string (base64, ASCII) SÓLO en la frontera con
+  // Firestore: en memoria y en localStorage el valor sigue siendo JSON plano.
+  // El prefijo LZ1| marca un valor comprimido; sin él se lee tal cual (los
+  // documentos antiguos, sin comprimir, se siguen leyendo sin cambios).
+  const LZ_PREFIJO='LZ1|';
+  const LZ_UMBRAL=100000; // sólo comprimir strings grandes (>~100 KB)
+  function comprimirValor(v){
+    const s=v==null?'':String(v);
+    if(s.length<LZ_UMBRAL||s.slice(0,LZ_PREFIJO.length)===LZ_PREFIJO)return s;
+    try{
+      const c=LZ_PREFIJO+compressToBase64(s);
+      return c.length<s.length?c:s; // por seguridad, nunca crecer
+    }catch(e){console.warn('LZ compress falló, se guarda plano',e);return s;}
+  }
+  function descomprimirValor(v){
+    if(typeof v!=='string'||v.slice(0,LZ_PREFIJO.length)!==LZ_PREFIJO)return v;
+    try{return decompressFromBase64(v.slice(LZ_PREFIJO.length))||'';}
+    catch(e){console.error('LZ decompress falló',e);return v;}
+  }
+
   function getLocal(key){try{const v=localStorage.getItem(prefix+key);return v!==null?{key,value:v}:null;}catch(e){return null;}}
   function setLocal(key,value){try{localStorage.setItem(prefix+key,value);return true;}catch(e){return false;}}
   function delLocal(key){try{localStorage.removeItem(prefix+key);}catch(e){}}
@@ -24,6 +49,7 @@ initDispositivo();
       const doc=await FS.db.collection(COLL).doc(key).get();
       if(doc.exists){
         const d=doc.data();
+        if(d&&typeof d.value==='string')d.value=descomprimirValor(d.value);
         revs.set(key,+((d||{}).rev)||0);
         if(d&&d.borrados)tumbas.set(key,{...(tumbas.get(key)||{}),...d.borrados});
         if(d&&d.value!==undefined)fijarBaseline(key,d.value);
@@ -48,7 +74,7 @@ initDispositivo();
     if(!FS.enabled||!FS.db)return false;
     try{
       FS.pendingWrites++;fsStatusSet('syncing');
-      await FS.db.collection(COLL).doc(key).set({value,empresa:empresaDeClave(key),ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+      await FS.db.collection(COLL).doc(key).set({value:comprimirValor(value),empresa:empresaDeClave(key),ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
       FS.pendingWrites--;FS.lastSaveTs=Date.now();
       if(FS.pendingWrites===0)fsStatusSet('saved');
       return true;
@@ -62,6 +88,38 @@ initDispositivo();
   async function delRemote(key){
     if(!FS.enabled||!FS.db)return;
     try{await FS.db.collection(COLL).doc(key).delete();}catch(e){console.warn('FS del',key,e);}
+  }
+
+
+  async function delRemoteVersionado(k){
+    if(!FS.enabled||!FS.db)return {ok:true,soloLocal:true};
+    const ref=FS.db.collection(COLL).doc(k);
+    try{
+      await FS.db.runTransaction(async t=>{
+        const snap=await t.get(ref);
+        if(!snap.exists)return;
+        const actual=snap.data()||{};
+        if(actual&&typeof actual.value==='string')actual.value=descomprimirValor(actual.value);
+        const revNube=+actual.rev||0;
+        let revMia=revs.has(k)?revs.get(k):null;
+        if(revMia===null){
+          const copiaLocal=getLocal(k);
+          if(copiaLocal&&actual.value!==undefined&&copiaLocal.value===actual.value){
+            revMia=revNube;revs.set(k,revNube);fijarBaseline(k,actual.value);
+          }else{
+            throw new Error('__SIN_BASELINE_DELETE__');
+          }
+        }
+        if(revNube!==revMia)throw new Error('__CONFLICTO_DELETE__');
+        t.delete(ref);
+      });
+      revs.delete(k);baseline.delete(k);tumbas.delete(k);resucitados.delete(k);
+      return {ok:true};
+    }catch(e){
+      if(e&&e.message==='__CONFLICTO_DELETE__')return {ok:false,motivo:'conflicto'};
+      if(e&&e.message==='__SIN_BASELINE_DELETE__')return {ok:false,motivo:'clave-no-sincronizada'};
+      console.warn('FS del versionado',k,e);return {ok:false,motivo:e.message||String(e)};
+    }
   }
 
   // ── Prefijo multiempresa ──
@@ -196,9 +254,27 @@ initDispositivo();
       await FS.db.runTransaction(async t=>{
         const snap=await t.get(ref);
         const actual=snap.exists?(snap.data()||{}):null;
+        if(actual&&typeof actual.value==='string')actual.value=descomprimirValor(actual.value);
         const revNube=actual?(+actual.rev||0):0;
-        const revMia=revs.has(k)?revs.get(k):null;
+        let revMia=revs.has(k)?revs.get(k):null;
         let aGuardar=value;
+
+        // V2.16.19 — Android puede recrear el contexto JS y perder `revs` aunque
+        // localStorage conserve exactamente la última copia de Firestore. Si la
+        // copia local coincide byte a byte con la nube, recuperamos la revisión
+        // con seguridad. Si no coincide, bloqueamos en vez de sobrescribir.
+        if(actual&&revMia===null){
+          const copiaLocal=getLocal(k);
+          const localCoincide=!!(copiaLocal&&actual.value!==undefined&&copiaLocal.value===actual.value);
+          const escrituraEsNoop=actual.value!==undefined&&value===actual.value;
+          if(localCoincide||escrituraEsNoop){
+            revMia=revNube;revs.set(k,revNube);
+            if(actual.value!==undefined)fijarBaseline(k,actual.value);
+          }else{
+            salida={ok:false,motivo:'clave-no-sincronizada'};
+            throw new Error('__SIN_BASELINE__');
+          }
+        }
 
         // Hay conflicto si leímos una versión y la nube ya avanzó. La condición
         // es SÓLO la revisión, a propósito: comparar además el id del
@@ -227,8 +303,14 @@ initDispositivo();
         (resucitados.get(k)||new Set()).forEach(id=>{delete lapidas[id];});
         tumbas.set(k,lapidas);
 
+        const claveLogica=String(k).slice(String(empresaId+':').length);
+        const vgFinal=validarAsientosAntesDeEscribir(claveLogica,aGuardar,actual&&actual.value!==undefined?actual.value:null);
+        if(vgFinal.ok===false){
+          salida={ok:false,motivo:'validacion-contable',errores:vgFinal.errores||[],detalle:vgFinal.errores?.[0]||vgFinal.motivo};
+          throw new Error('__VALIDACION_CONTABLE__');
+        }
         const nuevaRev=revNube+1;
-        t.set(ref,{value:aGuardar,empresa:empresaDeClave(k),rev:nuevaRev,
+        t.set(ref,{value:comprimirValor(aGuardar),empresa:empresaDeClave(k),rev:nuevaRev,
           borrados:lapidas,
           dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
           ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
@@ -243,6 +325,14 @@ initDispositivo();
       FS.pendingWrites--;
       if(e&&e.message==='__CONFLICTO__'){
         fsStatusSet('error','conflicto entre equipos');
+        return salida;
+      }
+      if(e&&e.message==='__SIN_BASELINE__'){
+        fsStatusSet('error','clave no sincronizada');
+        return salida;
+      }
+      if(e&&e.message==='__VALIDACION_CONTABLE__'){
+        fsStatusSet('error','validación contable');
         return salida;
       }
       fsStatusSet('error',e.code||e.message);
@@ -279,8 +369,10 @@ initDispositivo();
   // exista en este equipo (por si hay algo de otro año o de un módulo nuevo).
   function clavesDeLaEmpresa(anio){
     const fijas=['empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC',
-                 'comprobantesTipo','fichasAux','indicadores','previsional','libroRem'];
-    const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-'].map(p=>p+anio);
+                 'comprobantesTipo','fichasAux','indicadores','previsional','libroRem',
+                 'inv-grupos','inv-bodegas','inv-productos','inv-movimientos',
+                 'inv-tomas','inv-ordenes-compra','inv-recepciones'];
+    const delAnio=['ventas-','compras-','honorarios-','asientos-','apertura-','f29-declaraciones-','cierresContables-','hardening-certificacion-','preproduccion-','folios-sii-'].map(p=>p+anio);
     const set=new Set([...fijas,...delAnio]);
     try{
       const pref=prefix+empresaId+':';
@@ -290,6 +382,26 @@ initDispositivo();
       }
     }catch(e){}
     return [...set];
+  }
+
+  function validarAsientosAntesDeEscribir(key,value,prevRaw=null){
+    if(!/^asientos-\d{4}$/.test(String(key||'')))return {ok:true};
+    try{
+      if(typeof window.__validarEscrituraAsientos!=='function')return {ok:true};
+      const r=window.__validarEscrituraAsientos(key,value,prevRaw);
+      return r&&typeof r==='object'?r:{ok:!!r};
+    }catch(e){return {ok:false,motivo:e.message||String(e)};}
+  }
+
+
+  // Una actualización publicada invalida las escrituras de la versión antigua.
+  // El overlay del actualizador bloquea la interfaz y esta segunda barrera evita
+  // que un temporizador o una promesa ya iniciada alcance Firestore igualmente.
+  function guardiaActualizacion(key){
+    if(typeof window!=='undefined'&&window.__UPDATE_REQUIRED__){
+      return {key,ok:false,bloqueada:true,motivo:'actualizacion-obligatoria',detalle:'Hay una versión nueva del sistema. Actualiza antes de guardar.'};
+    }
+    return null;
   }
 
   window.storage={
@@ -308,34 +420,165 @@ initDispositivo();
       return local?{key,value:local.value}:null;
     },
     async set(key,value){
+      const gu=guardiaActualizacion(key);if(gu)return gu;
       const k=K(key);
+      const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(key):{ok:true};
+      if(ge&&ge.ok===false)return {key,ok:false,bloqueada:true,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};
+      const vg=validarAsientosAntesDeEscribir(key,value);
+      if(vg.ok===false){
+        const motivo=vg.errores?.[0]||vg.motivo||'validacion-contable';
+        console.error('Escritura de asientos RECHAZADA:',motivo);
+        return {key,value,ok:false,bloqueada:true,motivo:'validacion-contable',detalle:motivo,errores:vg.errores||[]};
+      }
       if(bloqueadas.has(k)){
-        // Nunca sobrescribir algo que no pudimos leer: sería escribir el vacío
-        // que la app está mostrando por error encima del dato bueno.
         const motivo=bloqueadas.get(k);
         console.error('Escritura BLOQUEADA en',k,'—',motivo);
         try{window.__avisarBloqueo&&window.__avisarBloqueo(key,motivo);}catch(e){}
-        return {key,bloqueada:true,motivo};
+        return {key,ok:false,bloqueada:true,motivo};
       }
-      detectarBorrados(k,value);   // lo que desapareció desde la última lectura
-      setLocal(k,value);
-      // Escritura versionada: detecta si otro equipo guardó en el intermedio
+
+      // Sin nube inicializada se conserva el modo offline, pero se declara
+      // explícitamente que el guardado quedó sólo en este dispositivo.
+      if(!FS.enabled||!FS.db){
+        detectarBorrados(k,value);
+        setLocal(k,value);fijarBaseline(k,value);
+        try{ if(window.__marcarGuardado)window.__marcarGuardado(); }catch(e){}
+        return {key,value,ok:true,soloLocal:true};
+      }
+
+      // V2.10: NO tocar localStorage antes de saber que la escritura remota
+      // terminó bien. Antes, una falla de Firestore podía mostrar "no guardado"
+      // pero dejar igualmente el valor nuevo en localStorage; al recargar parecía
+      // que sí se había guardado y más tarde podía volver a sincronizarse.
+      detectarBorrados(k,value);
       const r=await setRemoteVersionado(k,value);
       if(r.motivo==='conflicto'){
         try{window.__avisarConflicto&&window.__avisarConflicto(key,r.otro);}catch(e){}
-        return {key,value,conflicto:true,otro:r.otro};
+        return {key,value,ok:false,conflicto:true,otro:r.otro};
       }
+      if(r.ok===false)return {key,value,ok:false,motivo:r.motivo};
+      const definitivo=r.value!==undefined?r.value:value;
+      setLocal(k,definitivo);fijarBaseline(k,definitivo);
       if(r.fusionado){
         try{window.__avisarFusion&&window.__avisarFusion(key,r);}catch(e){}
       }
-      // Avisar al control de salida que se guardó (si está cargado)
       try{ if(window.__marcarGuardado)window.__marcarGuardado(); }catch(e){}
-      return {key,value,fusionado:!!r.fusionado};
+      return {key,value:definitivo,ok:true,fusionado:!!r.fusionado};
+    },
+
+    // Escritura atómica de varias claves críticas de la misma empresa.
+    // Se usa cuando un hecho económico debe persistir en más de un documento
+    // de Firestore (ej.: libro de compras + asientos). O se guardan todas, o no
+    // se modifica ninguna ni en la nube ni en localStorage.
+    async setMany(entries){
+      const gu=guardiaActualizacion('setMany');if(gu)return gu;
+      const lista=(entries||[]).filter(x=>x&&x.key!=null).map(x=>({key:String(x.key),value:String(x.value??'')}));
+      if(!lista.length)return {ok:true};
+      for(const e of lista){const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(e.key):{ok:true};if(ge&&ge.ok===false)return {ok:false,bloqueada:true,clave:e.key,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};}
+      for(const e of lista){
+        const vg=validarAsientosAntesDeEscribir(e.key,e.value);
+        if(vg.ok===false)return {ok:false,bloqueada:true,clave:e.key,motivo:'validacion-contable',detalle:vg.errores?.[0]||vg.motivo,errores:vg.errores||[]};
+      }
+      for(const e of lista){
+        const k=K(e.key);
+        if(bloqueadas.has(k))return {ok:false,bloqueada:true,clave:e.key,motivo:bloqueadas.get(k)};
+      }
+      if(!FS.enabled||!FS.db){
+        for(const e of lista){const k=K(e.key);detectarBorrados(k,e.value);setLocal(k,e.value);fijarBaseline(k,e.value);}
+        try{ if(window.__marcarGuardado)window.__marcarGuardado(); }catch(e){}
+        return {ok:true,soloLocal:true};
+      }
+      FS.pendingWrites++;fsStatusSet('syncing');
+      try{
+        const refs=lista.map(e=>FS.db.collection(COLL).doc(K(e.key)));
+        const nuevos=[];
+        await FS.db.runTransaction(async t=>{
+          const snaps=[];
+          for(const ref of refs)snaps.push(await t.get(ref));
+          for(let i=0;i<lista.length;i++){
+            const e=lista[i],k=K(e.key),snap=snaps[i];
+            const actual=snap.exists?(snap.data()||{}):null;
+            if(actual&&typeof actual.value==='string')actual.value=descomprimirValor(actual.value);
+            const revNube=actual?(+actual.rev||0):0;
+            let revMia=revs.has(k)?revs.get(k):null;
+
+            // V2.16.19 — recuperación segura de una revisión perdida en memoria.
+            // En móvil Android puede descargarse/recrear el contexto JS sin borrar
+            // localStorage. En ese caso conservamos la última copia sincronizada,
+            // pero el Map `revs` vuelve vacío y Guardar Todo terminaba en
+            // `clave-no-sincronizada` aunque el equipo SÍ estuviera al día.
+            //
+            // Sólo recuperamos la revisión cuando podemos demostrar que la copia
+            // local persistida es exactamente la misma que existe en Firestore.
+            // Si difieren, NO se adopta la rev de la nube: se mantiene el bloqueo
+            // para evitar pisar cambios de otro equipo.
+            if(actual&&revMia===null){
+              const copiaLocal=getLocal(k);
+              const localCoincide=!!(copiaLocal&&actual.value!==undefined&&copiaLocal.value===actual.value);
+              const escrituraEsNoop=actual.value!==undefined&&e.value===actual.value;
+              if(localCoincide||escrituraEsNoop){
+                revMia=revNube;
+                revs.set(k,revNube);
+                if(actual.value!==undefined)fijarBaseline(k,actual.value);
+              }else{
+                throw new Error('__SIN_BASELINE__:'+e.key);
+              }
+            }
+            if(revMia!==null&&revNube!==revMia)throw new Error('__CONFLICTO_MULTI__:'+e.key);
+
+            // Preparar lápidas sin modificar el estado global antes del commit.
+            const prev=baseline.get(k), ahora=idsDe(e.value);
+            const lapidas={...((actual&&actual.borrados)||{}),...(tumbas.get(k)||{})};
+            if(prev&&ahora){
+              prev.forEach(id=>{if(!ahora.has(id)&&!lapidas[id])lapidas[id]=new Date().toISOString();});
+              ahora.forEach(id=>{if(lapidas[id])delete lapidas[id];});
+            }
+            const vgFinal=validarAsientosAntesDeEscribir(e.key,e.value,actual&&actual.value!==undefined?actual.value:null);
+            if(vgFinal.ok===false)throw new Error('__VALIDACION_MULTI__:'+e.key+':'+(vgFinal.errores?.[0]||vgFinal.motivo||'validación contable'));
+            const nuevaRev=revNube+1;
+            t.set(refs[i],{value:comprimirValor(e.value),empresa:empresaDeClave(k),rev:nuevaRev,borrados:lapidas,
+              dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
+              ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+            nuevos.push({k,value:e.value,rev:nuevaRev,lapidas});
+          }
+        });
+        nuevos.forEach(x=>{revs.set(x.k,x.rev);tumbas.set(x.k,x.lapidas);resucitados.delete(x.k);setLocal(x.k,x.value);fijarBaseline(x.k,x.value);});
+        FS.pendingWrites--;FS.lastSaveTs=Date.now();if(FS.pendingWrites===0)fsStatusSet('saved');
+        try{ if(window.__marcarGuardado)window.__marcarGuardado(); }catch(e){}
+        return {ok:true};
+      }catch(e){
+        FS.pendingWrites--;
+        const msg=e&&e.message||String(e);
+        if(msg.startsWith('__CONFLICTO_MULTI__')){
+          const clave=msg.split(':').slice(1).join(':');fsStatusSet('error','conflicto entre equipos');
+          try{window.__avisarConflicto&&window.__avisarConflicto(clave,'otro dispositivo');}catch(_e){}
+          return {ok:false,conflicto:true,clave,motivo:'conflicto'};
+        }
+        if(msg.startsWith('__VALIDACION_MULTI__')){
+          const partes=msg.split(':');const clave=partes[1]||'asientos';const detalle=partes.slice(2).join(':');
+          fsStatusSet('error','validación contable');
+          return {ok:false,clave,motivo:'validacion-contable',detalle};
+        }
+        if(msg.startsWith('__SIN_BASELINE__')){
+          const clave=msg.split(':').slice(1).join(':');fsStatusSet('error','clave no sincronizada');
+          return {ok:false,clave,motivo:'clave-no-sincronizada'};
+        }
+        fsStatusSet('error',e.code||msg);console.warn('FS setMany',e);
+        return {ok:false,motivo:msg};
+      }
     },
     async delete(key){
+      const gu=guardiaActualizacion(key);if(gu)return gu;
       const k=K(key);
-      delLocal(k);delRemote(k);
-      return {key,deleted:true};
+      const ge=typeof window.__autorizarEscrituraEntorno==='function'?window.__autorizarEscrituraEntorno(key):{ok:true};
+      if(ge&&ge.ok===false)return {key,ok:false,bloqueada:true,motivo:ge.motivo||'entorno',detalle:ge.detalle||''};
+      const r=await delRemoteVersionado(k);
+      if(!r.ok){
+        try{window.__avisarConflicto&&r.motivo==='conflicto'&&window.__avisarConflicto(key,'otro dispositivo');}catch(e){}
+        return {key,ok:false,deleted:false,motivo:r.motivo};
+      }
+      delLocal(k);
+      return {key,ok:true,deleted:true};
     },
 
     // Lectura de una clave de la empresa que distingue "no hay" de "no pude
@@ -352,6 +595,7 @@ initDispositivo();
         const doc=await FS.db.collection(COLL).doc(k).get();
         if(doc.exists){
           const d=doc.data();
+          if(d&&typeof d.value==='string')d.value=descomprimirValor(d.value);
           revs.set(k,+((d||{}).rev)||0);   // versión sobre la que trabajamos
           if(d&&d.borrados)tumbas.set(k,{...(tumbas.get(k)||{}),...d.borrados});
           if(d&&d.value!==undefined){
@@ -387,6 +631,41 @@ initDispositivo();
     },
     hayBloqueos(){return this.clavesBloqueadas().length>0;},
 
+    // V2.15.3 — reserva atómica de correlativos contables definitivos.
+    // El contador vive en un documento separado por empresa/año y se incrementa
+    // dentro de una transacción Firestore. Así dos equipos no pueden recibir el
+    // mismo número. Para proteger la secuencia, NO se asignan correlativos nuevos
+    // sin conexión a la nube; las ediciones de asientos ya numerados sí pueden
+    // seguir usando el mecanismo normal de persistencia.
+    async reservarCorrelativos(clave,cantidad=1,minimo=0){
+      cantidad=Math.max(0,Math.trunc(+cantidad||0));
+      minimo=Math.max(0,Math.trunc(+minimo||0));
+      if(!cantidad)return {ok:true,inicio:minimo+1,fin:minimo};
+      if(!FS.enabled||!FS.db)return {ok:false,motivo:'sin-nube-correlativo'};
+      const seqKey=K('_seq_'+String(clave||'asientos'));
+      const ref=FS.db.collection(COLL).doc(seqKey);
+      try{
+        let inicio=0,fin=0;
+        await FS.db.runTransaction(async t=>{
+          const snap=await t.get(ref);
+          let ultimo=0;
+          if(snap.exists){
+            const d=snap.data()||{};
+            try{ultimo=Math.max(0,+((JSON.parse(descomprimirValor(d.value)||'{}')||{}).ultimo)||0);}catch(_e){ultimo=0;}
+          }
+          ultimo=Math.max(ultimo,minimo);
+          inicio=ultimo+1;fin=ultimo+cantidad;
+          t.set(ref,{value:JSON.stringify({ultimo:fin}),empresa:empresaDeClave(seqKey),rev:(snap.exists?(+(snap.data()?.rev||0)):0)+1,
+            dispositivo:DISPOSITIVO.id,dispositivoNm:DISPOSITIVO.nombre,
+            ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+        });
+        return {ok:true,inicio,fin};
+      }catch(e){
+        console.warn('Reserva correlativo contable',e);
+        return {ok:false,motivo:e.message||String(e)};
+      }
+    },
+
     // ── API sin prefijo (catálogo de empresas, config global) ──
     // Lectura global que DISTINGUE "no existe" de "no se pudo leer".
     //
@@ -406,6 +685,7 @@ initDispositivo();
         const doc=await FS.db.collection(COLL).doc(key).get();
         if(doc.exists){
           const d=doc.data();
+          if(d&&typeof d.value==='string')d.value=descomprimirValor(d.value);
           revs.set(key,+((d||{}).rev)||0);
           if(d&&d.borrados)tumbas.set(key,{...(tumbas.get(key)||{}),...d.borrados});
           if(d&&d.value!==undefined){
@@ -443,7 +723,7 @@ initDispositivo();
     async setGlobal(key,value,opciones){
       const fusionar=!!(opciones&&opciones.fusionar);
       setLocal(key,value);
-      if(!fusionar){setRemote(key,value);return {key,value};}
+      if(!fusionar){const ok=await setRemote(key,value);return {key,value,ok:ok||!FS.enabled};}
       detectarBorrados(key,value);
       const r=await setRemoteVersionado(key,value);
       if(r.motivo==='conflicto'){
@@ -463,16 +743,18 @@ initDispositivo();
     },
     // Sincronizar todo local → remoto (usado tras conectar por primera vez)
     async syncAllToRemote(){
-      if(!FS.enabled)return {count:0};
-      let count=0;
-      for(let i=0;i<localStorage.length;i++){
-        const k=localStorage.key(i);
-        if(!k||!k.startsWith(prefix))continue;
-        const base=k.slice(prefix.length);
-        const v=localStorage.getItem(k);
-        if(v!==null){await setRemote(base,v);count++;}
+      if(!FS.enabled)return {count:0,fallos:0};
+      let count=0,fallos=0;
+      const claves=[];
+      for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(prefix))claves.push(k);}
+      for(const k of claves){
+        const base=k.slice(prefix.length),v=localStorage.getItem(k);
+        if(v===null)continue;
+        detectarBorrados(base,v);
+        const r=await setRemoteVersionado(base,v);
+        if(r.ok)count++;else fallos++;
       }
-      return {count};
+      return {count,fallos,ok:fallos===0};
     },
     // Sincronizar todo remoto → local (usado al abrir en un dispositivo nuevo)
     //
@@ -483,7 +765,7 @@ initDispositivo();
     // Si no se pasan ids se cae a la consulta antigua (reglas permisivas).
     async syncAllFromRemote(ids){
       if(!FS.enabled||!FS.db)return {count:0};
-      const guardar=snap=>{let n=0;snap.forEach(doc=>{const d=doc.data();if(d&&d.value!==undefined){setLocal(doc.id,d.value);n++;}});return n;};
+      const guardar=snap=>{let n=0;snap.forEach(doc=>{const d=doc.data();if(d&&d.value!==undefined){setLocal(doc.id,descomprimirValor(d.value));n++;}});return n;};
       try{
         if(Array.isArray(ids)&&ids.length){
           let count=0;
@@ -497,77 +779,5 @@ initDispositivo();
       }catch(e){console.error('syncAllFromRemote',e);return {count:0,error:e.message};}
     },
 
-    // Recorre la colección y devuelve los documentos SIN campo `empresa`.
-    // Sólo funciona con las reglas antiguas (hace un list sin filtro): se usa
-    // exactamente una vez, en la migración previa a publicar las reglas nuevas.
-    async docsSinEmpresa(){
-      if(!FS.enabled||!FS.db)throw new Error('Firestore no está disponible');
-      const snap=await FS.db.collection(COLL).get();
-      const faltan=[];let total=0;
-      snap.forEach(doc=>{total++;const d=doc.data()||{};if(d.empresa===undefined)faltan.push(doc.id);});
-      return {total,faltan};
-    },
-
-    // ── Verificación con las reglas endurecidas ya publicadas ──
-    // Ahí `docsSinEmpresa()` deja de funcionar a propósito: una consulta sin
-    // filtro se rechaza entera, porque Firestore no puede garantizar de antemano
-    // que todos los resultados sean legibles. Es la señal de que el aislamiento
-    // está activo, no un error.
-    //
-    // En ese modo se cuenta lo ALCANZABLE (una consulta filtrada por empresa) y
-    // se contrasta con lo que hay en este dispositivo: si algo está guardado
-    // acá pero no aparece en la nube, es un documento sin marcar que quedó
-    // fuera del alcance de las reglas.
-    async docsAlcanzables(ids){
-      if(!FS.enabled||!FS.db)throw new Error('Firestore no está disponible');
-      const porEmpresa={};let total=0;
-      for(const emp of ['_global',...(ids||[])]){
-        const snap=await FS.db.collection(COLL).where('empresa','==',emp).get();
-        const vistos=new Set();snap.forEach(d=>vistos.add(d.id));
-        porEmpresa[emp]=[...vistos];total+=vistos.size;
-      }
-      return {total,porEmpresa};
-    },
-    // Claves guardadas en este dispositivo que corresponden a esas empresas
-    clavesLocales(ids){
-      const set=new Set(ids||[]);const claves=[];
-      try{
-        for(let i=0;i<localStorage.length;i++){
-          const k=localStorage.key(i);
-          if(!k||!k.startsWith(prefix))continue;
-          const base=k.slice(prefix.length);
-          const emp=empresaDeClave(base);
-          if(emp==='_global'||set.has(emp))claves.push(base);
-        }
-      }catch(e){}
-      return claves;
-    },
-    // Repara documentos que existen en este dispositivo pero no se alcanzan en
-    // la nube: los vuelve a subir, y al subirlos quedan marcados con su empresa.
-    async repararDocs(claves,onProgreso){
-      if(!FS.enabled||!FS.db)throw new Error('Firestore no está disponible');
-      let hechos=0,fallos=0;
-      for(const clave of claves){
-        const local=getLocal(clave);
-        if(local===null||local.value===undefined){fallos++;continue;}
-        if(await setRemote(clave,local.value))hechos++;else fallos++;
-        if(onProgreso)onProgreso(hechos+fallos,claves.length);
-      }
-      return {hechos,fallos};
-    },
-
-    // Estampa el campo `empresa` en los documentos que no lo tienen.
-    async estamparEmpresa(ids,onProgreso){
-      if(!FS.enabled||!FS.db)throw new Error('Firestore no está disponible');
-      let hechos=0;
-      for(let i=0;i<ids.length;i+=400){
-        const lote=FS.db.batch();
-        ids.slice(i,i+400).forEach(id=>lote.update(FS.db.collection(COLL).doc(id),{empresa:empresaDeClave(id)}));
-        await lote.commit();
-        hechos+=Math.min(400,ids.length-i);
-        if(onProgreso)onProgreso(hechos,ids.length);
-      }
-      return {hechos};
-    }
   };
 })();

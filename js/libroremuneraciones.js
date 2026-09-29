@@ -47,8 +47,8 @@ function lineaLibro(t,uf,utm){
   const l=calcularLiquidacion(t,uf,utm);
   return {
     id:t.id, nombre:t.nombre, rut:t.rut||'', cargo:t.cargo||'',
-    afp:l.afpNm, salud:l.saludNm,
-    contrato:t.contrato||'indefinido',
+    afp:l.afpNm, salud:l.saludNm, afpKey:t.afp||'', saludKey:t.salud||'',
+    contrato:t.contrato||'indefinido', lre:{...(t.lre||{})},
     // Haberes imponibles
     base:+t.base||0,
     gratificacion:l.grat,
@@ -202,10 +202,16 @@ export function renderLibroRem(){
           : `<span class="badge bb">📝 Provisorio</span>
              <button class="btn btn-p" style="font-size:11px" onclick="cerrarMesRem()">🔒 Cerrar mes</button>`}
         <button class="btn btn-i" style="font-size:11px" onclick="exportarLibroRemExcel()">📊 Excel</button>
+        <button class="btn btn-p" style="font-size:11px" onclick="exportarLRECSV()">🏛️ CSV Mi DT</button>
+        <button class="btn btn-g" style="font-size:11px" onclick="mostrarValidacionLRE()">✓ Validar LRE</button>
         <button class="btn btn-g" style="font-size:11px" onclick="window.print()">🖨️</button>
       </div>
     </div>
 
+    <div class="info-tip" style="margin-bottom:12px;font-size:11px;line-height:1.6">
+      🏛️ <strong>Libro de Remuneraciones Electrónico (Mi DT):</strong> el botón “CSV Mi DT” genera la plantilla de carga masiva delimitada por punto y coma, con headers oficiales y codificación ANSI. La exportación se bloquea si faltan datos obligatorios del trabajador.
+    </div>
+    <div id="lre-validacion"></div>
     <div class="info-tip" style="margin-bottom:12px;font-size:11px;line-height:1.6">
       📘 Libro auxiliar de remuneraciones (Art. 62 del Código del Trabajo — obligatorio con 5 o más trabajadores).
       ${L.cerrado

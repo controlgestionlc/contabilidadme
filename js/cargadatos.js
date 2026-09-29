@@ -155,7 +155,7 @@ function descargarPlantillaCentros(){
     ['Código','Nombre','Nivel','Código padre','Estado','Fecha inicio','Curva','Cuenta de costo'],
     [['P01','Predio Los Cerezos',1,'','','','',''],
      ['P01-C1','Cuartel 1 — Cerezos',2,'P01','formacion','2024-08-01','cerezo','3101003'],
-     ['P01-C2','Cuartel 2 — Operativo',2,'P01','operativo','','','']],
+     ['P01-C2','Administración comercial',2,'P01','normal','','none','']],
     [14,38,8,14,16,14,14,16],
     ['CENTROS DE COSTO — cómo completar la plantilla',
      '',
@@ -165,9 +165,10 @@ function descargarPlantillaCentros(){
      'Código padre: solo para nivel 2. Debe coincidir con el «Código» de un centro de nivel 1',
      '   (puede venir en la misma planilla, más arriba o más abajo).',
      'Estado (solo nivel 2): '+CC_ESTADOS.map(e=>e.id).join(' · ')+'.',
-     '   operativo = sus costos van directo a resultado · formacion = acumula costos capitalizables.',
+     '   normal = centro estándar sin capitalización · operativo = legado sin capitalización · formacion = inversión con capitalización.',
      'Fecha inicio: AAAA-MM-DD. Se usa para ubicar el año de la curva de capitalización.',
-     'Curva (solo nivel 2, estado formacion): '+CURVAS_DEFAULT.map(c=>c.id).join(' · ')+'.',
+     'Capitalización/curva (solo nivel 2, estado formacion): '+CURVAS_DEFAULT.map(c=>c.id).join(' · ')+'.',
+     '   none = Sin Capitalización.',
      'Cuenta de costo (solo nivel 2): código del plan de cuentas. Por defecto 3101003.',
      '',
      'La importación actualiza los centros cuyo código ya existe y agrega los nuevos.',
@@ -242,10 +243,10 @@ async function importarCentros(file){
     const campos={
       nombre:f.nombre,codigo:f.codigo||'',nivel:f.nivel,
       padre:f.nivel===2?padreId:null,
-      estado:f.nivel===2?(f.estado||'formacion'):null,
+      estado:f.nivel===2?(f.estado||'normal'):null,
       fechaInicio:f.fechaInicio||'',
-      curva:f.nivel===2?(f.curva||'cerezo'):null,
-      cuentaCosto:f.nivel===2?(f.cuentaCosto||'3101003'):null,
+      curva:f.nivel===2?(f.curva||'none'):null,
+      cuentaCosto:f.nivel===2&&['formacion','capitalizado'].includes(f.estado||'normal')?(f.cuentaCosto||'3101003'):null,
     };
     if(ex){Object.assign(ex,campos);actualizados++;}
     else{crearCentro(campos);nuevos++;}

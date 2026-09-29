@@ -27,13 +27,6 @@ function nombreCorto(){
   return String(u.email||'').split('@')[0]||'';
 }
 
-// La marca de agua es el mismo logo del encabezado, en grande y apagado
-const marcaDeAgua=()=>`
-  <div class="inicio-marca" aria-hidden="true">
-    <div class="inicio-marca-icono">📊</div>
-    <div class="inicio-marca-nombre">Contabilidad</div>
-  </div>`;
-
 export function renderInicio(){
   const el=document.getElementById('inicio-content');
   if(!el)return;
@@ -46,7 +39,6 @@ export function renderInicio(){
   if(!lista.length){
     el.innerHTML=`
       <div class="inicio-vacio">
-        ${marcaDeAgua()}
         <div class="inicio-vacio-txt">
           ${EMPRESAS.errorCarga
             ? `<span style="color:var(--err)">No se pudo leer el catálogo de empresas.</span><br>
@@ -96,7 +88,7 @@ export function renderInicio(){
         <div class="inicio-hola">${saludo?'Hola, '+esc(saludo):'Bienvenido'}</div>
         <div class="inicio-sub">${lista.length} empresa${lista.length===1?'':'s'} · elige con cuál trabajar</div>
       </div>
-      <div class="inicio-logo" aria-hidden="true">📊</div>
+      <div class="inicio-logo" aria-hidden="true"><img src="img/rabf-app-icon.png?v=1789583185" alt=""></div>
     </div>
     <div class="inicio-grid">${tarjetas}</div>
     <div class="inicio-pie">

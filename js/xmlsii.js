@@ -3,6 +3,7 @@ import {toast, fmtC, MESES, dteV, dteC, IVA, rutParse} from './core.js';
 import {S} from './state.js';
 import {todosDocsVentas, todosDocsCompras} from './asientos.js';
 import {logAccion} from './firebase.js';
+import {periodoContableCompra} from './motor-contable.js';
 
 // ═══ FASE 6: EXPORTAR XML SII (IECV) ═══
 // Genera el XML de Información Electrónica de Compras y Ventas según esquema LibroCV_v10 del SII.
@@ -21,8 +22,9 @@ function renderXmlSii(){
   const mes=+sel.value||1;
   const el=document.getElementById('xml-content');
   // Filtrar documentos del período
+  const per=`${S.empresa.anio}-${String(mes).padStart(2,'0')}`;
   const docs=(tipo==='VENTA'?todosDocsVentas():todosDocsCompras()).filter(d=>{
-    const m=+(d.fecha||'').slice(5,7);return m===mes;
+    return tipo==='VENTA'?+(d.fecha||'').slice(5,7)===mes:periodoContableCompra(d)===per;
   });
   if(!docs.length){
     el.innerHTML=`<div class="empty"><div class="ei">📭</div>No hay documentos de ${tipo==='VENTA'?'venta':'compra'} en ${MESES[mes-1]} ${S.empresa.anio}.</div>`;return;
@@ -67,7 +69,7 @@ function generarXmlSii(){
   const rutParse2=rutParse(e.rut);
   const rutEmisor=rutSii(rutParse2.codigo,rutParse2.dv);
   const periodo=`${anio}-${String(mes).padStart(2,'0')}`;
-  const docs=(tipo==='VENTA'?todosDocsVentas():todosDocsCompras()).filter(d=>+(d.fecha||'').slice(5,7)===mes);
+  const docs=(tipo==='VENTA'?todosDocsVentas():todosDocsCompras()).filter(d=>tipo==='VENTA'?+(d.fecha||'').slice(5,7)===mes:periodoContableCompra(d)===periodo);
   if(!docs.length){toast('⚠️ No hay documentos en el período','e');return;}
   // Resumen por tipo
   const resumen={};

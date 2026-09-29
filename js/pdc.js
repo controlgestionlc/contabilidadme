@@ -4,10 +4,12 @@
 import {PDC, recalcDerivadasPDC, toast, CUENTAS_SEL, CUENTAS_GASTO, pdcNm, fmtC, IVA} from './core.js';
 import {S} from './state.js';
 import './storage.js'; // instala window.storage
+import {normalizarCuenta,normalizarPDC,inferirReglasCuenta} from './pdc-reglas.js';
 
 // ═══ PDC ═══
 // Guarda el PDC completo en storage (clave global, no por año)
 async function savePDC(){
+  normalizarPDC(PDC);
   try{await window.storage.set('pdc',JSON.stringify(PDC));}catch(e){console.error('Error guardando PDC:',e);}
   recalcDerivadasPDC();
 }
@@ -119,6 +121,7 @@ const PDC_DEFAULT=JSON.parse(JSON.stringify([
   {cd:'1108004',nm:'CRÉDITO GASTOS DE CAPACITACIÓN',tp:'A',nat:'D'},
   {cd:'1108005',nm:'CRÉDITO 2% ADICIONAL ISAPRE',tp:'A',nat:'D'},
   {cd:'1108006',nm:'OTROS IMPUESTOS POR RECUPERAR',tp:'A',nat:'D'},
+  {cd:'1108008',nm:'IVA CRÉDITO FISCAL ACTIVO FIJO',tp:'A',nat:'D'},
   {cd:'1109001',nm:'MADERAS',tp:'A',nat:'D'},
   {cd:'1109002',nm:'BOSQUES',tp:'A',nat:'D'},
   {cd:'1109003',nm:'CULTIVOS AGRICOLAS',tp:'A',nat:'D'},
@@ -174,6 +177,7 @@ const PDC_DEFAULT=JSON.parse(JSON.stringify([
   {cd:'2103002',nm:'RETENCIÓN 2º CATEGORÍA',tp:'P',nat:'C'},
   {cd:'2103003',nm:'IVA DÉBITO FISCAL',tp:'P',nat:'C'},
   {cd:'2103004',nm:'OTROS IMPUESTOS POR PAGAR',tp:'P',nat:'C'},
+  {cd:'2103005',nm:'IVA RETENIDO FACTURAS DE COMPRA',tp:'P',nat:'C'},
   {cd:'2104001',nm:'INSTITUCIONES PREVISIONALES POR PAGAR',tp:'P',nat:'C'},
   {cd:'2104002',nm:'IMPUESTOS POR PAGAR',tp:'P',nat:'C'},
   {cd:'2104005',nm:'REMUNERACIONES POR PAGAR',tp:'P',nat:'C'},
@@ -318,6 +322,7 @@ function abrirPdcForm(){
   ['pdc-cd','pdc-nm'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('pdc-tp').value='A';
   document.getElementById('pdc-nat').value='D';
+  document.getElementById('pdc-cc-oblig').checked=false;
   f.scrollIntoView({behavior:'smooth',block:'start'});
   setTimeout(()=>document.getElementById('pdc-cd').focus(),120);
 }
@@ -331,6 +336,7 @@ function editarCuenta(cd){
   document.getElementById('pdc-nm').value=c.nm;
   document.getElementById('pdc-tp').value=c.tp;
   document.getElementById('pdc-nat').value=c.nat||'';
+  document.getElementById('pdc-cc-oblig').checked=!!inferirReglasCuenta(c).requiereCentroCosto;
   f.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -341,6 +347,7 @@ async function guardarCuenta(){
   const nm=document.getElementById('pdc-nm').value.trim();
   const tp=document.getElementById('pdc-tp').value;
   let nat=document.getElementById('pdc-nat').value;
+  const requiereCentroCosto=!!document.getElementById('pdc-cc-oblig')?.checked;
 
   if(!cd){toast('⚠️ Ingresa el código','e');return;}
   if(!nm){toast('⚠️ Ingresa el nombre','e');return;}
@@ -366,10 +373,10 @@ async function guardarCuenta(){
       }
     }
     const idx=PDC.findIndex(x=>x.cd===PF.editCd);
-    if(idx>=0)PDC[idx]={cd,nm,tp,nat};
+    if(idx>=0)PDC[idx]=normalizarCuenta({...PDC[idx],cd,nm,tp,nat,requiereCentroCosto,aceptaCentroCosto:requiereCentroCosto?true:PDC[idx].aceptaCentroCosto});
     toast('✅ Cuenta actualizada');
   }else{
-    PDC.push({cd,nm,tp,nat});
+    PDC.push(normalizarCuenta({cd,nm,tp,nat,requiereCentroCosto,aceptaCentroCosto:requiereCentroCosto?true:undefined}));
     toast('✅ Cuenta '+cd+' agregada');
   }
   await savePDC();
@@ -394,7 +401,7 @@ async function eliminarCuenta(cd){
     return;
   }
   // Proteger cuentas críticas del sistema (usadas por ventas/compras automáticas)
-  const criticas=['1101201','1104001','1107003','1108002','2103003','2102001','2102006','3202019','4101002','4101003','4101003'];
+  const criticas=['1101201','1104001','1107003','1108002','1108008','2103003','2103005','2102001','2102006','3202019','4101002','4101003','4101003'];
   if(criticas.includes(cd)){
     if(!confirm(`⚠️ ATENCIÓN: ${cd} ${c.nm}\n\nEs una cuenta usada automáticamente por el sistema (para asientos de ventas, compras u honorarios). Si la eliminas, esos asientos podrían fallar.\n\n¿Eliminar de todas formas?`))return;
   }else{
@@ -421,17 +428,21 @@ function renderPDC(){
   const ti={T:'font-weight:700;font-size:13px',S:'font-weight:600;padding-left:12px',A:'padding-left:28px',P:'padding-left:28px',C:'padding-left:28px',I:'padding-left:28px'};
   document.getElementById('pdc-sub').textContent=`${PDC.length} cuentas · ${CUENTAS_GASTO.length} de gasto · ${CUENTAS_SEL.length} operativas`;
   let h=`<div class="card-np"><div class="tw"><table>
-    <thead><tr><th class="tl">CÓDIGO</th><th class="tl">NOMBRE</th><th>TIPO</th><th>NATURALEZA</th><th>USO</th><th style="width:110px"></th></tr></thead>
+    <thead><tr><th class="tl">CÓDIGO</th><th class="tl">NOMBRE</th><th>TIPO</th><th>NATURALEZA</th><th>REGLAS</th><th>USO</th><th style="width:110px"></th></tr></thead>
     <tbody>`;
   PDC.forEach(c=>{
     const nat=c.nat?`<span class="badge ${c.nat==='D'?'bg':'br'}">${c.nat==='D'?'DÉBITO':'CRÉDITO'}</span>`:'<span style="color:var(--mt);font-size:10px">—</span>';
     const uso=contarUsoCuenta(c.cd);
     const usoHtml=uso>0?`<span style="color:var(--info);font-family:var(--mono);font-size:11px">${uso}</span>`:`<span style="color:var(--mt);font-size:10px">—</span>`;
+    const rg=inferirReglasCuenta(c);
+    const reglas=[!rg.aceptaMovimientos?'AGRUPADORA':'',rg.requiereAuxiliar?'AUX '+String(rg.tipoAuxiliar||'').toUpperCase():'',rg.requiereCentroCosto?'CC OBLIG.':rg.aceptaCentroCosto?'CC':'',rg.esCuentaTributaria?'TRIBUTARIA':'',!rg.permiteAsientoManual?'NO MANUAL':''].filter(Boolean);
+    const reglasHtml=reglas.length?reglas.map(x=>`<span class="badge" style="margin:1px;font-size:9px">${x}</span>`).join(''):'<span style="color:var(--mt);font-size:10px">OPERATIVA</span>';
     h+=`<tr>
       <td class="tl" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${c.cd}</td>
       <td class="tl" style="${ti[c.tp]||''}">${c.nm}</td>
       <td>${tb[c.tp]||''}</td>
       <td>${nat}</td>
+      <td class="tl">${reglasHtml}</td>
       <td>${usoHtml}</td>
       <td style="text-align:center">
         <button class="btn btn-i" style="padding:3px 7px;font-size:10px" onclick="editarCuenta('${c.cd}')">✏️</button>

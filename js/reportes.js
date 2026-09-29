@@ -8,6 +8,8 @@ import {mesOpts, mesRango} from './helpers.js';
 import {pendientesCC} from './asigcc.js';
 import {S} from './state.js';
 import './storage.js';
+import {asientoVenta, asientoCompra} from './motor-contable.js';
+import {tasaIDPC} from './regimenes.js';
 
 // ═══ LIBRO DIARIO (auto + manuales) ═══
 let DIARIO_Q='';   // texto de búsqueda del libro diario
@@ -37,194 +39,59 @@ function anchosXLSX(hdr,rows){
 function genDiario(){
   const entries=[];let n=1;const anio=S.empresa.anio;
 
-  // ASIENTO N°0 — Balance de Apertura (si existe)
+  // ASIENTO N°0 — Balance de Apertura
   if(S.apertura&&S.apertura.movs&&S.apertura.movs.length){
-    entries.push({
-      n:0,
-      fecha:S.apertura.fecha,
-      glosa:S.apertura.glosa||'Balance de Apertura',
-      movs:S.apertura.movs.map(m=>({...m})),
-      origen:'apertura'
-    });
+    entries.push({n:0,fecha:S.apertura.fecha,glosa:S.apertura.glosa||'Balance de Apertura',movs:S.apertura.movs.map(m=>({...m})),origen:'apertura'});
   }
 
-  // Agrupar ventas por mes
-  // Excluimos los documentos que el usuario convirtió a asiento manual desde
-  // Comprobantes: sus movimientos ya están representados en S.asientos.
-  const vPorMes={};
-  S.ventas.forEach(d=>{if(d.excluidoAuto)return;const m=+d.fecha.slice(5,7);if(!m)return;if(!vPorMes[m])vPorMes[m]=[];vPorMes[m].push(d);});
-  const cPorMes={};
-  S.compras.forEach(d=>{if(d.excluidoAuto)return;const m=+d.fecha.slice(5,7);if(!m)return;if(!cPorMes[m])cPorMes[m]=[];cPorMes[m].push(d);});
-
-  MESES.forEach((mesNm,i)=>{
-    const m=i+1;
-    const fecha=`${anio}-${String(m).padStart(2,'0')}-28`;
-
-    // VENTAS del mes — UN ASIENTO POR CADA DOCUMENTO (mismo criterio que
-    // compras): así el auxiliar de clientes y el libro mayor muestran cada
-    // movimiento con su folio, fecha real y RUT. Las NC (signo -1) invierten
-    // los lados automáticamente.
-    const vs=vPorMes[m]||[];
-    if(vs.length){
-      vs.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).forEach(d=>{
-        const signo=(dteV(d.tipoDTE)?.signo)||1;   // NC: -1, resto: +1
-        const dteInfo=dteV(d.tipoDTE);
-        const nombreDoc=dteInfo?.nm||('DTE '+d.tipoDTE);
-        const glosa=`${nombreDoc} N°${d.numero} — ${d.razonSocial||'cliente'}`;
-        const movs=[];
-
-        const totSig=(d.total||0)*signo;
-        const netoSig=(d.neto||0)*signo;
-        const exentoSig=(d.exento||0)*signo;
-        const otrosSig=(d.otrosImpuestos||0)*signo;
-        const ivaSig=(d.iva||0)*signo;
-        const ingSig=netoSig+exentoSig+otrosSig;
-
-        // DEBE según forma de pago (banco=contado, clientes=crédito, deudores)
-        const cuentaDeb=d.formaPago==='banco'?'1101201':d.formaPago==='deudores'?'1107003':'1104001';
-        if(totSig){
-          if(cuentaDeb==='1104001'){
-            // Cuenta cliente con TODOS los datos del auxiliar (RUT, folio, DTE)
-            const desc=`${d.razonSocial||''} · ${nombreDoc} N°${d.numero}`.trim();
-            if(totSig>0)movs.push({cd:'1104001',nm:pdcNm('1104001'),debe:totSig,haber:0,desc,rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE});
-            else movs.push({cd:'1104001',nm:pdcNm('1104001'),debe:0,haber:-totSig,desc,rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE});
-          }else{
-            if(totSig>0)movs.push({cd:cuentaDeb,nm:pdcNm(cuentaDeb),debe:totSig,haber:0});
-            else movs.push({cd:cuentaDeb,nm:pdcNm(cuentaDeb),debe:0,haber:-totSig});
-          }
-        }
-        // HABER: ingreso por venta. Se usa la cuenta de ingreso elegida en el
-        // documento (cuentaIngreso); si no hay, se cae a la cuenta por defecto
-        // del tipo de DTE.
-        const cuentaIng=d.cuentaIngreso||(dteInfo?dteInfo.cuenta:'4101002');
-        if(ingSig){
-          if(ingSig>0)movs.push({cd:cuentaIng,nm:pdcNm(cuentaIng),debe:0,haber:ingSig});
-          else movs.push({cd:cuentaIng,nm:pdcNm(cuentaIng),debe:-ingSig,haber:0});
-        }
-        // HABER: IVA débito fiscal
-        if(ivaSig){
-          if(ivaSig>0)movs.push({cd:'2103003',nm:pdcNm('2103003'),debe:0,haber:ivaSig});
-          else movs.push({cd:'2103003',nm:pdcNm('2103003'),debe:-ivaSig,haber:0});
-        }
-
-        if(movs.length){
-          entries.push({
-            n:d.folioComp||n++,
-            fecha:d.fecha,
-            glosa,
-            movs,
-            origen:'auto',
-            fuente:'ventas',
-            docId:d.id,
-            tipoDTE:d.tipoDTE,
-            folio:d.numero,
-            rutCodigo:d.rutCodigo,
-          });
-        }
-      });
-    }
-
-    // COMPRAS del mes — asiento agregado (CREDITO A PROVEEDORES)
-    const cs=cPorMes[m]||[];
-    if(cs.length){
-      // UN ASIENTO POR CADA DOCUMENTO — así el auxiliar de proveedores muestra
-      // cada movimiento con su folio y su fecha real, y el libro mayor los
-      // separa. Las NC quedan como cargo a proveedores (rebaja) y las ND como
-      // abono adicional (aumento), gracias al signo del DTE.
-      cs.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).forEach(d=>{
-        const signo=(dteC(d.tipoDTE)?.signo)||1;   // NC: -1, todo lo demás: +1
-        const dteInfo=dteC(d.tipoDTE);
-        const nombreDoc=dteInfo?.nm||('DTE '+d.tipoDTE);
-        const glosa=`${nombreDoc} N°${d.numero} — ${d.razonSocial||'proveedor'}`;
-        const movs=[];
-
-        // Gasto/activo (una línea por cuenta en la distribución).
-        // El signo positivo → DEBE aumenta; signo negativo (NC) → invierte.
-        // Los "otros impuestos" (patente, específico combustible, tabacos, etc.)
-        // se acumulan en la primera cuenta como parte del costo.
-        const otros=(d.otrosImpuestos||0)*signo;
-        (d.dist||[]).forEach((l,idx)=>{
-          let monto=(l.monto||0)*signo;
-          if(idx===0)monto+=otros;   // primera línea absorbe los otros impuestos
-          if(!monto)return;
-          const desc=l.cc?`CC: ${l.cc}`:'';
-          if(monto>0)movs.push({cd:l.cuenta,nm:pdcNm(l.cuenta),debe:monto,haber:0,desc});
-          else movs.push({cd:l.cuenta,nm:pdcNm(l.cuenta),debe:0,haber:-monto,desc});
-        });
-        // IVA crédito fiscal
-        const iva=(d.iva||0)*signo;
-        if(iva){
-          if(iva>0)movs.push({cd:'1108002',nm:pdcNm('1108002'),debe:iva,haber:0});
-          else movs.push({cd:'1108002',nm:pdcNm('1108002'),debe:0,haber:-iva});
-        }
-        // Proveedor (auxiliar) — el HABER normal, DEBE cuando es NC
-        const totalProv=(d.total||0)*signo;
-        // Para DTE 46 (factura de compra) el total no incluye IVA porque el
-        // receptor retiene. La cuenta proveedor solo recibe lo neto.
-        if(totalProv){
-          const desc=`${d.razonSocial||''} · ${nombreDoc} N°${d.numero}`.trim();
-          if(totalProv>0)movs.push({cd:'2102001',nm:pdcNm('2102001'),debe:0,haber:totalProv,desc,rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE});
-          else movs.push({cd:'2102001',nm:pdcNm('2102001'),debe:-totalProv,haber:0,desc,rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE});
-        }
-        // DTE 46: IVA retenido va al haber (obligación con el SII)
-        if(+d.tipoDTE===46){
-          const ret=(d.iva||0)*signo;
-          if(ret>0)movs.push({cd:'2103003',nm:pdcNm('2103003'),debe:0,haber:ret,desc:'IVA retenido factura compra'});
-          else if(ret<0)movs.push({cd:'2103003',nm:pdcNm('2103003'),debe:-ret,haber:0,desc:'IVA retenido factura compra'});
-        }
-
-        if(movs.length){
-          entries.push({
-            n:d.folioComp||n++,   // usar el folio persistente del doc
-            fecha:d.fecha,
-            glosa,
-            movs,
-            origen:'auto',
-            fuente:'compras',
-            docId:d.id,
-            tipoDTE:d.tipoDTE,
-            folio:d.numero,
-            rutCodigo:d.rutCodigo,
-          });
-        }
-      });
-    }
-
-    // HONORARIOS
-    const honM=S.honorarios.filter(h=>h.mes===m);
-    if(honM.length){
-      const tBruto=honM.reduce((s,h)=>s+ +(h.bruto||0),0),tRet=Math.round(tBruto*retencionHonorarios(S.empresa.anio));
-      // El gasto se abre en una línea por centro de costo, para que el honorario
-      // de un predio sume en el costo acumulado de ese predio y no quede en una
-      // bolsa común. Sin centros asignados queda una sola línea, como antes.
-      const porCC={};
-      honM.forEach(h=>{const k=h.cc||'';porCC[k]=(porCC[k]||0)+ +(h.bruto||0);});
-      const lineasGasto=Object.keys(porCC).filter(k=>porCC[k])
-        .sort((a,b)=>porCC[b]-porCC[a])
-        .map(k=>({cd:'3202019',nm:'HONORARIOS',debe:porCC[k],haber:0,cc:k||undefined}));
-      entries.push({n:n++,fecha,glosa:`Honorarios ${mesNm} ${anio}`,movs:[
-        ...(lineasGasto.length?lineasGasto:[{cd:'3202019',nm:'HONORARIOS',debe:tBruto,haber:0}]),
-        // La retención de la boleta es un impuesto retenido que se entera al SII
-        // en el F29, no una deuda con el profesional: va a RETENCIÓN 2º CATEGORÍA.
-        // (Antes se acreditaba en HONORARIOS POR PAGAR, que además es la cuenta
-        // auxiliable de honorarios, y contaminaba ese auxiliar.)
-        {cd:'2103002',nm:pdcNm('2103002'),debe:0,haber:tRet,desc:`Retención ${(retencionHonorarios(S.empresa.anio)*100).toFixed(2)}% boletas de honorarios`},
-        {cd:'1101201',nm:pdcNm('1101201'),debe:0,haber:tBruto-tRet},
-      ],origen:'auto',fuente:'honorarios',mes:m,anio});
-    }
+  // V2: el asiento persistido es el maestro. Sólo generamos en memoria como
+  // compatibilidad para documentos históricos que aún no han sido migrados.
+  const tieneAsiento=(fuente,docId)=>(S.asientos||[]).some(a=>!a.anulado&&a.tipo==='documento'&&a.fuente===fuente&&a.docId===docId);
+  const automaticos=[];
+  (S.ventas||[]).filter(d=>!d.excluidoAuto&&d.estado!=='anulado'&&!tieneAsiento('ventas',d.id)).forEach(d=>automaticos.push(asientoVenta(d)));
+  (S.compras||[]).filter(d=>!d.excluidoAuto&&d.estado!=='anulado'&&!tieneAsiento('compras',d.id)).forEach(d=>automaticos.push(asientoCompra(d)));
+  automaticos.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).forEach(e=>{
+    entries.push({
+      n:e.folioComp||n++,fecha:e.fecha,glosa:e.glosa,movs:e.movs,origen:'legado-auto',
+      fuente:e.fuente,docId:e.docId,tipoDTE:e.tipoDTE,folio:e.folio,rutCodigo:e.rutCodigo,
+      cuadre:e.cuadre,tributacion:e.tributacion
+    });
   });
-  // Asientos manuales (excluir anulados de todos los cómputos)
+
+  // Honorarios V2: los asientos persistidos son el maestro. Para registros
+  // históricos aún no migrados, mantenemos un fallback individual (no mensual)
+  // que reconoce Honorarios por pagar; nunca presume pago inmediato al Banco.
+  const tieneAsientoHon=id=>(S.asientos||[]).some(a=>!a.anulado&&a.fuente==='honorarios'&&a.docId===id&&a.subtipo==='honorario');
+  (S.honorarios||[]).filter(h=>h.estado!=='anulado'&&!tieneAsientoHon(h.id)).forEach(h=>{
+    const bruto=+(h.bruto||0); if(!bruto)return;
+    const sinRet=h.tipoRetencion==='sin_retencion';
+    const tasa=sinRet?0:(h.tasaRetencion!=null?+h.tasaRetencion:retencionHonorarios(S.empresa.anio));
+    const ret=sinRet?0:(h.retencion!=null?+h.retencion:Math.round(bruto*tasa)),liq=bruto-ret;
+    const limpio=String(h.rut||'').replace(/[^0-9kK]/g,'').toUpperCase();
+    const rutCodigo=limpio.length>1?limpio.slice(0,-1):'',rutDV=limpio.length>1?limpio.slice(-1):'';
+    const fecha=h.fecha||`${anio}-${String(h.mes||1).padStart(2,'0')}-28`;
+    const aux={rutCodigo,rutDV,docId:h.id,tipoAux:'honorario',desc:h.nombre||'Honorario'};
+    const movs=[
+      {cd:'3202019',nm:pdcNm('3202019'),debe:bruto,haber:0,...aux,cc:h.cc||undefined},
+      {cd:'2102006',nm:pdcNm('2102006'),debe:0,haber:liq,...aux},
+    ];
+    if(ret)movs.splice(1,0,{cd:'2103002',nm:pdcNm('2103002'),debe:0,haber:ret,docId:h.id,tributo:'retencion_honorarios'});
+    entries.push({n:n++,fecha,glosa:`Honorario — ${h.nombre||'prestador'}`,origen:'legado-auto',fuente:'honorarios',docId:h.id,movs});
+  });
+
+  // Asientos persistidos: pagos, remuneraciones, depreciaciones, manuales, etc.
   [...S.asientos].filter(a=>!a.anulado).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(a=>{
-    entries.push({n:a.folioComp||a.n||n++,fecha:a.fecha,glosa:a.glosa,movs:a.movs,origen:'manual',ref:a.n});
+    const origen=a.tipo==='manual'?'manual':(a.generadoAutomaticamente||a.origen==='motor-v2')?'auto':'asiento';
+    entries.push({n:a.numeroContable||a.folioComp||a.n||n++,fecha:a.fecha,glosa:a.glosa,movs:a.movs,origen,ref:a.n,tipo:a.tipo||'manual',
+      asientoId:a.id,numeroContable:a.numeroContable||null,fuente:a.fuente||a.referenciaDoc?.fuente||'',docId:a.docId||a.referenciaDoc?.docId||'',subtipo:a.subtipo||'',
+      referenciaDoc:a.referenciaDoc||null,
+      cuentaPago:a.cuentaPago||'',documentos:a.documentos||[],generadoAutomaticamente:!!a.generadoAutomaticamente});
   });
   return entries.sort((a,b)=>{
-    // Apertura siempre primero
-    if(a.origen==='apertura')return -1;
-    if(b.origen==='apertura')return 1;
-    return a.fecha.localeCompare(b.fecha);
+    if(a.origen==='apertura')return -1;if(b.origen==='apertura')return 1;
+    return (a.fecha||'').localeCompare(b.fecha||'');
   });
 }
-
 function renderDiario(){
   const todas=genDiario(),el=document.getElementById('diario-content');
   if(!todas.length){el.innerHTML=`<div class="empty"><div class="ei">📖</div>No hay asientos registrados.</div>`;return;}
@@ -235,7 +102,7 @@ function renderDiario(){
     const eD=e.movs.reduce((s,m)=>s+m.debe,0);
     const eH=e.movs.reduce((s,m)=>s+m.haber,0);
     const dif=Math.round(eD-eH);
-    if(Math.abs(dif)>1){
+    if(Math.abs(dif)>=0.000001){
       descuadres.push({n:e.n,fecha:e.fecha,glosa:e.glosa,debe:eD,haber:eH,dif,origen:e.origen,fuente:e.fuente,docId:e.docId,ref:e.ref});
     }
   });
@@ -248,6 +115,10 @@ function renderDiario(){
         <span style="font-size:18px">⚠️</span>
         <span style="font-weight:700;color:var(--err)">${descuadres.length} comprobante${descuadres.length===1?'':'s'} descuadrado${descuadres.length===1?'':'s'}</span>
         <span style="font-size:11px;color:var(--mt)">— la partida doble no cuadra en estos asientos</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;color:var(--err)">
+        ${descuadres.slice(0,6).map(d=>`<span style="display:inline-block;border:1px solid rgba(248,81,73,.45);border-radius:6px;padding:3px 7px;font-family:var(--mono);font-weight:700">N° ${String(d.n??'S/N').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}</span>`).join('')}
+        ${descuadres.length>6?`<span style="font-size:11px;color:var(--mt);padding:4px">y ${descuadres.length-6} más</span>`:''}
       </div>
       <div style="max-height:180px;overflow-y:auto">
         <table style="width:100%;font-size:11px">
@@ -353,28 +224,27 @@ function renderDiarioTabla(){
 
   const hayFiltro=!!(DIARIO_Q.trim()||DIA_F.desde||DIA_F.hasta);
   const totalDisp=entries.length;
-  // Sin ningún filtro: solo los últimos 5 (más recientes). genDiario viene ascendente.
-  const LIMITE_DIA=5;
-  let ocultos=0;
-  if(!hayFiltro&&entries.length>LIMITE_DIA){
-    ocultos=entries.length-LIMITE_DIA;
-    entries=entries.slice(-LIMITE_DIA);
-  }
 
   const cnt=document.getElementById('diario-count');
   if(cnt)cnt.textContent=hayFiltro?`${totalDisp} asiento${totalDisp===1?'':'s'} · ${etiquetaPeriodo(DIA_F)}`:'';
+
+  // Sin filtros no se pinta ningún asiento: el diario completo del año son
+  // miles de filas. Se muestra solo la barra de filtros y un aviso.
+  if(!hayFiltro){
+    box.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--mt)">
+      <div style="font-size:36px;margin-bottom:8px">📖</div>
+      <div style="font-size:13px;font-weight:600;color:var(--tx)">Aplica un filtro para ver el Libro Diario</div>
+      <div style="font-size:12px;margin-top:6px">Elige un mes, un rango de fechas o busca por N° de comprobante, glosa, cuenta o RUT.</div>
+      <div style="font-size:11px;margin-top:10px">${todasEntries.length} asiento${todasEntries.length===1?'':'s'} en el ejercicio ${S.empresa.anio}</div>
+    </div>`;
+    return;
+  }
 
   if(!entries.length){
     box.innerHTML=`<div style="text-align:center;padding:30px;color:var(--mt)">No hay asientos que coincidan con el filtro.</div>`;
     return;
   }
-
-  let aviso='';
-  if(ocultos){
-    aviso=`<div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);color:var(--info);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px">
-      📖 Mostrando los <strong>${LIMITE_DIA} asientos más recientes</strong> de ${totalDisp}. Filtra por mes, rango de fechas o búsqueda para ver el resto.
-    </div>`;
-  }
+  const ocultos=0,aviso='';
 
   // Totales: del periodo filtrado si hay filtro, de todo el diario si no.
   let tD=0,tH=0;
@@ -385,7 +255,7 @@ function renderDiarioTabla(){
     <thead><tr><th class="tl">N°</th><th class="tl">FECHA</th><th class="tl">GLOSA / CUENTA</th><th class="tl">CÓD.</th><th>DEBE</th><th>HABER</th><th class="tl">ORIGEN</th><th class="tl no-print">EDITAR</th></tr></thead><tbody>`;
   entries.forEach(e=>{
     const eD=e.movs.reduce((s,m)=>s+m.debe,0),eH=e.movs.reduce((s,m)=>s+m.haber,0);
-    const asDescuadrado=Math.abs(eD-eH)>1;
+    const asDescuadrado=Math.abs(eD-eH)>=0.000001;
     const estiloTotal=asDescuadrado?'color:var(--err);font-weight:700':'';
     const ob=e.origen==='manual'?`<span class="badge bb">Manual</span>`:`<span class="badge" style="background:rgba(130,130,130,.12);color:var(--mt)">Auto</span>`;
     const trStyle=asDescuadrado?' style="background:rgba(248,81,73,.05)"':'';
@@ -404,7 +274,7 @@ function renderDiarioTabla(){
       h+=`<tr><td></td><td></td><td class="cel-trunc" title="${attr(nmC+extra)}" style="${isH?'padding-left:28px;color:var(--mt)':''}">${nmC}${extra?`<span style="color:var(--mt);font-size:11px">${extra}</span>`:''}</td><td class="tl" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${m.cd}</td><td>${m.debe?fmtC(m.debe):''}</td><td>${m.haber?fmtC(m.haber):''}</td><td></td><td class="no-print"></td></tr>`;
     });
   });
-  const ok=Math.abs(tD-tH)<1;
+  const ok=Math.abs(tD-tH)<0.000001;
   h+=`</tbody><tfoot><tr><td class="tl" colspan="4">TOTALES ${hayFiltro?'— '+etiquetaPeriodo(DIA_F):(ocultos?'(todo el diario)':'')}</td><td style="${ok?'':'color:var(--err);font-weight:700'}">${fmtC(tD)}</td><td style="${ok?'':'color:var(--err);font-weight:700'}">${fmtC(tH)}</td><td></td><td class="no-print"></td></tr></tfoot></table></div></div>`;
   h+=`<div style="margin-top:10px;font-size:12px;color:${ok?'var(--ach)':'var(--err)'}">
     ${ok?'✅ Partida doble cuadrada — Debe = Haber = '+fmtC(tD):'⚠️ Descuadre: Debe '+fmtC(tD)+' | Haber '+fmtC(tH)+' | Diferencia '+fmtC(Math.abs(tD-tH))}</div>`;
@@ -485,6 +355,12 @@ async function corregirDesdeDiario(fuente,docId){
 // Comprobantes, para que el botón haga lo mismo en las dos pantallas.
 function destinoEdicion(e){
   if(!e)return null;
+  if((e.fuente==='ventas'||e.referenciaDoc?.fuente==='ventas')&&(e.docId||e.referenciaDoc?.docId))
+    return {ic:'🛒',lbl:'Al doc',hint:'Este asiento está vinculado al Libro de Ventas y debe corregirse en su documento',
+            fn:`corregirDesdeDiario('ventas','${e.docId||e.referenciaDoc.docId}')`};
+  if((e.fuente==='compras'||e.referenciaDoc?.fuente==='compras')&&(e.docId||e.referenciaDoc?.docId))
+    return {ic:'🧾',lbl:'Al doc',hint:'Este asiento está vinculado al Libro de Compras y debe corregirse en su documento',
+            fn:`corregirDesdeDiario('compras','${e.docId||e.referenciaDoc.docId}')`};
   if(e.origen==='manual'&&e.ref!=null)
     return {ic:'✏️',lbl:'Editar',hint:`Editar el asiento manual N°${e.ref}`,fn:`editarAsientoRef(${e.ref})`};
   if(e.origen==='apertura')
@@ -496,8 +372,8 @@ function destinoEdicion(e){
     return {ic:'🧾',lbl:'Al doc',hint:'Este asiento lo genera un documento: se edita en el Libro de Compras',
             fn:e.docId?`corregirDesdeDiario('compras','${e.docId}')`:`nav('compras')`};
   if(e.fuente==='honorarios')
-    return {ic:'📝',lbl:'Al libro',hint:'Este asiento resume las boletas del mes: se edita en Honorarios',
-            fn:`nav('honorarios')`};
+    return {ic:'📝',lbl:'Boleta',hint:'Abrir la boleta de honorarios que origina este comprobante',
+            fn:e.docId?`abrirHonComprobante('${e.docId}')`:`nav('honorarios')`};
   return null;
 }
 
@@ -505,8 +381,12 @@ function destinoEdicion(e){
 // El destino es 'comprobantes', que es donde vive el formulario de asientos
 // manuales; 's-asientos' ya no existe como sección.
 function editarAsientoRef(n){
-  const a=S.asientos.find(x=>x.n===n);
+  const a=S.asientos.find(x=>String(x.id)===String(n))||S.asientos.find(x=>+x.numeroContable===+n)||S.asientos.find(x=>x.n===n);
   if(!a){toast('⚠️ No se encontró el asiento N°'+n,'e');return;}
+  if(a.referenciaDoc?.fuente&&a.referenciaDoc?.docId){
+    corregirDesdeDiario(a.referenciaDoc.fuente,a.referenciaDoc.docId);
+    return;
+  }
   nav('comprobantes');
   setTimeout(()=>{try{window.editarAsiento&&window.editarAsiento(a.id);}catch(e){}},50);
 }
@@ -552,6 +432,7 @@ function setMayorFecha(k,v){
 function setMayorQ(v){MAY_F.q=v;renderMayorTabla();}
 function limpiarFiltrosMayor(){
   MAY_F={mes:'',desde:'',hasta:'',q:''};
+  MAY_EXP.clear();
   renderMayor();
 }
 // La descripción de la línea suele repetir lo que ya dice la glosa
@@ -644,11 +525,16 @@ function renderMayor(){
 }
 
 // Renderiza SOLO el contenido del mayor (respeta periodo y búsqueda).
+// Vista resumida: una fila por cuenta (código, nombre, debe, haber, saldo).
+// El detalle de movimientos se arma recién al expandir la cuenta, así la
+// pantalla no pinta miles de filas al entrar.
+let MAY_M={};              // último Mayor calculado (lo usa el detalle al expandir)
+const MAY_EXP=new Set();   // cuentas expandidas (se conservan al filtrar)
 function renderMayorTabla(){
   const box=document.getElementById('mayor-tabla');if(!box)return;
   const M=buildMayor(MAY_F.desde,MAY_F.hasta);
+  MAY_M=M;
   const keys=cuentasMayorFiltradas(M);
-  const hayPeriodo=!!(MAY_F.desde||MAY_F.hasta);
 
   const cnt=document.getElementById('mayor-count');
   if(cnt)cnt.textContent=`${keys.length} cuenta${keys.length===1?'':'s'} · ${etiquetaPeriodo(MAY_F)}`;
@@ -663,42 +549,68 @@ function renderMayorTabla(){
   const tP=sumaPres(M,keys.filter(k=>k.startsWith('2')&&!k.startsWith('23')));
   const tC=sumaPres(M,keys.filter(k=>k.startsWith('3')));
   const tI=sumaPres(M,keys.filter(k=>k.startsWith('4')));
+  let tD=0,tH=0;
   let h=`<div class="kpi-grid">
     <div class="kpi"><div class="kpi-lbl">Total Activos</div><div class="kpi-val pos">${fmtC(tA)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Total Pasivos</div><div class="kpi-val neg">${fmtC(tP)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Total Ingresos</div><div class="kpi-val pos">${fmtC(tI)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Total Costos</div><div class="kpi-val neg">${fmtC(tC)}</div></div>
-  </div>`;
+  </div>
+  <div class="card-np"><div class="tw"><table class="tbl-fija may-res">
+    <colgroup><col style="width:28px"><col style="width:92px"><col><col style="width:130px"><col style="width:130px"><col style="width:140px"></colgroup>
+    <thead><tr><th></th><th class="tl">CÓDIGO</th><th class="tl">CUENTA</th><th>DEBE</th><th>HABER</th><th>SALDO</th></tr></thead><tbody>`;
   keys.forEach(cd=>{
     const a=M[cd];
-    const filaAnt=hayPeriodo
-      ? `<tr style="background:var(--sf2)"><td class="tl" style="font-family:var(--mono);font-size:10px">—</td><td class="cel-trunc" style="font-style:italic;color:var(--mt)">Saldo anterior al ${MAY_F.desde||'inicio'}</td><td>–</td><td>–</td><td style="font-weight:600">${fmtC(Math.abs(a.saldoAnterior))}</td></tr>`
-      : '';
-    h+=`<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div><span style="font-family:var(--mono);font-size:11px;color:var(--mt)">${cd}</span><span style="font-size:14px;font-weight:700;margin-left:10px">${a.nm}</span></div>
-        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-          ${hayPeriodo?`<span style="font-size:11px;color:var(--mt)">Ant: ${fmtC(a.saldoAnterior)}</span>`:''}
-          <span style="font-size:11px;color:var(--mt)">D: ${fmtC(a.debe)}</span>
-          <span style="font-size:11px;color:var(--mt)">H: ${fmtC(a.haber)}</span>
-          <span class="badge ${a.saldo>=0?'bg':'br'}">Saldo: ${fmtC(Math.abs(a.saldo))}</span>
-        </div>
-      </div>
-      <div class="tw"><table class="tbl-fija" style="font-size:11px">
-        <colgroup><col style="width:92px"><col><col style="width:118px"><col style="width:118px"><col style="width:126px"></colgroup>
-        <thead><tr><th class="tl">FECHA</th><th class="tl">GLOSA</th><th>DEBE</th><th>HABER</th><th>SALDO</th></tr></thead><tbody>
-        ${filaAnt}
-        ${a.movs.map(m=>{
-          const extra=descAporta(m.glosa,m.desc)?` — ${m.desc}`:'';
-          const txt=(m.glosa||'')+extra;
-          return `<tr><td class="tl" style="font-family:var(--mono);font-size:10px">${m.fecha}</td><td class="cel-trunc" title="${attr(txt)}">${m.glosa||''}${extra?`<span style="color:var(--mt)">${extra}</span>`:''}</td><td>${m.debe?fmtC(m.debe):'–'}</td><td>${m.haber?fmtC(m.haber):'–'}</td><td style="font-weight:600">${fmtC(Math.abs(m.saldo))}</td></tr>`;
-        }).join('')
-          ||`<tr><td colspan="5" style="text-align:center;color:var(--mt);padding:10px">Sin movimientos en el periodo</td></tr>`}
-        </tbody>
-      </table></div>
-    </div>`;
+    tD+=a.debe;tH+=a.haber;
+    const abierta=MAY_EXP.has(cd);
+    h+=`<tr class="may-cta${abierta?' open':''}" data-cd="${cd}" onclick="toggleMayorCuenta('${cd}')" style="cursor:pointer">
+      <td class="may-chev" style="text-align:center;color:var(--mt)">${abierta?'▾':'▸'}</td>
+      <td class="tl" style="font-family:var(--mono);font-size:11px">${cd}</td>
+      <td class="cel-trunc" title="${attr(a.nm)}" style="font-weight:600">${a.nm}</td>
+      <td>${a.debe?fmtC(a.debe):'–'}</td>
+      <td>${a.haber?fmtC(a.haber):'–'}</td>
+      <td style="font-weight:700;color:${a.saldo>=0?'var(--ach)':'var(--err)'}">${fmtC(Math.abs(a.saldo))}</td>
+    </tr>`;
+    if(abierta)h+=filaDetalleMayor(cd);
   });
+  h+=`</tbody><tfoot><tr><td></td><td class="tl" colspan="2">TOTALES</td><td>${fmtC(tD)}</td><td>${fmtC(tH)}</td><td></td></tr></tfoot></table></div></div>`;
   box.innerHTML=h;
+}
+
+// Fila con el detalle de una cuenta. Se genera sólo cuando se expande.
+function filaDetalleMayor(cd){
+  const a=MAY_M[cd];if(!a)return'';
+  const hayPeriodo=!!(MAY_F.desde||MAY_F.hasta);
+  const filaAnt=hayPeriodo
+    ? `<tr style="background:var(--sf2)"><td class="tl" style="font-family:var(--mono);font-size:10px">—</td><td class="cel-trunc" style="font-style:italic;color:var(--mt)">Saldo anterior al ${MAY_F.desde||'inicio'}</td><td>–</td><td>–</td><td style="font-weight:600">${fmtC(Math.abs(a.saldoAnterior))}</td></tr>`
+    : '';
+  const movs=a.movs.map(m=>{
+    const extra=descAporta(m.glosa,m.desc)?` — ${m.desc}`:'';
+    const txt=(m.glosa||'')+extra;
+    return `<tr><td class="tl" style="font-family:var(--mono);font-size:10px">${m.fecha}</td><td class="cel-trunc" title="${attr(txt)}"><span style="font-family:var(--mono);color:var(--mt);font-size:10px;margin-right:6px">N°${m.n}</span>${m.glosa||''}${extra?`<span style="color:var(--mt)">${extra}</span>`:''}</td><td>${m.debe?fmtC(m.debe):'–'}</td><td>${m.haber?fmtC(m.haber):'–'}</td><td style="font-weight:600">${fmtC(Math.abs(m.saldo))}</td></tr>`;
+  }).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--mt);padding:10px">Sin movimientos en el periodo</td></tr>`;
+  return `<tr class="may-det" data-det="${cd}"><td colspan="6" style="padding:0 0 10px 28px;background:var(--sf2)">
+    <table class="tbl-fija" style="font-size:11px">
+      <colgroup><col style="width:92px"><col><col style="width:118px"><col style="width:118px"><col style="width:126px"></colgroup>
+      <thead><tr><th class="tl">FECHA</th><th class="tl">GLOSA</th><th>DEBE</th><th>HABER</th><th>SALDO</th></tr></thead>
+      <tbody>${filaAnt}${movs}</tbody>
+    </table></td></tr>`;
+}
+
+// Expande/colapsa una cuenta sin volver a calcular ni redibujar el Mayor
+function toggleMayorCuenta(cd){
+  const fila=document.querySelector(`#mayor-tabla tr.may-cta[data-cd="${cd}"]`);
+  if(!fila)return;
+  const det=document.querySelector(`#mayor-tabla tr.may-det[data-det="${cd}"]`);
+  const chev=fila.querySelector('.may-chev');
+  if(det){
+    det.remove();MAY_EXP.delete(cd);fila.classList.remove('open');
+    if(chev)chev.textContent='▸';
+  }else{
+    fila.insertAdjacentHTML('afterend',filaDetalleMayor(cd));
+    MAY_EXP.add(cd);fila.classList.add('open');
+    if(chev)chev.textContent='▾';
+  }
 }
 
 // ── Exportar Libro Mayor a Excel (respeta los filtros activos) ──
@@ -844,7 +756,7 @@ async function renderBalance(){
     <div class="bal-layout">
       <div>
         <div class="card-title">ACTIVOS</div>
-        <table><tbody>
+        <table class="report-money-table balance-money-table"><colgroup><col class="report-col-desc"><col class="report-col-money"></colgroup><tbody>
           ${gAC.h}<tr class="rtot"><td class="tl" style="padding:8px 10px;font-size:11px">Total Activos Corrientes</td><td style="font-family:var(--mono)">${fmtC(gAC.tot)}</td></tr>
           ${gAF.h}<tr class="rtot"><td class="tl" style="padding:8px 10px;font-size:11px">Total Activos No Corrientes</td><td style="font-family:var(--mono)">${fmtC(gAF.tot)}</td></tr>
           <tr style="background:rgba(46,160,67,.12)"><td class="tl" style="padding:10px;font-weight:700;font-size:13px">TOTAL ACTIVOS</td><td style="font-family:var(--mono);font-weight:700;font-size:13px;color:var(--ach)">${fmtC(totAct)}</td></tr>
@@ -852,7 +764,7 @@ async function renderBalance(){
       </div>
       <div>
         <div class="card-title">PASIVOS Y PATRIMONIO</div>
-        <table><tbody>
+        <table class="report-money-table balance-money-table"><colgroup><col class="report-col-desc"><col class="report-col-money"></colgroup><tbody>
           ${gPC.h}<tr class="rtot"><td class="tl" style="padding:8px 10px;font-size:11px">Total Pasivos Corrientes</td><td style="font-family:var(--mono)">${fmtC(gPC.tot)}</td></tr>
           ${gPNC.h}<tr class="rtot"><td class="tl" style="padding:8px 10px;font-size:11px">Total Pasivos No Corrientes</td><td style="font-family:var(--mono)">${fmtC(gPNC.tot)}</td></tr>
           <tr class="rtot" style="background:rgba(248,81,73,.08)"><td class="tl" style="padding:8px 10px;font-size:11px">Total Pasivos</td><td style="font-family:var(--mono)">${fmtC(totPas)}</td></tr>
@@ -966,7 +878,11 @@ async function renderResultados(){
 
   // Impuesto a la renta: si hay cuenta contabilizada (36) se usa; si no, se estima con tasa del régimen
   const impContab=sumaPref('36');
-  const TASA_RENTA=(S.empresa.tasaRenta!=null?+S.empresa.tasaRenta:25)/100; // 14D N°3 Pro-Pyme General: 25%
+  // 0 es una tasa válida (14 D N°8). Además se protege a las empresas que
+  // pudieron quedar históricamente guardadas con 25 por el antiguo `0 || 25`.
+  const regimen=S.empresa.regimen||'14D3';
+  const tasaGuardada=S.empresa.tasaRenta!=null?+S.empresa.tasaRenta:null;
+  const TASA_RENTA=(regimen==='14D8'?0:(tasaGuardada!=null?tasaGuardada:tasaIDPC(regimen,S.empresa.anio)))/100;
   const impEstimado=resAntesImp>0?Math.round(resAntesImp*TASA_RENTA):0;
   const usaEstimado=impContab<0.5&&resAntesImp>0;
   const impuesto=impContab>=0.5?impContab:impEstimado;
@@ -1013,7 +929,7 @@ async function renderResultados(){
       <div style="color:var(--mt);font-size:12px;margin-top:3px">Estado de Resultados — Año ${S.empresa.anio}</div>
       <div style="color:var(--mt);font-size:11px;margin-top:2px">Régimen 14 D N°3 Pro-Pyme General</div>
     </div>
-    <table><tbody>
+    <table class="report-money-table eerr-money-table"><colgroup><col class="report-col-desc"><col class="report-col-money"></colgroup><tbody>
       ${nivel('Ingresos de explotación',ingExp,'41',{color:'var(--ach)'})}
       ${nivel('Costo de explotación',costoExp,'31',{resta:true,color:'var(--err)'})}
       ${subtotal('= MARGEN BRUTO',margenBruto)}
@@ -1050,6 +966,127 @@ async function renderResultados(){
 }
 
 
-export {genDiario, renderDiario, setDiarioQ, buildMayor, buildMayorAnio, totalesDeMayor, CMP_YEAR, fmtVar, renderMayor, renderBalance, poblarCmpSelect, onCmpYear, renderComparativo, renderResultados, corregirDesdeDiario, editarAsientoRef, destinoEdicion,
+// ═══ BALANCE TABULAR DE 8 COLUMNAS (hoja de trabajo, tipo IFRS) ═══
+// Por cada cuenta imputable: Sumas (Debe/Haber), Saldos (Deudor/Acreedor),
+// Balance (Activo/Pasivo+Patrimonio) y Resultado (Pérdida/Ganancia). El
+// resultado del ejercicio cuadra ambos pares finales.
+function calcularBalance8(){
+  const M=buildMayor();
+  const filas=[];
+  const T={sd:0,sh:0,dd:0,da:0,act:0,pas:0,per:0,gan:0};
+  Object.keys(M).filter(cd=>cd.length===7&&(Math.abs(M[cd].debe)>=0.5||Math.abs(M[cd].haber)>=0.5))
+    .sort().forEach(cd=>{
+      const debe=M[cd].debe, haber=M[cd].haber, saldo=debe-haber;
+      const deudor=saldo>0?saldo:0, acreedor=saldo<0?-saldo:0;
+      const esResultado=cd.startsWith('3')||cd.startsWith('4');
+      const act=(!esResultado)?deudor:0, pas=(!esResultado)?acreedor:0;
+      const per=esResultado?deudor:0, gan=esResultado?acreedor:0;
+      filas.push({cd,nm:M[cd].nm||pdcNm(cd),debe,haber,deudor,acreedor,act,pas,per,gan});
+      T.sd+=debe;T.sh+=haber;T.dd+=deudor;T.da+=acreedor;T.act+=act;T.pas+=pas;T.per+=per;T.gan+=gan;
+    });
+  // Resultado del ejercicio: cuadra Pérdida/Ganancia y Activo/Pasivo.
+  const resultado=T.gan-T.per;   // >0 utilidad · <0 pérdida
+  return {filas,T,resultado};
+}
+
+async function renderBalance8(){
+  const cont=document.getElementById('balance8-content');
+  if(!cont)return;
+  const {filas,T,resultado}=calcularBalance8();
+  const num=v=>v?fmt(Math.round(v)):'–';
+  if(!filas.length){cont.innerHTML=`<div class="empty"><div class="ei">📋</div>No hay movimientos para armar el balance tabular.</div>`;return;}
+
+  const rows=filas.map(f=>`<tr>
+    <td class="tl" style="font-family:var(--mono);font-size:10px;color:var(--mt)">${f.cd}</td>
+    <td class="tl" style="font-size:11px">${f.nm}</td>
+    <td class="c-num">${num(f.debe)}</td><td class="c-num">${num(f.haber)}</td>
+    <td class="c-num">${num(f.deudor)}</td><td class="c-num">${num(f.acreedor)}</td>
+    <td class="c-num">${num(f.act)}</td><td class="c-num">${num(f.pas)}</td>
+    <td class="c-num">${num(f.per)}</td><td class="c-num">${num(f.gan)}</td>
+  </tr>`).join('');
+
+  // Fila del resultado del ejercicio (cuadra los dos últimos pares).
+  // La UTILIDAD cierra las cuentas de resultado por el DEBE (columna Pérdida) y
+  // aumenta el patrimonio (columna Pasivo). La PÉRDIDA hace lo inverso.
+  // Orden de las 4 últimas columnas: Activo · Pasivo · Pérdida · Ganancia.
+  const utilidad=resultado>=0, p=Math.abs(resultado);
+  const resRow=`<tr style="background:rgba(88,166,255,.06);font-weight:600">
+    <td class="tl" colspan="6" style="text-align:right;padding-right:10px">${utilidad?'Utilidad del ejercicio':'Pérdida del ejercicio'}</td>
+    <td class="c-num">${utilidad?'–':num(p)}</td>
+    <td class="c-num">${utilidad?num(p):'–'}</td>
+    <td class="c-num">${utilidad?num(p):'–'}</td>
+    <td class="c-num">${utilidad?'–':num(p)}</td>
+  </tr>`;
+  // Totales finales (ya cuadrados con el resultado)
+  const actF=T.act+(utilidad?0:p), pasF=T.pas+(utilidad?p:0);
+  const perF=T.per+(utilidad?p:0), ganF=T.gan+(utilidad?0:p);
+  const cuadra=Math.abs(T.sd-T.sh)<2&&Math.abs(T.dd-T.da)<2&&Math.abs(actF-pasF)<2&&Math.abs(perF-ganF)<2;
+  const totRow=`<tr class="rtot" style="font-weight:700;background:var(--sf2)">
+    <td class="tl" colspan="2" style="padding:8px 10px">TOTALES</td>
+    <td class="c-num">${num(T.sd)}</td><td class="c-num">${num(T.sh)}</td>
+    <td class="c-num">${num(T.dd)}</td><td class="c-num">${num(T.da)}</td>
+    <td class="c-num">${num(actF)}</td><td class="c-num">${num(pasF)}</td>
+    <td class="c-num">${num(perF)}</td><td class="c-num">${num(ganF)}</td>
+  </tr>`;
+
+  cont.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--mt)">Hoja de trabajo · Balance de 8 columnas · Ejercicio ${S.empresa.anio}</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button>
+        <button class="btn btn-g" onclick="exportarBalance8Excel()">📊 Excel</button>
+      </div>
+    </div>
+    <div class="card-np"><div class="tw"><table class="tbl-bal8" style="font-size:11px">
+      <thead>
+        <tr>
+          <th rowspan="2" class="tl">CÓD</th><th rowspan="2" class="tl">CUENTA</th>
+          <th colspan="2" style="text-align:center">SUMAS</th>
+          <th colspan="2" style="text-align:center">SALDOS</th>
+          <th colspan="2" style="text-align:center">BALANCE (INVENTARIO)</th>
+          <th colspan="2" style="text-align:center">RESULTADO (P y G)</th>
+        </tr>
+        <tr>
+          <th class="c-num">Debe</th><th class="c-num">Haber</th>
+          <th class="c-num">Deudor</th><th class="c-num">Acreedor</th>
+          <th class="c-num">Activo</th><th class="c-num">Pasivo</th>
+          <th class="c-num">Pérdida</th><th class="c-num">Ganancia</th>
+        </tr>
+      </thead>
+      <tbody>${rows}${resRow}</tbody>
+      <tfoot>${totRow}</tfoot>
+    </table></div></div>
+    <div style="margin-top:10px;font-size:12px;color:${cuadra?'var(--ach)':'var(--warn)'}">
+      ${cuadra?'✅ Balance tabular cuadrado':'⚠️ Revisa: alguna columna no cuadra'}
+      <span style="color:var(--mt);margin-left:10px">Resultado del ejercicio: <strong style="color:${utilidad?'var(--ach)':'var(--err)'}">${fmtC(resultado)}</strong></span>
+    </div>`;
+}
+
+function exportarBalance8Excel(){
+  try{
+    if(typeof XLSX==='undefined'){toast('⚠️ No se pudo cargar el generador de Excel','e');return;}
+    const {filas,T,resultado}=calcularBalance8();
+    const utilidad=resultado>=0, p=Math.abs(resultado);
+    const rows=[];
+    rows.push(['BALANCE DE 8 COLUMNAS (HOJA DE TRABAJO)']);
+    rows.push([S.empresa.nombre||'', S.empresa.rut||'', 'Ejercicio', S.empresa.anio]);
+    rows.push([]);
+    rows.push(['Código','Cuenta','Debe','Haber','Deudor','Acreedor','Activo','Pasivo','Pérdida','Ganancia']);
+    filas.forEach(f=>rows.push([f.cd,f.nm,f.debe,f.haber,f.deudor,f.acreedor,f.act,f.pas,f.per,f.gan]));
+    rows.push(['', utilidad?'Utilidad del ejercicio':'Pérdida del ejercicio','','','','',
+      utilidad?0:p, utilidad?p:0, utilidad?p:0, utilidad?0:p]);
+    rows.push(['','TOTALES',T.sd,T.sh,T.dd,T.da,
+      T.act+(utilidad?0:p), T.pas+(utilidad?p:0),
+      T.per+(utilidad?p:0), T.gan+(utilidad?0:p)]);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:10},{wch:34},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Balance 8 columnas');
+    XLSX.writeFile(wb,`balance_8_columnas_${S.empresa.anio}.xlsx`);
+    toast('📊 Balance de 8 columnas exportado');
+  }catch(e){toast('❌ No se pudo exportar: '+e.message,'e');}
+}
+
+export {genDiario, renderDiario, setDiarioQ, buildMayor, buildMayorAnio, totalesDeMayor, CMP_YEAR, fmtVar, renderMayor, renderBalance, renderBalance8, calcularBalance8, exportarBalance8Excel, poblarCmpSelect, onCmpYear, renderComparativo, renderResultados, corregirDesdeDiario, editarAsientoRef, destinoEdicion,
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
-        onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel};
+        onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel, toggleMayorCuenta};

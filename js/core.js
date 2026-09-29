@@ -128,6 +128,7 @@ let PDC=[
   {cd:'1108004',nm:'CRÉDITO GASTOS DE CAPACITACIÓN',tp:'A',nat:'D'},
   {cd:'1108005',nm:'CRÉDITO 2% ADICIONAL ISAPRE',tp:'A',nat:'D'},
   {cd:'1108006',nm:'OTROS IMPUESTOS POR RECUPERAR',tp:'A',nat:'D'},
+  {cd:'1108008',nm:'IVA CRÉDITO FISCAL ACTIVO FIJO',tp:'A',nat:'D'},
   {cd:'1109001',nm:'MADERAS',tp:'A',nat:'D'},
   {cd:'1109002',nm:'BOSQUES',tp:'A',nat:'D'},
   {cd:'1109003',nm:'CULTIVOS AGRICOLAS',tp:'A',nat:'D'},
@@ -183,6 +184,7 @@ let PDC=[
   {cd:'2103002',nm:'RETENCIÓN 2º CATEGORÍA',tp:'P',nat:'C'},
   {cd:'2103003',nm:'IVA DÉBITO FISCAL',tp:'P',nat:'C'},
   {cd:'2103004',nm:'OTROS IMPUESTOS POR PAGAR',tp:'P',nat:'C'},
+  {cd:'2103005',nm:'IVA RETENIDO FACTURAS DE COMPRA',tp:'P',nat:'C'},
   {cd:'2104001',nm:'INSTITUCIONES PREVISIONALES POR PAGAR',tp:'P',nat:'C'},
   {cd:'2104002',nm:'IMPUESTOS POR PAGAR',tp:'P',nat:'C'},
   {cd:'2104005',nm:'REMUNERACIONES POR PAGAR',tp:'P',nat:'C'},
@@ -355,9 +357,15 @@ const DTE_COMPRAS=[
   {cod:46,nm:'Factura de Compra Electrónica',afecto:true},
   {cod:56,nm:'Nota de Débito',afecto:true,signo:1},
   {cod:61,nm:'Nota de Crédito',afecto:true,signo:-1},
+  // Honorarios tratados como documento de proveedor. No llevan IVA ni van al
+  // F29 de compras; se contabilizan contra Honorarios por Pagar (2102006).
+  {cod:70,nm:'Boleta de Honorarios (con retención)',afecto:false,signo:1,honorario:true,retencion:true},
+  {cod:71,nm:'Boleta de Honorarios (sin retención)',afecto:false,signo:1,honorario:true,retencion:false},
 ];
 const dteV=cod=>DTE_VENTAS.find(d=>d.cod===+cod)||null;
 const dteC=cod=>DTE_COMPRAS.find(d=>d.cod===+cod)||null;
+// ¿El tipo de documento de compra es una boleta de honorarios? (70 / 71)
+const esDteHonorario=cod=>{const d=dteC(cod);return !!(d&&d.honorario);};
 
 
 // ═══ RUT — Utilidades Chilenas ═══
@@ -389,7 +397,25 @@ function rutFmt(codigo,dv){
 // ═══ FORMATO ═══
 const fmt=n=>{const v=Math.round(+n||0);return v===0?'\u2013':new Intl.NumberFormat('es-CL').format(v);};
 const fmtC=n=>'$\u00a0'+new Intl.NumberFormat('es-CL').format(Math.round(+n||0));
-const pn=v=>Math.round(+(String(v).replace(/[^\d.-]/g,''))||0);
+// Parsea montos enteros visibles en formato chileno. Un punto es separador de
+// miles, nunca decimal: "31.681" debe producir 31681 y no 32.
+const pn=v=>{
+  if(typeof v==='number')return Number.isFinite(v)?Math.round(v):0;
+  const s=String(v??'').trim();if(!s)return 0;
+  const negativo=/^-/.test(s),limpio=s.replace(/[^\d.,]/g,'');if(!limpio)return 0;
+  const puntos=(limpio.match(/\./g)||[]).length,comas=(limpio.match(/,/g)||[]).length;
+  let canonico;
+  if(puntos&&comas){
+    const decimal=limpio.lastIndexOf('.')>limpio.lastIndexOf(',')?'.':',';
+    const miles=decimal==='.'?',':'.';
+    canonico=limpio.split(miles).join('').replace(decimal,'.');
+  }else if(comas){
+    canonico=limpio.replace(/\./g,'').replace(',','.');
+  }else if(puntos===1&&limpio.split('.')[1].length!==3){
+    canonico=limpio;
+  }else canonico=limpio.replace(/\./g,'');
+  const n=Math.round(Number(canonico));return Number.isFinite(n)?(negativo?-n:n):0;
+};
 const today=()=>new Date().toISOString().slice(0,10);
 
 
@@ -401,4 +427,4 @@ function toast(msg,tipo='ok'){
 }
 
 
-export {MESES, MC, IVA, CCOLS, PDC, CUENTAS_SEL, CUENTAS_GASTO, CUENTAS_INGRESO, CUENTAS_COMPRA, recalcDerivadasPDC, pdcNm, DTE_VENTAS, DTE_COMPRAS, dteV, dteC, rutDV, rutParse, rutFmt, fmt, fmtC, pn, today, toast};
+export {MESES, MC, IVA, CCOLS, PDC, CUENTAS_SEL, CUENTAS_GASTO, CUENTAS_INGRESO, CUENTAS_COMPRA, recalcDerivadasPDC, pdcNm, DTE_VENTAS, DTE_COMPRAS, dteV, dteC, esDteHonorario, rutDV, rutParse, rutFmt, fmt, fmtC, pn, today, toast};

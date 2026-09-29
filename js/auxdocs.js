@@ -17,6 +17,7 @@
 
 import {S} from './state.js';
 import {dteV, dteC} from './core.js';
+import {pagosDocumento} from './motor-contable.js';
 
 // Documento original en el libro de ventas o compras, si el movimiento viene
 // de ahí. Los movimientos de asientos manuales y de apertura no lo tienen.
@@ -34,10 +35,20 @@ export function esNota(d,tipo){
   return signoDe(d.tipoDTE,tipo)<0||+d.tipoDTE===56;
 }
 
+// Folio de la factura referenciada por un documento (nota de crédito/débito).
+// Reconoce dos orígenes: `folioRef` (asociación manual desde el auxiliar/Pagos)
+// y `referencia.folio` (referencia capturada en el importador RCV o en el
+// formulario). La manual tiene prioridad como override.
+export function refFolioDoc(orig){
+  if(!orig)return '';
+  if(orig.folioRef)return String(orig.folioRef).trim();
+  if(orig.referencia&&orig.referencia.folio)return String(orig.referencia.folio).trim();
+  return '';
+}
+
 // Folio de la factura que referencia esta nota, o '' si va suelta
 export function folioRefDe(d,tipo){
-  const orig=docOriginal(d,tipo);
-  return orig&&orig.folioRef?String(orig.folioRef).trim():'';
+  return refFolioDoc(docOriginal(d,tipo));
 }
 
 // ── Saldo por documento ──
@@ -50,7 +61,7 @@ export function saldoDeDocumento(d,tipo,notasHijas){
   if(!orig)return {total:d.montoSigno||0,pagado:0,notas:0,saldo:d.montoSigno||0,sinLibro:true};
   const signo=signoDe(orig.tipoDTE,tipo);
   const total=(orig.total||0)*signo;
-  const pagado=(orig.pagos||[]).reduce((s,p)=>s+(p.monto||0),0);
+  const pagado=pagosDocumento(orig,tipo==='cliente'?'cliente':'proveedor',S.asientos).reduce((s,p)=>s+(p.monto||0),0);
   const notas=(notasHijas||[]).reduce((s,n)=>{
     const o=docOriginal(n,tipo);
     if(!o)return s;
@@ -81,6 +92,19 @@ export function ordenarConNotas(docs,tipo){
     (notasPorFolio[ref]||(notasPorFolio[ref]=[])).push(d);
   });
 
+  // Agrupar los pagos/cobros que referencian un documento, por docId (preferido)
+  // o por folio. Así se muestran colgando de su factura y no como línea suelta.
+  const pagosPorDocId={}, pagosPorFolio={};
+  lista.forEach(d=>{
+    if(d.tipo!=='manual'||!d.esPago)return;
+    if(d.refDocId)(pagosPorDocId[String(d.refDocId)]||(pagosPorDocId[String(d.refDocId)]=[])).push(d);
+    else if(d.refFolio)(pagosPorFolio[d.refFolio]||(pagosPorFolio[d.refFolio]=[])).push(d);
+  });
+  // ¿Existe en este auxiliar la factura a la que apunta el pago?
+  const facturaPresente=(docId,folio)=>lista.some(f=>f.tipo==='doc'&&!esNota(f,tipo)&&(
+    (docId&&String(f.docOriginalId||'')===String(docId))||
+    (folio&&String(f.numero||'').trim()===String(folio))));
+
   const salida=[];
   lista.forEach(d=>{
     if(colgadas.has(d))return;
@@ -89,20 +113,33 @@ export function ordenarConNotas(docs,tipo){
       const ref=folioRefDe(d,tipo);
       if(ref&&lista.some(f=>!esNota(f,tipo)&&String(f.numero||'').trim()===ref))return;
     }
+    // ¿Es un pago que cuelga de una factura presente? Se pinta bajo ella.
+    if(d.tipo==='manual'&&d.esPago&&facturaPresente(d.refDocId,d.refFolio))return;
+
     const num=String(d.numero||'').trim();
-    const hijas=(!esNota(d,tipo)&&num&&notasPorFolio[num])?notasPorFolio[num]:[];
-    hijas.forEach(n=>colgadas.add(n));
+    const esDocPrincipal=d.tipo==='doc'&&!esNota(d,tipo);
+    // Notas hijas: afectan el saldo del documento.
+    const notasH=(esDocPrincipal&&num&&notasPorFolio[num])?notasPorFolio[num]:[];
+    // Pagos hijos: NO se restan otra vez (saldoDeDocumento ya descuenta lo pagado
+    // vía pagosDocumento); solo se muestran bajo la factura.
+    const pagosH=esDocPrincipal
+      ?[...(pagosPorDocId[String(d.docOriginalId||'')]||[]),...(pagosPorFolio[num]||[])]
+      :[];
+    notasH.forEach(n=>colgadas.add(n));
+    pagosH.forEach(p=>colgadas.add(p));
     d.__nivel=0;
-    d.__notas=hijas;
-    d.__saldoDoc=d.tipo==='doc'?saldoDeDocumento(d,tipo,hijas):null;
+    d.__notas=notasH;                 // solo notas para el cálculo de saldo
+    d.__hijas=[...notasH,...pagosH];  // todo lo que cuelga, para "sólo con saldo"
+    d.__saldoDoc=d.tipo==='doc'?saldoDeDocumento(d,tipo,notasH):null;
     salida.push(d);
-    hijas
+    // Render de las hijas (notas + pagos) en orden cronológico
+    [...notasH,...pagosH]
       .sort((a,b)=>String(a.fecha||'').localeCompare(String(b.fecha||'')))
-      .forEach(n=>{
-        n.__nivel=1;
-        n.__notas=[];
-        n.__saldoDoc=saldoDeDocumento(n,tipo,[]);
-        salida.push(n);
+      .forEach(h=>{
+        h.__nivel=1;
+        h.__notas=[];h.__hijas=[];
+        h.__saldoDoc=h.tipo==='doc'?saldoDeDocumento(h,tipo,[]):null;
+        salida.push(h);
       });
   });
   return salida;
@@ -120,10 +157,10 @@ export function tieneSaldo(d){
 export function soloConSaldo(lista){
   const salida=[];
   lista.forEach(d=>{
-    if(d.__nivel===1)return;              // las notas entran con su factura
+    if(d.__nivel===1)return;              // notas y pagos entran con su factura
     if(!tieneSaldo(d))return;
     salida.push(d);
-    (d.__notas||[]).forEach(n=>salida.push(n));
+    (d.__hijas||d.__notas||[]).forEach(n=>salida.push(n));
   });
   return salida;
 }

@@ -21,7 +21,7 @@
 // Año Tributario 2026 (Recuadro N°17 para Pro Pyme 14 D N°3, Recuadro N°12 para
 // contabilidad completa del régimen general). Se muestran como referencia para
 // el traspaso manual al formulario en sii.cl.
-import {toast, fmtC, pdcNm} from './core.js';
+import {toast, fmtC, pdcNm, pn} from './core.js';
 import {S} from './state.js';
 import {buildMayor} from './reportes.js';
 import {calcularF29Anual} from './tributario.js';
@@ -29,6 +29,7 @@ import {logAccion} from './firebase.js';
 // El catálogo de regímenes y sus parámetros vive en regimenes.js, que es la
 // única fuente de verdad compartida con empresas.js y la ficha de empresa.
 import {REGIMENES, regimenInfo, tasaIDPC, notaTasa, REGIMEN_DEFAULT} from './regimenes.js';
+import {conciliacionDepreciacionAF} from './activofijo.js';
 import './storage.js';
 
 const regInfo=regimenInfo;
@@ -121,18 +122,17 @@ function cuentasGasto(M){
   }));
 }
 
-// Depreciación tributaria del ejercicio.
-// Pro Pyme (14 D): depreciación instantánea — el activo fijo adquirido en el año
-// se deduce íntegro. Régimen general: cuota según vida útil (ya contabilizada).
-function depreciacionTributaria(anio,regimen){
+// Conciliación de depreciación financiera / tributaria del ejercicio.
+// La ficha de activo fijo es la fuente de verdad de ambas bases. Para Pro Pyme
+// la tributaria puede ser instantánea; para régimen general se utiliza la cuota
+// tributaria configurada en cada bien.
+function conciliacionDepreciacionRenta(anio,regimen){
   const r=regInfo(regimen);
-  if(!r.deprInstantanea)return {total:0, bienes:[], instantanea:false};
-  const bienes=(S.activos||[]).filter(b=>+(b.fecha||'').slice(0,4)===anio)
-    .map(b=>({nm:b.desc||b.nombre||'Activo', fecha:b.fecha, valor:+(b.valor||0)}));
-  return {total:bienes.reduce((s,b)=>s+b.valor,0), bienes, instantanea:true};
+  return conciliacionDepreciacionAF(anio,{deprInstantanea:!!r.deprInstantanea});
 }
 
-// Depreciación financiera cargada a resultado en el ejercicio (grupo 3301xxx)
+// Depreciación financiera efectivamente cargada a resultado según el Mayor.
+// Se mantiene como control contra las fichas de activo fijo.
 function depreciacionFinanciera(M){
   return cuentasCon(M,'3301').reduce((s,k)=>s+saldoPres(k,M[k].saldo),0);
 }
@@ -181,16 +181,33 @@ function calcularRenta(){
     ag.push({cod:'', lbl:'Gasto rechazado: '+(M[cd].nm||pdcNm(cd)), monto, auto:true, cuenta:cd,
              nota:motivoRechazo(cd,M[cd].nm)||'Marcado como no deducible (Art. 21 / Art. 31 LIR).'});
   });
-  // 3. Depreciación financiera, cuando el régimen usa depreciación instantánea
-  const depTrib=depreciacionTributaria(anio,RENTA.regimen);
+  // 2b. Gastos rechazados marcados directamente en documentos V2.8.
+  // Se agregan por movimiento y no por cuenta completa, evitando obligar a
+  // tratar toda una cuenta como rechazada. Si la cuenta ya fue marcada arriba,
+  // no se duplica el agregado.
+  const rechazoDoc=new Map();
+  (S.asientos||[]).filter(a=>!a.anulado).forEach(a=>(a.movs||[]).forEach(m=>{
+    if(m.tributario!=='gasto_rechazado'||RENTA.rechazadas.includes(m.cd))return;
+    const monto=(+m.debe||0)-(+m.haber||0);if(Math.abs(monto)<0.5)return;
+    const k=m.cd||'sin-cuenta';const x=rechazoDoc.get(k)||{monto:0,n:0};x.monto+=monto;x.n++;rechazoDoc.set(k,x);
+  }));
+  rechazoDoc.forEach((x,cd)=>{
+    if(Math.abs(x.monto)<0.5)return;
+    ag.push({cod:'',lbl:`Gasto rechazado documentado: ${pdcNm(cd)} (${x.n} movimiento${x.n===1?'':'s'})`,monto:x.monto,auto:true,cuenta:cd,
+      nota:'Marcado a nivel de documento como gasto rechazado. Se agrega a la RLI sin reclasificar el asiento financiero.'});
+  });
+
+  // 3. Depreciación financiera / tributaria. Siempre se concilian ambas bases
+  //    cuando difieren, no sólo en depreciación instantánea.
+  const depConc=conciliacionDepreciacionRenta(anio,RENTA.regimen);
   const depFin=depreciacionFinanciera(M);
-  if(reg.deprInstantanea&&Math.abs(depFin)>=0.5)
-    ag.push({cod:'982', lbl:'Depreciación financiera del ejercicio (se reversa)', monto:depFin, auto:true,
-             nota:'En el régimen Pro Pyme la depreciación es instantánea: se reversa la cuota financiera y se deduce el 100% del activo adquirido en el año.'});
+  if(Math.abs(depFin)>=0.5&&Math.abs(depFin-depConc.tributaria)>0.5)
+    ag.push({cod:'982', lbl:'Depreciación financiera del ejercicio (reversa tributaria)', monto:depFin, auto:true,
+             nota:reg.deprInstantanea?'Se reversa la depreciación financiera porque el régimen aplica depreciación tributaria instantánea.':'Se reversa la depreciación financiera para sustituirla por la depreciación tributaria determinada según la ficha de activo fijo.'});
   // 4. Corrección monetaria: las Pymes 14 D están liberadas de aplicarla
-  if(!reg.correccionMonetaria&&Math.abs(correccMon)>=0.5)
+  if(!reg.correccionMonetaria&&correccMon>=0.5)
     ag.push({cod:'1146', lbl:'Corrección monetaria contabilizada (se reversa)', monto:correccMon, auto:true,
-             nota:'Las empresas acogidas al Art. 14 D están liberadas de aplicar corrección monetaria a su capital propio.'});
+             nota:'Pérdida/deudora contabilizada: se agrega para reversarla porque el régimen no aplica corrección monetaria tributaria.'});
   // 5. Agregados manuales
   RENTA.agregados.forEach((a,i)=>{
     if(Math.abs(+a.monto||0)<0.5)return;
@@ -199,10 +216,16 @@ function calcularRenta(){
 
   // ── Deducciones ──
   const de=[];
-  // 1. Depreciación tributaria (instantánea en Pro Pyme)
-  if(depTrib.total>=0.5)
-    de.push({cod:'1391', lbl:'Depreciación instantánea del activo fijo adquirido en '+anio, monto:depTrib.total, auto:true,
-             nota:depTrib.bienes.length+' bien(es) del activo fijo adquiridos en el ejercicio, deducidos al 100%.'});
+  // Una CM acreedora ya aumentó el resultado financiero. En un régimen que no
+  // la aplica, su reversa es deducción, no agregado.
+  if(!reg.correccionMonetaria&&correccMon<=-0.5)
+    de.push({cod:'1146', lbl:'Corrección monetaria acreedora contabilizada (se reversa)', monto:-correccMon, auto:true,
+             nota:'Ganancia/acreedora contabilizada: se deduce para reversarla porque el régimen no aplica corrección monetaria tributaria.'});
+  // 1. Depreciación tributaria: instantánea en Pro Pyme o cuota tributaria
+  //    según ficha en los regímenes que no usan depreciación instantánea.
+  if(depConc.tributaria>=0.5&&Math.abs(depFin-depConc.tributaria)>0.5)
+    de.push({cod:'1391', lbl:reg.deprInstantanea?'Depreciación tributaria instantánea del activo fijo adquirido en '+anio:'Depreciación tributaria del activo fijo '+anio, monto:depConc.tributaria, auto:true,
+             nota:reg.deprInstantanea?depConc.detalle.filter(x=>x.tributaria>0).length+' bien(es) adquiridos en el ejercicio, usando su valor tributario.':depConc.detalle.filter(x=>x.tributaria>0).length+' bien(es) con cuota tributaria en el ejercicio según sus fichas de activo fijo.'});
   // 2. Deducciones manuales
   RENTA.deducciones.forEach((d,i)=>{
     if(Math.abs(+d.monto||0)<0.5)return;
@@ -274,7 +297,7 @@ function calcularRenta(){
     baseImponible, idpc, creditos, totalCreditos, idpcNeto, presunta,
     ppmF29, ppmBase, ppmReajustado, reaj,
     saldo, aPagar, devolucion,
-    depTrib, depFin, cpt, activos, pasivoExigible
+    depConc, depFin, cpt, activos, pasivoExigible
   };
 }
 
@@ -367,7 +390,7 @@ function bloquePresuncion(R){
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
       <div class="grp" style="min-width:250px">
         <label>${esc(p.lbl)}</label>
-        <input type="number" min="0" value="${p.valor}" onchange="setRentaParam('basePresunta',this.value)">
+        <input type="number" class="money-input" min="0" value="${p.valor}" onchange="setRentaParam('basePresunta',this.value)">
       </div>
       <div class="grp" style="min-width:150px">
         <label>% de presunción</label>
@@ -413,12 +436,12 @@ function bloqueRLI(R){
     <div class="info-tip" style="margin-top:10px;font-size:11px">🧾 Resultado contable del ejercicio: ${fmtC(R.resultadoBalance)} — no determina el impuesto en este régimen, pero sirve de control interno y para el Balance General.</div>
   </div>`;
   const fila=(lbl,monto,opts={})=>`<tr${opts.bg?` style="background:${opts.bg}"`:''}>
-    <td style="font-family:var(--mono);font-size:10px;color:var(--mt);width:52px">${opts.cod||''}</td>
-    <td class="tl" style="padding:${opts.fuerte?'9px 12px':'6px 12px'};font-size:${opts.fuerte?'13':'12'}px;font-weight:${opts.fuerte?'700':'400'}">
+    <td class="renta-cod" style="font-family:var(--mono);font-size:10px;color:var(--mt);width:52px">${opts.cod||''}</td>
+    <td class="tl renta-desc" style="padding:${opts.fuerte?'9px 12px':'6px 12px'};font-size:${opts.fuerte?'13':'12'}px;font-weight:${opts.fuerte?'700':'400'}">
       ${opts.signo?`<span style="color:var(--mt)">${opts.signo}</span> `:''}${esc(lbl)}
       ${opts.nota?`<div style="font-size:10px;color:var(--mt);margin-top:2px;overflow-wrap:anywhere">${esc(opts.nota)}</div>`:''}
     </td>
-    <td style="font-family:var(--mono);text-align:right;white-space:nowrap;font-weight:${opts.fuerte?'700':'400'};color:${opts.color||'var(--tx)'}">${fmtC(monto)}</td>
+    <td class="renta-monto money-cell" style="font-family:var(--mono);text-align:right;white-space:nowrap;font-weight:${opts.fuerte?'700':'400'};color:${opts.color||'var(--tx)'}">${fmtC(monto)}</td>
   </tr>`;
 
   const filasAg=R.ag.length?R.ag.map(a=>fila(a.lbl,a.monto,{cod:a.cod,signo:'+',nota:a.nota,color:'var(--warn)'})).join('')
@@ -429,7 +452,7 @@ function bloqueRLI(R){
   return `<div class="card">
     <div class="sec-title" style="font-size:14px;margin-bottom:4px">Determinación de la Renta Líquida Imponible</div>
     <div style="font-size:11px;color:var(--mt);margin-bottom:14px">Recuadro N°${R.reg.recuadro} del F22 · ejercicio comercial ${R.anio}</div>
-    <div style="overflow-x:auto"><table style="width:100%;min-width:520px"><tbody>
+    <div class="renta-table-wrap" style="overflow-x:auto"><table class="renta-rli-table" style="width:100%;min-width:520px"><tbody>
       ${fila('Ingresos del giro y otros ingresos',R.ingresos,{cod:R.reg.cod.ingresos,color:'var(--ach)'})}
       ${fila('Costos y gastos del ejercicio',R.gastos,{cod:R.reg.cod.gastos,signo:'−',color:'var(--err)'})}
       ${fila('RESULTADO SEGÚN BALANCE (antes de impuesto)',R.resultadoBalance,{cod:'645',fuerte:true,bg:'rgba(88,166,255,.08)'})}
@@ -445,6 +468,7 @@ function bloqueRLI(R){
         {cod:R.reg.cod.base,fuerte:true,bg:R.rli>=0?'rgba(46,160,67,.12)':'rgba(248,81,73,.12)',color:R.rli>=0?'var(--ach)':'var(--err)'})}
     </tbody></table></div>
     ${R.perdidaRemanente>0?`<div class="info-tip" style="margin-top:12px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Queda una <strong>pérdida tributaria de arrastre de ${fmtC(R.perdidaRemanente)}</strong> para imputar en ejercicios siguientes. Anótala en el campo "Pérdida de arrastre" de la declaración del año ${R.anio+1}.</div>`:''}
+    ${R.depConc?`<div class="info-tip" style="margin-top:12px">🏗️ <strong>Conciliación de activo fijo:</strong> depreciación financiera según fichas ${fmtC(R.depConc.contable)} · depreciación tributaria ${fmtC(R.depConc.tributaria)} · diferencia del ejercicio <strong>${fmtC(R.depConc.diferencia)}</strong>. ${R.reg.deprInstantanea?'La base tributaria usa el valor tributario de las adquisiciones del año.':'La base tributaria usa la vida y método tributario de cada ficha.'}</div>`:''}
     <div class="info-tip" style="margin-top:12px">🧮 <strong>Capital Propio Tributario referencial:</strong> ${fmtC(R.cpt)} &nbsp;·&nbsp; activos ${fmtC(R.activos)} − pasivo exigible ${fmtC(R.pasivoExigible)}. Es una aproximación contable: el CPT tributario puede diferir si hay activos o pasivos con valorización tributaria distinta.</div>
   </div>`;
 }
@@ -456,7 +480,7 @@ function bloqueF22(R,at){
     <td style="font-family:var(--mono);font-size:10px;color:var(--mt);width:44px">${linea||''}</td>
     <td style="font-family:var(--mono);font-size:10px;color:var(--acc);width:48px">${cod||''}</td>
     <td class="tl" style="padding:${opts.fuerte?'9px 10px':'6px 10px'};font-size:${opts.fuerte?'13':'12'}px;font-weight:${opts.fuerte?'700':'400'}">${esc(lbl)}</td>
-    <td style="font-family:var(--mono);text-align:right;white-space:nowrap;font-weight:${opts.fuerte?'700':'400'};color:${opts.color||'var(--tx)'}">${fmtC(monto)}</td>
+    <td class="renta-monto money-cell" style="font-family:var(--mono);text-align:right;white-space:nowrap;font-weight:${opts.fuerte?'700':'400'};color:${opts.color||'var(--tx)'}">${fmtC(monto)}</td>
   </tr>`;
   const filasCred=R.creditos.length?R.creditos.map(c=>ln('',c.cod,c.lbl,c.monto,{color:'var(--ach)'})).join('')
     :`<tr><td colspan="4" style="padding:8px 10px;font-size:11px;color:var(--mt)">Sin créditos informados. Agrégalos en la pestaña <strong>Ajustes</strong>.</td></tr>`;
@@ -507,7 +531,7 @@ function bloqueAjustes(R){
 
   const listaManual=(arr,tipo)=>arr.length?arr.map((x,i)=>`<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
       <input type="text" value="${esc(x.lbl||'')}" placeholder="Concepto" style="flex:1;min-width:180px" onchange="setRentaLinea('${tipo}',${i},'lbl',this.value)">
-      <input type="number" value="${+x.monto||0}" placeholder="0" style="width:140px" onchange="setRentaLinea('${tipo}',${i},'monto',this.value)">
+      <input type="number" class="money-input" value="${+x.monto||0}" placeholder="0" style="width:140px" onchange="setRentaLinea('${tipo}',${i},'monto',this.value)">
       <button class="btn btn-g" onclick="delRentaLinea('${tipo}',${i})">🗑</button>
     </div>`).join('')
     :`<div style="font-size:11px;color:var(--mt);margin-bottom:6px">Sin líneas manuales.</div>`;
@@ -515,7 +539,7 @@ function bloqueAjustes(R){
   const c=RENTA.creditos||{};
   const credito=(k,lbl,cod)=>`<div class="grp" style="min-width:220px">
     <label>${esc(lbl)}${cod?` <span style="font-family:var(--mono);color:var(--acc)">${cod}</span>`:''}</label>
-    <input type="number" min="0" value="${+c[k]||0}" onchange="setRentaCredito('${k}',this.value)">
+    <input type="number" class="money-input" min="0" value="${+c[k]||0}" onchange="setRentaCredito('${k}',this.value)">
   </div>`;
 
   return `<div class="card" style="margin-bottom:14px">
@@ -552,11 +576,11 @@ function bloqueAjustes(R){
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
       <div class="grp" style="min-width:220px">
         <label>Pérdida tributaria de ejercicios anteriores</label>
-        <input type="number" min="0" value="${+RENTA.perdidaArrastre||0}" onchange="setRentaParam('perdidaArrastre',this.value)">
+        <input type="number" class="money-input" min="0" value="${+RENTA.perdidaArrastre||0}" onchange="setRentaParam('perdidaArrastre',this.value)">
       </div>
       <div class="grp" style="min-width:220px">
         <label>PPM del ejercicio (calculado: ${fmtC(R.ppmF29)})</label>
-        <input type="number" min="0" value="${RENTA.ppmManual!=null?+RENTA.ppmManual:R.ppmF29}" onchange="setRentaParam('ppmManual',this.value)">
+        <input type="number" class="money-input" min="0" value="${RENTA.ppmManual!=null?+RENTA.ppmManual:R.ppmF29}" onchange="setRentaParam('ppmManual',this.value)">
       </div>
       <div class="grp" style="min-width:160px">
         <label>Reajuste PPM al 31/dic (%)</label>
@@ -584,7 +608,9 @@ function setRentaParam(k,v){
   }else if(k==='pctPresuncion'){
     RENTA.pctPresuncion=(v===''||v==null)?null:+v;
   }else if(k==='ppmManual'){
-    RENTA.ppmManual=(v===''||v==null)?null:+v;
+    RENTA.ppmManual=(v===''||v==null)?null:pn(v);
+  }else if(k==='basePresunta'||k==='perdidaArrastre'){
+    RENTA[k]=pn(v);
   }else if(k==='notas'){
     RENTA.notas=String(v||'');
   }else{
@@ -606,7 +632,7 @@ function addRentaLinea(tipo){
 }
 function setRentaLinea(tipo,i,campo,v){
   if(!RENTA[tipo]||!RENTA[tipo][i])return;
-  RENTA[tipo][i][campo]=campo==='monto'?(+v||0):String(v||'');
+  RENTA[tipo][i][campo]=campo==='monto'?pn(v):String(v||'');
   guardarRenta();
   if(campo==='monto')renderRenta();
 }
@@ -617,7 +643,7 @@ function delRentaLinea(tipo,i){
 }
 function setRentaCredito(k,v){
   if(!RENTA.creditos)RENTA.creditos={};
-  RENTA.creditos[k]=+v||0;
+  RENTA.creditos[k]=pn(v);
   guardarRenta();renderRenta();
 }
 

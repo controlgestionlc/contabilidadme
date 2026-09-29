@@ -4,13 +4,16 @@ import {updateHdr} from './empresa.js';
 import {nav, rerender} from './ui.js';
 import {cuentasGastoOpts, dteComprasOpts} from './compras.js';
 import {S} from './state.js';
-import {logAccion} from './firebase.js';
+import {logAccion,logCambio} from './firebase.js';
 import {foliosMensuales, dteVentasOpts} from './helpers.js';
 import {retencionHonorarios} from './indicadores.js';
 import {ccOpts} from './centroscosto.js';
 import {inputCuenta, inputCC, inputAux} from './buscadorcuentas.js';
 import {fichaAux} from './importadoraux.js';
 import './storage.js';
+import {ejercicioCerrado,puedeOperarFecha,persistirAsientosCritico} from './contabilidad-v2.js';
+import {reglaCuenta,validarMovimientosPDC} from './pdc-reglas.js';
+import {inferirDteDesdeAsiento} from './dte-autocompletar.js';
 
 // Estado del formulario de asientos (interno del módulo; se reasigna al abrir/editar)
 // AF NUNCA debe reasignarse. app.js expone este objeto con Object.assign(window,{AF})
@@ -24,7 +27,7 @@ function fijarAF(editId,lineas){
   AF.editId=editId==null?null:editId;
   AF.lineas=lineas||[];
 }
-const lineasEnBlanco=()=>[{cd:'',nm:'',desc:'',debe:0,haber:0},{cd:'',nm:'',desc:'',debe:0,haber:0}];
+const lineasEnBlanco=()=>[{cd:'',nm:'',desc:'',debe:0,haber:0},{cd:'',nm:'',desc:'',debe:0,haber:0},{cd:'',nm:'',desc:'',debe:0,haber:0}];
 
 // ═══ ASIENTOS MANUALES ═══
 // Cuentas que requieren sub-auxiliar (RUT + razón social): clientes, proveedores
@@ -49,10 +52,9 @@ const esAux=cd=>!!CUENTAS_AUX[cd];
 // Se mira el `tp` del plan de cuentas y, si la cuenta no está en el plan
 // (cargada desde Excel, por ejemplo), se cae al prefijo del código.
 export function aceptaCentroCosto(cd){
+  const r=reglaCuenta(cd);
+  if(r)return !!r.aceptaCentroCosto;
   const c=String(cd||'');
-  if(c.length<1)return false;
-  const cta=PDC.find(x=>x.cd===c);
-  if(cta&&cta.tp)return cta.tp==='C'||cta.tp==='I';
   return c[0]==='3'||c[0]==='4';
 }
 
@@ -73,7 +75,7 @@ function renderAsientos(){
     const anul=!!a.anulado;
     h+=`<div class="asiento-item" style="${anul?'opacity:.5;filter:grayscale(.6)':''}">
       <div class="asiento-hdr" onclick="toggleAs('ab${a.id}')">
-        <span class="as-num">N°${a.n||idx+1}</span>
+        <span class="as-num">N°${a.numeroContable||a.n||idx+1}</span>
         <span class="as-fecha">${a.fecha}</span>
         <span class="as-glosa" style="${anul?'text-decoration:line-through':''}">${a.glosa||'(sin glosa)'}</span>
         ${anul?'<span class="badge br">🚫 ANULADO</span>':`<span class="badge ${ok?'bg':'br'}">${ok?'✓ Cuadrado':'⚠ Descuadre'}</span>`}
@@ -330,9 +332,10 @@ function updCuadre(){
 // ═══ DOCUMENTOS UNIFICADOS (libros + DTEs embebidos en asientos) ═══
 // Retorna todos los documentos de ventas, fusionando S.ventas con los DTEs asociados a asientos manuales
 function todosDocsVentas(excluirAsientoLineaActual){
-  const base=S.ventas.map(d=>({...d,origen:'libro'}));
+  const base=S.ventas.filter(d=>d.estado!=='anulado').map(d=>({...d,origen:'libro'}));
   S.asientos.forEach(a=>{
     if(a.anulado)return;
+    if(a.referenciaDoc?.fuente==='ventas'&&(S.ventas||[]).some(d=>d.id===a.referenciaDoc.docId&&d.estado!=='anulado'))return;
     (a.movs||[]).forEach((m,li)=>{
       if(m.cd==='1104001'&&m.dte){
         // Excluir la línea que estamos editando actualmente (si aplica)
@@ -344,9 +347,10 @@ function todosDocsVentas(excluirAsientoLineaActual){
   return base;
 }
 function todosDocsCompras(excluirAsientoLineaActual){
-  const base=S.compras.map(d=>({...d,origen:'libro'}));
+  const base=S.compras.filter(d=>d.estado!=='anulado').map(d=>({...d,origen:'libro'}));
   S.asientos.forEach(a=>{
     if(a.anulado)return;
+    if(a.referenciaDoc?.fuente==='compras'&&(S.compras||[]).some(d=>d.id===a.referenciaDoc.docId&&d.estado!=='anulado'))return;
     (a.movs||[]).forEach((m,li)=>{
       if(m.cd==='2102001'&&m.dte){
         if(excluirAsientoLineaActual&&excluirAsientoLineaActual.asId===a.id&&excluirAsientoLineaActual.lineaIdx===li)return;
@@ -387,7 +391,7 @@ function folioPreviewDte(dte,cuenta,lineaIdx){
 }
 
 // ═══ MODAL DTE ═══
-let DM={open:false,lineaIdx:null,dist:[]};
+let DM={open:false,lineaIdx:null,dist:[],autoBase:false};
 
 // Líneas del asiento que representan el gasto: cuentas de resultado con monto,
 // excluyendo la propia línea del proveedor.
@@ -447,8 +451,18 @@ function abrirDteModal(lineaIdx){
   if(lblNeto)lblNeto.textContent=esHon?'Bruto (honorario)':'Neto';
   const lblRet=document.getElementById('dtm-lbl-ret');
   if(lblRet)lblRet.textContent=`Retención ${(retencionHonorarios(S.empresa.anio)*100).toFixed(2)}%`;
-  // Cargar datos existentes o defaults
-  const d=l.dte||{};
+  // Cargar datos existentes y completar automáticamente desde el asiento.
+  // Si la línea aún no tiene DTE, el total, IVA, otros impuestos, RUT, folio
+  // y descripción se reconstruyen desde las líneas ya digitadas. La base
+  // Neto/Exento se completa cuando el usuario elige el tipo de documento.
+  const baseDte=l.dte?{...l.dte}:{};
+  DM.autoBase=!(Number(baseDte.neto)||Number(baseDte.exento));
+  const d=inferirDteDesdeAsiento({
+    movs:AF.lineas,lineaIdx,tipoAux,tipoDTE:baseDte.tipoDTE,
+    actual:baseDte,
+    fecha:document.getElementById('af-fecha')?.value||today(),
+    glosa:document.getElementById('af-glosa')?.value||''
+  });
   document.getElementById('dtm-fecha').value=d.fecha||today();
   document.getElementById('dtm-vence').value=d.fechaVencimiento||'';
   document.getElementById('dtm-num').value=d.numero||'';
@@ -513,6 +527,7 @@ function dtmRutInput(val){
 }
 
 function dtmCalcTotals(changed){
+  if(changed==='neto'||changed==='exento')DM.autoBase=false;
   const lHon=AF.lineas[DM.lineaIdx];
   // Honorarios: bruto − retención = líquido a pagar
   if(lHon&&CUENTAS_AUX[lHon.cd]==='honorario'){
@@ -561,6 +576,45 @@ function dtmCalcTotals(changed){
     totEl.value=neto+exento+iva+otros;
   }
   if(esCompra)dtmUpdDistCheck();
+}
+
+function dtmTipoChanged(){
+  const l=AF.lineas[DM.lineaIdx];if(!l)return;
+  const tipoAux=CUENTAS_AUX[l.cd]||'';
+  const tipoDTE=+document.getElementById('dtm-dte').value||0;
+  const r=rutParse(document.getElementById('dtm-rut').value||'');
+  const actual={
+    fecha:document.getElementById('dtm-fecha').value||'',
+    fechaVencimiento:document.getElementById('dtm-vence').value||'',
+    tipoDTE,
+    numero:document.getElementById('dtm-num').value||'',
+    rutCodigo:r.codigo||'',rutDV:r.dv||'',
+    razonSocial:document.getElementById('dtm-rs').value||'',
+    descripcion:document.getElementById('dtm-desc')?.value||'',
+    neto:DM.autoBase?0:pn(document.getElementById('dtm-neto').value),
+    exento:DM.autoBase?0:pn(document.getElementById('dtm-exento').value),
+    iva:pn(document.getElementById('dtm-iva').value),
+    otrosImpuestos:pn(document.getElementById('dtm-otros').value),
+    total:pn(document.getElementById('dtm-total').value),
+  };
+  const inf=inferirDteDesdeAsiento({
+    movs:AF.lineas,lineaIdx,tipoAux,tipoDTE,actual,
+    fecha:document.getElementById('af-fecha')?.value||today(),
+    glosa:document.getElementById('af-glosa')?.value||''
+  });
+  const poner=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v||'';};
+  poner('dtm-num',inf.numero);poner('dtm-rs',inf.razonSocial);
+  poner('dtm-desc',inf.descripcion);poner('dtm-neto',inf.neto);
+  poner('dtm-exento',inf.exento);poner('dtm-iva',inf.iva);
+  poner('dtm-otros',inf.otrosImpuestos);poner('dtm-total',inf.total);
+  if(!document.getElementById('dtm-rut').value&&inf.rutCodigo){
+    document.getElementById('dtm-rut').value=String(inf.rutCodigo)+(inf.rutDV||'');
+    dtmRutInput(document.getElementById('dtm-rut').value);
+  }
+  // Si la distribución de una compra vino del asiento, ya contiene la base
+  // real por cuentas; sólo actualizamos el indicador de cuadratura.
+  if(l.cd==='2102001')dtmUpdDistCheck();
+  dtmRefresh();
 }
 
 function dtmRefresh(){
@@ -615,7 +669,7 @@ function dtmRenderDist(){
     <div class="dist-num">${i+1}</div>
     <div class="dist-cd">${inputCuenta({id:`dm-cd-${i}`,value:l.cuenta,onPick:`DM.dist[${i}].cuenta='%CD%';dtmUpdDistCheck()`,placeholder:'Cuenta de gasto…',clase:'dist-inp'})}
       ${l._linea!=null?`<div style="font-size:9px;color:var(--mt);margin-top:2px">↔ línea ${l._linea+1} del asiento</div>`:''}</div>
-    <div class="dist-mt"><input type="number" class="dist-num-inp" min="0" placeholder="0" value="${l.monto||''}" oninput="DM.dist[${i}].monto=pn(this.value);dtmUpdDistCheck()"></div>
+    <div class="dist-mt"><input type="number" class="dist-num-inp money-input" min="0" placeholder="0" value="${l.monto||''}" oninput="DM.dist[${i}].monto=pn(this.value);dtmUpdDistCheck()"></div>
     <div class="dist-del"><button class="btn btn-d" onclick="dtmDelDist(${i})" title="Quitar esta línea">✕</button></div>
   </div>`).join('');
   dtmUpdDistCheck();
@@ -791,11 +845,14 @@ function irAComprobantes(){
   }catch(e){}
 }
 
-function abrirForm(){
+function abrirForm(silencioso){
   // El formulario vive dentro de la sección Comprobantes. Si se llega desde
   // otra parte (un botón del Diario, el buscador), primero hay que llevar al
   // usuario ahí; si no, el formulario se abre en una sección invisible.
-  irAComprobantes();
+  // silencioso=true: apertura automática al entrar a Comprobantes, sin
+  // desplazar la pantalla ni robar el foco.
+  silencioso=silencioso===true;
+  if(!silencioso)irAComprobantes();
   fijarAF(null,lineasEnBlanco());
   const f=document.getElementById('as-form');f.style.display='block';f.classList.remove('editing');
   document.getElementById('af-title').textContent='Nuevo Asiento Contable';
@@ -804,8 +861,18 @@ function abrirForm(){
   document.getElementById('af-glosa').value='';
   document.getElementById('af-last-saved').textContent='';
   renderLineas();
+  if(silencioso)return;
   f.scrollIntoView({behavior:'smooth',block:'start'});
   setTimeout(()=>document.getElementById('af-glosa').focus(),200);
+}
+
+// Deja el formulario de asiento nuevo abierto si no hay uno en curso.
+// Comprobantes abre directo en modo registro: al entrar, al cancelar y
+// después de guardar una edición el formulario vuelve a quedar en blanco.
+function asegurarFormNuevo(){
+  const f=document.getElementById('as-form');
+  if(!f||f.style.display!=='none')return;
+  abrirForm(true);
 }
 
 function editarAsiento(id){
@@ -814,7 +881,7 @@ function editarAsiento(id){
   fijarAF(id,a.movs.map(m=>({...m})));
   const f=document.getElementById('as-form');f.style.display='block';f.classList.add('editing');
   document.getElementById('af-title').textContent='Editando Asiento';
-  document.getElementById('af-folio-badge').textContent='N° '+(a.n||'?');
+  document.getElementById('af-folio-badge').textContent='N° '+(a.numeroContable||a.n||'?');
   document.getElementById('af-fecha').value=a.fecha;
   document.getElementById('af-glosa').value=a.glosa;
   document.getElementById('af-last-saved').textContent='';
@@ -856,19 +923,23 @@ function duplicarAsiento(id){
 }
 
 // Anular / reactivar un asiento: no borra el N°, excluye sus efectos de los cómputos
-function anularAsiento(id){
+async function anularAsiento(id){
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. No se pueden anular o reactivar asientos.','e');return;}
   const a=S.asientos.find(x=>x.id===id);if(!a)return;
-  if(a.anulado){
+  const reactivar=!!a.anulado;
+  if(reactivar){
     if(!confirm(`¿Reactivar asiento N°${a.n||''} — "${a.glosa}"?\nVolverá a afectar Mayor, Balance y auxiliares.`))return;
-    a.anulado=false;
-    window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
-    rerender();toast('↩️ Asiento N°'+(a.n||'')+' reactivado');logAccion('Reactivó asiento',`N°${a.n} — ${a.glosa}`);
   }else{
     if(!confirm(`¿Anular asiento N°${a.n||''} — "${a.glosa}"?\n\nNo borra el número de correlativo, pero excluye sus efectos de Libro Mayor, Balance, Estado de Resultados y auxiliares.\n\nPodrás reactivarlo después.`))return;
-    a.anulado=true;
-    window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
-    rerender();toast('🚫 Asiento N°'+(a.n||'')+' anulado');logAccion('Anuló asiento',`N°${a.n} — ${a.glosa}`);
   }
+  const anterior=JSON.parse(JSON.stringify(a));
+  const r=await persistirAsientosCritico(()=>{a.anulado=!reactivar;a.actualizadoEn=new Date().toISOString();});
+  if(!r.ok){toast('❌ No se pudo guardar el cambio. El asiento conserva su estado anterior.','e');return;}
+  rerender();
+  const num=a.numeroContable||a.n||'';
+  if(reactivar){toast('↩️ Asiento N°'+num+' reactivado');logAccion('Reactivó asiento',`N°${num} — ${a.glosa}`);}
+  else{toast('🚫 Asiento N°'+num+' anulado');logAccion('Anuló asiento',`N°${num} — ${a.glosa}`);}
+  logCambio(reactivar?'Reactivó asiento':'Anuló asiento',{entidad:'asiento',id:a.id,antes:anterior,despues:a,meta:{numeroContable:a.numeroContable,tipo:a.tipo}});
 }
 
 // Navegar desde libro al asiento manual que contiene el DTE.
@@ -927,8 +998,9 @@ function limpiarFormAsiento(folioGuardado){
   setTimeout(()=>{const g=document.getElementById('af-glosa');if(g)g.focus();},380);
 }
 
-function guardarAsiento(){
+async function guardarAsiento(){
   const fecha=document.getElementById('af-fecha').value;
+  if(!puedeOperarFecha(fecha)){toast('🔒 El período de este asiento está cerrado. Reábrelo antes de modificar asientos.','e');return;}
   const glosa=document.getElementById('af-glosa').value.trim();
   if(!fecha){toast('⚠️ Ingresa una fecha','e');return;}
   if(!glosa){toast('⚠️ Ingresa una descripción / glosa','e');return;}
@@ -962,6 +1034,9 @@ function guardarAsiento(){
     return m;
   });
 
+  const valPdc=validarMovimientosPDC(movsClean,{manual:true});
+  if(!valPdc.ok){toast('⚠️ '+valPdc.errores[0],'e');return;}
+
   // ── Validación de DUPLICADOS ──
   // 1) Asiento idéntico (misma fecha + mismas cuentas + mismos montos)
   const sig=sigAsiento(fecha,movsClean);
@@ -992,21 +1067,32 @@ function guardarAsiento(){
   let folioGuardado;
   if(AF.editId){
     const idx=S.asientos.findIndex(x=>x.id===AF.editId);
-    if(idx>=0){S.asientos[idx]={...S.asientos[idx],fecha,glosa,movs:movsClean};folioGuardado=S.asientos[idx].n;}
+    if(idx<0){toast('❌ Asiento no encontrado','e');return;}
+    const anterior=JSON.parse(JSON.stringify(S.asientos[idx]));
+    const r=await persistirAsientosCritico(()=>{
+      S.asientos[idx]={...S.asientos[idx],fecha,glosa,movs:movsClean,actualizadoEn:new Date().toISOString()};
+    });
+    if(!r.ok){toast('❌ No se pudo guardar el asiento. La operación NO se considera contabilizada.','e');return;}
+    const actualizado=S.asientos.find(x=>x.id===AF.editId);
+    folioGuardado=actualizado?.numeroContable||actualizado?.n||'?';
     toast('✅ Asiento N°'+folioGuardado+' actualizado');
     logAccion('Editó asiento',`N°${folioGuardado} — ${glosa}`);
-    window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>toast('❌ Error al guardar en storage','e'));
-    // Tras editar, cerrar el form (el usuario no suele editar en cadena)
+    logCambio('Editó asiento',{entidad:'asiento',id:AF.editId,antes:anterior,despues:actualizado,meta:{numeroContable:actualizado?.numeroContable,tipo:actualizado?.tipo}});
     cerrarForm();rerender();
     return;
   }
 
-  // Asiento nuevo
-  folioGuardado=proxFolioComprobante();
-  S.asientos.push({id:'as_'+Date.now(),n:folioGuardado,folioComp:folioGuardado,fecha,glosa,movs:movsClean});
+  // Asiento nuevo. El número contable definitivo se asigna dentro de la
+  // persistencia crítica mediante una secuencia atómica de Firebase.
+  const nuevoId='as_'+Date.now();
+  const creado={id:nuevoId,fecha,glosa,movs:movsClean,tipo:'manual',creadoEn:new Date().toISOString()};
+  const r=await persistirAsientosCritico(()=>{S.asientos.push(creado);});
+  if(!r.ok){toast(r.motivo==='sin-nube-correlativo'?'☁️ Se requiere conexión para asignar el número contable definitivo.':'❌ No se pudo guardar el asiento. La operación NO se considera contabilizada.','e');return;}
+  const nuevo=S.asientos.find(x=>x.id===nuevoId);
+  folioGuardado=nuevo?.numeroContable||nuevo?.n||'?';
   logAccion('Creó asiento',`N°${folioGuardado} — ${glosa}`);
+  logCambio('Creó asiento',{entidad:'asiento',id:nuevoId,antes:null,despues:nuevo,meta:{numeroContable:nuevo?.numeroContable,tipo:'manual'}});
   toast('✅ Asiento N°'+folioGuardado+' registrado');
-  window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>toast('❌ Error al guardar en storage','e'));
 
   // Limpiar form y dejarlo listo para el siguiente asiento
   limpiarFormAsiento(folioGuardado);
@@ -1016,13 +1102,21 @@ function guardarAsiento(){
   if(listEl)renderAsientos();
 }
 
-function eliminarAsiento(id){
+async function eliminarAsiento(id){
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. No se pueden eliminar asientos.','e');return;}
   const a=S.asientos.find(x=>x.id===id);if(!a)return;
+  if(a.tipo==='documento'||a.tipo==='pago'||a.tipo==='cierre'){
+    toast('⚠️ Este asiento tiene origen controlado y no puede eliminarse físicamente. Anúlalo desde su operación de origen.','e');return;
+  }
   if(!confirm(`¿Eliminar asiento N°${a.n||''} — "${a.glosa}"?\nEsta acción no se puede deshacer.`))return;
-  S.asientos=S.asientos.filter(x=>x.id!==id);
-  window.storage.set('asientos-'+S.empresa.anio,JSON.stringify(S.asientos)).catch(()=>{});
-  renderAsientos();toast('🗑 Asiento eliminado');logAccion('Eliminó asiento',`N°${a.n} — ${a.glosa}`);
+  const anterior=JSON.parse(JSON.stringify(a));
+  const r=await persistirAsientosCritico(()=>{S.asientos=S.asientos.filter(x=>x.id!==id);});
+  if(!r.ok){toast('❌ No se pudo eliminar el asiento. No se realizaron cambios.','e');return;}
+  const num=a.numeroContable||a.n||'';
+  renderAsientos();toast('🗑 Asiento eliminado');logAccion('Eliminó asiento',`N°${num} — ${a.glosa}`);
+  logCambio('Eliminó asiento',{entidad:'asiento',id:a.id,antes:anterior,despues:null,meta:{numeroContable:a.numeroContable,tipo:a.tipo}});
 }
 
 
-export {lAuxElegido, CUENTAS_AUX, esAux, renderAsientos, toggleAs, cuentasOpts, renderLineas, lCd, lRut, lVal, lValFmt, lValFmtBlur, quitarDte, delLinea, addLinea, updCuadre, todosDocsVentas, todosDocsCompras, todosDocsComprasConBorrador, todosDocsVentasConBorrador, folioPreviewDte, DM, abrirDteModal, cerrarDteModal, dtmRutInput, dtmCalcTotals, dtmRefresh, dtmCheckDup, dtmRenderDist, dtmAddDist, dtmDelDist, dtmUpdDistCheck, dtmGuardar, dtmRemover, proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, abrirForm, editarAsiento, cerrarForm, duplicarAsiento, anularAsiento, abrirAsientoDesde, sigAsiento, limpiarFormAsiento, guardarAsiento, eliminarAsiento, AF};
+
+export {lAuxElegido, CUENTAS_AUX, esAux, renderAsientos, toggleAs, cuentasOpts, renderLineas, lCd, lRut, lVal, lValFmt, lValFmtBlur, quitarDte, delLinea, addLinea, updCuadre, todosDocsVentas, todosDocsCompras, todosDocsComprasConBorrador, todosDocsVentasConBorrador, folioPreviewDte, DM, abrirDteModal, cerrarDteModal, dtmRutInput, dtmCalcTotals, dtmTipoChanged, dtmRefresh, dtmCheckDup, dtmRenderDist, dtmAddDist, dtmDelDist, dtmUpdDistCheck, dtmGuardar, dtmRemover, proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, abrirForm, asegurarFormNuevo, editarAsiento, cerrarForm, duplicarAsiento, anularAsiento, abrirAsientoDesde, sigAsiento, limpiarFormAsiento, guardarAsiento, eliminarAsiento, AF};
