@@ -1,5 +1,18 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.21.23 — Lápidas en el catálogo por usuario
+
+- `eliminarEmpresa` deja `{id, creadoPor, eliminada}` en `_empresas_u:<dueño>`; `unirCatalogos` la aplica sobre copias con el mismo dueño o sin dueño (p. ej. el maestro).
+- Un admin, al entrar, reescribe el maestro sin las copias muertas.
+- `storage.setGlobal` devuelve `ok:false` y `motivo` cuando la nube rechaza; `guardarCatalogo` lo propaga y `eliminarEmpresa` deshace el cambio en pantalla.
+
+## V2.21.22 — Vista propia del administrador
+
+- `EMPRESAS.lista` para un admin se filtra con `esDeMiVista` (dueño, compartida, heredada) salvo que active `EMPRESAS.verOtras`.
+- `puedeVerEmpresa` no cambia: sigue siendo el permiso (admin = todo), usado por cierres y activación.
+- La empresa activa siempre queda en la lista, aunque sea ajena.
+- Botón en Inicio y Empresas (`alternarVerOtras`); el estado no se guarda entre sesiones.
+
 ## V2.21.21 — Eliminar empresas y datos sin uso
 
 - El dueño puede eliminar sus empresas (antes solo admin). Se exige que quede al menos una.
