@@ -1,5 +1,15 @@
 # Núcleo contable V2 — cambios aplicados
 
+## V2.21.20 — Catálogo de empresas por usuario
+
+- Requiere publicar las nuevas `firestore.rules` (permiten a cada usuario escribir `_empresas_u:<su email>`).
+- El catálogo se arma con el maestro `_empresas` (solo admin) más un documento `_empresas_u:<email>` por usuario.
+- De un catálogo de usuario solo se aceptan las empresas cuyo dueño es ese usuario; si el maestro tiene la misma empresa con otro dueño, gana el maestro.
+- El traspaso de dueño hecho por un admin mueve la empresa al maestro.
+- La ficha `empresas_acl` de la empresa activa se asegura (y se espera) antes de leer sus datos, al crear, al entrar y al cambiar de empresa.
+- Al iniciar sesión, un admin actualiza en segundo plano las fichas de acceso de todo el catálogo.
+- Rol Consulta sin empresas visibles: no se crea ninguna, se avisa.
+
 ## V2.21.1 — Logotipo corregido
 
 - El nuevo logotipo RABF reemplaza todos los recursos visibles e instalables.

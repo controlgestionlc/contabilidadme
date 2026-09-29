@@ -108,11 +108,15 @@ service cloud.firestore {
     // ── Documentos globales: catálogo y preferencias ───────────────────────
     // `_empresaActiva:<email>` guarda qué empresa dejó abierta cada usuario:
     // sólo su dueño puede tocarlo.
+    // `_empresas_u:<email>` es el catálogo de empresas que creó ese usuario
+    // (V2.21.20): lo escribe él mismo, o un administrador.
     function globalPropio(id) {
-      return id == '_empresaActiva:' + correo();
+      return id == '_empresaActiva:' + correo()
+        || id == '_empresas_u:' + correo();
     }
     function globalAdmin(id) {
-      return id == '_empresas' || id == '_migrado_multiempresa';
+      return id == '_empresas' || id == '_migrado_multiempresa'
+        || id.matches('^_empresas_u:.*');
     }
 
     // ═══ usuarios ═══════════════════════════════════════════════════════════
