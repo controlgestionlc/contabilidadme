@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.09.21-2310';
+const APP_VERSION='v2026.10.02-1230';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.26',fecha:'02-10-2026',titulo:'Inicio de sesión más liviano',items:[
+    {tipo:'correccion',txt:'La sincronización al entrar a veces mostraba más registros de lo normal (por ejemplo 63 en vez de 30), con nombres "recovery-snap". Eran los puntos de recuperación automáticos, que se estaban releyendo en cada inicio de sesión. Ahora el cruce revisa solo los datos de la empresa.'},
+    {tipo:'cambio',txt:'Los puntos de recuperación se guardan solo en la nube y ya no ocupan espacio en este equipo. Al abrir esta versión se liberan las copias que habían quedado guardadas. Verificar y restaurar funcionan igual que antes (requieren conexión, como siempre).'},
+  ]},
   {version:'V2.21.25',fecha:'29-09-2026',titulo:'Barra superior más limpia',items:[
     {tipo:'cambio',txt:'Se quitó el distintivo verde "PRODUCCIÓN" que veían solo los administradores. El sistema opera siempre en producción, así que no aportaba información.'},
   ]},

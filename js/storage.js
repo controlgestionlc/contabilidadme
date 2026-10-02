@@ -39,8 +39,31 @@ initDispositivo();
     catch(e){console.error('LZ decompress falló',e);return v;}
   }
 
+  // V2.21.26 — Los archivos de los puntos de recuperación (recovery-snap-*) son
+  // copias completas de la empresa y viven SOLO en la nube. Antes se copiaban
+  // también a localStorage: inflaban la caché (tope ~5 MB, y al llenarse
+  // setLocal fallaba en silencio) y el cruce al iniciar sesión los releía
+  // uno por uno. La restauración exige conexión, así que no se pierde nada.
+  const esSnapRecovery=k=>/(^|:)recovery-snap-/.test(String(k||''));
+  function purgarSnapshotsLocales(){
+    let n=0;
+    try{
+      const borrar=[];
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        if(k&&k.startsWith(prefix)&&esSnapRecovery(k.slice(prefix.length)))borrar.push(k);
+      }
+      borrar.forEach(k=>{localStorage.removeItem(k);n++;});
+    }catch(e){}
+    if(n)console.info(`Recovery: ${n} archivo(s) de snapshot quitados de la caché local`);
+    return n;
+  }
+
   function getLocal(key){try{const v=localStorage.getItem(prefix+key);return v!==null?{key,value:v}:null;}catch(e){return null;}}
-  function setLocal(key,value){try{localStorage.setItem(prefix+key,value);return true;}catch(e){return false;}}
+  function setLocal(key,value){
+    if(esSnapRecovery(key)){try{localStorage.removeItem(prefix+key);}catch(e){}return true;}
+    try{localStorage.setItem(prefix+key,value);return true;}catch(e){return false;}
+  }
   function delLocal(key){try{localStorage.removeItem(prefix+key);}catch(e){}}
 
   async function getRemote(key){
@@ -102,6 +125,10 @@ initDispositivo();
         if(actual&&typeof actual.value==='string')actual.value=descomprimirValor(actual.value);
         const revNube=+actual.rev||0;
         let revMia=revs.has(k)?revs.get(k):null;
+        // Los snapshots se escriben una sola vez y nunca se editan: no hay
+        // cambios de otro equipo que proteger. Sin copia local ni lectura previa
+        // en la sesión, la depuración de los antiguos quedaría bloqueada.
+        if(revMia===null&&esSnapRecovery(k))revMia=revNube;
         if(revMia===null){
           const copiaLocal=getLocal(k);
           if(copiaLocal&&actual.value!==undefined&&copiaLocal.value===actual.value){
@@ -378,7 +405,7 @@ initDispositivo();
       const pref=prefix+empresaId+':';
       for(let i=0;i<localStorage.length;i++){
         const k=localStorage.key(i);
-        if(k&&k.startsWith(pref))set.add(k.slice(pref.length));
+        if(k&&k.startsWith(pref)&&!esSnapRecovery(k.slice(pref.length)))set.add(k.slice(pref.length));
       }
     }catch(e){}
     return [...set];
@@ -403,6 +430,8 @@ initDispositivo();
     }
     return null;
   }
+
+  purgarSnapshotsLocales();   // limpieza de la caché heredada (V2.21.26)
 
   window.storage={
     // Cambia la empresa activa (lo llama empresas.js)
