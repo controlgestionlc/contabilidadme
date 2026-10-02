@@ -414,13 +414,16 @@ export async function asegurarAccesoEmpresa(id){
 }
 
 // ── Operaciones ──
-export async function crearEmpresa(nombre,rut,marco,regimen){
+export async function crearEmpresa(nombre,rut,marco,regimen,plantillaPdc){
   // El id debe ser único aunque se creen dos empresas en el mismo milisegundo
   // (pasaba al auto-crear la empresa de un usuario justo después de otra).
   let id='emp'+Date.now().toString(36);
   while(EMPRESAS.todas.some(e=>e.id===id))id='emp'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   EMPRESAS.todas.push({id,nombre,rut:rut||'',marco:marco||'tributaria',
     regimen:regimen||REGIMEN_DEFAULT,
+    // Plantilla de plan de cuentas elegida al crearla (V2.21.27). Se aplica
+    // una sola vez, al activarla, si todavía no tiene plan guardado.
+    ...(plantillaPdc?{plantillaPdc:String(plantillaPdc)}:{}),
     creada:new Date().toISOString(),
     creadoPor:emailActual()||'',      // dueño = quien la crea
     compartidaCon:[]});

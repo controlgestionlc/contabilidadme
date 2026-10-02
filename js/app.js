@@ -6,6 +6,7 @@ import {initActualizador, verificarActualizacion} from './actualizador.js';
 
 import {toast, fmtC, MESES, PDC, recalcDerivadasPDC, pn} from './core.js';
 import {normalizarPDC,asegurarCuentasSistema} from './pdc-reglas.js';
+import {construirPlanPlantilla, plantillaInfo} from './pdc-plantillas.js';
 import {S, AUTH, getCurSec, setCurSec} from './state.js';
 import {FS, initFirestore, logAccion} from './firebase.js';
 import './storage.js';
@@ -15,7 +16,7 @@ import {EMPRESAS, MARCOS, marcoInfo, cargarEmpresas, empresaActiva, crearEmpresa
         eliminarEmpresa, actualizarEmpresa, activarEmpresa, migrarSiHaceFalta,
         aplicarVisibilidad, puedeVerEmpresa} from './empresas.js';
 import {renderEmpresas, abrirFormEmpresa, cerrarFormEmpresa, editarEmpresaCat,
-        guardarEmpresaCat, seleccionarEmpresa, borrarEmpresa, onMarcoChange, onRegimenChange,
+        guardarEmpresaCat, seleccionarEmpresa, borrarEmpresa, onMarcoChange, onRegimenChange, onPlantillaChange,
         abrirCompartir, cerrarCompartir, guardarCompartir, reclamarEmpresa,
         restaurarEmpresa, descartarEmpresaHuerfana} from './empresas-ui.js';
 
@@ -248,6 +249,36 @@ function pantallaCruce(txt,detalle){
 }
 const cerrarPantallaCruce=()=>{const el=document.getElementById('cruce-overlay');if(el)el.remove();};
 
+// Versión del esquema del plan de cuentas guardado (clave pdc_v).
+const PDC_VERSION=3;
+
+// V2.21.27 — Plan de cuentas tipo elegido al crear la empresa.
+// Se aplica una sola vez: cuando la empresa tiene plantilla en el catálogo y
+// la nube CONFIRMA que todavía no tiene plan guardado. Si la lectura falla no
+// se toca nada (un error de red no debe pisar un plan existente).
+async function aplicarPlantillaPdcSiCorresponde(){
+  const e=empresaActiva();
+  const id=e&&e.plantillaPdc;
+  if(!id||!plantillaInfo(id))return false;
+  try{
+    const r=await window.storage.leerConEstado('pdc');
+    if(r.fuente==='error'||r.value!=null)return false;
+    const rv=await window.storage.leerConEstado('pdc_v');
+    if(rv.fuente==='error')return false;
+    const plan=construirPlanPlantilla(id);
+    if(!plan||!plan.length)return false;
+    normalizarPDC(plan);asegurarCuentasSistema(plan);
+    const w=await window.storage.setMany([
+      {key:'pdc',value:JSON.stringify(plan)},
+      {key:'pdc_v',value:String(PDC_VERSION)},
+    ]);
+    if(!w||!w.ok){console.warn('No se pudo aplicar la plantilla del plan de cuentas:',w);return false;}
+    PDC.length=0;plan.forEach(c=>PDC.push(c));recalcDerivadasPDC();
+    toast('📒 Plan de cuentas creado con la plantilla '+plantillaInfo(id).nm+' ('+plan.length+' cuentas)');
+    return true;
+  }catch(err){console.warn('Plantilla PDC:',err);return false;}
+}
+
 async function cruzarAlIniciar(){
   if(!FS.enabled){return null;}
   const claves=window.storage.clavesDeLaEmpresa(S.empresa.anio||new Date().getFullYear());
@@ -376,7 +407,7 @@ async function initApp(){
 
   try{const r=await window.storage.get('empresa');if(r)S.empresa={...S.empresa,...JSON.parse(r.value)};}catch(e){}
   aplicarRegimenEmpresa();
-  const PDC_VERSION=3;
+  await aplicarPlantillaPdcSiCorresponde();
   try{
     const vr=await window.storage.get('pdc_v');
     const savedV=vr?+vr.value:0;
@@ -649,6 +680,7 @@ async function recargarEmpresaActiva(){
   // Cargar datos de la nueva empresa
   try{const r=await window.storage.get('empresa');if(r)S.empresa={...S.empresa,...JSON.parse(r.value)};}catch(e){}
   aplicarRegimenEmpresa();
+  await aplicarPlantillaPdcSiCorresponde();
   try{
     const r=await window.storage.get('pdc');
     if(r){const l=JSON.parse(r.value);if(Array.isArray(l)&&l.length){PDC.length=0;l.forEach(c=>PDC.push(c));normalizarPDC(PDC);recalcDerivadasPDC();}}
@@ -806,7 +838,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   cambiarTema, aplicarTema, onCambiarEmpresa, renderSelectorEmpresa, recargarEmpresaActiva,
   renderEmpresas, abrirFormEmpresa, cerrarFormEmpresa, editarEmpresaCat, guardarEmpresaCat,
   abrirCompartir, cerrarCompartir, guardarCompartir, reclamarEmpresa, restaurarEmpresa, descartarEmpresaHuerfana, aplicarVisibilidad,
-  seleccionarEmpresa, borrarEmpresa, onMarcoChange,
+  seleccionarEmpresa, borrarEmpresa, onMarcoChange, onPlantillaChange,
   exportarExcelManual, conectarBD, fsBackupToCloud, fsRestoreFromCloud, importarExcelBD,
 });
 

@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.02-1230';
+const APP_VERSION='v2026.10.02-1330';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.27',fecha:'02-10-2026',titulo:'Planes de cuentas tipo por rubro',items:[
+    {tipo:'nuevo',txt:'Al crear una empresa se puede elegir un plan de cuentas tipo según su rubro: General (agrícola y forestal), Comercio minorista, Banquetería y gastronomía, Contratistas, Transporte de carga o Inmobiliaria y arriendos.'},
+    {tipo:'cambio',txt:'Todas las plantillas comparten las cuentas de bancos, clientes, proveedores, IVA, honorarios, remuneraciones, patrimonio e impuestos, así que ventas, compras y los asientos automáticos funcionan igual en cualquier rubro. Lo que cambia son las existencias, los costos y los ingresos propios de cada actividad.'},
+    {tipo:'cambio',txt:'La plantilla se aplica una sola vez, al activar la empresa por primera vez. Las empresas que ya existen no cambian, y después de creado el plan se puede editar como siempre.'},
+  ]},
   {version:'V2.21.26',fecha:'02-10-2026',titulo:'Inicio de sesión más liviano',items:[
     {tipo:'correccion',txt:'La sincronización al entrar a veces mostraba más registros de lo normal (por ejemplo 63 en vez de 30), con nombres "recovery-snap". Eran los puntos de recuperación automáticos, que se estaban releyendo en cada inicio de sesión. Ahora el cruce revisa solo los datos de la empresa.'},
     {tipo:'cambio',txt:'Los puntos de recuperación se guardan solo en la nube y ya no ocupan espacio en este equipo. Al abrir esta versión se liberan las copias que habían quedado guardadas. Verificar y restaurar funcionan igual que antes (requieren conexión, como siempre).'},

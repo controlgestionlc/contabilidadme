@@ -7,6 +7,7 @@ import {EMPRESAS, MARCOS, marcoInfo, empresaActiva, crearEmpresa,
         compartirEmpresa, asignarDuenio, empresaSinDuenio, esDuenioDeEmpresa,
         empresasHuerfanas, recuperarEmpresa, descartarHuerfana} from './empresas.js';
 import {REGIMENES, regimenInfo, regimenLbl, tasaIDPC, tasaPPM, REGIMEN_DEFAULT} from './regimenes.js';
+import {PLANTILLAS, PLANTILLA_DEFAULT, plantillaInfo} from './pdc-plantillas.js';
 import {FS} from './firebase.js';
 import {AUTH} from './state.js';
 import {US} from './usuarios.js';
@@ -89,7 +90,7 @@ export function renderEmpresas(){
         ${activa?'<span style="font-size:10px;color:var(--ac)"> (activa)</span>':''}
         <div style="font-size:10px;color:var(--mt)">${e.rut||'sin RUT'}</div>
       </td>
-      <td class="tl" style="font-size:11px">${m.nm}</td>
+      <td class="tl" style="font-size:11px">${m.nm}${plantillaInfo(e.plantillaPdc)?`<div style="font-size:10px;color:var(--mt)" title="Plan de cuentas tipo elegido al crear la empresa">${plantillaInfo(e.plantillaPdc).icono} Plan ${plantillaInfo(e.plantillaPdc).nm}</div>`:''}</td>
       <td class="tl" style="font-size:11px">${regimenInfo(e.regimen).corto}<div style="font-size:10px;color:var(--mt)">${regimenInfo(e.regimen).nm}</div></td>
       <td class="tl" style="font-size:11px">${duenio} ${compBadge}</td>
       <td style="text-align:right;white-space:nowrap">
@@ -130,7 +131,11 @@ export function renderEmpresas(){
       <div class="grp full"><label>Régimen tributario</label><select id="empf-regimen" onchange="onRegimenChange()">
         ${REGIMENES.map(r=>`<option value="${r.k}">${r.corto} — ${r.nm}</option>`).join('')}
       </select></div>
+      <div class="grp full" id="empf-plantilla-grp"><label>Plan de cuentas tipo (rubro)</label><select id="empf-plantilla" onchange="onPlantillaChange()">
+        ${PLANTILLAS.map(t=>`<option value="${t.id}">${t.icono} ${t.nm}</option>`).join('')}
+      </select></div>
     </div>
+    <div id="empf-plantilla-desc" class="info-tip" style="font-size:11px;margin:10px 0"></div>
     <div id="empf-marco-desc" class="info-tip" style="font-size:11px;margin:10px 0"></div>
     <div id="empf-regimen-desc" class="info-tip" style="font-size:11px;margin:10px 0"></div>
     <div class="save-row" style="display:flex;gap:8px">
@@ -138,6 +143,24 @@ export function renderEmpresas(){
       <button class="btn btn-g" onclick="cerrarFormEmpresa()">Cancelar</button>
     </div>
   </div>`;
+}
+
+// Plantilla de plan de cuentas: sólo se elige al crear la empresa. Al editar
+// se muestra cuál se usó, sin permitir cambiarla (el plan ya puede tener uso).
+export function onPlantillaChange(){
+  const sel=document.getElementById('empf-plantilla');
+  const d=document.getElementById('empf-plantilla-desc');
+  if(!sel||!d)return;
+  if(EMPF.editId){
+    const e=EMPRESAS.lista.find(x=>x.id===EMPF.editId);
+    const t=e&&plantillaInfo(e.plantillaPdc);
+    d.innerHTML=t?`Plan de cuentas creado con la plantilla <strong>${t.icono} ${t.nm}</strong>. Para ajustarlo, usa la sección Plan de Cuentas.`
+                 :'El plan de cuentas de esta empresa se administra en la sección Plan de Cuentas.';
+    return;
+  }
+  const t=plantillaInfo(sel.value)||plantillaInfo(PLANTILLA_DEFAULT);
+  d.innerHTML=`<strong>${t.icono} ${t.nm}</strong><br>${t.desc}
+    <div style="margin-top:6px;color:var(--mt)">Todas las plantillas comparten las cuentas de bancos, clientes, proveedores, IVA, honorarios, remuneraciones, patrimonio e impuestos. Se aplica al activar la empresa por primera vez y después puedes agregar, renombrar o eliminar cuentas como siempre.</div>`;
 }
 
 export function onMarcoChange(){
@@ -179,7 +202,9 @@ export function abrirFormEmpresa(){
   document.getElementById('empf-rut').value='';
   document.getElementById('empf-marco').value='tributaria';
   document.getElementById('empf-regimen').value=REGIMEN_DEFAULT;
-  onMarcoChange();onRegimenChange();
+  document.getElementById('empf-plantilla').value=PLANTILLA_DEFAULT;
+  document.getElementById('empf-plantilla-grp').style.display='';
+  onMarcoChange();onRegimenChange();onPlantillaChange();
 }
 
 export function cerrarFormEmpresa(){
@@ -196,7 +221,8 @@ export function editarEmpresaCat(id){
   document.getElementById('empf-rut').value=e.rut||'';
   document.getElementById('empf-marco').value=e.marco||'tributaria';
   document.getElementById('empf-regimen').value=e.regimen||REGIMEN_DEFAULT;
-  onMarcoChange();onRegimenChange();
+  document.getElementById('empf-plantilla-grp').style.display='none';
+  onMarcoChange();onRegimenChange();onPlantillaChange();
 }
 
 export async function guardarEmpresaCat(){
@@ -209,8 +235,9 @@ export async function guardarEmpresaCat(){
     await actualizarEmpresa(EMPF.editId,{nombre,rut,marco,regimen});
     toast('✅ Empresa actualizada');
   }else{
-    await crearEmpresa(nombre,rut,marco,regimen);
-    toast('✅ Empresa creada con régimen '+regimenLbl(regimen)+' — actívala para cargar sus datos');
+    const plantilla=document.getElementById('empf-plantilla').value||PLANTILLA_DEFAULT;
+    await crearEmpresa(nombre,rut,marco,regimen,plantilla);
+    toast('✅ Empresa creada con régimen '+regimenLbl(regimen)+' y plan '+(plantillaInfo(plantilla)?.nm||'estándar')+' — actívala para cargar sus datos');
   }
   cerrarFormEmpresa();
   renderEmpresas();
