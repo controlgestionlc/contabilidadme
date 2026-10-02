@@ -10,6 +10,7 @@ import {savePDC} from './pdc.js';
 import {S} from './state.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {tributacionCompra,clasificacionIVACompra,periodoContableCompra} from './motor-contable.js';
+import {utmDelPeriodo,fuenteUTM,cargarUTMHistorico,asegurarUTMHistoricoAlDia} from './utm-historico.js';
 import './storage.js';
 
 
@@ -18,7 +19,7 @@ import './storage.js';
 // El cálculo del sistema es dinámico; la declaración presentada al SII es un hecho
 // histórico. Se guardan por separado para que una edición posterior de documentos
 // no reescriba silenciosamente el remanente ya declarado.
-const F29DECL={anio:null,items:{},loaded:false,cargando:false};
+const F29DECL={anio:null,items:{},anterior:{},loaded:false,cargando:false};
 const F29_CODIGOS_DECL=[538,39,537,504,77,89,563,62,151,48,91];
 const claveF29Decl=anio=>`f29-declaraciones-${anio}`;
 const periodoF29=mes=>`${S.empresa.anio}-${String(mes).padStart(2,'0')}`;
@@ -34,8 +35,19 @@ async function cargarDeclaracionesF29(force=false){
     const r=await window.storage.get(claveF29Decl(anio));
     F29DECL.items=r?JSON.parse(r.value||'{}'):{};
     if(!F29DECL.items||Array.isArray(F29DECL.items)||typeof F29DECL.items!=='object')F29DECL.items={};
+    // V2.21.28 — Declaraciones del año anterior: el código 77 de diciembre es
+    // el remanente que entra a enero. Sólo lectura.
+    F29DECL.anterior={};
+    try{
+      const ra=await window.storage.get(claveF29Decl(anio-1));
+      const a=ra?JSON.parse(ra.value||'{}'):{};
+      if(a&&typeof a==='object'&&!Array.isArray(a))F29DECL.anterior=a;
+    }catch(e){console.warn('No se pudieron cargar declaraciones F29 del año anterior:',e);}
+    // Histórico UTM para el reajuste del remanente (y consulta de meses nuevos)
+    await cargarUTMHistorico(force);
+    asegurarUTMHistoricoAlDia();
     F29DECL.anio=anio;F29DECL.loaded=true;
-  }catch(e){console.warn('No se pudieron cargar declaraciones F29:',e);F29DECL.items={};F29DECL.anio=anio;F29DECL.loaded=true;}
+  }catch(e){console.warn('No se pudieron cargar declaraciones F29:',e);F29DECL.items={};F29DECL.anterior={};F29DECL.anio=anio;F29DECL.loaded=true;}
   finally{F29DECL.cargando=false;}
   return F29DECL.items;
 }
@@ -144,9 +156,13 @@ function _iuscRemuneraciones(periodo){
     .filter(a=>!a.anulado&&a.tipo==='remuneraciones'&&(a.periodo===periodo||String(a.fecha||'').startsWith(periodo)))
     .reduce((s,a)=>s+(a.movs||[]).reduce((x,m)=>x+(m.cd==='2104002'?(+m.haber||0)-(+m.debe||0):0),0),0)));
 }
+// UTM de un período: la ingresada en ese F29 > histórico oficial (SII) >
+// la usada en la liquidación de remuneraciones del mes.
 function _utmPeriodo(periodo){
-  const guardada=+declaracionF29(periodo)?.utm||0;
+  const guardada=+(declaracionF29(periodo)||F29DECL.anterior?.[periodo])?.utm||0;
   if(guardada>0)return guardada;
+  const hist=utmDelPeriodo(periodo);
+  if(hist>0)return hist;
   const asiento=(S.asientos||[]).find(a=>!a.anulado&&a.tipo==='remuneraciones'&&(a.periodo===periodo||String(a.fecha||'').startsWith(periodo))&&+a.indicadoresLiquidacion?.utm>0);
   return +asiento?.indicadoresLiquidacion?.utm||0;
 }
@@ -154,11 +170,38 @@ function _utmPeriodo(periodo){
 // V2.11: devuelve además el desglose de códigos que explican el F29. El cálculo
 // económico usa los signos de los DTE; el desglose conserva NC/ND en sus líneas
 // propias para poder conciliar la propuesta del SII sin esconder compensaciones.
+// V2.21.28 — Remanente que entra a enero: código 77 del F29 de diciembre del
+// año anterior (presentado o con valores declarados). Si no existe, el que se
+// ingrese a mano en el F29 de enero. La UTM de origen es la de diciembre.
+function remanenteInicialF29(){
+  const anio=+S.empresa.anio, perDic=`${anio-1}-12`, perEne=`${anio}-01`;
+  const dic=F29DECL.anterior?.[perDic]||null;
+  if(dic&&(esF29Presentado(dic)||dic.declarado?.['77']!=null))
+    return {monto:Math.max(0,codDecl(dic,77,0)),fuente:'f29-dic',estado:dic.estado||'borrador',periodo:perDic};
+  const ene=F29DECL.items?.[perEne];
+  if(ene&&ene.remanenteInicial!=null)return {monto:Math.max(0,+ene.remanenteInicial||0),fuente:'manual',periodo:perDic};
+  return {monto:0,fuente:'ninguna',periodo:perDic};
+}
+async function setRemanenteInicialF29(val){
+  const anio=+S.empresa.anio, perEne=`${anio}-01`;
+  const ini=remanenteInicialF29();
+  if(ini.fuente==='f29-dic'){toast('🔒 El remanente inicial viene del F29 de diciembre '+(anio-1)+'.','e');return;}
+  const d=F29DECL.items[perEne]||(F29DECL.items[perEne]={periodo:perEne,estado:'borrador',declarado:{}});
+  if(esF29Presentado(d)){toast('🔒 Reabre el F29 de enero antes de modificar el remanente inicial.','e');return;}
+  const txt=String(val??'').trim();
+  if(txt==='')delete d.remanenteInicial;else d.remanenteInicial=Math.max(0,Math.round(pn(txt)));
+  d.actualizadoEn=new Date().toISOString();
+  if(!await guardarDeclaracionesF29()){toast('❌ No se pudo guardar el remanente inicial.','e');return;}
+  toast('✅ Remanente inicial de enero actualizado');
+  renderF29();
+}
+
 function calcularF29Anual(){
   const anio=S.empresa.anio;
   const meses=[];
-  let remanenteAnt=0;
-  let utmRemanenteAnt=0;
+  const ini=remanenteInicialF29();
+  let remanenteAnt=ini.monto;
+  let utmRemanenteAnt=ini.monto>0?_utmPeriodo(ini.periodo):0;
   const tasaPPM=(S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0)/100;
   for(let m=1;m<=12;m++){
     const vs=todosDocsVentas().filter(d=>+d.fecha.slice(5,7)===m);
@@ -415,7 +458,10 @@ function renderF29(){
         <td class="f29-monto money-cell" style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:${d.totalPagar>0?'var(--err)':'var(--ach)'}">${fmtC(d.totalPagar)}</td>
       </tr>
     </tbody></table>
-    <div class="fg" style="margin-top:12px"><div class="grp"><label>UTM del período ${per}</label><input type="number" class="money-input" min="0" value="${d.utmPeriodo||''}" onchange="setF29UTM(this.value)" ${presentado?'disabled':''}></div></div>
+    <div class="fg" style="margin-top:12px"><div class="grp"><label>UTM del período ${per}</label><input type="number" class="money-input" min="0" value="${d.utmPeriodo||''}" onchange="setF29UTM(this.value)" ${presentado?'disabled':''}>
+      <div style="font-size:10px;color:var(--mt);margin-top:2px">${+declaracionF29(per)?.utm>0?'Ingresada en este F29':fuenteUTM(per)==='sii'?'Histórico oficial SII':fuenteUTM(per)==='mindicador'?'Histórico (mindicador.cl)':fuenteUTM(per)==='manual'?'Histórico corregido a mano':d.utmPeriodo?'Tomada de la liquidación de remuneraciones':'Sin UTM: complétala aquí o en Indicadores'}</div></div>
+      ${mSel===1?(()=>{const ini=remanenteInicialF29(),bloq=ini.fuente==='f29-dic'||presentado;return `<div class="grp"><label>Remanente inicial (cód. 77 de diciembre ${S.empresa.anio-1})</label><input type="number" class="money-input" min="0" value="${ini.fuente==='ninguna'?'':ini.monto}" placeholder="0" onchange="setRemanenteInicialF29(this.value)" ${bloq?'disabled':''}>
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">${ini.fuente==='f29-dic'?'Desde el F29 de diciembre '+(S.empresa.anio-1)+' ('+ini.estado+')':ini.fuente==='manual'?'Ingresado a mano':'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingrésalo si hubo remanente'} · UTM origen ${d.utmRemanenteAnt?fmtC(d.utmRemanenteAnt):'—'}</div></div>`;})():''}</div>
     ${d.remanenteSinUTM?'<div class="info-tip" style="margin-top:10px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Falta la UTM del mes de origen o del período actual. El código 504 se muestra sin reajuste hasta completar ambas UTM.</div>':''}
     ${d.tasaPPM===0&&(S.empresa.tasaPPM==null||+S.empresa.tasaPPM===0)?'<div class="info-tip" style="margin-top:12px;font-size:11px">⚠️ La tasa de PPM está en 0%. Configúrala en Empresa → Configuración Tributaria para que se calcule el PPM.</div>':''}
     <div style="margin-top:12px;font-size:10px;color:var(--mt)">Los códigos corresponden al Formulario 29 del SII. Este es un cálculo referencial basado en tus registros; verifica antes de declarar.</div>
@@ -571,15 +617,17 @@ function renderCompensacionIVA(){
   const anio=S.empresa.anio;
   const periodo=`${anio}-${String(mes).padStart(2,'0')}`;
   // Al cambiar de mes se recalculan fecha y glosa (si no las editó el usuario a mano)
-  if(IVAC.periodo!==periodo){IVAC.periodo=periodo;IVAC.fecha='';IVAC.glosa='';}
+  if(IVAC.periodo!==periodo){IVAC.periodo=periodo;IVAC.fecha='';IVAC.glosa='';IVAC.utmOrigen=0;IVAC.utmActual=0;}
 
   // Cuentas por defecto que sí existan en este plan de cuentas
   if(!PDC.some(x=>x.cd===IVAC.cuentas.reajuste))
     IVAC.cuentas.reajuste=primeraCuenta('3502001','3501001','3503001','4301001','3401001')||IVAC.cuentas.reajuste;
-  // UTM: por defecto la configurada en Indicadores para ambos meses (factor 1)
+  // UTM: las del cálculo F29 (histórico por mes: origen = mes anterior,
+  // actual = mes del período). Sin dato, la configurada en Indicadores.
   const utmCfg=Math.round(getIndicadores()?.utm||0);
-  if(!IVAC.utmOrigen)IVAC.utmOrigen=utmCfg;
-  if(!IVAC.utmActual)IVAC.utmActual=utmCfg;
+  const dUTM=calcularF29Anual()[mes-1]||{};
+  if(!IVAC.utmOrigen)IVAC.utmOrigen=Math.round(dUTM.utmRemanenteAnt||0)||utmCfg;
+  if(!IVAC.utmActual)IVAC.utmActual=Math.round(dUTM.utmPeriodo||0)||utmCfg;
 
   const r=calcularCompensacionIVA(mes);
   const d=r.d;
@@ -1048,7 +1096,7 @@ async function generarAsientoPagoF29(){
   renderF29();
 }
 
-export {calcularF29Anual, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
+export {calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,

@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.02-1330';
+const APP_VERSION='v2026.10.02-1630';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.28',fecha:'02-10-2026',titulo:'Histórico UTM y remanente de crédito fiscal entre años',items:[
+    {tipo:'nuevo',txt:'Indicadores incluye el histórico mensual de la UTM desde 2023, con los valores oficiales del SII. Los meses nuevos se traen solos desde mindicador.cl (que publica la serie del SII) y cualquier mes se puede corregir a mano.'},
+    {tipo:'cambio',txt:'El F29 reajusta el remanente de crédito fiscal con la UTM real de cada mes (origen e imputación), también al rehacer un año anterior. Si en un F29 ingresas la UTM a mano, esa manda.'},
+    {tipo:'nuevo',txt:'Enero recibe el remanente de diciembre del año anterior: se toma el código 77 del F29 de diciembre y, si no existe, se puede ingresar a mano en el F29 de enero.'},
+    {tipo:'correccion',txt:'El asiento de compensación de IVA ahora propone la UTM del mes de origen y la del mes de imputación. Antes usaba la misma UTM para ambos y el reajuste quedaba en cero.'},
+  ]},
   {version:'V2.21.27',fecha:'02-10-2026',titulo:'Planes de cuentas tipo por rubro',items:[
     {tipo:'nuevo',txt:'Al crear una empresa se puede elegir un plan de cuentas tipo según su rubro: General (agrícola y forestal), Comercio minorista, Banquetería y gastronomía, Contratistas, Transporte de carga o Inmobiliaria y arriendos.'},
     {tipo:'cambio',txt:'Todas las plantillas comparten las cuentas de bancos, clientes, proveedores, IVA, honorarios, remuneraciones, patrimonio e impuestos, así que ventas, compras y los asientos automáticos funcionan igual en cualquier rubro. Lo que cambia son las existencias, los costos y los ingresos propios de cada actividad.'},
