@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.02-1630';
+const APP_VERSION='v2026.10.05-1330';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.29',fecha:'05-10-2026',titulo:'Ajustes visuales del encabezado',items:[
+    {tipo:'cambio',txt:'El estado de guardado, el botón Guardar y el usuario quedan alineados al borde derecho del encabezado.'},
+    {tipo:'cambio',txt:'Se quitó el ícono que aparecía en la esquina superior derecha de la pantalla de Inicio.'},
+  ]},
   {version:'V2.21.28',fecha:'02-10-2026',titulo:'Histórico UTM y remanente de crédito fiscal entre años',items:[
     {tipo:'nuevo',txt:'Indicadores incluye el histórico mensual de la UTM desde 2023, con los valores oficiales del SII. Los meses nuevos se traen solos desde mindicador.cl (que publica la serie del SII) y cualquier mes se puede corregir a mano.'},
     {tipo:'cambio',txt:'El F29 reajusta el remanente de crédito fiscal con la UTM real de cada mes (origen e imputación), también al rehacer un año anterior. Si en un F29 ingresas la UTM a mano, esa manda.'},
