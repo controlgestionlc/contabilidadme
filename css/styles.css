@@ -1576,3 +1576,30 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .inv-modal-box{max-width:1040px}.inv-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.inv-form-grid label,.inv-line label{display:flex;flex-direction:column;gap:5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mt)}.inv-form-grid .span2{grid-column:1/-1}.inv-form-grid input,.inv-form-grid select,.inv-form-grid textarea,.inv-line input,.inv-line select{width:100%;box-sizing:border-box}.inv-form-grid .inv-check{flex-direction:row;align-items:center;gap:8px;padding-top:18px;font-size:11px;text-transform:none;color:var(--tx)}.inv-form-grid .inv-check input{width:auto}.inv-lines{margin-top:16px;border:1px solid var(--bd);border-radius:8px;padding:0 11px 11px}.inv-lines .inv-card-title{margin:0 -11px 10px}.inv-line{position:relative;display:grid;grid-template-columns:minmax(230px,2fr) repeat(4,minmax(110px,1fr)) 30px;gap:8px;align-items:end;padding:9px 0;border-bottom:1px solid var(--bd)}.inv-line small{font-size:9px;color:var(--mt);text-transform:none;font-weight:400}.inv-line-del{width:28px;height:32px;border:1px solid var(--bd);background:transparent;color:var(--err);border-radius:5px;cursor:pointer;font-size:18px}.inv-lines>.btn{margin-top:10px}.inv-alert{border:1px solid rgba(210,153,34,.4);background:rgba(210,153,34,.08);color:var(--warn);padding:9px 12px;border-radius:8px;margin-bottom:12px;font-size:11px}.inv-alert.error{border-color:rgba(248,81,73,.35);background:rgba(248,81,73,.07);color:var(--err)}.inv-doc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}.inv-doc-grid>div{border:1px solid var(--bd);border-radius:7px;padding:9px;display:flex;flex-direction:column;gap:3px}.inv-doc-grid strong{font-size:11px}.inv-nota{padding:10px 12px;margin-top:10px;background:var(--sf2);border-radius:7px;font-size:11px}
 @media(max-width:820px){.inv-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.inv-kpis>div:nth-child(4){grid-column:span 2}.inv-kpis.inv-kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}.inv-toolbar{align-items:stretch;flex-wrap:wrap}.inv-toolbar input,.inv-toolbar select,.inv-toolbar .btn{width:100%;margin:0}.inv-toolbar-actions{width:100%;margin:0;display:grid;grid-template-columns:1fr}.inv-form-grid{grid-template-columns:1fr}.inv-form-grid .span2{grid-column:auto}.inv-line{grid-template-columns:1fr 1fr;padding-right:34px}.inv-line>label:first-child{grid-column:1/-1}.inv-line-del{position:absolute;right:0;top:10px}.inv-doc-grid{grid-template-columns:1fr 1fr}.inv-review-actions{position:static;flex-wrap:wrap}.inv-review-actions .btn{flex:1}.inv-oc-line{grid-template-columns:1fr 1fr;padding-right:34px}.inv-oc-line>label:first-child{grid-column:1/-1}.inv-line-total{align-items:flex-start;text-align:left}.inv-rec-line{grid-template-columns:1fr 1fr}.inv-rec-line>div:first-child{grid-column:1/-1}.inv-oc-totales{flex-direction:column;gap:7px}}
 @media(max-width:480px){.inv-kpis{grid-template-columns:1fr 1fr}.inv-kpis strong{font-size:15px}.inv-master-card{flex-direction:column}.inv-line{grid-template-columns:1fr}.inv-line>label:first-child{grid-column:auto}.inv-doc-grid{grid-template-columns:1fr}.inv-import-summary{grid-template-columns:1fr 1fr}}
+
+
+/* ═══ LIQUIDACIÓN DE SUELDO: una hoja carta (V2.21.31) ═══
+   imprimirLiquidacion() pone body.print-liq y calcula --liq-zoom para que
+   el contenido quepa siempre en una sola página. */
+.liq-emp{font-size:11px;color:var(--mt);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd)}
+.liq-firmas{display:none}
+@page liqcarta{size:letter portrait;margin:12mm}
+@media print{
+  body.print-liq #print-header,
+  body.print-liq #s-remuneraciones > :not(#rem-content),
+  body.print-liq #rem-content > :not(.liq-print){display:none!important}
+  body.print-liq main{padding:0!important}
+  body.print-liq .liq-print{
+    page:liqcarta;zoom:var(--liq-zoom,1);
+    max-width:none!important;width:100%!important;margin:0!important;padding:0!important;
+    border:none!important;box-shadow:none!important;background:#fff!important;color:#000!important;
+    font-size:11px;break-inside:avoid;page-break-inside:avoid;
+  }
+  body.print-liq .liq-print table{width:100%;border-collapse:collapse}
+  body.print-liq .liq-print td{padding:3px 8px!important;font-size:11px!important;color:#000!important;border-bottom:1px solid #e3e3e3}
+  body.print-liq .liq-print tr.rth td{background:#eee!important;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body.print-liq .liq-print tr[style*="background"]{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body.print-liq .liq-emp{color:#000}
+  body.print-liq .liq-firmas{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:46px;font-size:10px;text-align:center}
+  body.print-liq .liq-linea{border-top:1px solid #000;margin-bottom:4px}
+}
