@@ -42,7 +42,7 @@ import {savePDC, renderPDC, abrirPdcForm, editarCuenta, cerrarPdcForm,
 import {renderIndicadores, guardarIndicadores, restaurarIndicadoresDefault,
         getIndicadores, IND, actualizarDesdeBancoCentral,
         renderIUSCTabla, setIUSC, addIUSCTramo, delIUSCTramo, restaurarIUSCTabla, setIUSCPrueba} from './indicadores.js';
-import {renderPrevisional, guardarPrevisional, restaurarPrevisional} from './previsional-ui.js';
+import {renderPrevisional, guardarPrevisional, restaurarPrevisional, renderPrevisionalAccidentes} from './previsional-ui.js';
 import {acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
         axAcBuscar, axAcTecla, axAcElegir, axAcCerrar} from './buscadorcuentas.js';
 import {prAcBuscar, prAcTecla, prAcElegir, prAcCerrarDif} from './buscadorproductos.js';
@@ -127,6 +127,7 @@ import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSalud
         previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador,
         onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired} from './remuneraciones.js';
 import {exportarPrevired, mostrarValidacionPrevired, setCfgPrevired, setCodigoPrevired} from './previred.js';
+import {exportarImposicionesExcel} from './imposiciones.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
@@ -731,7 +732,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderPDC, abrirPdcForm, editarCuenta, cerrarPdcForm, guardarCuenta, eliminarCuenta, resetPDC,
   renderIndicadores, guardarIndicadores, restaurarIndicadoresDefault, actualizarDesdeBancoCentral,
   renderIUSCTabla, setIUSC, addIUSCTramo, delIUSCTramo, restaurarIUSCTabla, setIUSCPrueba,
-  renderPrevisional, guardarPrevisional, restaurarPrevisional,
+  renderPrevisional, guardarPrevisional, restaurarPrevisional, renderPrevisionalAccidentes,
   renderCentrosCosto, abrirFormCC, editarCC, cerrarFormCC, guardarCC, borrarCC,
   renderInventario, invSetTab, invSetFiltro, invCerrarModal,
   invAbrirGrupo, invGuardarGrupo, invAbrirBodega, invGuardarBodega,
@@ -807,7 +808,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   exportarLibroRemExcel, exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS, libroDelMes,
   previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem,
   verLiquidacion, generarAsientoRemuneraciones, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired,
-  exportarPrevired, mostrarValidacionPrevired, setCfgPrevired, setCodigoPrevired,
+  exportarPrevired, mostrarValidacionPrevired, setCfgPrevired, setCodigoPrevired, exportarImposicionesExcel,
   renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
   eliminarEventoAsistencia, setHorasMes, onAsisTipoChange,
   // cierre

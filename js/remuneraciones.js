@@ -6,7 +6,7 @@ import {logAccion} from './firebase.js';
 import {proxFolioAsiento} from './asientos.js';
 import {getIndicadores, IND, calcularGratificacion, topeGratificacionMensual,
         getIUSCTabla, calcularIUSCDetalle, IUSC_TABLA_OFICIAL} from './indicadores.js';
-import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal} from './previsional.js';
+import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal, tasasAFC} from './previsional.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {numeroMostrar} from './correlativo-contable.js';
 import {asistenciaMes} from './asistencia.js';
@@ -111,7 +111,8 @@ function calcularLiquidacion(t,uf,utm,asis){
   const planUF=+t.plan||0;
   const planPesos=planUF?Math.round(planUF*uf):0;
   // Cesantía trabajador (solo contrato indefinido)
-  const descCesantia=t.contrato==='indefinido'?Math.round(baseCes*REM_PARAMS.tasaCesantiaTrab):0;
+  const tasaCesTrab=tasasAFC(t.contrato||'indefinido').trab;
+  const descCesantia=Math.round(baseCes*tasaCesTrab/100);
   // Total cotizaciones previsionales
   const totalPrevisional=descAFP+descSalud+descCesantia;
   // Base tributable = imponible − cotizaciones previsionales
@@ -138,7 +139,7 @@ function calcularLiquidacion(t,uf,utm,asis){
   const costoEmpresa=totalHaberes+patronal.total;
   return {patronal,costoEmpresa,
     base,baseContrato,otros,colacion,movilizacion,porHora,horas,valorHora:porHora?(+t.valorHora||0):null,
-    factor,asis:asis||null,
+    factor,asis:asis||null,tasaCesTrab,
     grat,gratModo,gratInfo,
     totalImponible,totalNoImponible,totalHaberes,baseAFP,baseCes,baseSIS,baseAFC,
     descAFP,descAFP_pension,descAFP_comision,descSalud,saludLegal,adicionalIsapre,planUF,planPesos,descCesantia,
@@ -277,7 +278,7 @@ function previewLiq(){
       <span style="color:var(--mt)">AFP ${l.afpNm} (10% + comisión)</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.descAFP)}</span>
       <span style="color:var(--mt)">Salud 7% legal</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.saludLegal)}</span>
       ${l.adicionalIsapre?`<span style="color:var(--mt)">Adicional isapre (${l.planUF} UF)</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.adicionalIsapre)}</span>`:''}
-      <span style="color:var(--mt)">Cesantía (0,6%)</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.descCesantia)}</span>
+      <span style="color:var(--mt)">Cesantía (${l.tasaCesTrab.toLocaleString('es-CL')}%)</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.descCesantia)}</span>
       <span style="color:var(--mt)">Impuesto único${l.iuscDet&&l.iuscDet.idx>=0?` <span style="font-size:10px">(tramo ${l.iuscDet.idx+1} · ${(l.iuscDet.factor*100).toFixed(2)}% · ${l.iuscDet.baseUTM.toFixed(1)} UTM)</span>`:''}</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.iusc)}</span>
       <span style="font-weight:700;border-top:1px solid var(--bd);padding-top:4px">LÍQUIDO A PAGAR</span><span style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--ach);border-top:1px solid var(--bd);padding-top:4px">${fmtC(l.liquido)}</span>
     </div>
@@ -446,7 +447,7 @@ function verLiquidacion(id){
       ${row('AFP comisión',l.descAFP_comision,true)}
       ${row('Salud 7% (cotización legal)',l.saludLegal,true)}
       ${l.adicionalIsapre?row(`Adicional ${l.saludNm} (plan ${(+l.planUF).toLocaleString('es-CL',{maximumFractionDigits:4})} UF)`,l.adicionalIsapre,true):''}
-      ${l.descCesantia?row('Seguro cesantía 0,6%',l.descCesantia,true):''}
+      ${l.descCesantia?row(`Seguro cesantía ${l.tasaCesTrab.toLocaleString('es-CL')}%`,l.descCesantia,true):''}
       ${l.iusc?row(`Impuesto único 2ª cat. (tramo ${l.iuscDet.idx+1} · ${(l.iuscDet.factor*100).toFixed(2)}%)`,l.iusc,true):''}
       ${row('Total descuentos',l.totalDescuentos,true,true)}
       <tr style="background:rgba(46,160,67,.14)"><td class="tl" style="padding:11px 10px;font-weight:700;font-size:14px">LÍQUIDO A PAGAR</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:var(--ach)">${fmtC(l.liquido)}</td></tr>

@@ -8,13 +8,21 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.13-2000';
+const APP_VERSION='v2026.10.13-2130';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.38',fecha:'13-10-2026',titulo:'Detalle del pago de imposiciones en Excel',items:[
+    {tipo:'nuevo',txt:'En el Libro de Remuneraciones, el botón "Imposiciones" descarga un Excel con el detalle del pago del mes: resumen por institución (cada AFP, Fonasa o Isapre, caja de compensación, AFC y mutual o ISL) con sus conceptos, si son de cargo del trabajador o del empleador y cuántos trabajadores incluye, y una hoja con el detalle por trabajador. Los totales son fórmulas y cuadran con el archivo Previred.'},
+  ]},
+  {version:'V2.21.37',fecha:'13-10-2026',titulo:'Tasas editables de ISL, mutualidad y seguro de cesantía',items:[
+    {tipo:'nuevo',txt:'Indicadores → Aporte del empleador: el seguro de accidentes del trabajo tiene tasas separadas para mutualidad e ISL (básica, adicional diferenciada, Ley SANNA y extraordinaria), todas editables. Se aplica la columna de la institución elegida.'},
+    {tipo:'nuevo',txt:'Seguro de cesantía editable por tipo de contrato, con aporte del trabajador y del empleador: indefinido (0,6% + 2,4%), plazo fijo u obra o faena (0% + 3%) e indefinido con más de 11 años (0% + 0,8%). En la ficha del trabajador se agregó este último tipo de contrato.'},
+    {tipo:'cambio',txt:'La Ley SANNA (0,03%) ahora se incluye por defecto en la cotización de accidentes del trabajo. Las configuraciones guardadas mantienen sus tasas; si la empresa usaba ISL, sus tasas pasan a la columna ISL.'},
+  ]},
   {version:'V2.21.36',fecha:'13-10-2026',titulo:'Asiento de remuneraciones: sin duplicados aunque haya otro equipo',items:[
     {tipo:'correccion',txt:'Antes de generar el asiento de remuneraciones se lee el libro de asientos vigente desde la nube. Así se detectan los asientos que grabó otro equipo o una sesión anterior y el número asignado es el real de la secuencia.'},
     {tipo:'cambio',txt:'Regla central: no se acepta un segundo asiento de remuneraciones activo para el mismo mes, venga de donde venga. Los duplicados que ya existan no bloquean el resto de la contabilidad; se regularizan al volver a generar el mes.'},

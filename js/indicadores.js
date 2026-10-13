@@ -221,7 +221,6 @@ function renderIndicadores(){
     <div class="fg">
       ${campo('tasaAFP','Cotización AFP',i.tasaAFP,'0.1','%','Obligatoria: 10% (sin comisión AFP)')}
       ${campo('tasaSalud','Cotización Salud',i.tasaSalud,'0.1','%','Mínimo legal: 7%')}
-      ${campo('tasaCesantiaTrab','Cesantía trabajador',i.tasaCesantiaTrab,'0.1','%','Contrato indefinido: 0,6%')}
       ${campo('factorCM','Factor Corrección Monetaria',i.factorCM,'0.1','% anual','Referencial 2025: 3,4% (14D3 exento)')}
     </div>
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">
@@ -378,7 +377,7 @@ async function guardarIndicadores(){
     topeAFP_UF:num('topeAFP_UF'),topeCesantia_UF:num('topeCesantia_UF'),
     ingresoMinimo:num('ingresoMinimo'),
     gratifPct:num('gratifPct'),gratifTopeIMM:num('gratifTopeIMM'),
-    tasaAFP:num('tasaAFP'),tasaSalud:num('tasaSalud'),tasaCesantiaTrab:num('tasaCesantiaTrab'),
+    tasaAFP:num('tasaAFP'),tasaSalud:num('tasaSalud'),tasaCesantiaTrab:+getIndicadores().tasaCesantiaTrab||0.6,
     factorCM:num('factorCM'),
     retHonorarios:num('retHonorarios'),
     retHonorariosManual:document.getElementById('ind-retHonorariosManual').value==='true',
