@@ -125,7 +125,8 @@ import {renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previe
         editarAF, eliminarAF, generarAsientoDepreciacion, AFB} from './activofijo.js';
 import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
         previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador,
-        onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF, onTipoPagoChange, imprimirLiquidacion} from './remuneraciones.js';
+        onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired} from './remuneraciones.js';
+import {exportarPrevired, mostrarValidacionPrevired, setCfgPrevired, setCodigoPrevired} from './previred.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
@@ -805,7 +806,8 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderLibroRem, setRemView, getRemView, tabsRemuneraciones, cerrarMesRem, reabrirMesRem,
   exportarLibroRemExcel, exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS, libroDelMes,
   previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem,
-  verLiquidacion, generarAsientoRemuneraciones, onTipoPagoChange, imprimirLiquidacion,
+  verLiquidacion, generarAsientoRemuneraciones, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired,
+  exportarPrevired, mostrarValidacionPrevired, setCfgPrevired, setCodigoPrevired,
   renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
   eliminarEventoAsistencia, setHorasMes, onAsisTipoChange,
   // cierre

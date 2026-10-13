@@ -122,13 +122,24 @@ function calcularLiquidacion(t,uf,utm,asis){
   const totalDescuentos=totalPrevisional+iusc;
   const liquido=totalHaberes-totalDescuentos;
   // Aporte patronal (costo empresa, no se descuenta al trabajador)
-  const patronal=calcularAportePatronal(t,baseAFP,baseCes);
+  // Licencias: SIS y aporte AFC del empleador siguen sobre la renta del mes
+  // completo (días pagados + días de licencia), con los topes completos.
+  let baseSIS=baseAFP, baseAFC=baseCes;
+  const diasLic=asis?(+asis.diasLicencia||0):0;
+  if(diasLic>0&&factor<1){
+    const full=porHora?null:calcularLiquidacion(t,uf,utm);
+    const impFull=full?full.totalImponible:totalImponible;
+    const extra=Math.round(impFull*Math.min(30,diasLic)/30);
+    baseSIS=Math.min(Math.round(REM_PARAMS.topeAFP_UF*uf),baseAFP+extra);
+    baseAFC=Math.min(Math.round(REM_PARAMS.topeCesantia_UF*uf),baseCes+extra);
+  }
+  const patronal=calcularAportePatronal(t,baseAFP,baseCes,{sis:baseSIS,afc:baseAFC});
   const costoEmpresa=totalHaberes+patronal.total;
   return {patronal,costoEmpresa,
     base,baseContrato,otros,colacion,movilizacion,porHora,horas,valorHora:porHora?(+t.valorHora||0):null,
     factor,asis:asis||null,
     grat,gratModo,gratInfo,
-    totalImponible,totalNoImponible,totalHaberes,baseAFP,baseCes,
+    totalImponible,totalNoImponible,totalHaberes,baseAFP,baseCes,baseSIS,baseAFC,
     descAFP,descAFP_pension,descAFP_comision,descSalud,saludLegal,adicionalIsapre,planUF,planPesos,descCesantia,
     totalPrevisional,baseTributable,iusc,iuscDet,totalDescuentos,liquido,
     afpNm:afp.nm, saludNm:(t.salud&&t.salud!=='fonasa')?isapreInfo(t.salud).nm:'Fonasa'};
@@ -148,7 +159,8 @@ function abrirFormTrabajador(){
   const P=getPrevisional();
   document.getElementById('remf-afp').innerHTML=P.afps.map(a=>`<option value="${a.k}">${a.nm} (${(+a.comision).toFixed(2)}%)</option>`).join('');
   document.getElementById('remf-salud').innerHTML=P.isapres.map(i=>`<option value="${i.k}">${i.nm}</option>`).join('');
-  ['nombre','rut','cargo','base','plan'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='';});
+  ['nombre','rut','cargo','base','plan','apepat','apemat','nombres','fun','sexo'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='';});
+  ['nacionalidad','tipotrab'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='0';});
   ['grat','otros','colacion','movilizacion'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='0';});
   ['valorhora','horasmes'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='';});
   document.getElementById('remf-tipopago').value='mensual';onTipoPagoChange(true);
@@ -188,9 +200,18 @@ function onTipoPagoChange(sinPreview){
   if(wm)wm.style.display=hora?'':'none';
   if(!sinPreview)previewLiq();
 }
+// Propone apellidos y nombres desde el nombre completo (sólo si están vacíos
+// o fueron propuestos antes): las dos últimas palabras son los apellidos.
+function sugerirNombresPrevired(){
+  const g=id=>document.getElementById(id);
+  const p=(g('remf-nombre')?.value||'').trim().split(/\s+/).filter(Boolean);
+  const campos=[['remf-nombres',p.length>=3?p.slice(0,-2).join(' '):p[0]||''],['remf-apepat',p.length>=3?p[p.length-2]:p[1]||''],['remf-apemat',p.length>=3?p[p.length-1]:'']];
+  campos.forEach(([id,v])=>{const e=g(id);if(e&&(!e.value||e.dataset.auto==='1')){e.value=v;e.dataset.auto='1';}});
+}
 function onSaludChange(){
   const isIsapre=document.getElementById('remf-salud').value!=='fonasa';
   document.getElementById('remf-plan-wrap').style.display=isIsapre?'':'none';
+  const fw=document.getElementById('remf-fun-wrap');if(fw)fw.style.display=isIsapre?'':'none';
   previewLiq();
 }
 function leerLRETrabajador(){
@@ -215,6 +236,13 @@ function cargarLREForm(lre={}){
 function leerFormTrabajador(){
   return {
     nombre:document.getElementById('remf-nombre').value.trim(),
+    apellidoPaterno:(document.getElementById('remf-apepat')?.value||'').trim(),
+    apellidoMaterno:(document.getElementById('remf-apemat')?.value||'').trim(),
+    nombres:(document.getElementById('remf-nombres')?.value||'').trim(),
+    sexo:document.getElementById('remf-sexo')?.value||'',
+    nacionalidad:document.getElementById('remf-nacionalidad')?.value||'0',
+    tipoTrabajador:document.getElementById('remf-tipotrab')?.value||'0',
+    numeroFUN:(document.getElementById('remf-fun')?.value||'').trim(),
     rut:document.getElementById('remf-rut').value.trim(),
     cargo:document.getElementById('remf-cargo').value.trim(),
     base:pn(document.getElementById('remf-base').value),
@@ -280,6 +308,10 @@ function editarTrabajador(id){
   document.getElementById('remf-afp').innerHTML=P.afps.map(a=>`<option value="${a.k}" ${a.k===t.afp?'selected':''}>${a.nm} (${(+a.comision).toFixed(2)}%)</option>`).join('');
   document.getElementById('remf-salud').innerHTML=P.isapres.map(i=>`<option value="${i.k}" ${i.k===(t.salud||'fonasa')?'selected':''}>${i.nm}</option>`).join('');
   document.getElementById('remf-nombre').value=t.nombre;
+  const _set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v??'';};
+  _set('remf-apepat',t.apellidoPaterno);_set('remf-apemat',t.apellidoMaterno);_set('remf-nombres',t.nombres);
+  _set('remf-sexo',t.sexo||'');_set('remf-nacionalidad',t.nacionalidad||'0');_set('remf-tipotrab',t.tipoTrabajador||'0');_set('remf-fun',t.numeroFUN);
+  if(!t.apellidoPaterno&&!t.nombres)sugerirNombresPrevired();
   document.getElementById('remf-rut').value=t.rut||'';
   document.getElementById('remf-cargo').value=t.cargo||'';
   document.getElementById('remf-base').value=t.base||'';
@@ -498,4 +530,4 @@ async function generarAsientoRemuneraciones(){
 }
 
 
-export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};
+export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};

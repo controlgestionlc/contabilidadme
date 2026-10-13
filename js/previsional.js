@@ -81,11 +81,17 @@ export const cajaInfo=k=>getPrevisional().cajas.find(c=>c.k===k)||getPrevisional
 // ── Aporte patronal de un trabajador ──
 // Devuelve el costo empresa adicional al sueldo bruto, con su desglose y
 // la institución a la que se paga cada componente.
-export function calcularAportePatronal(t,baseImponible,baseCesantia){
+// `bases` (opcional, V2.21.32): bases distintas para SIS y cesantía. Durante
+// una licencia médica el empleador sigue pagando SIS y aporte AFC sobre la
+// renta del mes completo (norma Previred), mientras la mutual y la caja se
+// calculan sólo sobre los días pagados.
+export function calcularAportePatronal(t,baseImponible,baseCesantia,bases){
   const p=getPrevisional().patronal;
   const R=n=>Math.round(n||0);
   const indefinido=(t.contrato||'indefinido')==='indefinido';
-  const sis=R(baseImponible*p.sis/100);
+  const baseSIS=bases&&bases.sis!=null?bases.sis:baseImponible;
+  if(bases&&bases.afc!=null)baseCesantia=bases.afc;
+  const sis=R(baseSIS*p.sis/100);
   const mutualTasa=(+p.mutualBase||0)+(+p.mutualAdicional||0);
   const mutual=R(baseImponible*mutualTasa/100);
   const afcTasa=indefinido?p.afcIndefinido:p.afcPlazoFijo;

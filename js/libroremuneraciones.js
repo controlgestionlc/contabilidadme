@@ -56,6 +56,10 @@ function lineaLibro(t,uf,utm,mes){
     // Asistencia del mes
     diasPagados:a?a.diasPagados:30, diasLicencia:a?a.diasLicencia:0, diasPermisoSin:a?a.diasPermisoSin:0,
     diasAusencia:a?a.diasAusencia:0, horas:l.porHora?l.horas:null,
+    diasFueraContrato:a?a.diasFueraContrato:0,
+    // Bases previsionales (V2.21.32, para el archivo Previred)
+    baseAFP:l.baseAFP, baseCes:l.baseCes, baseSIS:l.baseSIS, baseAFC:l.baseAFC,
+    planUF:l.planUF||0, descAFP_pension:l.descAFP_pension, descAFP_comision:l.descAFP_comision,
     // Haberes imponibles
     base:l.base,
     gratificacion:l.grat,
@@ -212,6 +216,8 @@ export function renderLibroRem(){
              <button class="btn btn-p" style="font-size:11px" onclick="cerrarMesRem()">🔒 Cerrar mes</button>`}
         <button class="btn btn-i" style="font-size:11px" onclick="exportarLibroRemExcel()">📊 Excel</button>
         <button class="btn btn-p" style="font-size:11px" onclick="exportarLRECSV()">🏛️ CSV Mi DT</button>
+        <button class="btn btn-p" style="font-size:11px" onclick="exportarPrevired()">📤 Archivo Previred</button>
+        <button class="btn btn-g" style="font-size:11px" onclick="mostrarValidacionPrevired()">✓ Validar Previred</button>
         <button class="btn btn-g" style="font-size:11px" onclick="mostrarValidacionLRE()">✓ Validar LRE</button>
         <button class="btn btn-g" style="font-size:11px" onclick="window.print()">🖨️</button>
       </div>

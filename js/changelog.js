@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.13-1700';
+const APP_VERSION='v2026.10.13-1800';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.32',fecha:'13-10-2026',titulo:'Archivo de carga Previred',items:[
+    {tipo:'nuevo',txt:'En el Libro de Remuneraciones, el botón "Archivo Previred" genera el archivo de carga masiva en el formato estándar de Previred (105 campos separados por punto y coma, ANSI, una línea por trabajador más líneas adicionales por cada movimiento de personal). Antes de generarlo valida RUT, nombres, sexo, códigos de AFP, salud, caja y mutual, y no descarga nada si hay errores.'},
+    {tipo:'nuevo',txt:'Los movimientos de personal salen solos de la Asistencia y de las fechas de contrato: licencias (código 3, o 6 si es accidente del trabajo o enfermedad profesional, con la entidad que paga el subsidio), permisos sin goce (4), ausencias (11), contrataciones (1 o 7) y retiros (2).'},
+    {tipo:'nuevo',txt:'La ficha del trabajador agrega apellido paterno, apellido materno, nombres, sexo, nacionalidad, tipo de trabajador y N° de FUN de Isapre, que Previred exige por separado.'},
+    {tipo:'cambio',txt:'Durante una licencia médica, el SIS y el aporte del empleador al seguro de cesantía se calculan sobre la renta del mes completo, como exige Previred. Esto cambia el aporte patronal de la liquidación y del asiento en los meses con licencias.'},
+  ]},
   {version:'V2.21.31',fecha:'13-10-2026',titulo:'Liquidación de sueldo en una hoja carta',items:[
     {tipo:'cambio',txt:'Al imprimir una liquidación se imprime solo la liquidación, en hoja carta vertical, y siempre cabe en una página: si el contenido es largo se reduce automáticamente.'},
     {tipo:'nuevo',txt:'La liquidación impresa incluye los datos de la empresa y líneas de firma del empleador y del trabajador (recibí conforme).'},
