@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.13-1800';
+const APP_VERSION='v2026.10.13-1830';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.33',fecha:'13-10-2026',titulo:'Vista de la liquidación de sueldo',items:[
+    {tipo:'correccion',txt:'La tabla de aporte del empleador ya no se sale de la tarjeta: ambas tablas ocupan el mismo ancho, los montos quedan alineados en una columna fija y los textos largos (nombres de instituciones) pasan a la línea siguiente, también en celular.'},
+    {tipo:'correccion',txt:'El plan de Isapre se muestra con coma decimal (3,559 UF en vez de 3.559 UF).'},
+  ]},
   {version:'V2.21.32',fecha:'13-10-2026',titulo:'Archivo de carga Previred',items:[
     {tipo:'nuevo',txt:'En el Libro de Remuneraciones, el botón "Archivo Previred" genera el archivo de carga masiva en el formato estándar de Previred (105 campos separados por punto y coma, ANSI, una línea por trabajador más líneas adicionales por cada movimiento de personal). Antes de generarlo valida RUT, nombres, sexo, códigos de AFP, salud, caja y mutual, y no descarga nada si hay errores.'},
     {tipo:'nuevo',txt:'Los movimientos de personal salen solos de la Asistencia y de las fechas de contrato: licencias (código 3, o 6 si es accidente del trabajo o enfermedad profesional, con la entidad que paga el subsidio), permisos sin goce (4), ausencias (11), contrataciones (1 o 7) y retiros (2).'},

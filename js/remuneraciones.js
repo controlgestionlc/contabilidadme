@@ -419,7 +419,7 @@ function verLiquidacion(id){
   const diasTxt=a?[a.diasLicencia?a.diasLicencia+' licencia':'',a.diasPermisoSin?a.diasPermisoSin+' permiso s/goce':'',a.diasAusencia?a.diasAusencia+' ausencia':'',a.diasFueraContrato?a.diasFueraContrato+' fuera de contrato':'',a.diasPermisoCon?a.diasPermisoCon+' permiso c/goce':'',a.diasVacaciones?a.diasVacaciones+' vacaciones':''].filter(Boolean).join(' · '):'';
   const row=(lbl,val,neg,bold)=>`<tr><td class="tl" style="padding:5px 10px;font-size:12px;${bold?'font-weight:700':''}">${lbl}</td><td style="font-family:var(--mono);text-align:right;${bold?'font-weight:700;':''}color:${neg?'var(--err)':(bold?'var(--ach)':'var(--tx)')}">${neg?'−':''}${fmtC(val)}</td></tr>`;
   const E=S.empresa||{};
-  const html=`<div class="card liq-print" style="max-width:480px;margin:0 auto">
+  const html=`<div class="card liq-print" style="max-width:620px;margin:0 auto">
     <div class="liq-emp">
       <div><strong>${E.nombre||''}</strong>${E.rut?' · RUT '+E.rut:''}</div>
       ${E.domicilio||E.direccion?`<div>${E.domicilio||E.direccion}${E.comuna?', '+E.comuna:''}</div>`:''}
@@ -430,7 +430,7 @@ function verLiquidacion(id){
     </div>
     <div style="margin-bottom:10px"><strong>${t.nombre}</strong><div style="font-size:11px;color:var(--mt)">${t.cargo||''} ${t.rut?'· '+t.rut:''} · ${l.afpNm} · ${l.saludNm}</div>
       ${a?`<div style="font-size:11px;margin-top:4px">Días pagados: <strong>${a.diasPagados}</strong> de 30${diasTxt?` <span style="color:var(--mt)">(${diasTxt})</span>`:''}</div>`:''}</div>
-    <table><tbody>
+    <table class="liq-tbl"><colgroup><col><col class="liq-col-monto"></colgroup><tbody>
       <tr class="rth"><td colspan="2" class="tl" style="padding:6px 10px">HABERES</td></tr>
       ${row(l.porHora?`Sueldo por horas (${l.horas||0} h × ${fmtC(l.valorHora)})`:(l.factor<1?`Sueldo base (${a.diasPagados}/30 días de ${fmtC(l.baseContrato)})`:'Sueldo base'),l.base)}
       ${l.grat?row(l.gratModo==='pct'
@@ -444,13 +444,13 @@ function verLiquidacion(id){
       ${row((/^AFP\b/i.test(l.afpNm)?l.afpNm:'AFP '+l.afpNm)+' (pensión 10%)',l.descAFP_pension,true)}
       ${row('AFP comisión',l.descAFP_comision,true)}
       ${row('Salud 7% (cotización legal)',l.saludLegal,true)}
-      ${l.adicionalIsapre?row(`Adicional ${l.saludNm} (plan ${l.planUF} UF)`,l.adicionalIsapre,true):''}
+      ${l.adicionalIsapre?row(`Adicional ${l.saludNm} (plan ${(+l.planUF).toLocaleString('es-CL',{maximumFractionDigits:4})} UF)`,l.adicionalIsapre,true):''}
       ${l.descCesantia?row('Seguro cesantía 0,6%',l.descCesantia,true):''}
       ${l.iusc?row(`Impuesto único 2ª cat. (tramo ${l.iuscDet.idx+1} · ${(l.iuscDet.factor*100).toFixed(2)}%)`,l.iusc,true):''}
       ${row('Total descuentos',l.totalDescuentos,true,true)}
       <tr style="background:rgba(46,160,67,.14)"><td class="tl" style="padding:11px 10px;font-weight:700;font-size:14px">LÍQUIDO A PAGAR</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:var(--ach)">${fmtC(l.liquido)}</td></tr>
     </tbody></table>
-    <table style="margin-top:14px"><tbody>
+    <table class="liq-tbl" style="margin-top:14px"><colgroup><col><col class="liq-col-monto"></colgroup><tbody>
       <tr class="rth"><td colspan="2" class="tl" style="padding:6px 10px">APORTE DEL EMPLEADOR (no se descuenta al trabajador)</td></tr>
       ${l.patronal.detalle.map(d=>`<tr><td class="tl" style="padding:5px 10px;font-size:11px">${d.concepto} <span style="color:var(--mt)">${(+d.tasa).toFixed(2)}% → ${d.institucion}</span></td><td style="font-family:var(--mono);text-align:right;font-size:11px">${fmtC(d.monto)}</td></tr>`).join('')}
       <tr><td class="tl" style="padding:6px 10px;font-weight:700;font-size:12px">Total aporte empleador</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:12px">${fmtC(l.patronal.total)}</td></tr>
