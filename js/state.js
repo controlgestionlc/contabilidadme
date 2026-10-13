@@ -13,6 +13,7 @@ export const S={
   asientos:[],
   activos:[],
   trabajadores:[],
+  asistencia:{eventos:[],horas:{}}, // V2.21.30 ausencias/licencias por trabajador y horas por mes
   centros:[],       // centros de costo (predios y cuarteles)
   comprobantesTipo:[], // plantillas de asientos recurrentes
   cierresCC:[],     // cierres mensuales de costos ya ejecutados

@@ -14,12 +14,12 @@
 import {toast, fmtC, fmt, MESES} from './core.js';
 import {S} from './state.js';
 import {logAccion} from './firebase.js';
-import {calcularLiquidacion, getUF, getUTM} from './remuneraciones.js';
+import {liquidacionMes, getUF, getUTM} from './remuneraciones.js';
 import {getIndicadores} from './indicadores.js';
 import './storage.js';
 
 // Vista activa de la sección Remuneraciones
-let REM_VIEW='trabajadores';   // 'trabajadores' | 'libro'
+let REM_VIEW='trabajadores';   // 'trabajadores' | 'asistencia' | 'libro'
 
 // ── Persistencia de los meses cerrados ──
 // Clave global 'libroRem': { 'YYYY-MM': {...} }
@@ -43,21 +43,28 @@ async function guardarLibroRem(){
 const periodoDe=mes=>`${S.empresa.anio}-${String(mes).padStart(2,'0')}`;
 
 // Una línea del libro a partir de un trabajador y su liquidación
-function lineaLibro(t,uf,utm){
-  const l=calcularLiquidacion(t,uf,utm);
+function lineaLibro(t,uf,utm,mes){
+  const l=liquidacionMes(t,uf,utm,mes);
+  const a=l.asis;
+  // V2.21.30 — Los días del LRE salen de la asistencia del mes, no de la ficha
+  const lre={...(t.lre||{})};
+  if(a){lre.diasTrabajados=String(a.diasPagados);lre.diasLicencia=a.diasLicencia?String(a.diasLicencia):'';lre.diasVacaciones=a.diasVacaciones?String(a.diasVacaciones):'';}
   return {
     id:t.id, nombre:t.nombre, rut:t.rut||'', cargo:t.cargo||'',
     afp:l.afpNm, salud:l.saludNm, afpKey:t.afp||'', saludKey:t.salud||'',
-    contrato:t.contrato||'indefinido', lre:{...(t.lre||{})},
+    contrato:t.contrato||'indefinido', lre,
+    // Asistencia del mes
+    diasPagados:a?a.diasPagados:30, diasLicencia:a?a.diasLicencia:0, diasPermisoSin:a?a.diasPermisoSin:0,
+    diasAusencia:a?a.diasAusencia:0, horas:l.porHora?l.horas:null,
     // Haberes imponibles
-    base:+t.base||0,
+    base:l.base,
     gratificacion:l.grat,
     gratDetalle:l.gratModo==='pct'?`${l.gratInfo?l.gratInfo.pct:0}%${l.gratInfo&&l.gratInfo.topeAplicado?' (topeada)':''}`:'pactada',
-    otros:+t.otros||0,
+    otros:l.otros,
     totalImponible:l.totalImponible,
     // Haberes no imponibles
-    colacion:+t.colacion||0,
-    movilizacion:+t.movilizacion||0,
+    colacion:l.colacion,
+    movilizacion:l.movilizacion,
     totalNoImponible:l.totalNoImponible,
     totalHaberes:l.totalHaberes,
     // Descuentos
@@ -97,7 +104,7 @@ export function libroDelMes(mes){
     return {...guardado,cerrado:true,totales:guardado.totales||totalizar(guardado.lineas)};
   }
   const uf=getUF(),utm=getUTM();
-  const lineas=(S.trabajadores||[]).map(t=>lineaLibro(t,uf,utm));
+  const lineas=(S.trabajadores||[]).map(t=>lineaLibro(t,uf,utm,mes));
   return {periodo:per,anio:S.empresa.anio,mes,uf,utm,lineas,totales:totalizar(lineas),cerrado:false};
 }
 
@@ -108,7 +115,7 @@ export async function cerrarMesRem(){
   if(!(S.trabajadores||[]).length){toast('⚠️ No hay trabajadores que registrar','e');return;}
   if(librosRem()[per]&&!confirm(`El libro de ${MESES[mes-1]} ${S.empresa.anio} ya está cerrado.\n¿Reemplazarlo con los datos actuales?`))return;
   const uf=getUF(),utm=getUTM();
-  const lineas=(S.trabajadores||[]).map(t=>lineaLibro(t,uf,utm));
+  const lineas=(S.trabajadores||[]).map(t=>lineaLibro(t,uf,utm,mes));
   const totales=totalizar(lineas);
   if(!confirm(`Cerrar el libro de remuneraciones de ${MESES[mes-1]} ${S.empresa.anio}\n\n`+
     `${lineas.length} trabajador(es)\nTotal haberes: ${fmtC(totales.totalHaberes)}\nLíquido a pagar: ${fmtC(totales.liquido)}\n\n`+
@@ -137,7 +144,7 @@ export async function reabrirMesRem(){
 
 // ── Vista ──
 export function setRemView(v){
-  REM_VIEW=v==='libro'?'libro':'trabajadores';
+  REM_VIEW=(v==='libro'||v==='asistencia')?v:'trabajadores';
   if(window.renderRemuneraciones)window.renderRemuneraciones();
 }
 export function getRemView(){return REM_VIEW;}
@@ -146,6 +153,7 @@ export function getRemView(){return REM_VIEW;}
 export function tabsRemuneraciones(){
   return `<div class="aux-tabs">
     <div class="aux-tab ${REM_VIEW==='trabajadores'?'active':''}" onclick="setRemView('trabajadores')">👷 Trabajadores</div>
+    <div class="aux-tab ${REM_VIEW==='asistencia'?'active':''}" onclick="setRemView('asistencia')">📅 Asistencia</div>
     <div class="aux-tab ${REM_VIEW==='libro'?'active':''}" onclick="setRemView('libro')">📗 Libro de Remuneraciones</div>
   </div>`;
 }
@@ -169,7 +177,8 @@ export function renderLibroRem(){
     <td class="tl" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${i+1}</td>
     <td class="tnm" style="font-size:12px">${l.nombre}
       <div style="font-size:10px;color:var(--mt)">${[l.rut,l.cargo].filter(Boolean).join(' · ')}</div>
-      <div style="font-size:10px;color:var(--mt)">${l.afp} · ${l.salud}</div></td>
+      <div style="font-size:10px;color:var(--mt)">${l.afp} · ${l.salud}</div>
+      ${l.diasPagados!=null&&l.diasPagados<30?`<div style="font-size:10px;color:var(--warn)">${l.diasPagados}/30 días${l.diasLicencia?' · '+l.diasLicencia+' lic.':''}${l.diasPermisoSin?' · '+l.diasPermisoSin+' perm. s/goce':''}${l.diasAusencia?' · '+l.diasAusencia+' aus.':''}</div>`:''}${l.horas!=null?`<div style="font-size:10px;color:var(--mt)">${l.horas} h</div>`:''}</td>
     ${m(l.base)}${m(l.gratificacion)}${m(l.otros)}
     <td style="font-family:var(--mono);text-align:right;font-weight:600">${fmt(l.totalImponible)}</td>
     ${m(l.colacion)}${m(l.movilizacion)}

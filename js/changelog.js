@@ -8,13 +8,24 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.05-1330';
+const APP_VERSION='v2026.10.13-1700';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.31',fecha:'13-10-2026',titulo:'Liquidación de sueldo en una hoja carta',items:[
+    {tipo:'cambio',txt:'Al imprimir una liquidación se imprime solo la liquidación, en hoja carta vertical, y siempre cabe en una página: si el contenido es largo se reduce automáticamente.'},
+    {tipo:'nuevo',txt:'La liquidación impresa incluye los datos de la empresa y líneas de firma del empleador y del trabajador (recibí conforme).'},
+    {tipo:'correccion',txt:'El descuento de AFP ya no muestra el nombre duplicado ("AFP AFP Capital").'},
+  ]},
+  {version:'V2.21.30',fecha:'13-10-2026',titulo:'Asistencia, permisos y licencias en Remuneraciones',items:[
+    {tipo:'nuevo',txt:'Nueva pestaña Asistencia: se registran licencias médicas (con su tipo y folio), permisos con y sin goce de sueldo, ausencias injustificadas y vacaciones, con fecha desde/hasta. Sin eventos, el trabajador tiene los 30 días pagados.'},
+    {tipo:'nuevo',txt:'Las liquidaciones pagan solo los días pagados del mes (mes comercial de 30 días): sueldo base, gratificación, otros haberes, colación y movilización quedan proporcionales, igual que los topes imponibles. También se descuentan los días fuera de contrato si el trabajador ingresa o termina a mitad de mes.'},
+    {tipo:'nuevo',txt:'Trabajadores por hora (jornada parcial): en la ficha se define el valor hora y las horas habituales; cada mes se pueden ajustar las horas en Asistencia.'},
+    {tipo:'cambio',txt:'Los días trabajados, de licencia y de vacaciones del Libro de Remuneraciones y del CSV Mi DT ahora salen de la asistencia del mes, ya no de la ficha del trabajador.'},
+  ]},
   {version:'V2.21.29',fecha:'05-10-2026',titulo:'Ajustes visuales del encabezado',items:[
     {tipo:'cambio',txt:'El estado de guardado, el botón Guardar y el usuario quedan alineados al borde derecho del encabezado.'},
     {tipo:'cambio',txt:'Se quitó el ícono que aparecía en la esquina superior derecha de la pantalla de Inicio.'},

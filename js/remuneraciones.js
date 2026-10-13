@@ -8,6 +8,7 @@ import {getIndicadores, IND, calcularGratificacion, topeGratificacionMensual,
         getIUSCTabla, calcularIUSCDetalle, IUSC_TABLA_OFICIAL} from './indicadores.js';
 import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal} from './previsional.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
+import {asistenciaMes} from './asistencia.js';
 import './storage.js';
 
 let REMF={editId:null}; // form trabajador (estado interno)
@@ -45,10 +46,23 @@ function gratificacionModo(t){
   return (t.gratifPct!=null&&t.gratifPct!=='')?'pct':'monto';
 }
 
-function calcularLiquidacion(t,uf,utm){
+// `asis` (opcional, V2.21.30): asistencia del mes calculada por asistencia.js.
+// Sin ella se liquida el mes completo (30 días), como antes.
+//  - Sueldo mensual: base, otros haberes, gratificación, colación y movilización
+//    se pagan en proporción a los días pagados (sobre 30).
+//  - Pago por hora: base = valor hora × horas del mes; el resto de los haberes
+//    sigue la proporción de días.
+//  - Los topes imponibles (AFP/salud, cesantía) y el tope de gratificación
+//    también quedan proporcionales a los días pagados.
+function calcularLiquidacion(t,uf,utm,asis){
   const REM_PARAMS=remParams(); // indicadores configurables
-  const base=+t.base||0, otros=+t.otros||0;
-  const colacion=+t.colacion||0, movilizacion=+t.movilizacion||0;
+  const porHora=t.tipoPago==='hora';
+  const factor=asis?Math.max(0,Math.min(1,+asis.factor)):1;
+  const horas=porHora?(asis&&asis.horas!=null?+asis.horas:(+t.horasMes||0)):null;
+  const baseContrato=porHora?Math.round((+t.valorHora||0)*(horas||0)):(+t.base||0);
+  const base=porHora?baseContrato:Math.round((+t.base||0)*factor);
+  const otros=Math.round((+t.otros||0)*factor);
+  const colacion=Math.round((+t.colacion||0)*factor), movilizacion=Math.round((+t.movilizacion||0)*factor);
   // ── Gratificación legal (Art. 50 Código del Trabajo) ──
   // Modo 'pct': % sobre la remuneración imponible del mes (sueldo base + otros
   // haberes imponibles, sin incluirse a sí misma), con el tope legal prorrateado.
@@ -59,17 +73,21 @@ function calcularLiquidacion(t,uf,utm){
   let grat=0, gratInfo=null;
   if(gratModo==='pct'){
     gratInfo=calcularGratificacion(base+otros,t.gratifPct);
+    if(factor<1&&gratInfo.tope>0){
+      const tope=Math.round(gratInfo.tope*factor);
+      gratInfo={...gratInfo,tope,monto:Math.min(gratInfo.bruta,tope),topeAplicado:gratInfo.bruta>tope};
+    }
     grat=gratInfo.monto;
   }else{
-    grat=+t.grat||0;
+    grat=Math.round((+t.grat||0)*factor);
   }
   // Total imponible (haberes que cotizan)
   const totalImponible=base+grat+otros;
   const totalNoImponible=colacion+movilizacion;
   const totalHaberes=totalImponible+totalNoImponible;
   // Topes
-  const topeAFP=Math.round(REM_PARAMS.topeAFP_UF*uf);
-  const topeCes=Math.round(REM_PARAMS.topeCesantia_UF*uf);
+  const topeAFP=Math.round(REM_PARAMS.topeAFP_UF*uf*factor);
+  const topeCes=Math.round(REM_PARAMS.topeCesantia_UF*uf*factor);
   const baseAFP=Math.min(totalImponible,topeAFP);
   const baseCes=Math.min(totalImponible,topeCes);
   // Descuentos previsionales
@@ -107,11 +125,20 @@ function calcularLiquidacion(t,uf,utm){
   const patronal=calcularAportePatronal(t,baseAFP,baseCes);
   const costoEmpresa=totalHaberes+patronal.total;
   return {patronal,costoEmpresa,
+    base,baseContrato,otros,colacion,movilizacion,porHora,horas,valorHora:porHora?(+t.valorHora||0):null,
+    factor,asis:asis||null,
     grat,gratModo,gratInfo,
     totalImponible,totalNoImponible,totalHaberes,baseAFP,baseCes,
     descAFP,descAFP_pension,descAFP_comision,descSalud,saludLegal,adicionalIsapre,planUF,planPesos,descCesantia,
     totalPrevisional,baseTributable,iusc,iuscDet,totalDescuentos,liquido,
     afpNm:afp.nm, saludNm:(t.salud&&t.salud!=='fonasa')?isapreInfo(t.salud).nm:'Fonasa'};
+}
+
+// Liquidación del mes seleccionado en la sección, con su asistencia
+function mesRemSel(){return +(document.getElementById('rem-mes')?.value||1);}
+function liquidacionMes(t,uf,utm,mes){
+  const m=mes||mesRemSel();
+  return calcularLiquidacion(t,uf,utm,asistenciaMes(t,S.empresa.anio,m));
 }
 
 function abrirFormTrabajador(){
@@ -123,6 +150,8 @@ function abrirFormTrabajador(){
   document.getElementById('remf-salud').innerHTML=P.isapres.map(i=>`<option value="${i.k}">${i.nm}</option>`).join('');
   ['nombre','rut','cargo','base','plan'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='';});
   ['grat','otros','colacion','movilizacion'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='0';});
+  ['valorhora','horasmes'].forEach(x=>{const e=document.getElementById('remf-'+x);if(e)e.value='';});
+  document.getElementById('remf-tipopago').value='mensual';onTipoPagoChange(true);
   document.getElementById('remf-salud').value='fonasa';
   document.getElementById('remf-contrato').value='indefinido';
   cargarLREForm({});
@@ -149,6 +178,15 @@ function onGratModoChange(){
       : 'Gratificación pactada — no se le aplica el tope legal';
   }
   previewLiq();
+}
+// Sueldo mensual o pago por hora: muestra los campos que corresponden
+function onTipoPagoChange(sinPreview){
+  const hora=document.getElementById('remf-tipopago')?.value==='hora';
+  const wb=document.getElementById('remf-base-wrap'),wh=document.getElementById('remf-hora-wrap'),wm=document.getElementById('remf-horasmes-wrap');
+  if(wb)wb.style.display=hora?'none':'';
+  if(wh)wh.style.display=hora?'':'none';
+  if(wm)wm.style.display=hora?'':'none';
+  if(!sinPreview)previewLiq();
 }
 function onSaludChange(){
   const isIsapre=document.getElementById('remf-salud').value!=='fonasa';
@@ -180,6 +218,9 @@ function leerFormTrabajador(){
     rut:document.getElementById('remf-rut').value.trim(),
     cargo:document.getElementById('remf-cargo').value.trim(),
     base:pn(document.getElementById('remf-base').value),
+    tipoPago:document.getElementById('remf-tipopago')?.value==='hora'?'hora':'mensual',
+    valorHora:pn(document.getElementById('remf-valorhora')?.value),
+    horasMes:+String(document.getElementById('remf-horasmes')?.value||'').replace(',','.')||0,
     gratifModo:document.getElementById('remf-gratmodo')?.value||'pct',
     gratifPct:+document.getElementById('remf-gratpct')?.value||0,
     grat:pn(document.getElementById('remf-grat').value),
@@ -196,12 +237,13 @@ function leerFormTrabajador(){
 function previewLiq(){
   const t=leerFormTrabajador();
   const el=document.getElementById('remf-preview');
-  if(!t.base){el.innerHTML='';return;}
+  if(t.tipoPago==='hora'?!(t.valorHora&&t.horasMes):!t.base){el.innerHTML='';return;}
   const uf=getUF(),utm=getUTM();
   const l=calcularLiquidacion(t,uf,utm);
   el.innerHTML=`<div class="info-tip" style="font-size:12px">
     <div style="display:grid;grid-template-columns:1fr auto;gap:2px 16px">
       ${l.gratModo==='pct'&&l.gratInfo?`<span style="color:var(--mt)">Gratificación ${l.gratInfo.pct}% ${l.gratInfo.topeAplicado?`<span style="color:var(--warn)">(topeada desde ${fmtC(l.gratInfo.bruta)})</span>`:''}</span><span style="font-family:var(--mono);text-align:right">${fmtC(l.grat)}</span>`:''}
+      ${t.tipoPago==='hora'?`<span style="color:var(--mt)">Sueldo: ${t.horasMes} h × ${fmtC(t.valorHora)} (horas habituales, mes completo)</span><span style="font-family:var(--mono);text-align:right">${fmtC(l.base)}</span>`:''}
       <span>Total haberes</span><span style="font-family:var(--mono);text-align:right">${fmtC(l.totalHaberes)}</span>
       <span style="color:var(--mt)">AFP ${l.afpNm} (10% + comisión)</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.descAFP)}</span>
       <span style="color:var(--mt)">Salud 7% legal</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.saludLegal)}</span>
@@ -215,9 +257,12 @@ function previewLiq(){
 function guardarTrabajador(){
   const t=leerFormTrabajador();
   if(!t.nombre){toast('⚠️ Ingresa el nombre','e');return;}
-  if(t.base<=0){toast('⚠️ Ingresa el sueldo base','e');return;}
+  if(t.tipoPago==='hora'){
+    if(t.valorHora<=0){toast('⚠️ Ingresa el valor hora','e');return;}
+    t.base=0;
+  }else if(t.base<=0){toast('⚠️ Ingresa el sueldo base','e');return;}
   const _rp=remParams();
-  if(t.base<_rp.ingresoMinimo){
+  if(t.tipoPago!=='hora'&&t.base<_rp.ingresoMinimo){
     if(!confirm(`El sueldo base (${fmtC(t.base)}) es menor al ingreso mínimo (${fmtC(_rp.ingresoMinimo)}). ¿Continuar de todas formas?`))return;
   }
   const bien={id:REMF.editId||'tr_'+Date.now(),...t};
@@ -237,7 +282,11 @@ function editarTrabajador(id){
   document.getElementById('remf-nombre').value=t.nombre;
   document.getElementById('remf-rut').value=t.rut||'';
   document.getElementById('remf-cargo').value=t.cargo||'';
-  document.getElementById('remf-base').value=t.base;
+  document.getElementById('remf-base').value=t.base||'';
+  document.getElementById('remf-tipopago').value=t.tipoPago==='hora'?'hora':'mensual';
+  document.getElementById('remf-valorhora').value=t.valorHora||'';
+  document.getElementById('remf-horasmes').value=t.horasMes||'';
+  onTipoPagoChange(true);
   document.getElementById('remf-gratmodo').value=gratificacionModo(t);
   document.getElementById('remf-gratpct').value=(t.gratifPct!=null&&t.gratifPct!=='')?t.gratifPct:(getIndicadores().gratifPct??25);
   document.getElementById('remf-grat').value=t.grat||0;
@@ -279,6 +328,7 @@ function renderRemuneraciones(){
   // El Libro de Remuneraciones es la otra vista de esta sección (libroremuneraciones.js).
   // Se llama por window para no crear un ciclo de imports entre ambos módulos.
   if(window.getRemView&&window.getRemView()==='libro'&&window.renderLibroRem){window.renderLibroRem();return;}
+  if(window.getRemView&&window.getRemView()==='asistencia'&&window.renderAsistencia){window.renderAsistencia();return;}
   const tabs=window.tabsRemuneraciones?window.tabsRemuneraciones():'';
   const uf=getUF(),utm=getUTM();
   const el=document.getElementById('rem-content');
@@ -287,11 +337,14 @@ function renderRemuneraciones(){
     return;
   }
   let totHab=0,totLiq=0,totPrev=0,totIusc=0,totPatronal=0;
+  let conAusencias=0;
   const filas=S.trabajadores.map(t=>{
-    const l=calcularLiquidacion(t,uf,utm);
+    const l=liquidacionMes(t,uf,utm);
+    const a=l.asis;if(a&&!a.completo)conAusencias++;
+    const notaDias=l.porHora?`${l.horas||0} h × ${fmtC(l.valorHora)}`:(a&&!a.completo?`<span style="color:var(--warn)">${a.diasPagados}/30 días pagados</span>`:'');
     totHab+=l.totalHaberes;totLiq+=l.liquido;totPrev+=l.totalPrevisional;totIusc+=l.iusc;totPatronal+=l.patronal.total;
     return `<tr>
-      <td class="tl" style="font-size:12px">${t.nombre}<div style="font-size:10px;color:var(--mt)">${t.cargo||''} ${t.rut?'· '+t.rut:''}</div></td>
+      <td class="tl" style="font-size:12px">${t.nombre}<div style="font-size:10px;color:var(--mt)">${t.cargo||''} ${t.rut?'· '+t.rut:''}${notaDias?' · '+notaDias:''}</div></td>
       <td style="font-family:var(--mono);text-align:right">${fmtC(l.totalHaberes)}</td>
       <td style="font-family:var(--mono);text-align:right;color:var(--err)">${fmtC(l.descAFP)}</td>
       <td style="font-family:var(--mono);text-align:right;color:var(--err)" title="7% legal: ${fmtC(l.saludLegal)}${l.adicionalIsapre?' · Adicional: '+fmtC(l.adicionalIsapre):''}">${fmtC(l.descSalud)}${l.adicionalIsapre?'<div style="font-size:9px;color:var(--mt)">7%: '+fmtC(l.saludLegal)+' + adic. '+fmtC(l.adicionalIsapre)+'</div>':''}</td>
@@ -322,32 +375,41 @@ function renderRemuneraciones(){
     <button class="btn btn-p" onclick="generarAsientoRemuneraciones()">📝 Generar asiento de remuneraciones</button>
     <span style="font-size:11px;color:var(--mt)">Crea el asiento mensual: sueldos a gasto, cotizaciones e impuesto a pasivos, líquido por pagar.</span>
   </div>
+  ${conAusencias?`<div class="info-tip" style="font-size:11px;margin-top:10px">📅 ${conAusencias} trabajador(es) con días no pagados en ${MESES[mesRemSel()-1]}. Revisa el detalle en la pestaña Asistencia.</div>`:''}
   <div style="margin-top:8px;font-size:10px;color:var(--mt)">Cálculo con UF ${fmtC(uf)} y UTM ${fmtC(utm)}. Topes: AFP/salud 90 UF, cesantía 135,2 UF. Referencial — verifica en Previred antes de declarar.</div>`;
 }
 function verLiquidacion(id){
   const t=S.trabajadores.find(x=>x.id===id);if(!t)return;
   const uf=getUF(),utm=getUTM();
-  const l=calcularLiquidacion(t,uf,utm);
-  const mes=MESES[(+document.getElementById('rem-mes').value||1)-1];
+  const l=liquidacionMes(t,uf,utm);
+  const a=l.asis;
+  const mes=MESES[mesRemSel()-1];
+  const diasTxt=a?[a.diasLicencia?a.diasLicencia+' licencia':'',a.diasPermisoSin?a.diasPermisoSin+' permiso s/goce':'',a.diasAusencia?a.diasAusencia+' ausencia':'',a.diasFueraContrato?a.diasFueraContrato+' fuera de contrato':'',a.diasPermisoCon?a.diasPermisoCon+' permiso c/goce':'',a.diasVacaciones?a.diasVacaciones+' vacaciones':''].filter(Boolean).join(' · '):'';
   const row=(lbl,val,neg,bold)=>`<tr><td class="tl" style="padding:5px 10px;font-size:12px;${bold?'font-weight:700':''}">${lbl}</td><td style="font-family:var(--mono);text-align:right;${bold?'font-weight:700;':''}color:${neg?'var(--err)':(bold?'var(--ach)':'var(--tx)')}">${neg?'−':''}${fmtC(val)}</td></tr>`;
-  const html=`<div class="card" style="max-width:480px;margin:0 auto">
+  const E=S.empresa||{};
+  const html=`<div class="card liq-print" style="max-width:480px;margin:0 auto">
+    <div class="liq-emp">
+      <div><strong>${E.nombre||''}</strong>${E.rut?' · RUT '+E.rut:''}</div>
+      ${E.domicilio||E.direccion?`<div>${E.domicilio||E.direccion}${E.comuna?', '+E.comuna:''}</div>`:''}
+    </div>
     <div style="text-align:center;margin-bottom:14px">
       <div style="font-size:14px;font-weight:700">Liquidación de Sueldo</div>
       <div style="font-size:12px;color:var(--mt)">${mes} ${S.empresa.anio} · ${S.empresa.nombre||''}</div>
     </div>
-    <div style="margin-bottom:10px"><strong>${t.nombre}</strong><div style="font-size:11px;color:var(--mt)">${t.cargo||''} ${t.rut?'· '+t.rut:''} · ${l.afpNm} · ${l.saludNm}</div></div>
+    <div style="margin-bottom:10px"><strong>${t.nombre}</strong><div style="font-size:11px;color:var(--mt)">${t.cargo||''} ${t.rut?'· '+t.rut:''} · ${l.afpNm} · ${l.saludNm}</div>
+      ${a?`<div style="font-size:11px;margin-top:4px">Días pagados: <strong>${a.diasPagados}</strong> de 30${diasTxt?` <span style="color:var(--mt)">(${diasTxt})</span>`:''}</div>`:''}</div>
     <table><tbody>
       <tr class="rth"><td colspan="2" class="tl" style="padding:6px 10px">HABERES</td></tr>
-      ${row('Sueldo base',+t.base)}
+      ${row(l.porHora?`Sueldo por horas (${l.horas||0} h × ${fmtC(l.valorHora)})`:(l.factor<1?`Sueldo base (${a.diasPagados}/30 días de ${fmtC(l.baseContrato)})`:'Sueldo base'),l.base)}
       ${l.grat?row(l.gratModo==='pct'
           ?`Gratificación legal (${l.gratInfo.pct}%${l.gratInfo.topeAplicado?' · tope legal aplicado':''})`
           :'Gratificación pactada',l.grat):''}
-      ${+t.otros?row('Otros imponibles',+t.otros):''}
-      ${+t.colacion?row('Colación (no imp.)',+t.colacion):''}
-      ${+t.movilizacion?row('Movilización (no imp.)',+t.movilizacion):''}
+      ${l.otros?row('Otros imponibles',l.otros):''}
+      ${l.colacion?row('Colación (no imp.)',l.colacion):''}
+      ${l.movilizacion?row('Movilización (no imp.)',l.movilizacion):''}
       ${row('Total haberes',l.totalHaberes,false,true)}
       <tr class="rth"><td colspan="2" class="tl" style="padding:6px 10px">DESCUENTOS</td></tr>
-      ${row('AFP '+l.afpNm+' (pensión 10%)',l.descAFP_pension,true)}
+      ${row((/^AFP\b/i.test(l.afpNm)?l.afpNm:'AFP '+l.afpNm)+' (pensión 10%)',l.descAFP_pension,true)}
       ${row('AFP comisión',l.descAFP_comision,true)}
       ${row('Salud 7% (cotización legal)',l.saludLegal,true)}
       ${l.adicionalIsapre?row(`Adicional ${l.saludNm} (plan ${l.planUF} UF)`,l.adicionalIsapre,true):''}
@@ -363,10 +425,36 @@ function verLiquidacion(id){
       <tr style="background:rgba(88,166,255,.10)"><td class="tl" style="padding:9px 10px;font-weight:700;font-size:13px">COSTO TOTAL EMPRESA</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:13px">${fmtC(l.costoEmpresa)}</td></tr>
     </tbody></table>
     <div style="font-size:10px;color:var(--mt);margin-top:8px">Base tributable: ${fmtC(l.baseTributable)} · UF ${fmtC(uf)} · UTM ${fmtC(utm)}</div>
-    <div style="margin-top:12px;text-align:right"><button class="btn btn-g" onclick="renderRemuneraciones()">← Volver</button> <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir</button></div>
+    <div class="liq-firmas">
+      <div><div class="liq-linea"></div>Firma empleador</div>
+      <div><div class="liq-linea"></div>Recibí conforme: ${t.nombre}${t.rut?' · '+t.rut:''}</div>
+    </div>
+    <div style="margin-top:12px;text-align:right"><button class="btn btn-g" onclick="renderRemuneraciones()">← Volver</button> <button class="btn btn-g" onclick="imprimirLiquidacion()">🖨️ Imprimir</button></div>
   </div>`;
   document.getElementById('rem-content').innerHTML=html;
 }
+// V2.21.31 — Imprime sólo la liquidación, en una hoja carta vertical.
+// Antes de imprimir se mide el contenido al ancho útil de la hoja y, si no
+// cabe en el alto útil, se reduce con zoom: siempre queda en una sola página.
+function imprimirLiquidacion(){
+  const el=document.querySelector('#rem-content .liq-print');
+  if(!el){window.print();return;}
+  const MM=96/25.4;                       // px por mm a 96 dpi
+  const anchoUtil=(215.9-24)*MM, altoUtil=(279.4-24)*MM;   // márgenes de 12 mm
+  document.body.classList.add('print-liq');
+  el.style.zoom='';
+  const prev={w:el.style.width,mw:el.style.maxWidth};
+  el.style.maxWidth='none';el.style.width=anchoUtil+'px';
+  const alto=el.scrollHeight;
+  el.style.width=prev.w;el.style.maxWidth=prev.mw;
+  const escala=Math.min(1,(altoUtil-8)/Math.max(1,alto));
+  document.documentElement.style.setProperty('--liq-zoom',escala.toFixed(3));
+  const limpiar=()=>{document.body.classList.remove('print-liq');document.documentElement.style.removeProperty('--liq-zoom');window.removeEventListener('afterprint',limpiar);};
+  window.addEventListener('afterprint',limpiar);
+  window.print();
+  setTimeout(limpiar,1500);
+}
+
 async function generarAsientoRemuneraciones(){
   const anio=S.empresa.anio;
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de generar remuneraciones.','e');return;}
@@ -376,7 +464,7 @@ async function generarAsientoRemuneraciones(){
   // Acumular
   let totSueldo=0,totColMov=0,totAFP=0,totSalud=0,totCes=0,totIusc=0,totLiq=0,totPatronal=0;
   S.trabajadores.forEach(t=>{
-    const l=calcularLiquidacion(t,uf,utm);
+    const l=liquidacionMes(t,uf,utm,mesNum);
     totSueldo+=l.totalImponible;totColMov+=l.totalNoImponible;
     totAFP+=l.descAFP;totSalud+=l.descSalud;totCes+=l.descCesantia;totIusc+=l.iusc;totLiq+=l.liquido;
     totPatronal+=l.patronal.total;
@@ -410,4 +498,4 @@ async function generarAsientoRemuneraciones(){
 }
 
 
-export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};
+export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};

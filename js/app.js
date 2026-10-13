@@ -125,7 +125,9 @@ import {renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previe
         editarAF, eliminarAF, generarAsientoDepreciacion, AFB} from './activofijo.js';
 import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
         previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador,
-        onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF} from './remuneraciones.js';
+        onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF, onTipoPagoChange, imprimirLiquidacion} from './remuneraciones.js';
+import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
+        eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
         cerrarMesRem, reabrirMesRem, exportarLibroRemExcel} from './libroremuneraciones.js';
 import {exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS} from './lre-dt.js';
@@ -201,6 +203,7 @@ async function saveAll({silencioso=false}={}){
     ];
     if(S.activos&&S.activos.length)entradas.push({key:'activos',value:JSON.stringify(S.activos)});
     if(S.trabajadores&&S.trabajadores.length)entradas.push({key:'trabajadores',value:JSON.stringify(S.trabajadores)});
+    if(S.asistencia&&(S.asistencia.eventos||[]).length)entradas.push({key:'asistencia',value:JSON.stringify(S.asistencia)});
     if(S.centros&&S.centros.length)entradas.push({key:'centros',value:JSON.stringify(S.centros)});
     if(S.cierresCC&&S.cierresCC.length)entradas.push({key:'cierresCC',value:JSON.stringify(S.cierresCC)});
     if(S.comprobantesTipo&&S.comprobantesTipo.length)entradas.push({key:'comprobantesTipo',value:JSON.stringify(S.comprobantesTipo)});
@@ -312,7 +315,7 @@ function renombrarEsteDispositivo(){
 }
 
 async function loadYear(y){
-  S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];S.apertura=null;S.activos=[];S.trabajadores=[];S.cierresContables=[];S.hardeningCert=null;
+  S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];S.apertura=null;S.activos=[];S.trabajadores=[];S.asistencia={eventos:[],horas:{}};S.cierresContables=[];S.hardeningCert=null;
   S.cargaFallida=[];
   resetRenta(); // los ajustes del F22 son por empresa+año: se recargan al entrar a la sección
   resetDJ();    // ídem el catálogo y el control de declaraciones juradas
@@ -349,6 +352,7 @@ async function loadYear(y){
   // Activos fijos y trabajadores: claves GLOBALES de la empresa (persisten entre años)
   await leer('activos',p=>{if(Array.isArray(p))S.activos=p;});
   await leer('trabajadores',p=>{if(Array.isArray(p))S.trabajadores=p;});
+  await leer('asistencia',p=>{if(p&&typeof p==='object'&&!Array.isArray(p))S.asistencia=p;});
 
   if(S.cargaFallida.length){
     toast(`🚫 No se pudieron cargar ${S.cargaFallida.length} registro(s) — el guardado quedó bloqueado para protegerlos`,'e');
@@ -674,7 +678,7 @@ async function recargarEmpresaActiva(){
   window.__entornoBypass=true;
   // Resetear estado en memoria
   S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];
-  S.activos=[];S.trabajadores=[];S.apertura=null;
+  S.activos=[];S.trabajadores=[];S.asistencia={eventos:[],horas:{}};S.apertura=null;
   await asegurarAccesoEmpresa(EMPRESAS.activa);
   S.inventario={cargado:false,grupos:[],bodegas:[],productos:[],movimientos:[],tomas:[],ordenesCompra:[],recepciones:[]};
   S.empresa={...S.empresa,nombre:'',rut:'',domicilio:'',giro:'',codigo:'',ciudad:'',comuna:'',rep:'',rutrep:''};
@@ -801,7 +805,9 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderLibroRem, setRemView, getRemView, tabsRemuneraciones, cerrarMesRem, reabrirMesRem,
   exportarLibroRemExcel, exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS, libroDelMes,
   previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem,
-  verLiquidacion, generarAsientoRemuneraciones,
+  verLiquidacion, generarAsientoRemuneraciones, onTipoPagoChange, imprimirLiquidacion,
+  renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
+  eliminarEventoAsistencia, setHorasMes, onAsisTipoChange,
   // cierre
   renderCierre, generarAsientoCierre, reabrirEjercicio, renderProvisiones, previewProvInc, previewProvFer,
   generarProvisionIncobrables, generarProvisionFeriado, renderCorreccion, previewCM,
