@@ -1603,3 +1603,13 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   body.print-liq .liq-firmas{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:46px;font-size:10px;text-align:center}
   body.print-liq .liq-linea{border-top:1px solid #000;margin-bottom:4px}
 }
+
+/* Liquidación en pantalla: ambas tablas al ancho de la tarjeta, montos en una
+   columna fija alineada, textos largos (instituciones) envuelven en vez de
+   empujar la tabla fuera de la tarjeta. */
+.liq-tbl{width:100%;table-layout:fixed;border-collapse:collapse}
+.liq-tbl .liq-col-monto{width:150px}
+.liq-tbl td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:middle;overflow:hidden}
+.liq-tbl td:last-child:not([colspan]){white-space:nowrap!important;text-align:right}
+.liq-tbl td[colspan]{text-align:left}
+@media (max-width:520px){.liq-tbl .liq-col-monto{width:112px}.liq-tbl td{font-size:11px!important}}
