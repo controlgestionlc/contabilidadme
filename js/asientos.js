@@ -805,7 +805,7 @@ function dtmRemover(){
 // consecutivo. Los asientos manuales toman el siguiente disponible.
 function proxFolioComprobante(){
   let max=0;
-  (S.asientos||[]).forEach(a=>{const n=+a.folioComp||+a.n||0;if(n>max)max=n;});
+  (S.asientos||[]).forEach(a=>{const n=Math.max(+a.numeroContable||0,+a.folioComp||0,+a.n||0);if(n>max)max=n;});
   (S.compras||[]).forEach(d=>{const n=+d.folioComp||0;if(n>max)max=n;});
   (S.ventas||[]).forEach(d=>{const n=+d.folioComp||0;if(n>max)max=n;});
   const ap=S.apertura?.folioComp||0;

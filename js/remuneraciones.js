@@ -8,6 +8,7 @@ import {getIndicadores, IND, calcularGratificacion, topeGratificacionMensual,
         getIUSCTabla, calcularIUSCDetalle, IUSC_TABLA_OFICIAL} from './indicadores.js';
 import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal} from './previsional.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
+import {numeroMostrar} from './correlativo-contable.js';
 import {asistenciaMes} from './asistencia.js';
 import './storage.js';
 
@@ -500,7 +501,20 @@ async function generarAsientoRemuneraciones(){
   // 2026-02-30 y mantiene el asiento dentro del período de remuneraciones.
   const ultimoDia=new Date(anio,mesNum,0).getDate();
   const fecha=`${anio}-${String(mesNum).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
-  if(!confirm(`¿Generar asiento de remuneraciones de ${MESES[mesNum-1]} ${anio}?\n\n${S.trabajadores.length} trabajadores\nLíquido a pagar: ${fmtC(totLiq)}\nAporte patronal: ${fmtC(totPatronal)}`))return;
+  // V2.21.36 — Antes de decidir, se trae el libro de asientos vigente desde la
+  // nube: otro equipo (o una sesión anterior) pudo haber grabado asientos que
+  // esta pantalla aún no tiene en memoria.
+  const fresco=await refrescarAsientosDesdeNube(anio);
+  if(!fresco.ok){toast('⚠️ No se pudo leer el libro de asientos desde la nube ('+fresco.motivo+'). Revisa la conexión e inténtalo de nuevo.','e');return;}
+  // V2.21.35 — Un solo asiento activo de remuneraciones por mes. Si ya existe,
+  // se ofrece reemplazarlo: el anterior queda ANULADO (no se borra su número).
+  const periodo=`${anio}-${String(mesNum).padStart(2,'0')}`;
+  const previos=(S.asientos||[]).filter(a=>!a.anulado&&a.tipo==='remuneraciones'&&(a.periodo===periodo||String(a.fecha||'').slice(0,7)===periodo));
+  const resumen=`${S.trabajadores.length} trabajadores\nLíquido a pagar: ${fmtC(totLiq)}\nAporte patronal: ${fmtC(totPatronal)}`;
+  if(previos.length){
+    const nums=previos.map(a=>'N°'+(numeroMostrar(a)||'?')).join(', ');
+    if(!confirm(`${previos.length===1?'Ya existe el asiento':'Ya existen los asientos'} de remuneraciones de ${MESES[mesNum-1]} ${anio}: ${nums}.\n\n¿Reemplazarlo por uno nuevo?\n${previos.length===1?'El anterior queda anulado':'Los anteriores quedan anulados'} (conserva${previos.length===1?'':'n'} su número, sin efecto contable).\n\n${resumen}`))return;
+  }else if(!confirm(`¿Generar asiento de remuneraciones de ${MESES[mesNum-1]} ${anio}?\n\n${resumen}`))return;
   const movs=[];
   // DEBE: gasto en sueldos (imponible + no imponible)
   movs.push({cd:'3201001',nm:pdcNm('3201001'),debe:totSueldo,haber:0,desc:'Sueldos '+MESES[mesNum-1]});
@@ -516,11 +530,50 @@ async function generarAsientoRemuneraciones(){
     movs.push({cd:'3201013',nm:pdcNm('3201013'),debe:totPatronal,haber:0,desc:'Aporte patronal (SIS, mutual, AFC)'});
     movs.push({cd:'2104001',nm:pdcNm('2104001'),debe:0,haber:totPatronal,desc:'Aporte patronal por pagar'});
   }
-  const folio=proxFolioAsiento();
-  const r=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha,glosa:`Remuneraciones ${MESES[mesNum-1]} ${anio}`,movs,tipo:'remuneraciones',periodo:`${anio}-${String(mesNum).padStart(2,'0')}`,indicadoresLiquidacion:{uf,utm}});});
-  if(!r.ok){toast('❌ No se pudo guardar el asiento de remuneraciones. La operación NO se contabilizó.','e');return;}
-  toast('✅ Asiento N°'+folio+' de remuneraciones ('+fmtC(totLiq)+' líquido)');
+  // El número lo asigna la secuencia contable al guardar (numeroContable).
+  // Antes se usaba un folio calculado en el equipo, que podía coincidir con
+  // el número de otro asiento (por ejemplo, de una factura).
+  if(GEN_REM_EN_CURSO)return;
+  GEN_REM_EN_CURSO=true;
+  const id='as_rem_'+periodo+'_'+Date.now().toString(36);
+  const idsPrevios=new Set(previos.map(a=>a.id));
+  let r;
+  try{
+    r=await persistirAsientosCritico(()=>{
+      const ahora=new Date().toISOString();
+      S.asientos.forEach(a=>{if(idsPrevios.has(a.id)){a.anulado=true;a.anuladoEn=ahora;a.motivoAnulacion='Reemplazado por un nuevo asiento de remuneraciones '+periodo;}});
+      S.asientos.push({id,n:null,fecha,glosa:`Remuneraciones ${MESES[mesNum-1]} ${anio}`,movs,tipo:'remuneraciones',periodo,creadoEn:ahora,indicadoresLiquidacion:{uf,utm}});
+    });
+  }finally{GEN_REM_EN_CURSO=false;}
+  if(!r.ok){
+    console.error('Asiento de remuneraciones no guardado:',r.motivo);
+    toast('❌ No se pudo guardar el asiento de remuneraciones ('+(r.motivo||'error desconocido')+'). La operación NO se contabilizó.','e');
+    return;
+  }
+  const nuevo=(S.asientos||[]).find(a=>a.id===id);
+  const num=numeroMostrar(nuevo);
+  toast('✅ Asiento N°'+(num||'?')+' de remuneraciones ('+fmtC(totLiq)+' líquido)'+(previos.length?' · anulado'+(previos.length>1?'s':'')+' '+previos.map(a=>'N°'+numeroMostrar(a)).join(', '):''));
+  logAccion('Generó asiento de remuneraciones',`${MESES[mesNum-1]} ${anio} · N°${num} · ${fmtC(totLiq)} líquido${previos.length?' · reemplaza '+previos.map(a=>'N°'+numeroMostrar(a)).join(', '):''}`);
   renderRemuneraciones();updateHdr();
+}
+let GEN_REM_EN_CURSO=false;
+
+// Une al estado en memoria lo que está en la nube: los asientos que sólo están
+// allá se agregan; para los que están en ambos manda la nube (es lo grabado).
+// Los que sólo existen aquí se conservan (aún no se han subido).
+async function refrescarAsientosDesdeNube(anio){
+  try{
+    const r=await window.storage.leerConEstado(`asientos-${anio}`);
+    if(!r||r.fuente==='error')return {ok:false,motivo:r?.error||'lectura'};
+    if(r.value==null)return {ok:true,agregados:0};
+    const nube=JSON.parse(r.value);
+    if(!Array.isArray(nube))return {ok:false,motivo:'formato'};
+    const ids=new Set(nube.map(a=>String(a.id)));
+    const soloLocales=(S.asientos||[]).filter(a=>!ids.has(String(a.id)));
+    const antes=(S.asientos||[]).length;
+    S.asientos=[...nube,...soloLocales];
+    return {ok:true,agregados:S.asientos.length-antes};
+  }catch(e){return {ok:false,motivo:e.message||String(e)};}
 }
 
 

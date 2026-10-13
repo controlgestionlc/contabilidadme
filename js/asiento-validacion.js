@@ -123,6 +123,22 @@ function validarMutacionAsientos(antes,despues){
     }
   });
 
+  // V2.21.36 — Un solo asiento de remuneraciones ACTIVO por período. Sólo se
+  // exige cuando el cambio toca alguno de ellos, para que duplicados antiguos
+  // no bloqueen el resto de la contabilidad mientras se regularizan.
+  const remPorPeriodo=new Map();
+  despues.forEach(a=>{
+    if(a?.anulado||a?.tipo!=='remuneraciones')return;
+    const p=a.periodo||periodo(a.fecha);
+    if(!remPorPeriodo.has(p))remPorPeriodo.set(p,[]);
+    remPorPeriodo.get(p).push(a);
+  });
+  const camb=new Set(cambiados);
+  remPorPeriodo.forEach((arr,p)=>{
+    if(arr.length>1&&arr.some(a=>camb.has(String(a.id))&&!ant.has(String(a.id))))
+      errores.push(`Ya existe un asiento de remuneraciones activo para ${p} (N° ${arr.filter(a=>ant.has(String(a.id))).map(a=>a.numeroContable||a.n||'?').join(', ')}). Recarga la página y vuelve a generarlo para reemplazarlo.`);
+  });
+
   return {ok:errores.length===0,errores,cambiados};
 }
 

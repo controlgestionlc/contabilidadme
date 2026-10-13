@@ -8,13 +8,23 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.13-1845';
+const APP_VERSION='v2026.10.13-2000';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.36',fecha:'13-10-2026',titulo:'Asiento de remuneraciones: sin duplicados aunque haya otro equipo',items:[
+    {tipo:'correccion',txt:'Antes de generar el asiento de remuneraciones se lee el libro de asientos vigente desde la nube. Así se detectan los asientos que grabó otro equipo o una sesión anterior y el número asignado es el real de la secuencia.'},
+    {tipo:'cambio',txt:'Regla central: no se acepta un segundo asiento de remuneraciones activo para el mismo mes, venga de donde venga. Los duplicados que ya existan no bloquean el resto de la contabilidad; se regularizan al volver a generar el mes.'},
+    {tipo:'correccion',txt:'Cuando un asiento no se puede grabar por una regla contable, el mensaje muestra la regla que falló.'},
+  ]},
+  {version:'V2.21.35',fecha:'13-10-2026',titulo:'Asiento de remuneraciones: número correcto y uno por mes',items:[
+    {tipo:'correccion',txt:'El aviso al generar el asiento de remuneraciones mostraba un número calculado en el equipo que podía coincidir con el de otro asiento (por ejemplo, una factura). Ahora muestra el número contable definitivo con que quedó grabado.'},
+    {tipo:'cambio',txt:'Solo puede haber un asiento de remuneraciones activo por mes. Si ya existe, el sistema pregunta si reemplazarlo: el anterior queda anulado (conserva su número, sin efecto contable). Además se evita el doble clic.'},
+    {tipo:'correccion',txt:'Si el asiento no se puede guardar, el mensaje ahora indica el motivo.'},
+  ]},
   {version:'V2.21.34',fecha:'13-10-2026',titulo:'Liquidación solo con datos del trabajador',items:[
     {tipo:'cambio',txt:'La liquidación de sueldo (en pantalla e impresa) muestra solo haberes, descuentos y líquido del trabajador. El aporte del empleador y el costo total empresa ya no aparecen en ella: siguen disponibles en el resumen de Trabajadores, el Libro de Remuneraciones, el asiento contable y el archivo Previred.'},
   ]},

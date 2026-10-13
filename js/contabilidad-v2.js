@@ -129,7 +129,7 @@ async function persistirAsientosCritico(mutacion){
     const val2=validarMutacionAsientos(previo,S.asientos||[]);
     if(!val2.ok)throw new Error('validacion-contable: '+val2.errores[0]);
     const r=await window.storage.set(`asientos-${S.empresa.anio}`,JSON.stringify(S.asientos||[]));
-    if(!r||r.ok===false)throw new Error(r?.motivo||'fallo-persistencia');
+    if(!r||r.ok===false)throw new Error((r?.motivo||'fallo-persistencia')+(r?.detalle?': '+r.detalle:(r?.errores?.[0]?': '+r.errores[0]:'')));
     return {ok:true,resultado};
   }catch(e){
     S.asientos=JSON.parse(snap);
