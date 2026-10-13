@@ -450,12 +450,6 @@ function verLiquidacion(id){
       ${row('Total descuentos',l.totalDescuentos,true,true)}
       <tr style="background:rgba(46,160,67,.14)"><td class="tl" style="padding:11px 10px;font-weight:700;font-size:14px">LÍQUIDO A PAGAR</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:var(--ach)">${fmtC(l.liquido)}</td></tr>
     </tbody></table>
-    <table class="liq-tbl" style="margin-top:14px"><colgroup><col><col class="liq-col-monto"></colgroup><tbody>
-      <tr class="rth"><td colspan="2" class="tl" style="padding:6px 10px">APORTE DEL EMPLEADOR (no se descuenta al trabajador)</td></tr>
-      ${l.patronal.detalle.map(d=>`<tr><td class="tl" style="padding:5px 10px;font-size:11px">${d.concepto} <span style="color:var(--mt)">${(+d.tasa).toFixed(2)}% → ${d.institucion}</span></td><td style="font-family:var(--mono);text-align:right;font-size:11px">${fmtC(d.monto)}</td></tr>`).join('')}
-      <tr><td class="tl" style="padding:6px 10px;font-weight:700;font-size:12px">Total aporte empleador</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:12px">${fmtC(l.patronal.total)}</td></tr>
-      <tr style="background:rgba(88,166,255,.10)"><td class="tl" style="padding:9px 10px;font-weight:700;font-size:13px">COSTO TOTAL EMPRESA</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:13px">${fmtC(l.costoEmpresa)}</td></tr>
-    </tbody></table>
     <div style="font-size:10px;color:var(--mt);margin-top:8px">Base tributable: ${fmtC(l.baseTributable)} · UF ${fmtC(uf)} · UTM ${fmtC(utm)}</div>
     <div class="liq-firmas">
       <div><div class="liq-linea"></div>Firma empleador</div>

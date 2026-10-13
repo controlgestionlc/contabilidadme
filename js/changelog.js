@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.13-1830';
+const APP_VERSION='v2026.10.13-1845';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.34',fecha:'13-10-2026',titulo:'Liquidación solo con datos del trabajador',items:[
+    {tipo:'cambio',txt:'La liquidación de sueldo (en pantalla e impresa) muestra solo haberes, descuentos y líquido del trabajador. El aporte del empleador y el costo total empresa ya no aparecen en ella: siguen disponibles en el resumen de Trabajadores, el Libro de Remuneraciones, el asiento contable y el archivo Previred.'},
+  ]},
   {version:'V2.21.33',fecha:'13-10-2026',titulo:'Vista de la liquidación de sueldo',items:[
     {tipo:'correccion',txt:'La tabla de aporte del empleador ya no se sale de la tarjeta: ambas tablas ocupan el mismo ancho, los montos quedan alineados en una columna fija y los textos largos (nombres de instituciones) pasan a la línea siguiente, también en celular.'},
     {tipo:'correccion',txt:'El plan de Isapre se muestra con coma decimal (3,559 UF en vez de 3.559 UF).'},
