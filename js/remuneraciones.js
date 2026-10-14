@@ -135,7 +135,7 @@ function calcularLiquidacion(t,uf,utm,asis){
     baseSIS=Math.min(Math.round(REM_PARAMS.topeAFP_UF*uf),baseAFP+extra);
     baseAFC=Math.min(Math.round(REM_PARAMS.topeCesantia_UF*uf),baseCes+extra);
   }
-  const patronal=calcularAportePatronal(t,baseAFP,baseCes,{sis:baseSIS,afc:baseAFC});
+  const patronal=calcularAportePatronal(t,baseAFP,baseCes,{sis:baseSIS,afc:baseAFC,periodo:asis&&asis.periodo});
   const costoEmpresa=totalHaberes+patronal.total;
   return {patronal,costoEmpresa,
     base,baseContrato,otros,colacion,movilizacion,porHora,horas,valorHora:porHora?(+t.valorHora||0):null,

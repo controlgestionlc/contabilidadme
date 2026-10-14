@@ -51,7 +51,7 @@ export const CAJAS_DEFAULT=[
 
 // ── Tasas del empleador (aporte patronal) ──
 export const PATRONAL_DEFAULT={
-  sis:1.62,               // Seguro de Invalidez y Sobrevivencia (desde abril 2026)
+  sis:1.78,               // Seguro de Invalidez y Sobrevivencia (trimestre ago-oct 2026)
   // Seguro de accidentes del trabajo (Ley 16.744). V2.21.37: tasas separadas
   // para mutualidad e ISL; se aplica la de la institución elegida.
   mutualBase:0.90,        // cotización básica
@@ -116,6 +116,45 @@ export const cajaInfo=k=>getPrevisional().cajas.find(c=>c.k===k)||getPrevisional
 // una licencia médica el empleador sigue pagando SIS y aporte AFC sobre la
 // renta del mes completo (norma Previred), mientras la mutual y la caja se
 // calculan sólo sobre los días pagados.
+// ── Reforma de pensiones (Ley 21.735) · V2.21.39 ──
+// Aporte adicional del EMPLEADOR, por tramos de vigencia (remuneraciones del
+// mes indicado en adelante). Desde agosto 2026 el Seguro Social se financia
+// con 2,5% para SIS + Compensación por Expectativa de Vida (CEV): por eso la
+// CEV por defecto es 2,5% − SIS vigente (cev:null = automática).
+//  - capInd: cotización a la cuenta individual (va a la AFP, campo 28 Previred)
+//  - cev:    compensación por expectativa de vida (Seguro Social, campo 94)
+//  - crp:    cotización con rentabilidad protegida (Seguro Social, campo 95)
+export const REFORMA_DEFAULT=[
+  {desde:'2025-08',capInd:0.10,cev:0.90,crp:0.00},
+  {desde:'2026-08',capInd:0.10,cev:null,crp:0.90},
+  {desde:'2027-08',capInd:0.25,cev:null,crp:1.50},
+  {desde:'2028-08',capInd:1.00,cev:null,crp:1.50},
+  {desde:'2029-08',capInd:1.70,cev:null,crp:1.50},
+  {desde:'2030-08',capInd:2.40,cev:null,crp:1.50},
+  {desde:'2031-08',capInd:3.10,cev:null,crp:1.50},
+  {desde:'2032-08',capInd:3.80,cev:null,crp:1.50},
+  {desde:'2033-08',capInd:4.50,cev:null,crp:1.50},
+];
+export const SEGURO_SOCIAL_SIS_CEV=2.5;   // SIS + CEV desde agosto 2026
+export const SIS_A_SEGURO_SOCIAL_DESDE='2026-08';
+
+export function reformaTramos(){
+  const g=(S.empresa&&S.empresa.previsional&&S.empresa.previsional.reforma)||null;
+  return (Array.isArray(g)&&g.length?g:REFORMA_DEFAULT).slice().sort((a,b)=>String(a.desde).localeCompare(String(b.desde)));
+}
+// Tasas vigentes para un período 'YYYY-MM' (sin período: el mes actual)
+export function reformaVigente(periodo,p=getPrevisional().patronal){
+  const per=/^\d{4}-\d{2}$/.test(String(periodo||''))?periodo:new Date().toISOString().slice(0,7);
+  const t=reformaTramos().filter(x=>x.desde<=per).pop();
+  if(!t)return {desde:null,capInd:0,cev:0,crp:0,cevAuto:false};
+  const auto=t.cev===null||t.cev===undefined||t.cev==='';
+  const cev=auto?Math.max(0,+(SEGURO_SOCIAL_SIS_CEV-(+p.sis||0)).toFixed(4)):+t.cev||0;
+  return {desde:t.desde,capInd:+t.capInd||0,cev,crp:+t.crp||0,cevAuto:auto};
+}
+// Sólo trabajadores activos afiliados a AFP pagan SIS y aportes de la reforma
+// (no pensionados ni mayores de 65 sin pensión).
+export const aplicaSISyReforma=t=>!t.tipoTrabajador||String(t.tipoTrabajador)==='0';
+
 // Tipos de contrato para el seguro de cesantía
 export const CONTRATOS_AFC=[
   {k:'indefinido',  nm:'Indefinido'},
@@ -140,18 +179,29 @@ export function calcularAportePatronal(t,baseImponible,baseCesantia,bases){
   const R=n=>Math.round(n||0);
   const baseSIS=bases&&bases.sis!=null?bases.sis:baseImponible;
   if(bases&&bases.afc!=null)baseCesantia=bases.afc;
-  const sis=R(baseSIS*p.sis/100);
+  const activo=aplicaSISyReforma(t);
+  const sis=activo?R(baseSIS*p.sis/100):0;
+  // Reforma: capitalización y rentabilidad protegida sobre los días pagados;
+  // la CEV, igual que el SIS, también sobre los días de licencia.
+  const rf=reformaVigente(bases&&bases.periodo,p);
+  const capInd=activo?R(baseImponible*rf.capInd/100):0;
+  const cev=activo?R(baseSIS*rf.cev/100):0;
+  const crp=activo?R(baseImponible*rf.crp/100):0;
+  const ssAFP=!bases||!bases.periodo||bases.periodo<SIS_A_SEGURO_SOCIAL_DESDE;
   const mutualTasa=tasaAccidentes(p);
   const mutual=R(baseImponible*mutualTasa/100);
   const afcTasa=tasasAFC(t.contrato||'indefinido',p).emp;
   const afc=R(baseCesantia*afcTasa/100);
   const caja=R(baseImponible*(+p.cajaCompensacion||0)/100);
-  const total=sis+mutual+afc+caja;
+  const total=sis+mutual+afc+caja+capInd+cev+crp;
   return {
-    sis, mutual, afc, caja, total,
-    mutualTasa, afcTasa,
+    sis, mutual, afc, caja, capInd, cev, crp, total,
+    mutualTasa, afcTasa, reforma:rf,
     detalle:[
-      {concepto:'SIS (invalidez y sobrevivencia)', tasa:p.sis,      monto:sis,    institucion:'AFP del trabajador'},
+      {concepto:'SIS (invalidez y sobrevivencia)', tasa:activo?p.sis:0, monto:sis, institucion:ssAFP?'AFP del trabajador':'Seguro Social Previsional'},
+      ...(rf.capInd||capInd?[{concepto:'Reforma: capitalización individual', tasa:activo?rf.capInd:0, monto:capInd, institucion:'AFP del trabajador'}]:[]),
+      ...(rf.cev||cev?[{concepto:'Seguro Social Previsional (expectativa de vida)', tasa:activo?rf.cev:0, monto:cev, institucion:'Seguro Social Previsional'}]:[]),
+      ...(rf.crp||crp?[{concepto:'Reforma: rentabilidad protegida (CRP)', tasa:activo?rf.crp:0, monto:crp, institucion:'Seguro Social Previsional'}]:[]),
       {concepto:p.mutualInstitucion==='isl'?'ISL (Ley 16.744)':'Mutual (Ley 16.744)', tasa:mutualTasa, monto:mutual, institucion:mutualInfo(p.mutualInstitucion).nm},
       {concepto:`Seguro cesantía (${(CONTRATOS_AFC.find(c=>c.k===(t.contrato||'indefinido'))||CONTRATOS_AFC[0]).nm.toLowerCase()})`, tasa:afcTasa, monto:afc, institucion:'AFC Chile'},
       ...(caja>0?[{concepto:'Caja de compensación', tasa:p.cajaCompensacion, monto:caja, institucion:cajaInfo(p.cajaInstitucion).nm}]:[]),

@@ -3,7 +3,7 @@
 
 import {toast, fmtC} from './core.js';
 import {S} from './state.js';
-import {getPrevisional, tasaAccidentes, tasasAFC, CONTRATOS_AFC, AFP_DEFAULT, ISAPRES_DEFAULT, MUTUALES_DEFAULT,
+import {getPrevisional, tasaAccidentes, tasasAFC, CONTRATOS_AFC, reformaTramos, reformaVigente, REFORMA_DEFAULT, SEGURO_SOCIAL_SIS_CEV, AFP_DEFAULT, ISAPRES_DEFAULT, MUTUALES_DEFAULT,
         CAJAS_DEFAULT, PATRONAL_DEFAULT} from './previsional.js';
 import {logAccion} from './firebase.js';
 
@@ -41,7 +41,7 @@ export function renderPrevisional(){
       <div class="grp">
         <label>SIS — Invalidez y sobrevivencia (%)</label>
         <input type="number" id="pat-sis" step="0.01" value="${p.sis}">
-        <div style="font-size:10px;color:var(--mt);margin-top:2px">Se paga a la AFP del trabajador. Vigente desde abril 2026: 1,62%</div>
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">Trimestre agosto a octubre 2026: 1,78%. Desde agosto 2026 lo recauda el Seguro Social Previsional. No aplica a pensionados ni mayores de 65.</div>
       </div>
       <div class="grp full">
         <label>Seguro de accidentes del trabajo (Ley 16.744) — institución</label>
@@ -97,10 +97,59 @@ export function renderPrevisional(){
     </div>
   </div>
 
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">🏛️ Reforma de pensiones (Ley 21.735) · aporte del empleador</div>
+    <div class="info-tip" style="font-size:11px;margin-bottom:10px">
+      Aporte adicional de cargo del <strong>empleador</strong>, sobre la renta imponible con tope AFP. No se descuenta al trabajador y sólo aplica a trabajadores <strong>activos afiliados a AFP</strong> (no a pensionados ni mayores de 65).
+      Cada tramo rige desde las remuneraciones del mes indicado. <strong>Seguro Social Previsional (expectativa de vida)</strong> en blanco = automática: ${SEGURO_SOCIAL_SIS_CEV.toLocaleString('es-CL')}% − SIS.
+      <a href="https://www.chileatiende.gob.cl/fichas/130987-aportes-del-empleador-al-sistema-de-pensiones" target="_blank" rel="noopener" style="color:var(--ac);margin-left:6px">↗ ChileAtiende</a>
+    </div>
+    <div class="tw"><table style="font-size:12px">
+      <thead><tr><th class="tl">DESDE</th><th style="text-align:right">CAPITALIZACIÓN INDIVIDUAL (%)</th><th style="text-align:right">SEGURO SOCIAL PREVISIONAL · EXPECTATIVA DE VIDA (%)</th><th style="text-align:right">RENTABILIDAD PROTEGIDA (%)</th><th style="text-align:right">TOTAL + SIS</th><th></th></tr></thead>
+      <tbody id="ref-filas">${reformaTramos().map((r,i)=>filaReforma(r,i)).join('')}</tbody>
+    </table></div>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-g" onclick="agregarTramoReforma()">+ Agregar tramo</button>
+      <span style="font-size:11px;color:var(--mt)" id="ref-vigente"></span>
+    </div>
+  </div>
+
   <div class="save-row" style="display:flex;gap:8px">
     <button class="btn btn-p" onclick="guardarPrevisional()">💾 Guardar configuración previsional</button>
     <button class="btn btn-g" onclick="restaurarPrevisional()">↺ Valores oficiales 2026</button>
   </div>`;
+  renderPrevisionalAccidentes();
+}
+
+function filaReforma(r,i){
+  const auto=r.cev===null||r.cev===undefined||r.cev==='';
+  return `<tr data-ref="${i}">
+    <td class="tl"><input type="month" class="ref-desde" value="${r.desde||''}" onchange="renderPrevisionalAccidentes()" style="width:140px"></td>
+    <td style="text-align:right"><input type="number" step="0.01" min="0" class="ref-cap" value="${+r.capInd||0}" oninput="renderPrevisionalAccidentes()" style="width:80px;text-align:right"></td>
+    <td style="text-align:right"><input type="number" step="0.01" min="0" class="ref-cev" value="${auto?'':(+r.cev||0)}" placeholder="auto" oninput="renderPrevisionalAccidentes()" style="width:80px;text-align:right"></td>
+    <td style="text-align:right"><input type="number" step="0.01" min="0" class="ref-crp" value="${+r.crp||0}" oninput="renderPrevisionalAccidentes()" style="width:80px;text-align:right"></td>
+    <td style="text-align:right;font-family:var(--mono);font-weight:700" class="ref-tot"></td>
+    <td style="text-align:right"><button class="btn btn-d" title="Quitar tramo" onclick="quitarTramoReforma(${i})">🗑</button></td>
+  </tr>`;
+}
+// Lee la tabla de tramos tal como está en pantalla
+function leerTramosReforma(){
+  return [...document.querySelectorAll('#ref-filas tr')].map(tr=>{
+    const q=c=>tr.querySelector(c)?.value??'';
+    const cev=String(q('.ref-cev')).trim();
+    return {desde:q('.ref-desde'),capInd:+q('.ref-cap')||0,cev:cev===''?null:(+cev||0),crp:+q('.ref-crp')||0};
+  }).filter(r=>/^\d{4}-\d{2}$/.test(r.desde)).sort((a,b)=>a.desde.localeCompare(b.desde));
+}
+export function agregarTramoReforma(){
+  const t=leerTramosReforma();const u=t[t.length-1]||{capInd:0,cev:null,crp:0,desde:'2026-07'};
+  const [y,m]=u.desde.split('-').map(Number);
+  t.push({...u,desde:`${y+1}-${String(m).padStart(2,'0')}`});
+  document.getElementById('ref-filas').innerHTML=t.map((r,i)=>filaReforma(r,i)).join('');
+  renderPrevisionalAccidentes();
+}
+export function quitarTramoReforma(i){
+  const t=leerTramosReforma().filter((_,j)=>j!==i);
+  document.getElementById('ref-filas').innerHTML=t.map((r,k)=>filaReforma(r,k)).join('');
   renderPrevisionalAccidentes();
 }
 
@@ -117,6 +166,21 @@ export function renderPrevisionalAccidentes(){
   [['indefinido','afcTrabIndefinido','afcIndefinido'],['plazo','afcTrabPlazoFijo','afcPlazoFijo'],['indefinido11','afcTrabIndef11','afcIndef11']].forEach(([k,a,b])=>{
     const e=document.getElementById('pat-afc-tot-'+k);if(e)e.textContent=fmt(v('pat-'+a)+v('pat-'+b));
   });
+  // Reforma: total de cada tramo (con el SIS de la pantalla) y tramo vigente hoy
+  const sis=v('pat-sis');
+  const hoy=new Date().toISOString().slice(0,7);let vig=null;
+  document.querySelectorAll('#ref-filas tr').forEach(tr=>{
+    const q=c=>tr.querySelector(c)?.value??'';
+    const cevTxt=String(q('.ref-cev')).trim();
+    const desde=q('.ref-desde');
+    const cev=cevTxt===''?(desde>='2026-08'?Math.max(0,2.5-sis):0):(+cevTxt||0);
+    const tot=(+q('.ref-cap')||0)+cev+(+q('.ref-crp')||0)+sis;
+    const e=tr.querySelector('.ref-tot');if(e)e.textContent=fmt(tot);
+    const c=tr.querySelector('.ref-cev');if(c)c.placeholder=cevTxt===''?('auto '+cev.toLocaleString('es-CL',{maximumFractionDigits:2})):'auto';
+    if(desde&&desde<=hoy)vig={desde,cap:+q('.ref-cap')||0,cev,crp:+q('.ref-crp')||0,tot};
+  });
+  const rv=document.getElementById('ref-vigente');
+  if(rv)rv.innerHTML=vig?`Vigente hoy (desde ${vig.desde}): capitalización ${fmt(vig.cap)} · Seguro Social Previsional ${fmt(vig.cev)} · rentabilidad protegida ${fmt(vig.crp)} · con SIS ${fmt(vig.tot)}`:'Sin tramo vigente para el mes actual.';
   if(h)h.innerHTML=`Se aplica la columna <strong>${esISL?'ISL':'Mutualidad'}</strong> (${fmt(tot(esISL?'isl':'mutual'))} sobre la renta imponible), según la institución elegida.`;
 }
 
@@ -144,7 +208,9 @@ export async function guardarPrevisional(){
     mutualInstitucion:document.getElementById('pat-mutual-inst').value,
     cajaInstitucion:document.getElementById('pat-caja-inst').value,
   };
-  S.empresa.previsional={afps,isapres:P.isapres,mutuales:P.mutuales,cajas:P.cajas,patronal};
+  const reforma=leerTramosReforma();
+  S.empresa.previsional={afps,isapres:P.isapres,mutuales:P.mutuales,cajas:P.cajas,patronal,
+    ...(reforma.length&&JSON.stringify(reforma)!==JSON.stringify(REFORMA_DEFAULT)?{reforma}:{})};
   const r=await window.storage.set('empresa',JSON.stringify(S.empresa));
   if(!r||r.ok===false){toast('❌ Error al guardar la configuración previsional','e');return;}
   toast('✅ Configuración previsional guardada');

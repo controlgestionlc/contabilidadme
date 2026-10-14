@@ -8,13 +8,26 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.13-2130';
+const APP_VERSION='v2026.10.13-2330';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.41',fecha:'13-10-2026',titulo:'Nombres como el formulario del Seguro Social Previsional',items:[
+    {tipo:'cambio',txt:'La compensación por expectativa de vida se llama ahora "Seguro Social Previsional (expectativa de vida)", igual que en el formulario de cotizaciones de Previred, en la configuración, la liquidación interna, el Libro, su Excel y el detalle de imposiciones. En el detalle de imposiciones el Seguro Social Previsional se ordena como el formulario: expectativa de vida, rentabilidad protegida y SIS.'},
+  ]},
+  {version:'V2.21.40',fecha:'13-10-2026',titulo:'Seguro Social Previsional en el Libro de Remuneraciones',items:[
+    {tipo:'nuevo',txt:'El Libro de Remuneraciones muestra por trabajador el grupo Seguro Social Previsional: SIS, expectativa de vida, rentabilidad protegida y total SSP, más un indicador con el total del mes. Antes de agosto 2026 el SIS se muestra pero no suma al SSP, porque se pagaba a la AFP.'},
+    {tipo:'nuevo',txt:'El Excel del Libro agrega las columnas de la reforma (capitalización individual, expectativa de vida, rentabilidad protegida) y el total del Seguro Social Previsional. Los libros cerrados anteriores calculan el total SSP al abrirlos.'},
+  ]},
+  {version:'V2.21.39',fecha:'13-10-2026',titulo:'Reforma de pensiones (Ley 21.735)',items:[
+    {tipo:'nuevo',txt:'Aporte del empleador de la reforma de pensiones: capitalización individual, compensación por expectativa de vida (CEV) y cotización con rentabilidad protegida (CRP), por tramos de vigencia editables en Indicadores. Desde agosto 2026: 0,1% + 0,72% + 0,9%; la CEV es automática (2,5% menos el SIS) salvo que se ingrese a mano.'},
+    {tipo:'cambio',txt:'Sólo aplica a trabajadores activos afiliados a AFP; pensionados y mayores de 65 quedan sin SIS ni aportes de la reforma. Con licencia médica, la CEV y el SIS se calculan también sobre los días de licencia; capitalización y rentabilidad protegida, sólo sobre los días pagados.'},
+    {tipo:'cambio',txt:'Archivo Previred: el 0,1% de capitalización se suma al campo 28 y se informan los campos 92 (renta de los días de licencia), 93 (tipo de jornada), 94 (CEV) y 95 (CRP). Detalle de imposiciones: desde agosto 2026 el SIS, la CEV y la CRP se pagan al Seguro Social Previsional.'},
+    {tipo:'cambio',txt:'SIS por defecto actualizado a 1,78% (trimestre agosto-octubre 2026). Si la empresa tiene la configuración previsional guardada, el SIS se actualiza a mano en Indicadores.'},
+  ]},
   {version:'V2.21.38',fecha:'13-10-2026',titulo:'Detalle del pago de imposiciones en Excel',items:[
     {tipo:'nuevo',txt:'En el Libro de Remuneraciones, el botón "Imposiciones" descarga un Excel con el detalle del pago del mes: resumen por institución (cada AFP, Fonasa o Isapre, caja de compensación, AFC y mutual o ISL) con sus conceptos, si son de cargo del trabajador o del empleador y cuántos trabajadores incluye, y una hoja con el detalle por trabajador. Los totales son fórmulas y cuadran con el archivo Previred.'},
   ]},

@@ -104,7 +104,7 @@ function movimientosDelMes(t,anio,mes){
 function lineaVacia(){return new Array(N_CAMPOS+1).fill(undefined);} // índice 1..105
 function cerrarLinea(c){
   // Campos no informados: 0 si son numéricos, vacío si alfanuméricos
-  const ALFA=new Set([2,3,4,5,6,14,16,17,18,25,35,36,37,41,46,51,52,53,54,56,57,76,95,104,105]);
+  const ALFA=new Set([2,3,4,5,6,14,16,17,18,25,35,36,37,41,46,51,52,53,54,56,57,76,104,105]);
   const TASAS=new Set([32,38,63,68]);
   const out=[];
   for(let i=1;i<=N_CAMPOS;i++){
@@ -188,8 +188,16 @@ function construirPrevired(mes){
     if(codAFP===null)err(quien,'Campo 26',`AFP "${t.afp||'—'}" sin código Previred.`);
     c[26]=codAFP??'0';
     c[27]=num(baseAFP);
-    c[28]=num(l.descAFP);
+    // Campo 28: cotización obligatoria + 0,1% (o el tramo vigente) de
+    // capitalización individual de la reforma, que se informa junto a ella.
+    c[28]=num((+l.descAFP||0)+(+l.capInd||0));
     c[29]=num(l.sis);
+    // Reforma de pensiones (Ley 21.735): campos 92 a 95
+    c[92]=num(l.rentaLicencia);          // RIMA proporcional a los días de licencia
+    c[93]=l.jornada==='2'?'2':'1';      // 1 jornada completa · 2 parcial (obligatorio)
+    c[94]=num(l.cev);                   // compensación por expectativa de vida
+    c[95]=num(l.crp);                   // cotización con rentabilidad protegida
+    if(l.cev===undefined&&L.cerrado)adv(quien,'Campos 94-95','Libro cerrado antes de incorporar la reforma de pensiones: CEV y rentabilidad protegida van en 0. Reabre y cierra el libro para incluirlas.');
 
     // Salud (campos 70, 75-81, 84, 90)
     const salud=t.salud||'fonasa';

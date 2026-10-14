@@ -16,6 +16,7 @@ import {S} from './state.js';
 import {logAccion} from './firebase.js';
 import {liquidacionMes, getUF, getUTM} from './remuneraciones.js';
 import {getIndicadores} from './indicadores.js';
+import {SIS_A_SEGURO_SOCIAL_DESDE} from './previsional.js';
 import './storage.js';
 
 // Vista activa de la sección Remuneraciones
@@ -84,13 +85,19 @@ function lineaLibro(t,uf,utm,mes){
     // Aportes del empleador
     sis:l.patronal.sis, mutual:l.patronal.mutual, afc:l.patronal.afc,
     caja:l.patronal.caja, totalPatronal:l.patronal.total,
+    capInd:l.patronal.capInd||0, cev:l.patronal.cev||0, crp:l.patronal.crp||0,
+    // Seguro Social Previsional (V2.21.40): CEV + CRP y, desde agosto 2026, el SIS
+    ssp:((periodoDe(mes)>=SIS_A_SEGURO_SOCIAL_DESDE)?(l.patronal.sis||0):0)+(l.patronal.cev||0)+(l.patronal.crp||0),
+    tasasReforma:l.patronal.reforma?{capInd:l.patronal.reforma.capInd,cev:l.patronal.reforma.cev,crp:l.patronal.reforma.crp}:null,
+    rentaLicencia:Math.max(0,(l.baseSIS||0)-(l.baseAFP||0)),
+    jornada:(t.tipoPago==='hora'||String(t.lre&&t.lre.jornada)==='201')?'2':'1',
     costoEmpresa:l.costoEmpresa,
   };
 }
 
 const CAMPOS_SUMA=['base','gratificacion','otros','totalImponible','colacion','movilizacion',
   'totalNoImponible','totalHaberes','descAFP','descSalud','saludLegal','adicionalIsapre','descCesantia',
-  'totalPrevisional','baseTributable','iusc','totalDescuentos','liquido','sis','mutual','afc','caja',
+  'totalPrevisional','baseTributable','iusc','totalDescuentos','liquido','sis','mutual','afc','caja','capInd','cev','crp','ssp',
   'totalPatronal','costoEmpresa'];
 
 function totalizar(lineas){
@@ -105,6 +112,8 @@ export function libroDelMes(mes){
   const per=periodoDe(mes);
   const guardado=librosRem()[per];
   if(guardado&&Array.isArray(guardado.lineas)){
+    guardado.lineas.forEach(l=>{if(l.ssp===undefined)l.ssp=(per>=SIS_A_SEGURO_SOCIAL_DESDE?(+l.sis||0):0)+(+l.cev||0)+(+l.crp||0);});
+    if(guardado.totales&&guardado.totales.ssp===undefined)guardado.totales=totalizar(guardado.lineas);
     return {...guardado,cerrado:true,totales:guardado.totales||totalizar(guardado.lineas)};
   }
   const uf=getUF(),utm=getUTM();
@@ -191,6 +200,8 @@ export function renderLibroRem(){
     <td style="font-family:var(--mono);text-align:right" title="Tramo ${l.iuscTramo} · ${(l.iuscFactor*100).toFixed(2)}%">${l.iusc?fmt(l.iusc):'–'}</td>
     <td style="font-family:var(--mono);text-align:right;color:var(--err)">${fmt(l.totalDescuentos)}</td>
     <td style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--ach)">${fmt(l.liquido)}</td>
+    ${m(l.sis)}${m(l.cev)}${m(l.crp)}
+    <td style="font-family:var(--mono);text-align:right;font-weight:600">${l.ssp?fmt(l.ssp):'–'}</td>
     ${m(l.totalPatronal)}
     <td style="font-family:var(--mono);text-align:right">${fmt(l.costoEmpresa)}</td>
   </tr>`).join('');
@@ -198,7 +209,7 @@ export function renderLibroRem(){
   const tot=`<tr style="background:rgba(88,166,255,.08)">
     <td colspan="2" class="tl" style="font-weight:700">TOTALES (${T.n})</td>
     ${['base','gratificacion','otros','totalImponible','colacion','movilizacion','totalHaberes',
-       'descAFP','descSalud','descCesantia','iusc','totalDescuentos','liquido','totalPatronal','costoEmpresa']
+       'descAFP','descSalud','descCesantia','iusc','totalDescuentos','liquido','sis','cev','crp','ssp','totalPatronal','costoEmpresa']
       .map(k=>`<td style="font-family:var(--mono);text-align:right;font-weight:700${k==='liquido'?';color:var(--ach)':(k==='totalDescuentos'?';color:var(--err)':'')}">${fmt(T[k])}</td>`).join('')}
   </tr>`;
 
@@ -244,12 +255,14 @@ export function renderLibroRem(){
           <th colspan="3" style="text-align:center">NO IMPONIBLES</th>
           <th colspan="5" style="text-align:center">DESCUENTOS</th>
           <th rowspan="2" style="text-align:right">LÍQUIDO</th>
+          <th colspan="4" style="text-align:center" title="${L.periodo<SIS_A_SEGURO_SOCIAL_DESDE?'Hasta julio 2026 el SIS se paga a la AFP y no suma al SSP':'Desde agosto 2026 el SIS lo recauda el Seguro Social Previsional'}">SEGURO SOCIAL PREVISIONAL</th>
           <th colspan="2" style="text-align:center">EMPLEADOR</th>
         </tr>
         <tr>
           <th style="text-align:right">SUELDO BASE</th><th style="text-align:right">GRATIF.</th><th style="text-align:right">OTROS</th><th style="text-align:right">TOTAL IMP.</th>
           <th style="text-align:right">COLACIÓN</th><th style="text-align:right">MOVILIZ.</th><th style="text-align:right">TOTAL HAB.</th>
           <th style="text-align:right">AFP</th><th style="text-align:right">SALUD</th><th style="text-align:right">CESANTÍA</th><th style="text-align:right">IUSC</th><th style="text-align:right">TOTAL DESC.</th>
+          <th style="text-align:right">SIS${L.periodo<SIS_A_SEGURO_SOCIAL_DESDE?'*':''}</th><th style="text-align:right" title="Seguro Social Previsional (expectativa de vida)">SSP EXP. VIDA</th><th style="text-align:right">RENT. PROT.</th><th style="text-align:right">TOTAL SSP</th>
           <th style="text-align:right">APORTES</th><th style="text-align:right">COSTO</th>
         </tr>
       </thead>
@@ -263,6 +276,7 @@ export function renderLibroRem(){
       <div class="kpi"><div class="kpi-lbl">Impuesto Único</div><div class="kpi-val neg">${fmtC(T.iusc)}</div></div>
       <div class="kpi"><div class="kpi-lbl">Líquido a Pagar</div><div class="kpi-val pos">${fmtC(T.liquido)}</div></div>
       <div class="kpi"><div class="kpi-lbl">Aporte Empleador</div><div class="kpi-val">${fmtC(T.totalPatronal)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Seguro Social Previsional</div><div class="kpi-val">${fmtC(T.ssp||0)}</div><div style="font-size:10px;color:var(--mt);margin-top:2px">${L.periodo<SIS_A_SEGURO_SOCIAL_DESDE?'Expectativa de vida + rentabilidad protegida (SIS en AFP)':'Expectativa de vida + rentabilidad protegida + SIS'}</div></div>
       <div class="kpi"><div class="kpi-lbl">Costo Total Empresa</div><div class="kpi-val">${fmtC(T.costoEmpresa)}</div></div>
     </div>
 
@@ -314,19 +328,20 @@ export function exportarLibroRemExcel(){
       'COLACIÓN','MOVILIZACIÓN','TOTAL NO IMPONIBLE','TOTAL HABERES',
       'AFP (DESC.)','SALUD (DESC.)','SALUD 7% LEGAL','ADICIONAL ISAPRE','CESANTÍA','TOTAL PREVISIONAL',
       'BASE TRIBUTABLE','IMPUESTO ÚNICO','TRAMO IUSC','TOTAL DESCUENTOS','LÍQUIDO',
-      'SIS','MUTUAL','AFC EMPLEADOR','CAJA COMPENSACIÓN','TOTAL APORTES','COSTO EMPRESA'];
+      'SIS','REFORMA CAPITALIZACIÓN INDIVIDUAL','SEGURO SOCIAL PREVISIONAL (EXPECTATIVA DE VIDA)','REFORMA RENTABILIDAD PROTEGIDA (CRP)','TOTAL SEGURO SOCIAL PREVISIONAL',
+      'MUTUAL','AFC EMPLEADOR','CAJA COMPENSACIÓN','TOTAL APORTES','COSTO EMPRESA'];
     const rows=L.lineas.map((l,i)=>[i+1,l.nombre,l.rut,l.cargo,l.afp,l.salud,l.contrato,
       l.base,l.gratificacion,l.otros,l.totalImponible,
       l.colacion,l.movilizacion,l.totalNoImponible,l.totalHaberes,
       l.descAFP,l.descSalud,l.saludLegal,l.adicionalIsapre,l.descCesantia,l.totalPrevisional,
       l.baseTributable,l.iusc,l.iuscTramo||'',l.totalDescuentos,l.liquido,
-      l.sis,l.mutual,l.afc,l.caja,l.totalPatronal,l.costoEmpresa]);
+      l.sis,l.capInd||0,l.cev||0,l.crp||0,l.ssp||0,l.mutual,l.afc,l.caja,l.totalPatronal,l.costoEmpresa]);
     rows.push(['','TOTALES','','','','','',
       T.base,T.gratificacion,T.otros,T.totalImponible,
       T.colacion,T.movilizacion,T.totalNoImponible,T.totalHaberes,
       T.descAFP,T.descSalud,T.saludLegal,T.adicionalIsapre,T.descCesantia,T.totalPrevisional,
       T.baseTributable,T.iusc,'',T.totalDescuentos,T.liquido,
-      T.sis,T.mutual,T.afc,T.caja,T.totalPatronal,T.costoEmpresa]);
+      T.sis,T.capInd||0,T.cev||0,T.crp||0,T.ssp||0,T.mutual,T.afc,T.caja,T.totalPatronal,T.costoEmpresa]);
     const ws=XLSX.utils.aoa_to_sheet([hdr,...rows]);
     ws['!cols']=hdr.map((h,i)=>({wch:i===1?28:Math.max(12,String(h).length+2)}));
     const wb=XLSX.utils.book_new();
@@ -346,6 +361,8 @@ export function exportarLibroRemExcel(){
       ['Total descuentos',T.totalDescuentos],
       ['Líquido a pagar',T.liquido],
       ['Aportes del empleador',T.totalPatronal],
+      ['Seguro Social Previsional',T.ssp||0],
+      ['SSP incluye',L.periodo<SIS_A_SEGURO_SOCIAL_DESDE?'Seguro Social Previsional (expectativa de vida) y rentabilidad protegida (el SIS se paga a la AFP hasta julio 2026)':'Seguro Social Previsional (expectativa de vida), rentabilidad protegida y SIS'],
       ['Costo total empresa',T.costoEmpresa],
       ['Generado',new Date().toLocaleString('es-CL')],
     ];

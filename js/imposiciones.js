@@ -9,7 +9,7 @@
 import {toast, fmtC, MESES} from './core.js';
 import {S} from './state.js';
 import {libroDelMes} from './libroremuneraciones.js';
-import {getPrevisional, mutualInfo, cajaInfo} from './previsional.js';
+import {getPrevisional, mutualInfo, cajaInfo, SIS_A_SEGURO_SOCIAL_DESDE} from './previsional.js';
 
 // Fonasa con empresa afiliada a CCAF (Formato Previred v58)
 const TASA_FONASA_CON_CCAF=0.55, TASA_CCAF_FONASA=6.45;
@@ -43,7 +43,13 @@ function construirImposiciones(mes){
       if(!avisos.includes('libro'))avisos.push('libro');}
     sumar(l.afp||'AFP','AFP','Cotización obligatoria 10%','Trabajador',pension,id);
     sumar(l.afp||'AFP','AFP','Comisión AFP','Trabajador',comision,id);
-    sumar(l.afp||'AFP','AFP','Seguro de invalidez y sobrevivencia (SIS)','Empleador',l.sis,id);
+    sumar(l.afp||'AFP','AFP','Reforma: capitalización individual','Empleador',l.capInd,id);
+    // Desde agosto 2026 el SIS lo recauda el Seguro Social Previsional
+    const ss='Seguro Social Previsional';
+    sumar(ss,'Seguro Social','Seguro Social Previsional (expectativa de vida)','Empleador',l.cev,id);
+    sumar(ss,'Seguro Social','Rentabilidad protegida','Empleador',l.crp,id);
+    if(L.periodo>=SIS_A_SEGURO_SOCIAL_DESDE)sumar(ss,'Seguro Social','Seguro de invalidez y sobrevivencia (SIS)','Empleador',l.sis,id);
+    else sumar(l.afp||'AFP','AFP','Seguro de invalidez y sobrevivencia (SIS)','Empleador',l.sis,id);
     // Salud
     const base=R(l.baseAFP!==undefined?l.baseAFP:l.totalImponible);
     const fonasa=(l.saludKey||'fonasa')==='fonasa';
@@ -69,15 +75,18 @@ function construirImposiciones(mes){
     // Aporte de caja configurado como tasa del empleador
     if(conCaja)sumar(nomCaja,'CCAF','Aporte empleador caja de compensación','Empleador',l.caja,id);
 
-    const totalAFP=R(pension)+R(comision)+R(l.sis);
+    const sisEnAFP=L.periodo<SIS_A_SEGURO_SOCIAL_DESDE;
+    const totalAFP=R(pension)+R(comision)+R(l.capInd)+(sisEnAFP?R(l.sis):0);
+    const totalSS=(sisEnAFP?0:R(l.sis))+R(l.cev)+R(l.crp);
     const totalSalud=fonasa?(saludFonasa+saludCaja):(salud7+R(l.adicionalIsapre));
     const totalAFC=R(l.descCesantia)+R(l.afc);
     const trab=R(pension)+R(comision)+totalSalud+R(l.descCesantia);
-    const emp=R(l.sis)+R(l.afc)+R(l.mutual)+(conCaja?R(l.caja):0);
+    const emp=R(l.sis)+R(l.capInd)+R(l.cev)+R(l.crp)+R(l.afc)+R(l.mutual)+(conCaja?R(l.caja):0);
     return {
       rut:l.rut||'',nombre:l.nombre||'',dias:l.diasPagados!=null?l.diasPagados:30,
       renta:base,rentaAFC:R(l.baseAFC!==undefined?l.baseAFC:(l.baseCes!==undefined?l.baseCes:base)),
-      afp:l.afp||'',pension:R(pension),comision:R(comision),sis:R(l.sis),totalAFP,
+      afp:l.afp||'',pension:R(pension),comision:R(comision),capInd:R(l.capInd),sis:R(l.sis),totalAFP,
+      cev:R(l.cev),crp:R(l.crp),totalSS,
       salud:fonasa?(conCaja?`Fonasa + ${nomCaja}`:'Fonasa'):(l.salud||''),salud7:fonasa?saludFonasa+saludCaja:salud7,adicional:fonasa?0:R(l.adicionalIsapre),totalSalud,
       afcTrab:R(l.descCesantia),afcEmp:R(l.afc),totalAFC,
       mutual:R(l.mutual),caja:conCaja?R(l.caja):0,
@@ -88,7 +97,7 @@ function construirImposiciones(mes){
   const instituciones=[...inst.values()].map(i=>{
     const conceptos=[...i.conceptos.values()].map(c=>({...c,trabajadores:c.trabajadores.size}));
     return {...i,conceptos,total:conceptos.reduce((s,c)=>s+c.monto,0)};
-  }).sort((a,b)=>({AFP:1,Salud:2,CCAF:3,Cesantía:4,Mutual:5,ISL:5}[a.tipo]||9)-({AFP:1,Salud:2,CCAF:3,Cesantía:4,Mutual:5,ISL:5}[b.tipo]||9)||a.institucion.localeCompare(b.institucion));
+  }).sort((a,b)=>({AFP:1,'Seguro Social':2,Salud:3,CCAF:4,Cesantía:5,Mutual:6,ISL:6}[a.tipo]||9)-({AFP:1,'Seguro Social':2,Salud:3,CCAF:4,Cesantía:5,Mutual:6,ISL:6}[b.tipo]||9)||a.institucion.localeCompare(b.institucion));
 
   const tot=k=>detalle.reduce((s,d)=>s+(+d[k]||0),0);
   return {libro:L,instituciones,detalle,avisos,
@@ -140,10 +149,10 @@ function exportarImposicionesExcel(){
     XLSX.utils.book_append_sheet(wb,ws1,'Resumen por institución');
 
     // ── Hoja 2: detalle por trabajador ──
-    const hdr=['RUT','TRABAJADOR','DÍAS','RENTA IMPONIBLE','AFP','COT. OBLIGATORIA 10%','COMISIÓN AFP','SIS (EMPLEADOR)','TOTAL AFP',
+    const hdr=['RUT','TRABAJADOR','DÍAS','RENTA IMPONIBLE','AFP','COT. OBLIGATORIA 10%','COMISIÓN AFP','CAPITALIZACIÓN INDIVIDUAL (EMPL.)','SIS (EMPLEADOR)','TOTAL AFP','SEGURO SOCIAL PREVISIONAL - EXPECTATIVA DE VIDA (EMPL.)','RENTABILIDAD PROTEGIDA (EMPL.)','TOTAL SEGURO SOCIAL',
       'SALUD','COTIZACIÓN 7%','ADICIONAL ISAPRE','TOTAL SALUD','RENTA CESANTÍA','CESANTÍA TRABAJADOR','CESANTÍA EMPLEADOR','TOTAL CESANTÍA',
       'ACCIDENTES (MUTUAL/ISL)','APORTE CAJA','TOTAL TRABAJADOR','TOTAL EMPLEADOR','TOTAL IMPOSICIONES'];
-    const claves=['rut','nombre','dias','renta','afp','pension','comision','sis','totalAFP','salud','salud7','adicional','totalSalud',
+    const claves=['rut','nombre','dias','renta','afp','pension','comision','capInd','sis','totalAFP','cev','crp','totalSS','salud','salud7','adicional','totalSalud',
       'rentaAFC','afcTrab','afcEmp','totalAFC','mutual','caja','totalTrabajador','totalEmpleador','total'];
     const texto=new Set(['rut','nombre','afp','salud','dias']);
     const det=[[`DETALLE POR TRABAJADOR · ${per}`],[],hdr,
