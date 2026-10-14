@@ -1613,3 +1613,45 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .liq-tbl td:last-child:not([colspan]){white-space:nowrap!important;text-align:right}
 .liq-tbl td[colspan]{text-align:left}
 @media (max-width:520px){.liq-tbl .liq-col-monto{width:112px}.liq-tbl td{font-size:11px!important}}
+
+/* ═══ Liquidación de remuneraciones · formato tradicional (V2.21.43) ═══ */
+.liq2{font-size:12px;color:var(--tx);line-height:1.45}
+.liq2 b{font-weight:700}
+.liq2-tit{text-align:center;font-size:15px;font-weight:600;letter-spacing:.02em;margin-bottom:12px}
+.liq2-tit div{font-size:13px;font-weight:400}
+.liq2-box{border:1px solid var(--tx);margin-bottom:10px}
+.liq2-emp{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-bottom:1px solid var(--tx)}
+.liq2-emp>div:last-child{min-width:38%}
+.liq2-cab{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:6px 10px 8px}
+.liq2-k{color:var(--mt)}
+.liq2-afp{width:100%;border-collapse:collapse;border-top:1px solid var(--tx);font-family:var(--mono);font-size:11px}
+.liq2-afp th{font-family:var(--sans,inherit);font-size:10px;font-weight:600;text-align:center;padding:3px 8px;border-bottom:1px solid var(--bd);background:transparent;color:var(--tx)}
+.liq2-afp td{text-align:center;padding:4px 8px}
+.liq2-afp .tl{text-align:left}
+.liq2-info{display:grid;grid-template-columns:auto auto;justify-content:center;gap:2px 10px;margin:8px 0 14px}
+.liq2-info>div{display:contents}
+.liq2-info span{text-align:right;color:var(--mt)}
+.liq2-info b{font-weight:400;font-family:var(--mono)}
+.liq2-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.liq2-h{border:1px solid var(--tx);text-align:center;font-weight:600;padding:3px;margin-bottom:6px}
+.liq2-f{display:flex;justify-content:space-between;gap:8px;padding:1px 4px}
+.liq2-f span:last-child{font-family:var(--mono)}
+.liq2-sub{margin-top:6px}
+.liq2-in{padding-left:18px;font-weight:600}
+.liq2-tot{margin-top:10px;padding:6px 4px;border-bottom:1px solid var(--tx)}
+.liq2-pagar{display:flex;gap:40px;padding:10px 14px;border-bottom:1px solid var(--tx);font-size:14px}
+.liq2-pagar b:last-child{font-family:var(--mono)}
+.liq2-nota{font-size:10px;color:var(--mt);margin-top:4px}
+.liq2-fecha{margin:12px 0 10px}
+.liq2-cert{max-width:52%;margin-bottom:56px}
+.liq2-firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;text-align:center}
+.liq2-linea{border-top:1px solid var(--tx);margin-bottom:4px}
+.liq2-firma-sub{font-size:10px;color:var(--mt)}
+.liq2 .liq-firmas{display:none!important}
+@media (max-width:640px){.liq2-cab,.liq2-cols{grid-template-columns:1fr}.liq2-cab>div:last-child{text-align:left!important}.liq2-cert{max-width:100%}.liq2-emp{flex-direction:column}}
+@media print{
+  body.print-liq .liq2,body.print-liq .liq2 *{color:#000!important;border-color:#000!important}
+  body.print-liq .liq2-k,body.print-liq .liq2-info span,body.print-liq .liq2-firma-sub{color:#333!important}
+  body.print-liq .liq2-afp th{border-bottom-color:#999!important}
+  body.print-liq .liq2{font-size:11.5px}
+}
