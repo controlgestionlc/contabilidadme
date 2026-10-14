@@ -15,6 +15,9 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.43',fecha:'14-10-2026',titulo:'Nuevo formato de liquidación de sueldo',items:[
+    {tipo:'mejora',txt:'La liquidación de remuneraciones usa el formato tradicional: encabezado con empleador, trabajador, ISAPRE y plan, topes imponibles, UF, UTM y cargas; cuadro de cotización AFP (trabajador, empresa y total); haberes imponibles y no imponibles junto a los descuentos legales; total a pagar.'},
+    {tipo:'nuevo',txt:'Incluye la fecha, el texto de certificación "Certifico que he recibido…" y las líneas de firma "Recibí conforme" del trabajador y de la empresa. Se imprime en una hoja carta.'}]},
   {version:'V2.21.42',fecha:'14-10-2026',titulo:'Eliminar asientos automáticos y control de vacaciones',items:[
     {tipo:'nuevo',txt:'En Comprobantes, los asientos generados automáticamente (compensación y pago del F29, remuneraciones, depreciación, provisiones, cierres de costos y capitalizaciones) se pueden eliminar o anular a mano. El sistema revierte lo vinculado: un cierre de costos reabre el mes de los centros y una capitalización elimina el activo fijo creado y deja el centro otra vez como inversión en curso. Antes de confirmar se muestra qué se revertirá y las advertencias (por ejemplo, pagos F29 del mismo período).'},
     {tipo:'cambio',txt:'El cierre del ejercicio se sigue reabriendo desde Cierre de ejercicio (queda el motivo en la auditoría), y una capitalización con depreciación posterior pide eliminar primero esa depreciación. Los períodos contables cerrados siguen protegidos.'},
