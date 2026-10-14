@@ -364,6 +364,7 @@ function renderRemuneraciones(){
   if(window.getRemView&&window.getRemView()==='libro'&&window.renderLibroRem){window.renderLibroRem();return;}
   if(window.getRemView&&window.getRemView()==='asistencia'&&window.renderAsistencia){window.renderAsistencia();return;}
   if(window.getRemView&&window.getRemView()==='vacaciones'&&window.renderVacaciones){window.renderVacaciones();return;}
+  if(window.getRemView&&window.getRemView()==='finiquitos'&&window.renderFiniquitos){window.renderFiniquitos();return;}
   const tabs=window.tabsRemuneraciones?window.tabsRemuneraciones():'';
   const uf=getUF(),utm=getUTM();
   const el=document.getElementById('rem-content');
@@ -619,4 +620,4 @@ async function refrescarAsientosDesdeNube(anio){
 }
 
 
-export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, REMF};
+export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, REMF};

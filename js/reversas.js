@@ -53,6 +53,12 @@ function infoReversa(a){
     r.efectos.push('Las remuneraciones del mes quedan sin contabilizar; se puede volver a generar el asiento desde Remuneraciones. El Libro de Remuneraciones no cambia.');
     return r;
   }
+  if(a.tipo==='finiquito'){
+    const f=((S.finiquitos||{}).items||[]).find(x=>x.id===a.finiquitoId);
+    r.clase='finiquito';r.nombre='Finiquito '+(f?f.nombre:(a.glosa||'').replace(/^Finiquito\s*/,''));
+    r.efectos.push('El finiquito queda sin contabilizar; se puede volver a generar el asiento desde Remuneraciones > Finiquitos. El finiquito y su documento no se borran.');
+    return r;
+  }
   if(a.tipo==='depreciacion'){
     r.clase='depreciacion';r.nombre='Depreciación del ejercicio '+(a.periodoAF||String(a.fecha||'').slice(0,4));
     r.efectos.push('La depreciación del año queda sin contabilizar; se puede volver a generar desde Activo Fijo.');

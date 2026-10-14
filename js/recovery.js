@@ -44,7 +44,7 @@ function clavesSnapshot(){
     .filter(k=>!esClaveRecuperacion(k)&&!esClaveDiagnostico(k));
   // Asegurar claves nucleares aunque no estén todavía en localStorage.
   const fijas=[
-    'empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC','comprobantesTipo','fichasAux','indicadores','previsional','libroRem',
+    'empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC','comprobantesTipo','fichasAux','indicadores','previsional','libroRem','finiquitos',
     `ventas-${anio()}`,`compras-${anio()}`,`honorarios-${anio()}`,`asientos-${anio()}`,`apertura-${anio()}`,
     `f29-declaraciones-${anio()}`,`cierresContables-${anio()}`,`hardening-certificacion-${anio()}`,`preproduccion-${anio()}`,`piloto-${anio()}`
   ];
