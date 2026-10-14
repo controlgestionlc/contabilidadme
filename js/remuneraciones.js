@@ -418,47 +418,87 @@ function verLiquidacion(id){
   const uf=getUF(),utm=getUTM();
   const l=liquidacionMes(t,uf,utm);
   const a=l.asis;
-  const mes=MESES[mesRemSel()-1];
-  const diasTxt=a?[a.diasLicencia?a.diasLicencia+' licencia':'',a.diasPermisoSin?a.diasPermisoSin+' permiso s/goce':'',a.diasAusencia?a.diasAusencia+' ausencia':'',a.diasFueraContrato?a.diasFueraContrato+' fuera de contrato':'',a.diasPermisoCon?a.diasPermisoCon+' permiso c/goce':'',a.diasVacaciones?a.diasVacaciones+' vacaciones':''].filter(Boolean).join(' · '):'';
-  const row=(lbl,val,neg,bold)=>`<tr><td class="tl" style="padding:5px 10px;font-size:12px;${bold?'font-weight:700':''}">${lbl}</td><td style="font-family:var(--mono);text-align:right;${bold?'font-weight:700;':''}color:${neg?'var(--err)':(bold?'var(--ach)':'var(--tx)')}">${neg?'−':''}${fmtC(val)}</td></tr>`;
+  const mesN=mesRemSel(),mes=MESES[mesN-1];
   const E=S.empresa||{};
-  const html=`<div class="card liq-print" style="max-width:620px;margin:0 auto">
-    <div class="liq-emp">
-      <div><strong>${E.nombre||''}</strong>${E.rut?' · RUT '+E.rut:''}</div>
-      ${E.domicilio||E.direccion?`<div>${E.domicilio||E.direccion}${E.comuna?', '+E.comuna:''}</div>`:''}
+  const P=remParams();
+  // V2.21.43 — Formato tradicional de liquidación de remuneraciones
+  const n=v=>Math.round(+v||0).toLocaleString('es-CL');
+  const pct=v=>(+v||0).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
+  const fFecha=iso=>{const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
+  const hoy=new Date();const fecha=`${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+  const comision=+(afpInfo(t.afp).comision||0);
+  const pctTrab=10+comision, pctEmp=(l.patronal.reforma&&l.patronal.reforma.capInd)||0;
+  const topeAFP=Math.round(P.topeAFP_UF*uf), topeCes=Math.round(P.topeCesantia_UF*uf);
+  const esIsapre=t.salud&&t.salud!=='fonasa';
+  const diasNoTrab=a?Math.max(0,30-a.diasPagados):0;
+  const fila=(lbl,val,cls='')=>`<div class="liq2-f ${cls}"><span>${lbl}</span><span>${val===null?'':n(val)}</span></div>`;
+  const descLegales=l.saludLegal+l.descAFP+l.adicionalIsapre+l.descCesantia+l.iusc;
+  const html=`<div class="card liq-print liq2" style="max-width:760px;margin:0 auto">
+    <div class="liq2-tit">LIQUIDACIÓN DE REMUNERACIONES<div>${mes} - ${S.empresa.anio}</div></div>
+
+    <div class="liq2-box">
+      <div class="liq2-emp"><div><span class="liq2-k">Empleador:</span> <b>${E.nombre||''}</b></div><div><span class="liq2-k">RUT:</span> <b>${E.rut||''}</b></div></div>
+      <div class="liq2-cab">
+        <div>
+          <div><span class="liq2-k">Trabajador/a:</span> <b>${String(t.nombre||'').toUpperCase()}</b></div>
+          <div><span class="liq2-k">RUT:</span> <b>${t.rut||''}</b></div>
+          ${t.centroCosto?`<div><span class="liq2-k">C. Costo:</span> <b>${t.centroCosto}</b></div>`:''}
+          <div><span class="liq2-k">Cargo:</span> <b>${String(t.cargo||'').toUpperCase()}</b></div>
+          <div><span class="liq2-k">Incorporación:</span> <b>${fFecha(t.lre&&t.lre.fechaInicio)}</b></div>
+        </div>
+        <div style="text-align:right">
+          <div><span class="liq2-k">${esIsapre?'ISAPRE':'SALUD'}:</span> <b>${esIsapre?l.saludNm.replace(/^Isapre\s+/i,''):'Fonasa'}</b>${esIsapre&&l.planUF?` &nbsp; <span class="liq2-k">Plan:</span> <b>UF ${(+l.planUF).toLocaleString('es-CL',{maximumFractionDigits:4})}</b>`:''}</div>
+          <div><span class="liq2-k">Tope Imponible:</span> <b>${(+P.topeAFP_UF).toLocaleString('es-CL')} UF ($ ${n(topeAFP)})</b> &nbsp; <span class="liq2-k">UF:</span> <b>${(+uf).toLocaleString('es-CL',{maximumFractionDigits:2})}</b></div>
+          <div><span class="liq2-k">Tope Imp. Cesantía:</span> <b>${(+P.topeCesantia_UF).toLocaleString('es-CL')} UF ($ ${n(topeCes)})</b> &nbsp; <span class="liq2-k">UTM:</span> <b>${n(utm)}</b></div>
+          <div><span class="liq2-k">Cargas:</span> <b>${+(t.lre&&t.lre.cargasLegales)||0}</b></div>
+        </div>
+      </div>
+      <table class="liq2-afp"><thead><tr><th class="tl">AFP</th><th>Aportación Trabajador/a</th><th>Aportación Empresa</th><th>Aportación Total</th></tr></thead>
+        <tbody><tr><td class="tl">${l.afpNm.replace(/^AFP\s+/i,'')}</td><td>${n(l.descAFP)} (${pct(pctTrab)})</td><td>${n(l.patronal.capInd)} (${pct(pctEmp)})</td><td>${n(l.descAFP+(l.patronal.capInd||0))} (${pct(pctTrab+pctEmp)})</td></tr></tbody></table>
     </div>
-    <div style="text-align:center;margin-bottom:14px">
-      <div style="font-size:14px;font-weight:700">Liquidación de Sueldo</div>
-      <div style="font-size:12px;color:var(--mt)">${mes} ${S.empresa.anio} · ${S.empresa.nombre||''}</div>
+
+    <div class="liq2-info">
+      <div><span>Días no trabajados</span><b>${diasNoTrab}</b></div>
+      <div><span>SIS (empresa)</span><b>${n(l.patronal.sis)}</b></div>
+      <div><span>Adicional AFP Empresa</span><b>${n(l.patronal.capInd)}</b></div>
+      <div><span>Salario Mínimo</span><b>${n(P.ingresoMinimo)}</b></div>
     </div>
-    <div style="margin-bottom:10px"><strong>${t.nombre}</strong><div style="font-size:11px;color:var(--mt)">${t.cargo||''} ${t.rut?'· '+t.rut:''} · ${l.afpNm} · ${l.saludNm}</div>
-      ${a?`<div style="font-size:11px;margin-top:4px">Días pagados: <strong>${a.diasPagados}</strong> de 30${diasTxt?` <span style="color:var(--mt)">(${diasTxt})</span>`:''}</div>`:''}</div>
-    <table class="liq-tbl"><colgroup><col><col class="liq-col-monto"></colgroup><tbody>
-      <tr class="rth"><td colspan="2" class="tl" style="padding:6px 10px">HABERES</td></tr>
-      ${row(l.porHora?`Sueldo por horas (${l.horas||0} h × ${fmtC(l.valorHora)})`:(l.factor<1?`Sueldo base (${a.diasPagados}/30 días de ${fmtC(l.baseContrato)})`:'Sueldo base'),l.base)}
-      ${l.grat?row(l.gratModo==='pct'
-          ?`Gratificación legal (${l.gratInfo.pct}%${l.gratInfo.topeAplicado?' · tope legal aplicado':''})`
-          :'Gratificación pactada',l.grat):''}
-      ${l.otros?row('Otros imponibles',l.otros):''}
-      ${l.colacion?row('Colación (no imp.)',l.colacion):''}
-      ${l.movilizacion?row('Movilización (no imp.)',l.movilizacion):''}
-      ${row('Total haberes',l.totalHaberes,false,true)}
-      <tr class="rth"><td colspan="2" class="tl" style="padding:6px 10px">DESCUENTOS</td></tr>
-      ${row((/^AFP\b/i.test(l.afpNm)?l.afpNm:'AFP '+l.afpNm)+' (pensión 10%)',l.descAFP_pension,true)}
-      ${row('AFP comisión',l.descAFP_comision,true)}
-      ${row('Salud 7% (cotización legal)',l.saludLegal,true)}
-      ${l.adicionalIsapre?row(`Adicional ${l.saludNm} (plan ${(+l.planUF).toLocaleString('es-CL',{maximumFractionDigits:4})} UF)`,l.adicionalIsapre,true):''}
-      ${l.descCesantia?row(`Seguro cesantía ${l.tasaCesTrab.toLocaleString('es-CL')}%`,l.descCesantia,true):''}
-      ${l.iusc?row(`Impuesto único 2ª cat. (tramo ${l.iuscDet.idx+1} · ${(l.iuscDet.factor*100).toFixed(2)}%)`,l.iusc,true):''}
-      ${row('Total descuentos',l.totalDescuentos,true,true)}
-      <tr style="background:rgba(46,160,67,.14)"><td class="tl" style="padding:11px 10px;font-weight:700;font-size:14px">LÍQUIDO A PAGAR</td><td style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:var(--ach)">${fmtC(l.liquido)}</td></tr>
-    </tbody></table>
-    <div style="font-size:10px;color:var(--mt);margin-top:8px">Base tributable: ${fmtC(l.baseTributable)} · UF ${fmtC(uf)} · UTM ${fmtC(utm)}</div>
-    <div class="liq-firmas">
-      <div><div class="liq-linea"></div>Firma empleador</div>
-      <div><div class="liq-linea"></div>Recibí conforme: ${t.nombre}${t.rut?' · '+t.rut:''}</div>
+
+    <div class="liq2-cols">
+      <div>
+        <div class="liq2-h">HABERES</div>
+        ${fila('Imponible',l.totalImponible,'liq2-sub')}
+        ${fila(l.porHora?`Sueldo por horas (${l.horas||0} h)`:'Sueldo Base',l.base,'liq2-in')}
+        ${l.grat?fila(l.gratModo==='pct'?'Gratificación legal':'Gratificación',l.grat,'liq2-in'):''}
+        ${l.otros?fila('Otros imponibles',l.otros,'liq2-in'):''}
+        ${fila('No imponible',l.totalNoImponible,'liq2-sub')}
+        ${l.movilizacion?fila('Movilización',l.movilizacion,'liq2-in'):''}
+        ${l.colacion?fila('Colación',l.colacion,'liq2-in'):''}
+      </div>
+      <div>
+        <div class="liq2-h">DESCUENTOS</div>
+        ${fila('Descuentos Legales',descLegales,'liq2-sub')}
+        ${fila('Salud',l.saludLegal,'liq2-in')}
+        ${fila('AFP',l.descAFP,'liq2-in')}
+        ${l.adicionalIsapre?fila('Adicional Isapre',l.adicionalIsapre,'liq2-in'):''}
+        ${l.descCesantia?fila('Seguro de cesantía (trabajador)',l.descCesantia,'liq2-in'):''}
+        ${l.iusc?fila('Impuesto único',l.iusc,'liq2-in'):''}
+      </div>
     </div>
-    <div style="margin-top:12px;text-align:right"><button class="btn btn-g" onclick="renderRemuneraciones()">← Volver</button> <button class="btn btn-g" onclick="imprimirLiquidacion()">🖨️ Imprimir</button></div>
+    <div class="liq2-cols liq2-tot">
+      <div><b>TOTAL HABERES:</b> &nbsp; ${n(l.totalHaberes)}</div>
+      <div><b>TOTAL DESCUENTOS:</b> &nbsp; ${n(l.totalDescuentos)}</div>
+    </div>
+    <div class="liq2-pagar"><b>TOTAL A PAGAR:</b><b>${n(l.liquido)}</b></div>
+    ${a&&!a.completo?`<div class="liq2-nota">Días pagados: ${a.diasPagados} de 30${[a.diasLicencia?a.diasLicencia+' de licencia':'',a.diasPermisoSin?a.diasPermisoSin+' de permiso sin goce':'',a.diasAusencia?a.diasAusencia+' de ausencia':'',a.diasFueraContrato?a.diasFueraContrato+' fuera de contrato':''].filter(Boolean).map(x=>' · '+x).join('')}</div>`:''}
+
+    <div class="liq2-fecha">Fecha: ${fecha}</div>
+    <div class="liq2-cert">Certifico que he recibido de ${E.nombre||'mi empleador'} a mi entera satisfacción el saldo indicado en la presente liquidación, no teniendo cargo ni cobro alguno posteriores que hacer.</div>
+    <div class="liq2-firmas">
+      <div><div class="liq2-linea"></div>Recibí conforme<div class="liq2-firma-sub">${t.nombre||''}${t.rut?' · '+t.rut:''}</div></div>
+      <div><div class="liq2-linea"></div>${E.nombre||'Empleador'}<div class="liq2-firma-sub">${E.rut?'RUT '+E.rut:''}</div></div>
+    </div>
+    <div style="margin-top:14px;text-align:right"><button class="btn btn-g" onclick="renderRemuneraciones()">← Volver</button> <button class="btn btn-g" onclick="imprimirLiquidacion()">🖨️ Imprimir</button></div>
   </div>`;
   document.getElementById('rem-content').innerHTML=html;
 }
