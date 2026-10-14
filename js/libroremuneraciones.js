@@ -157,7 +157,7 @@ export async function reabrirMesRem(){
 
 // ── Vista ──
 export function setRemView(v){
-  REM_VIEW=(v==='libro'||v==='asistencia')?v:'trabajadores';
+  REM_VIEW=(v==='libro'||v==='asistencia'||v==='vacaciones')?v:'trabajadores';
   if(window.renderRemuneraciones)window.renderRemuneraciones();
 }
 export function getRemView(){return REM_VIEW;}
@@ -167,6 +167,7 @@ export function tabsRemuneraciones(){
   return `<div class="aux-tabs">
     <div class="aux-tab ${REM_VIEW==='trabajadores'?'active':''}" onclick="setRemView('trabajadores')">👷 Trabajadores</div>
     <div class="aux-tab ${REM_VIEW==='asistencia'?'active':''}" onclick="setRemView('asistencia')">📅 Asistencia</div>
+    <div class="aux-tab ${REM_VIEW==='vacaciones'?'active':''}" onclick="setRemView('vacaciones')">🏖️ Vacaciones</div>
     <div class="aux-tab ${REM_VIEW==='libro'?'active':''}" onclick="setRemView('libro')">📗 Libro de Remuneraciones</div>
   </div>`;
 }

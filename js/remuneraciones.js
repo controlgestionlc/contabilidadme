@@ -363,6 +363,7 @@ function renderRemuneraciones(){
   // Se llama por window para no crear un ciclo de imports entre ambos módulos.
   if(window.getRemView&&window.getRemView()==='libro'&&window.renderLibroRem){window.renderLibroRem();return;}
   if(window.getRemView&&window.getRemView()==='asistencia'&&window.renderAsistencia){window.renderAsistencia();return;}
+  if(window.getRemView&&window.getRemView()==='vacaciones'&&window.renderVacaciones){window.renderVacaciones();return;}
   const tabs=window.tabsRemuneraciones?window.tabsRemuneraciones():'';
   const uf=getUF(),utm=getUTM();
   const el=document.getElementById('rem-content');
