@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.13-2330';
+const APP_VERSION='v2026.10.14-1100';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.42',fecha:'14-10-2026',titulo:'Eliminar asientos automáticos y control de vacaciones',items:[
+    {tipo:'nuevo',txt:'En Comprobantes, los asientos generados automáticamente (compensación y pago del F29, remuneraciones, depreciación, provisiones, cierres de costos y capitalizaciones) se pueden eliminar o anular a mano. El sistema revierte lo vinculado: un cierre de costos reabre el mes de los centros y una capitalización elimina el activo fijo creado y deja el centro otra vez como inversión en curso. Antes de confirmar se muestra qué se revertirá y las advertencias (por ejemplo, pagos F29 del mismo período).'},
+    {tipo:'cambio',txt:'El cierre del ejercicio se sigue reabriendo desde Cierre de ejercicio (queda el motivo en la auditoría), y una capitalización con depreciación posterior pide eliminar primero esa depreciación. Los períodos contables cerrados siguen protegidos.'},
+    {tipo:'nuevo',txt:'Remuneraciones → Vacaciones: saldo de feriado legal por trabajador en días hábiles (15 al año, 20 en zona extrema, devengados a 1,25 día por mes), días progresivos según el Art. 68 (hasta 10 años con empleadores anteriores y 1 día por cada 3 años nuevos con el empleador actual), saldo inicial a una fecha, aviso al superar 2 períodos acumulados y Excel de saldos.'},
+    {tipo:'nuevo',txt:'Al registrar vacaciones se calculan los días hábiles descontando sábados, domingos y festivos (feriados nacionales calculados para cada año, más los que agregues, como elecciones). Las vacaciones quedan también en la Asistencia y se pagan normalmente.'},
+  ]},
   {version:'V2.21.41',fecha:'13-10-2026',titulo:'Nombres como el formulario del Seguro Social Previsional',items:[
     {tipo:'cambio',txt:'La compensación por expectativa de vida se llama ahora "Seguro Social Previsional (expectativa de vida)", igual que en el formulario de cotizaciones de Previred, en la configuración, la liquidación interna, el Libro, su Excel y el detalle de imposiciones. En el detalle de imposiciones el Seguro Social Previsional se ordena como el formulario: expectativa de vida, rentabilidad protegida y SIS.'},
   ]},

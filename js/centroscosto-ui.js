@@ -355,13 +355,14 @@ export async function ejecutarCierreMensual(){
   const ultimo=new Date(anio,mes,0).getDate();
   const fecha=`${anio}-${String(mes).padStart(2,'0')}-${ultimo}`;
   const folio=proxFolioAsiento();
-  const rAs=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha,
+  const idCierreCC='as_'+Date.now();
+  const rAs=await persistirAsientosCritico(()=>{S.asientos.push({id:idCierreCC,n:folio,fecha,
     glosa:`Cierre costos ${MESES[mes-1]} ${anio}`,movs,
     tipoCierreCC:true});}); // marca: no volver a contarlo como gasto del centro
   if(!rAs.ok){toast('❌ No se pudo contabilizar el cierre mensual. No se realizaron cambios.','e');return;}
 
   pendientes.forEach(({centro,m})=>{
-    registrarCierre({cc:centro.id,periodo:m.periodo,fecha,folio,activo:m.activo,costo:m.costo,total:m.total});
+    registrarCierre({cc:centro.id,periodo:m.periodo,fecha,folio,asientoId:idCierreCC,activo:m.activo,costo:m.costo,total:m.total});
   });
   await guardarCierresCC();
 
@@ -660,7 +661,8 @@ export async function confirmarCapitalizar(id){
 
   const folio=proxFolioAsiento();
   const snapAs=JSON.stringify(S.asientos||[]),snapAf=JSON.stringify(S.activos||[]);
-  const rCap=await persistirAsientosCritico(()=>{S.asientos.push({id:'as_'+Date.now(),n:folio,fecha,glosa:`Capitalización ${desc}`,movs,tipoCierreCC:true});});
+  const idCap='as_'+Date.now();
+  const rCap=await persistirAsientosCritico(()=>{S.asientos.push({id:idCap,n:folio,fecha,glosa:`Capitalización ${desc}`,movs,tipoCierreCC:true,ccCapitalizado:id});});
   if(!rCap.ok){toast('❌ No se pudo contabilizar la capitalización.','e');return;}
 
   // Registrar el activo fijo con base financiera y tributaria separadas.
@@ -668,7 +670,7 @@ export async function confirmarCapitalizar(id){
   S.activos.push({
     id:'af_'+Date.now(),desc,cat:'instalaciones',
     cuentaActivo,cuentaDeprAcum:'',cuentaGasto:'',
-    fecha,valor:total,residual:0,vida:10,metodo:'lineal',
+    fecha,valor:total,residual:0,vida:10,metodo:'lineal',asientoCapitalizacion:idCap,
     valorContable:total,residualContable:0,vidaContable:10,metodoContable:'lineal',
     valorTributario:total,residualTributario:0,vidaTributaria:10,metodoTributario:'lineal',cc:id,
   });
@@ -681,7 +683,7 @@ export async function confirmarCapitalizar(id){
     toast('❌ No se pudo guardar el activo. La capitalización fue revertida.','e');return;
   }
 
-  actualizarCentro(id,{estado:'capitalizado',capitalizadoEn:fecha});
+  actualizarCentro(id,{estadoPrevioCapitalizacion:c.estado||'formacion',estado:'capitalizado',capitalizadoEn:fecha});
   await guardarCentros();
 
   document.getElementById('cc-capitalizar').style.display='none';

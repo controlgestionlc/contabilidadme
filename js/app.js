@@ -128,6 +128,8 @@ import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSalud
         onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired} from './remuneraciones.js';
 import {exportarPrevired, mostrarValidacionPrevired, setCfgPrevired, setCodigoPrevired} from './previred.js';
 import {exportarImposicionesExcel} from './imposiciones.js';
+import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
+        guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
@@ -809,6 +811,8 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem,
   verLiquidacion, generarAsientoRemuneraciones, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired,
   exportarPrevired, mostrarValidacionPrevired, setCfgPrevired, setCodigoPrevired, exportarImposicionesExcel,
+  renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
+  guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel,
   renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
   eliminarEventoAsistencia, setHorasMes, onAsisTipoChange,
   // cierre

@@ -18,6 +18,7 @@ import {logAccion} from './firebase.js';
 import {ejercicioCerrado,persistirAsientosCritico,persistirClavesCritico,anularDocumentoContabilizado,anularAsientoDocumento} from './contabilidad-v2.js';
 import {inferirDteDesdeAsiento} from './dte-autocompletar.js';
 import {abrirEditorPago} from './pagoeditor.js';
+import {infoReversa, eliminarAsientoAuto} from './reversas.js';
 
 // Filtros
 let CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
@@ -631,7 +632,7 @@ function renderCmpModalView(box,e,o){
       <div style="display:flex;justify-content:space-between;gap:8px;margin-top:16px;flex-wrap:wrap">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${borrable(e)?`<button class="btn btn-d" onclick="eliminarComprobante()">🗑 Eliminar</button>`:''}
-          ${(e.origen==='manual'||e.tipo==='pago')?`<button class="btn btn-g" onclick="anularComprobante()" title="Mantiene el N° correlativo pero excluye sus efectos">🚫 Anular</button>`:''}
+          ${(e.origen==='manual'||e.tipo==='pago'||asientoAutoDe(e))?`<button class="btn btn-g" onclick="anularComprobante()" title="Mantiene el N° correlativo pero excluye sus efectos">🚫 Anular</button>`:''}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-g" onclick="cerrarCmpModal()">Cerrar</button>
@@ -651,7 +652,29 @@ function renderCmpModalView(box,e,o){
 function borrable(e){
   if(e.tipo==='pago')return true;   // pagos/cobros agrupados: eliminables (restauran saldos)
   if(e.origen==='manual'||e.origen==='apertura')return true;
-  return e.origen==='auto'&&['ventas','compras','honorarios'].includes(e.fuente)&&!!e.docId;
+  if(e.origen==='auto'&&['ventas','compras','honorarios'].includes(e.fuente)&&!!e.docId)return true;
+  return !!asientoAutoDe(e);
+}
+// V2.21.42 — Asiento automático (F29, remuneraciones, depreciación, cierres
+// de costos, capitalización, provisiones…) que se puede eliminar o anular a
+// mano con su reversa.
+function asientoAutoDe(e){
+  if(!e||!e.asientoId||e.origen==='manual'||e.tipo==='pago')return null;
+  const a=(S.asientos||[]).find(x=>x.id===e.asientoId);
+  return a&&infoReversa(a)?a:null;
+}
+async function eliminarOAnularAuto(e,modo){
+  const a=asientoAutoDe(e);if(!a)return false;
+  const r=await eliminarAsientoAuto(a,{modo});
+  if(!r.ok){
+    if(r.motivo==='cancelado')return true;
+    if(r.motivo==='bloqueado'){toast('🔒 '+r.detalle,'e');return true;}
+    toast(`❌ No se pudo ${modo==='anular'?'anular':'eliminar'} el asiento (${r.motivo}). No se realizaron cambios.`,'e');return true;
+  }
+  cerrarCmpModal();rerender();
+  toast(`${modo==='anular'?'🚫 Asiento N°'+r.info.num+' anulado':'🗑 Asiento N°'+r.info.num+' eliminado'}${r.info.reversa?' · registros vinculados revertidos':''}`);
+  if(r.avisos&&r.avisos.length)setTimeout(()=>toast('⚠️ '+r.avisos.join(' '),'e'),1200);
+  return true;
 }
 
 async function eliminarComprobante(){
@@ -745,6 +768,9 @@ async function eliminarComprobante(){
     return;
   }
 
+  // ── Automáticos con reversa (F29, remuneraciones, depreciación, cierres…) ──
+  if(await eliminarOAnularAuto(e,'eliminar'))return;
+
   toast('⚠️ Este comprobante no se puede eliminar desde aquí','e');
 }
 
@@ -752,7 +778,8 @@ async function eliminarComprobante(){
 // contabilidad, donde el correlativo no debería tener huecos.
 async function anularComprobante(){
   const e=CMP_ENTRIES[CMP_MODAL.idx];
-  if(!e||(e.origen!=='manual'&&e.tipo!=='pago'))return;
+  if(!e)return;
+  if(e.origen!=='manual'&&e.tipo!=='pago'){await eliminarOAnularAuto(e,'anular');return;}
   const a=S.asientos.find(x=>x.id===e.asientoId)||S.asientos.find(x=>x.n===e.ref)||S.asientos.find(x=>x.folioComp===e.n);
   if(!a){toast('⚠️ No se encontró el asiento de origen','e');return;}
   const nComp=a.numeroContable||a.n||'';
