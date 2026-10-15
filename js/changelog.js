@@ -15,6 +15,13 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.52',fecha:'15-10-2026',titulo:'Reajuste del remanente de crédito fiscal como el SII',items:[
+    {tipo:'correccion',txt:'El remanente de crédito fiscal se reajusta como lo calcula el SII (art. 27 DL 825): se convierte a UTM con la UTM del mes en que se declaró el período anterior, se redondea a 2 decimales y se reconvierte con la UTM del mes en que se declara el período actual. Ejemplo: remanente diciembre 2024 de $176.181 ÷ UTM enero 2025 ($67.429) = 2,61 UTM × UTM febrero 2025 ($67.294) = $175.637 en el código 504 del F29 de enero 2025. Antes se usaban las UTM del mes de cada período y sin redondeo.'},
+    {tipo:'mejora',txt:'El F29 y el asiento de compensación de IVA muestran el cálculo paso a paso (pesos ÷ UTM = UTM con 2 decimales × UTM = pesos).'}]},
+  {version:'V2.21.51',fecha:'15-10-2026',titulo:'Ajustes de revisión normativa',items:[
+    {tipo:'mejora',txt:'Finiquito: el texto de ayuda del descuento AFC aclara que el monto legal es el del certificado de AFC Chile, que incluye la rentabilidad de la cuenta; el estimado es referencial.'},
+    {tipo:'mejora',txt:'Renta: las cuentas de mermas, pérdidas o destrucción de inventario se sugieren para revisión como posible gasto rechazado (Art. 21), salvo que tengan respaldo según la Circular N° 32 de 2020.'},
+    {tipo:'correccion',txt:'La pantalla de inicio de sesión muestra la versión vigente desde el primer momento.'}]},
   {version:'V2.21.50',fecha:'15-10-2026',titulo:'Pago por institución en el libro en PDF',items:[
     {tipo:'nuevo',txt:'El PDF del Libro de Remuneraciones suma una hoja con el detalle a pagar por cada institución, como el resumen de Previred: un cuadro con cargo trabajador, cargo empleador, asignación familiar descontada y total por institución, y el detalle de conceptos de cada una (AFP, Seguro Social Previsional, salud, caja, AFC, mutual o ISL). Usa el mismo cálculo del archivo Previred y del detalle de imposiciones.'}]},
   {version:'V2.21.49',fecha:'15-10-2026',titulo:'Salud en la liquidación',items:[

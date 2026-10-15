@@ -158,6 +158,19 @@ function _iuscRemuneraciones(periodo){
 }
 // UTM de un período: la ingresada en ese F29 > histórico oficial (SII) >
 // la usada en la liquidación de remuneraciones del mes.
+// V2.21.52 — Reajuste del remanente como lo calcula el SII (art. 27 DL 825):
+// el remanente de un período se convierte a UTM con la UTM del mes en que se
+// declara ese período (el mes siguiente), se redondea a 2 decimales y se
+// reconvierte con la UTM del mes en que se declara el período donde se imputa.
+// Ej.: remanente dic-2024 $176.181 ÷ UTM ene-2025 $67.429 = 2,61 UTM ×
+// UTM feb-2025 $67.294 = $175.637 en el F29 de enero 2025.
+const periodoSiguiente=p=>{const [y,m]=String(p).split('-').map(Number);return m===12?`${y+1}-01`:`${y}-${String(m+1).padStart(2,'0')}`;};
+function _utmDeclaracion(periodo){return _utmPeriodo(periodoSiguiente(periodo));}
+function reajustarRemanente(monto,utmOrigen,utmDestino){
+  if(!(monto>0)||!(utmOrigen>0)||!(utmDestino>0))return {monto,utm:0,reajustado:false};
+  const utm=Math.round(monto/utmOrigen*100)/100;
+  return {monto:Math.round(utm*utmDestino),utm,reajustado:true};
+}
 function _utmPeriodo(periodo){
   const guardada=+(declaracionF29(periodo)||F29DECL.anterior?.[periodo])?.utm||0;
   if(guardada>0)return guardada;
@@ -201,7 +214,7 @@ function calcularF29Anual(){
   const meses=[];
   const ini=remanenteInicialF29();
   let remanenteAnt=ini.monto;
-  let utmRemanenteAnt=ini.monto>0?_utmPeriodo(ini.periodo):0;
+  let utmRemanenteAnt=ini.monto>0?_utmDeclaracion(ini.periodo):0;   // UTM del mes en que se declaró el período de origen
   const tasaPPM=(S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0)/100;
   for(let m=1;m<=12;m++){
     const vs=todosDocsVentas().filter(d=>+d.fecha.slice(5,7)===m);
@@ -232,10 +245,12 @@ function calcularF29Anual(){
     const honM=(S.honorarios||[]).filter(h=>h.estado!=='anulado'&&h.mes===m);
     const retencionHon=Math.round(honM.reduce((s,h)=>s+(h.retencion!=null?Math.abs(+h.retencion||0):Math.round(Math.abs(+h.bruto||0)*(h.tasaRetencion!=null?+h.tasaRetencion:retencionHonorarios(S.empresa.anio)))),0));
     const iusc=_iuscRemuneraciones(per);
-    const utmPeriodo=_utmPeriodo(per);
-    const remanenteReaj=remanenteAnt>0&&utmRemanenteAnt>0&&utmPeriodo>0?Math.round((remanenteAnt/utmRemanenteAnt)*utmPeriodo):remanenteAnt;
+    const utmPeriodo=_utmPeriodo(per);            // UTM del mes calendario del período (dato del formulario)
+    const utmImputacion=_utmDeclaracion(per);     // UTM del mes en que se declara este período
+    const rr=reajustarRemanente(remanenteAnt,utmRemanenteAnt,utmImputacion);
+    const remanenteReaj=rr.monto, remanenteUTM=rr.utm;
     const reajusteRemanente=remanenteReaj-remanenteAnt;
-    const remanenteSinUTM=remanenteAnt>0&&!(utmRemanenteAnt>0&&utmPeriodo>0);
+    const remanenteSinUTM=remanenteAnt>0&&!rr.reajustado;
     const creditoTotal=creditoMes+remanenteReaj;
     const debitoTotal=debito+ivaRetenido;
     const ivaDeterminado=debitoTotal-creditoTotal;
@@ -262,11 +277,11 @@ function calcularF29Anual(){
       39:ivaRetenido
     };
     const decl=declaracionF29(per);
-    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,remanenteReaj,reajusteRemanente,remanenteSinUTM,utmRemanenteAnt,utmPeriodo,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,ppm,retencionHon,iusc,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
+    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,remanenteReaj,reajusteRemanente,remanenteSinUTM,utmRemanenteAnt,utmPeriodo,utmImputacion,remanenteUTM,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,ppm,retencionHon,iusc,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
     // Si el período fue presentado, el arrastre legal al mes siguiente es el
     // remanente DECLARADO, no el que hoy resulte de recalcular documentos viejos.
     remanenteAnt=esF29Presentado(decl)?codDecl(decl,77,remanente):remanente;
-    utmRemanenteAnt=utmPeriodo;
+    utmRemanenteAnt=utmImputacion;
   }
   return meses;
 }
@@ -444,6 +459,7 @@ function renderF29(){
       ${d.ivaNoRecuperable?linea('','IVA no recuperable incorporado al costo',d.ivaNoRecuperable,{color:'var(--warn)'}):''}
       ${d.remanenteAnt>0?linea('504','Remanente anterior reajustado por UTM',d.remanenteReaj,{color:'var(--info)'}):''}
       ${d.reajusteRemanente?linea('','Reajuste del remanente',d.reajusteRemanente,{color:'var(--info)'}):''}
+      ${d.remanenteAnt>0&&d.remanenteUTM?`<div style="font-size:10.5px;color:var(--mt);padding:2px 0 6px 0">Cálculo SII: ${fmtC(d.remanenteAnt)} ÷ UTM ${MESES[d.m-1]} ${fmtC(d.utmRemanenteAnt)} = ${d.remanenteUTM.toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})} UTM × UTM ${MESES[d.m%12]} ${fmtC(d.utmImputacion)} = ${fmtC(d.remanenteReaj)}</div>`:''}
       ${linea('537','TOTAL CRÉDITOS',d.creditoTotal,{bold:true})}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">DETERMINACIÓN IVA</td></tr>
       ${d.ivaAPagar>0?linea('89','IVA a pagar',d.ivaAPagar,{bold:true,hl:true,color:'var(--err)'}):linea('77','Remanente crédito fiscal (mes siguiente)',d.remanente,{bold:true,hl:true,color:'var(--info)'})}
@@ -549,9 +565,9 @@ function calcularCompensacionIVA(mes){
   // factor es 1 y no se genera línea: el usuario decide si reajusta o no.
   const utmO=+IVAC.utmOrigen||0, utmA=+IVAC.utmActual||0;
   let remanenteReaj=d.remanenteAnt, reajuste=0, remanenteUTM=0;
-  if(d.remanenteAnt>0&&utmO>0&&utmA>0&&utmO!==utmA){
-    remanenteUTM=d.remanenteAnt/utmO;
-    remanenteReaj=Math.round(remanenteUTM*utmA);
+  if(d.remanenteAnt>0&&utmO>0&&utmA>0){
+    const rr=reajustarRemanente(d.remanenteAnt,utmO,utmA);   // UTM a 2 decimales, como el SII
+    remanenteUTM=rr.utm;remanenteReaj=rr.monto;
     reajuste=remanenteReaj-d.remanenteAnt;
   }
   // Recalcular la determinación con el remanente reajustado.
@@ -622,12 +638,13 @@ function renderCompensacionIVA(){
   // Cuentas por defecto que sí existan en este plan de cuentas
   if(!PDC.some(x=>x.cd===IVAC.cuentas.reajuste))
     IVAC.cuentas.reajuste=primeraCuenta('3502001','3501001','3503001','4301001','3401001')||IVAC.cuentas.reajuste;
-  // UTM: las del cálculo F29 (histórico por mes: origen = mes anterior,
-  // actual = mes del período). Sin dato, la configurada en Indicadores.
+  // UTM: las del cálculo F29 (meses de declaración: origen = mes en que se
+  // declaró el período anterior, actual = mes en que se declara este período).
+  // Sin dato, la configurada en Indicadores.
   const utmCfg=Math.round(getIndicadores()?.utm||0);
   const dUTM=calcularF29Anual()[mes-1]||{};
   if(!IVAC.utmOrigen)IVAC.utmOrigen=Math.round(dUTM.utmRemanenteAnt||0)||utmCfg;
-  if(!IVAC.utmActual)IVAC.utmActual=Math.round(dUTM.utmPeriodo||0)||utmCfg;
+  if(!IVAC.utmActual)IVAC.utmActual=Math.round(dUTM.utmImputacion||0)||utmCfg;
 
   const r=calcularCompensacionIVA(mes);
   const d=r.d;
@@ -709,15 +726,15 @@ function renderCompensacionIVA(){
     <div style="font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Reajuste del remanente (art. 27 DL 825)</div>
     ${d.remanenteAnt>0?`
       <div class="fg" style="margin-bottom:6px">
-        <div class="grp"><label>UTM del mes en que se originó</label>
+        <div class="grp"><label>UTM del mes de declaración del período anterior</label>
           <input type="number" class="money-input" value="${IVAC.utmOrigen}" onchange="setIvacCampo('utmOrigen',this.value)"></div>
-        <div class="grp"><label>UTM del mes de imputación</label>
+        <div class="grp"><label>UTM del mes de declaración de este período</label>
           <input type="number" class="money-input" value="${IVAC.utmActual}" onchange="setIvacCampo('utmActual',this.value)"></div>
       </div>
       <div style="font-size:11px;color:var(--mt);margin-bottom:14px">
-        El remanente se expresa en UTM del mes en que se originó y se reconvierte a la UTM del mes en que se imputa.
-        Con ambos valores iguales el factor es 1 y no se genera línea de reajuste.
-        ${r.reajuste!==0?`<br><strong style="color:var(--info)">${fmtC(d.remanenteAnt)} ÷ ${fmt(IVAC.utmOrigen)} = ${r.remanenteUTM.toFixed(2)} UTM × ${fmt(IVAC.utmActual)} = ${fmtC(r.remanenteReaj)}</strong> · reajuste ${fmtC(r.reajuste)}`:''}
+        Como el SII: el remanente se convierte a UTM con la UTM del mes en que se declaró el período anterior, se redondea a 2 decimales y se reconvierte con la UTM del mes en que se declara este período.
+        Por el redondeo puede haber una diferencia de algunos pesos aunque ambas UTM sean iguales.
+        ${r.remanenteUTM?`<br><strong style="color:var(--info)">${fmtC(d.remanenteAnt)} ÷ ${fmt(IVAC.utmOrigen)} = ${r.remanenteUTM.toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})} UTM × ${fmt(IVAC.utmActual)} = ${fmtC(r.remanenteReaj)}</strong> · reajuste ${fmtC(r.reajuste)}`:''}
       </div>`
       :`<div style="font-size:11px;color:var(--mt);margin-bottom:14px">No hay remanente arrastrado desde el mes anterior, así que no corresponde reajuste.</div>`}
 

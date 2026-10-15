@@ -21,6 +21,10 @@
 //  - Art. 177: el finiquito se ratifica ante ministro de fe (notario,
 //    inspector del trabajo, etc.) o en forma electrónica en la DT.
 //  - Art. 178: las indemnizaciones por término no son imponibles ni tributables.
+//    Incluye la compensación del feriado pagada al término del contrato: el SII
+//    la considera indemnización legal que no constituye renta (Oficio N° 2045,
+//    01-09-2011; Art. 17 N° 13 LIR). Sólo el feriado compensado con el contrato
+//    vigente es renta afecta a impuesto único.
 //
 // Los textos se arman con plantillas editables con marcadores {{campo}}.
 // Hay plantillas tipo por causal y se pueden crear propias, escribiéndolas o
@@ -473,7 +477,7 @@ function renderForm(el){
       <div class="grp"><label>Última remuneración manual</label><input type="number" id="fin-base" value="${esc(f.baseManual)}" placeholder="Automática" onchange="onFinCambio()"><div style="font-size:10px;color:var(--mt);margin-top:2px">Para remuneraciones variables: promedio de los últimos 3 meses</div></div>
       <div class="grp"><label>Días hábiles de feriado</label><input type="number" step="0.01" id="fin-feriado" value="${esc(f.diasFeriadoManual)}" placeholder="Automático" onchange="onFinCambio()"></div>
       ${c.ias?`<div class="grp"><label>Años de indemnización</label><input type="number" step="1" id="fin-anios" value="${esc(f.aniosManual)}" placeholder="Automático" onchange="onFinCambio()"></div>
-      <div class="grp"><label>Descuento aporte AFC empleador</label><input type="number" id="fin-afc" value="${esc(f.afcManual)}" placeholder="Estimado" onchange="onFinCambio()"><div style="font-size:10px;color:var(--mt);margin-top:2px">Usa el monto del certificado de la AFC. Escribe 0 para no descontar</div></div>`:''}
+      <div class="grp"><label>Descuento aporte AFC empleador</label><input type="number" id="fin-afc" value="${esc(f.afcManual)}" placeholder="Estimado" onchange="onFinCambio()"><div style="font-size:10px;color:var(--mt);margin-top:2px">El descuento legal es el del certificado de AFC Chile, que incluye la rentabilidad de la cuenta. El estimado es referencial. Escribe 0 para no descontar</div></div>`:''}
       <div class="fin-cks" style="grid-column:1/-1"><label><input type="checkbox" id="fin-incmes" ${f.incMesTermino?'checked':''} onchange="onFinCambio(true)"> Incluir la remuneración del mes de término (si no se paga en la liquidación mensual)</label></div>
       ${f.incMesTermino?`<div class="grp"><label>Monto líquido del mes</label><input type="number" id="fin-montomes" value="${esc(f.montoMesTermino)}" placeholder="Automático" onchange="onFinCambio()"></div>`:''}
     </div>

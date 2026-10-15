@@ -105,6 +105,7 @@ const PISTAS_RECHAZO=[
   {re:/GASTO(S)? RECHAZADO|NO DEDUCIBLE/i,      motivo:'Gasto rechazado (Art. 21)'},
   {re:/RETIRO|PARTICULAR(ES)?/i,                 motivo:'Retiros y gastos particulares del dueño (Art. 21)'},
   {re:/PROVISI[ÓO]N|ESTIMACI[ÓO]N/i,            motivo:'Provisión / estimación — deducible sólo al materializarse'},
+  {re:/MERMA|DESTRUCCI[ÓO]N|P[ÉE]RDIDA(S)? DE (MERCADER|INVENTAR|EXISTENC)/i, motivo:'Mermas o destrucción de inventario: deducibles si son habituales del proceso con respaldo técnico, o si la destrucción se comunicó al SII o se hizo ante ministro de fe (Circular N° 32 de 2020). Si no, gasto rechazado (Art. 21)'},
 ];
 function motivoRechazo(cd,nm){
   const txt=String(nm||pdcNm(cd)||'');
