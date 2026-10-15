@@ -11,6 +11,7 @@ import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal, tasasAFC} f
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {numeroMostrar} from './correlativo-contable.js';
 import {asistenciaMes} from './asistencia.js';
+import {numeroALetras} from './numletras.js';
 import './storage.js';
 
 let REMF={editId:null}; // form trabajador (estado interno)
@@ -489,32 +490,47 @@ function renderRemuneraciones(){
   </table></div></div>
   <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <button class="btn btn-p" onclick="generarAsientoRemuneraciones()">📝 Generar asiento de remuneraciones</button>
+    <button class="btn btn-i" onclick="pdfLiquidacionesMasivo()" title="Un PDF con la liquidación de cada trabajador, una por hoja">📄 PDF liquidaciones (masivo)</button>
     <span style="font-size:11px;color:var(--mt)">Crea el asiento mensual: sueldos a gasto, cotizaciones e impuesto a pasivos, líquido por pagar.</span>
   </div>
   ${conAusencias?`<div class="info-tip" style="font-size:11px;margin-top:10px">📅 ${conAusencias} trabajador(es) con días no pagados en ${MESES[mesRemSel()-1]}. Revisa el detalle en la pestaña Asistencia.</div>`:''}
   <div style="margin-top:8px;font-size:10px;color:var(--mt)">Cálculo con UF ${fmtC(uf)} y UTM ${fmtC(utm)}. Topes: AFP/salud 90 UF, cesantía 135,2 UF. Referencial — verifica en Previred antes de declarar.</div>`;
 }
-function verLiquidacion(id){
-  const t=S.trabajadores.find(x=>x.id===id);if(!t)return;
+// Membrete con los datos de la empresa (V2.21.48), a la izquierda
+function membreteEmpresa(){
+  const E=S.empresa||{};
+  const lugar=[...new Set([E.comuna,E.ciudad].map(x=>String(x||'').trim()).filter(Boolean))].join(', ');
+  return `<div class="memb">
+    <div class="memb-nom">${E.nombre||''}</div>
+    ${E.rut?`<div>RUT ${E.rut}</div>`:''}
+    ${E.giro?`<div>${E.giro}</div>`:''}
+    ${E.domicilio||lugar?`<div>${[E.domicilio,lugar].filter(Boolean).join(', ')}</div>`:''}
+  </div>`;
+}
+// HTML de la liquidación de un trabajador. opts: {mes, botones}
+function htmlLiquidacion(t,opts={}){
   const uf=getUF(),utm=getUTM();
-  const l=liquidacionMes(t,uf,utm);
+  const mesN=opts.mes||mesRemSel(),mes=MESES[mesN-1];
+  const l=liquidacionMes(t,uf,utm,mesN);
   const a=l.asis;
-  const mesN=mesRemSel(),mes=MESES[mesN-1];
   const E=S.empresa||{};
   const P=remParams();
-  // V2.21.43 — Formato tradicional de liquidación de remuneraciones
+  // V2.21.43 — Formato tradicional · V2.21.48 — membrete, AFP con % del trabajador,
+  // días trabajados y líquido en palabras
   const n=v=>Math.round(+v||0).toLocaleString('es-CL');
   const pct=v=>(+v||0).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
   const fFecha=iso=>{const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
   const hoy=new Date();const fecha=`${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
   const comision=+(afpInfo(t.afp).comision||0);
-  const pctTrab=10+comision, pctEmp=(l.patronal.reforma&&l.patronal.reforma.capInd)||0;
-  const topeAFP=Math.round(P.topeAFP_UF*uf), topeCes=Math.round(P.topeCesantia_UF*uf);
+  const pctTrab=(P.tasaAFP!=null?+P.tasaAFP*100:10)+comision;   // remParams entrega la tasa en fracción (0,10)
   const esIsapre=t.salud&&t.salud!=='fonasa';
-  const diasNoTrab=a?Math.max(0,30-a.diasPagados):0;
+  const pctSalud=((P.tasaSalud!=null?+P.tasaSalud*100:7)).toLocaleString('es-CL',{maximumFractionDigits:2})+'%';   // remParams entrega fracción (0,07)
+  const diasTrab=a?a.diasPagados:30;
   const fila=(lbl,val,cls='')=>`<div class="liq2-f ${cls}"><span>${lbl}</span><span>${val===null?'':n(val)}</span></div>`;
   const descLegales=l.saludLegal+l.descAFP+l.adicionalIsapre+l.descCesantia+(l.descTrabPesado||0)+l.iusc;
-  const html=`<div class="card liq-print liq2" style="max-width:760px;margin:0 auto">
+  const palabras=numeroALetras(l.liquido);
+  return `<div class="card liq-print liq2" style="max-width:760px;margin:0 auto">
+    ${membreteEmpresa()}
     <div class="liq2-tit">LIQUIDACIÓN DE REMUNERACIONES<div>${mes} - ${S.empresa.anio}</div></div>
 
     <div class="liq2-box">
@@ -529,19 +545,14 @@ function verLiquidacion(id){
         </div>
         <div style="text-align:right">
           <div><span class="liq2-k">${esIsapre?'ISAPRE':'SALUD'}:</span> <b>${esIsapre?l.saludNm.replace(/^Isapre\s+/i,''):'Fonasa'}</b>${esIsapre&&l.planUF?` &nbsp; <span class="liq2-k">Plan:</span> <b>UF ${(+l.planUF).toLocaleString('es-CL',{maximumFractionDigits:4})}</b>`:''}</div>
-          <div><span class="liq2-k">Tope Imponible:</span> <b>${(+P.topeAFP_UF).toLocaleString('es-CL')} UF ($ ${n(topeAFP)})</b> &nbsp; <span class="liq2-k">UF:</span> <b>${(+uf).toLocaleString('es-CL',{maximumFractionDigits:2})}</b></div>
-          <div><span class="liq2-k">Tope Imp. Cesantía:</span> <b>${(+P.topeCesantia_UF).toLocaleString('es-CL')} UF ($ ${n(topeCes)})</b> &nbsp; <span class="liq2-k">UTM:</span> <b>${n(utm)}</b></div>
+          <div><span class="liq2-k">AFP:</span> <b>${l.afpNm.replace(/^AFP\s+/i,'')}</b> &nbsp; <b>${pct(pctTrab)}</b></div>
           <div><span class="liq2-k">Cargas:</span> <b>${l.af?l.af.cargas.total:0}</b>${l.af&&l.af.cargas.total?` <span class="liq2-k">Tramo</span> <b>${l.af.tramo}</b>`:''}</div>
         </div>
       </div>
-      <table class="liq2-afp"><thead><tr><th class="tl">AFP</th><th>Aportación Trabajador/a</th><th>Aportación Empresa</th><th>Aportación Total</th></tr></thead>
-        <tbody><tr><td class="tl">${l.afpNm.replace(/^AFP\s+/i,'')}</td><td>${n(l.descAFP)} (${pct(pctTrab)})</td><td>${n(l.patronal.capInd)} (${pct(pctEmp)})</td><td>${n(l.descAFP+(l.patronal.capInd||0))} (${pct(pctTrab+pctEmp)})</td></tr></tbody></table>
     </div>
 
     <div class="liq2-info">
-      <div><span>Días no trabajados</span><b>${diasNoTrab}</b></div>
-      <div><span>SIS (empresa)</span><b>${n(l.patronal.sis)}</b></div>
-      <div><span>Adicional AFP Empresa</span><b>${n(l.patronal.capInd)}</b></div>
+      <div><span>Días trabajados</span><b>${diasTrab}</b></div>
       <div><span>Salario Mínimo</span><b>${n(P.ingresoMinimo)}</b></div>
     </div>
 
@@ -560,9 +571,9 @@ function verLiquidacion(id){
       <div>
         <div class="liq2-h">DESCUENTOS</div>
         ${fila('Descuentos Legales',descLegales,'liq2-sub')}
-        ${fila('Salud',l.saludLegal,'liq2-in')}
-        ${fila('AFP',l.descAFP,'liq2-in')}
-        ${l.adicionalIsapre?fila('Adicional Isapre',l.adicionalIsapre,'liq2-in'):''}
+        ${fila(`Salud ${esIsapre?'Isapre':'Fonasa'} (${pctSalud})`,l.saludLegal,'liq2-in')}
+        ${fila(`AFP (${pct(pctTrab)})`,l.descAFP,'liq2-in')}
+        ${esIsapre&&l.adicionalIsapre?fila(`Adicional Isapre (plan UF ${(+l.planUF).toLocaleString('es-CL',{maximumFractionDigits:4})})`,l.adicionalIsapre,'liq2-in'):''}
         ${l.descCesantia?fila('Seguro de cesantía (trabajador)',l.descCesantia,'liq2-in'):''}
         ${l.descTrabPesado?fila(`Cotización trabajo ${l.califPesado==='pesado'?'pesado':'menos pesado'} (${String(l.tasasTP.trab).replace('.',',')}%)`,l.descTrabPesado,'liq2-in'):''}
         ${l.iusc?fila('Impuesto único',l.iusc,'liq2-in'):''}
@@ -573,6 +584,7 @@ function verLiquidacion(id){
       <div><b>TOTAL DESCUENTOS:</b> &nbsp; ${n(l.totalDescuentos)}</div>
     </div>
     <div class="liq2-pagar"><b>TOTAL A PAGAR:</b><b>${n(l.liquido)}</b></div>
+    <div class="liq2-palabras">Son: ${palabras.charAt(0).toUpperCase()+palabras.slice(1)}</div>
     ${a&&!a.completo?`<div class="liq2-nota">Días pagados: ${a.diasPagados} de 30${[a.diasLicencia?a.diasLicencia+' de licencia':'',a.diasPermisoSin?a.diasPermisoSin+' de permiso sin goce':'',a.diasAusencia?a.diasAusencia+' de ausencia':'',a.diasFueraContrato?a.diasFueraContrato+' fuera de contrato':''].filter(Boolean).map(x=>' · '+x).join('')}</div>`:''}
 
     <div class="liq2-fecha">Fecha: ${fecha}</div>
@@ -581,9 +593,12 @@ function verLiquidacion(id){
       <div><div class="liq2-linea"></div>Recibí conforme<div class="liq2-firma-sub">${t.nombre||''}${t.rut?' · '+t.rut:''}</div></div>
       <div><div class="liq2-linea"></div>${E.nombre||'Empleador'}<div class="liq2-firma-sub">${E.rut?'RUT '+E.rut:''}</div></div>
     </div>
-    <div style="margin-top:14px;text-align:right"><button class="btn btn-g" onclick="renderRemuneraciones()">← Volver</button> <button class="btn btn-g" onclick="imprimirLiquidacion()">🖨️ Imprimir</button></div>
+    ${opts.botones?`<div class="no-print liq2-btns" style="margin-top:14px;text-align:right"><button class="btn btn-g" onclick="renderRemuneraciones()">← Volver</button> <button class="btn btn-g" onclick="imprimirLiquidacion()">🖨️ Imprimir</button> <button class="btn btn-p" onclick="pdfLiquidacion('${t.id}')">📄 PDF</button></div>`:''}
   </div>`;
-  document.getElementById('rem-content').innerHTML=html;
+}
+function verLiquidacion(id){
+  const t=S.trabajadores.find(x=>x.id===id);if(!t)return;
+  document.getElementById('rem-content').innerHTML=htmlLiquidacion(t,{botones:true});
 }
 // V2.21.31 — Imprime sólo la liquidación, en una hoja carta vertical.
 // Antes de imprimir se mide el contenido al ancho útil de la hoja y, si no
@@ -705,4 +720,4 @@ async function refrescarAsientosDesdeNube(anio){
 }
 
 
-export {rentaMinimaDe, cargasFamiliares, asignacionFamiliar, ingresoSemestreAnterior, remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, REMF};
+export {htmlLiquidacion, membreteEmpresa, mesRemSel, rentaMinimaDe, cargasFamiliares, asignacionFamiliar, ingresoSemestreAnterior, remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, REMF};

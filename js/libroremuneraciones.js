@@ -239,6 +239,7 @@ export function renderLibroRem(){
           : `<span class="badge bb">📝 Provisorio</span>
              <button class="btn btn-p" style="font-size:11px" onclick="cerrarMesRem()">🔒 Cerrar mes</button>`}
         <button class="btn btn-i" style="font-size:11px" onclick="exportarLibroRemExcel()">📊 Excel</button>
+        <button class="btn btn-i" style="font-size:11px" onclick="pdfLibroRem()">📄 PDF</button>
         <button class="btn btn-i" style="font-size:11px" onclick="exportarImposicionesExcel()" title="Detalle del pago de imposiciones por institución y por trabajador">🏦 Imposiciones</button>
         <button class="btn btn-p" style="font-size:11px" onclick="exportarLRECSV()">🏛️ CSV Mi DT</button>
         <button class="btn btn-p" style="font-size:11px" onclick="exportarPrevired()">📤 Archivo Previred</button>
