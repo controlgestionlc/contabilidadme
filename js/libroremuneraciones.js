@@ -245,7 +245,7 @@ export function renderLibroRem(){
         <button class="btn btn-p" style="font-size:11px" onclick="exportarPrevired()">📤 Archivo Previred</button>
         <button class="btn btn-g" style="font-size:11px" onclick="mostrarValidacionPrevired()">✓ Validar Previred</button>
         <button class="btn btn-g" style="font-size:11px" onclick="mostrarValidacionLRE()">✓ Validar LRE</button>
-        <button class="btn btn-g" style="font-size:11px" onclick="window.print()">🖨️</button>
+        <button class="btn btn-g" style="font-size:11px" onclick="imprimirRemuneraciones()" title="Imprimir en hoja carta horizontal, ajustado al ancho">🖨️</button>
       </div>
     </div>
 

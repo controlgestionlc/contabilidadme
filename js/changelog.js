@@ -15,6 +15,8 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.55',fecha:'15-10-2026',titulo:'Impresora del Libro de Remuneraciones',items:[
+    {tipo:'correccion',txt:'El botón de impresora que está dentro del Libro de Remuneraciones (junto a "Validar LRE") también imprime en hoja carta horizontal ajustada al ancho, sin los parámetros del mes. Antes usaba la impresión común y la tabla se cortaba.'}]},
   {version:'V2.21.54',fecha:'15-10-2026',titulo:'Corrección urgente: inicio de sesión',items:[
     {tipo:'correccion',txt:'La versión V2.21.53 no terminaba de cargar (faltaba una referencia interna de la impresión de Remuneraciones) y el botón de iniciar sesión no respondía. Corregido.'}]},
   {version:'V2.21.53',fecha:'15-10-2026',titulo:'Impresión de Remuneraciones en horizontal',items:[
