@@ -622,6 +622,32 @@ function imprimirLiquidacion(){
   setTimeout(limpiar,1500);
 }
 
+// V2.21.53 — Impresión de la sección Remuneraciones: hoja carta horizontal,
+// sólo el contenido de la pestaña abierta (sin parámetros ni formularios) y
+// reducido lo necesario para que el ancho completo de las tablas quepa en la
+// hoja. Una liquidación o un finiquito abiertos usan su propio formato.
+function imprimirRemuneraciones(){
+  const c=document.getElementById('rem-content');if(!c){window.print();return;}
+  if(c.querySelector('.liq-print'))return imprimirLiquidacion();
+  if(c.querySelector('.fin-doc')&&window.imprimirFiniquito)return window.imprimirFiniquito();
+  const MM=96/25.4, anchoUtil=(279.4-20)*MM;      // carta horizontal, márgenes de 10 mm
+  // Ancho natural del contenido, con las tablas desplegadas sin scroll
+  c.classList.add('rem-midiendo');
+  const ancho=Math.max(c.scrollWidth,...[...c.querySelectorAll('table')].map(t=>t.scrollWidth+24));
+  c.classList.remove('rem-midiendo');
+  const escala=Math.max(0.45,Math.min(1,anchoUtil/Math.max(1,ancho)));
+  document.documentElement.style.setProperty('--rem-zoom',escala.toFixed(3));
+  let st=document.getElementById('print-rem-page');
+  if(!st){st=document.createElement('style');st.id='print-rem-page';document.head.appendChild(st);}
+  st.textContent='@page{size:letter landscape;margin:10mm}';
+  document.body.classList.add('print-rem');
+  const limpiar=()=>{document.body.classList.remove('print-rem');document.documentElement.style.removeProperty('--rem-zoom');
+    const x=document.getElementById('print-rem-page');if(x)x.remove();window.removeEventListener('afterprint',limpiar);};
+  window.addEventListener('afterprint',limpiar);
+  window.print();
+  setTimeout(limpiar,1500);
+}
+
 async function generarAsientoRemuneraciones(){
   const anio=S.empresa.anio;
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de generar remuneraciones.','e');return;}
@@ -720,4 +746,4 @@ async function refrescarAsientosDesdeNube(anio){
 }
 
 
-export {htmlLiquidacion, membreteEmpresa, mesRemSel, rentaMinimaDe, cargasFamiliares, asignacionFamiliar, ingresoSemestreAnterior, remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, REMF};
+export {imprimirRemuneraciones, htmlLiquidacion, membreteEmpresa, mesRemSel, rentaMinimaDe, cargasFamiliares, asignacionFamiliar, ingresoSemestreAnterior, remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, REMF};

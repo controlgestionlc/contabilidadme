@@ -15,6 +15,8 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.53',fecha:'15-10-2026',titulo:'Impresión de Remuneraciones en horizontal',items:[
+    {tipo:'mejora',txt:'El botón Imprimir de Remuneraciones imprime en hoja carta horizontal y ajusta el contenido al ancho de la hoja, así las tablas (por ejemplo, el Libro de Remuneraciones) salen completas. Sólo imprime la pestaña abierta, sin los parámetros del mes ni los botones, y no corta filas ni recuadros entre hojas. Una liquidación o un finiquito abiertos se imprimen con su propio formato vertical.'}]},
   {version:'V2.21.52',fecha:'15-10-2026',titulo:'Reajuste del remanente de crédito fiscal como el SII',items:[
     {tipo:'correccion',txt:'El remanente de crédito fiscal se reajusta como lo calcula el SII (art. 27 DL 825): se convierte a UTM con la UTM del mes en que se declaró el período anterior, se redondea a 2 decimales y se reconvierte con la UTM del mes en que se declara el período actual. Ejemplo: remanente diciembre 2024 de $176.181 ÷ UTM enero 2025 ($67.429) = 2,61 UTM × UTM febrero 2025 ($67.294) = $175.637 en el código 504 del F29 de enero 2025. Antes se usaban las UTM del mes de cada período y sin redondeo.'},
     {tipo:'mejora',txt:'El F29 y el asiento de compensación de IVA muestran el cálculo paso a paso (pesos ÷ UTM = UTM con 2 decimales × UTM = pesos).'}]},
