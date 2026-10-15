@@ -50,6 +50,8 @@ function lineaLibro(t,uf,utm,mes){
   // V2.21.30 — Los días del LRE salen de la asistencia del mes, no de la ficha
   const lre={...(t.lre||{})};
   if(a){lre.diasTrabajados=String(a.diasPagados);lre.diasLicencia=a.diasLicencia?String(a.diasLicencia):'';lre.diasVacaciones=a.diasVacaciones?String(a.diasVacaciones):'';}
+  // V2.21.47 — tramo efectivo de asignación familiar del mes
+  if(l.af)lre.tramoAsignacion=l.af.tramo;
   return {
     id:t.id, nombre:t.nombre, rut:t.rut||'', cargo:t.cargo||'',
     afp:l.afpNm, salud:l.saludNm, afpKey:t.afp||'', saludKey:t.salud||'',
@@ -70,11 +72,18 @@ function lineaLibro(t,uf,utm,mes){
     // Haberes no imponibles
     colacion:l.colacion,
     movilizacion:l.movilizacion,
+    // Asignación familiar (V2.21.47)
+    asigFamiliar:l.asigFamiliar||0, tramoAF:l.af?l.af.tramo:'D',
+    cargasAF:l.af?{simples:l.af.cargas.simples,maternales:l.af.cargas.maternales,invalidas:l.af.cargas.invalidas}:{simples:0,maternales:0,invalidas:0},
     totalNoImponible:l.totalNoImponible,
     totalHaberes:l.totalHaberes,
     // Descuentos
     descAFP:l.descAFP, descSalud:l.descSalud, saludLegal:l.saludLegal,
     adicionalIsapre:l.adicionalIsapre, descCesantia:l.descCesantia,
+    // Trabajo pesado (V2.21.47): parte trabajador y parte empleador
+    descTrabPesado:l.descTrabPesado||0, trabPesado:l.aporteTrabPesado||0,
+    califPesado:l.califPesado||'', puestoPesado:(t.lre&&t.lre.nombrePuestoPesado)||'',
+    tasaTrabPesado:l.tasasTP?(l.tasasTP.trab+l.tasasTP.emp):0,
     totalPrevisional:l.totalPrevisional,
     baseTributable:l.baseTributable,
     iusc:l.iusc,
@@ -98,6 +107,7 @@ function lineaLibro(t,uf,utm,mes){
 const CAMPOS_SUMA=['base','gratificacion','otros','totalImponible','colacion','movilizacion',
   'totalNoImponible','totalHaberes','descAFP','descSalud','saludLegal','adicionalIsapre','descCesantia',
   'totalPrevisional','baseTributable','iusc','totalDescuentos','liquido','sis','mutual','afc','caja','capInd','cev','crp','ssp',
+  'asigFamiliar','descTrabPesado','trabPesado',
   'totalPatronal','costoEmpresa'];
 
 function totalizar(lineas){
@@ -194,7 +204,7 @@ export function renderLibroRem(){
     <td class="tnm" style="font-size:12px">${l.nombre}
       <div style="font-size:10px;color:var(--mt)">${[l.rut,l.cargo].filter(Boolean).join(' · ')}</div>
       <div style="font-size:10px;color:var(--mt)">${l.afp} · ${l.salud}</div>
-      ${l.diasPagados!=null&&l.diasPagados<30?`<div style="font-size:10px;color:var(--warn)">${l.diasPagados}/30 días${l.diasLicencia?' · '+l.diasLicencia+' lic.':''}${l.diasPermisoSin?' · '+l.diasPermisoSin+' perm. s/goce':''}${l.diasAusencia?' · '+l.diasAusencia+' aus.':''}</div>`:''}${l.horas!=null?`<div style="font-size:10px;color:var(--mt)">${l.horas} h</div>`:''}</td>
+      ${l.diasPagados!=null&&l.diasPagados<30?`<div style="font-size:10px;color:var(--warn)">${l.diasPagados}/30 días${l.diasLicencia?' · '+l.diasLicencia+' lic.':''}${l.diasPermisoSin?' · '+l.diasPermisoSin+' perm. s/goce':''}${l.diasAusencia?' · '+l.diasAusencia+' aus.':''}</div>`:''}${l.horas!=null?`<div style="font-size:10px;color:var(--mt)">${l.horas} h</div>`:''}${l.asigFamiliar||l.descTrabPesado?`<div style="font-size:10px;color:var(--mt)">${l.asigFamiliar?`Asig. familiar ${fmt(l.asigFamiliar)} (tramo ${l.tramoAF})`:''}${l.asigFamiliar&&l.descTrabPesado?' · ':''}${l.descTrabPesado?`T. pesado ${fmt(l.descTrabPesado)} + ${fmt(l.trabPesado)} empl.`:''}</div>`:''}</td>
     ${m(l.base)}${m(l.gratificacion)}${m(l.otros)}
     <td style="font-family:var(--mono);text-align:right;font-weight:600">${fmt(l.totalImponible)}</td>
     ${m(l.colacion)}${m(l.movilizacion)}
@@ -328,23 +338,23 @@ export function exportarLibroRemExcel(){
     const per=`${MESES[mes-1]} ${S.empresa.anio}`;
     const hdr=['N°','TRABAJADOR','RUT','CARGO','AFP','SALUD','CONTRATO',
       'SUELDO BASE','GRATIFICACIÓN','OTROS IMPONIBLES','TOTAL IMPONIBLE',
-      'COLACIÓN','MOVILIZACIÓN','TOTAL NO IMPONIBLE','TOTAL HABERES',
-      'AFP (DESC.)','SALUD (DESC.)','SALUD 7% LEGAL','ADICIONAL ISAPRE','CESANTÍA','TOTAL PREVISIONAL',
+      'COLACIÓN','MOVILIZACIÓN','ASIGNACIÓN FAMILIAR','TRAMO AF','TOTAL NO IMPONIBLE','TOTAL HABERES',
+      'AFP (DESC.)','SALUD (DESC.)','SALUD 7% LEGAL','ADICIONAL ISAPRE','CESANTÍA','TRABAJO PESADO (TRAB.)','TOTAL PREVISIONAL',
       'BASE TRIBUTABLE','IMPUESTO ÚNICO','TRAMO IUSC','TOTAL DESCUENTOS','LÍQUIDO',
       'SIS','REFORMA CAPITALIZACIÓN INDIVIDUAL','SEGURO SOCIAL PREVISIONAL (EXPECTATIVA DE VIDA)','REFORMA RENTABILIDAD PROTEGIDA (CRP)','TOTAL SEGURO SOCIAL PREVISIONAL',
-      'MUTUAL','AFC EMPLEADOR','CAJA COMPENSACIÓN','TOTAL APORTES','COSTO EMPRESA'];
+      'MUTUAL','AFC EMPLEADOR','CAJA COMPENSACIÓN','TRABAJO PESADO (EMPL.)','TOTAL APORTES','COSTO EMPRESA'];
     const rows=L.lineas.map((l,i)=>[i+1,l.nombre,l.rut,l.cargo,l.afp,l.salud,l.contrato,
       l.base,l.gratificacion,l.otros,l.totalImponible,
-      l.colacion,l.movilizacion,l.totalNoImponible,l.totalHaberes,
-      l.descAFP,l.descSalud,l.saludLegal,l.adicionalIsapre,l.descCesantia,l.totalPrevisional,
+      l.colacion,l.movilizacion,l.asigFamiliar||0,l.tramoAF||'',l.totalNoImponible,l.totalHaberes,
+      l.descAFP,l.descSalud,l.saludLegal,l.adicionalIsapre,l.descCesantia,l.descTrabPesado||0,l.totalPrevisional,
       l.baseTributable,l.iusc,l.iuscTramo||'',l.totalDescuentos,l.liquido,
-      l.sis,l.capInd||0,l.cev||0,l.crp||0,l.ssp||0,l.mutual,l.afc,l.caja,l.totalPatronal,l.costoEmpresa]);
+      l.sis,l.capInd||0,l.cev||0,l.crp||0,l.ssp||0,l.mutual,l.afc,l.caja,l.trabPesado||0,l.totalPatronal,l.costoEmpresa]);
     rows.push(['','TOTALES','','','','','',
       T.base,T.gratificacion,T.otros,T.totalImponible,
-      T.colacion,T.movilizacion,T.totalNoImponible,T.totalHaberes,
-      T.descAFP,T.descSalud,T.saludLegal,T.adicionalIsapre,T.descCesantia,T.totalPrevisional,
+      T.colacion,T.movilizacion,T.asigFamiliar||0,'',T.totalNoImponible,T.totalHaberes,
+      T.descAFP,T.descSalud,T.saludLegal,T.adicionalIsapre,T.descCesantia,T.descTrabPesado||0,T.totalPrevisional,
       T.baseTributable,T.iusc,'',T.totalDescuentos,T.liquido,
-      T.sis,T.capInd||0,T.cev||0,T.crp||0,T.ssp||0,T.mutual,T.afc,T.caja,T.totalPatronal,T.costoEmpresa]);
+      T.sis,T.capInd||0,T.cev||0,T.crp||0,T.ssp||0,T.mutual,T.afc,T.caja,T.trabPesado||0,T.totalPatronal,T.costoEmpresa]);
     const ws=XLSX.utils.aoa_to_sheet([hdr,...rows]);
     ws['!cols']=hdr.map((h,i)=>({wch:i===1?28:Math.max(12,String(h).length+2)}));
     const wb=XLSX.utils.book_new();

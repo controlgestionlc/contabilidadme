@@ -11,14 +11,14 @@ import {renderUTMHistoricoBox} from './utm-historico.js';
 // Valores de referencia — Banco Central de Chile / SII (julio-agosto 2026).
 // La UF cambia a diario, la UTM cada mes: actualízalos en la sección Indicadores.
 const INDICADORES_DEFAULT={
-  uf:40844.79,          // UF (BCCh, 21-jul-2026)
-  utm:71649,            // UTM (SII, jul/ago 2026)
-  uta:859788,           // UTA = 12 × UTM
+  uf:41247.63,          // UF al 31-oct-2026 (Previred, remuneraciones oct-2026)
+  utm:72151,            // UTM octubre 2026 (SII)
+  uta:865812,           // UTA = 12 × UTM
   dolar:933.0,          // Dólar observado (BCCh)
   euro:1065.07,         // Euro (BCCh)
   topeAFP_UF:90.0,      // tope imponible AFP/salud
   topeCesantia_UF:135.2,// tope imponible seguro cesantía
-  ingresoMinimo:539000, // ingreso mínimo mensual
+  ingresoMinimo:553553, // ingreso mínimo mensual (trabajadores dependientes, Previred oct-2026)
   gratifPct:25.0,       // % de gratificación legal (Art. 50 Código del Trabajo)
   gratifTopeIMM:4.75,   // tope: 4,75 ingresos mínimos mensuales AL AÑO (Art. 50)
   tasaAFP:10.0,         // % cotización AFP (sin comisión)
@@ -27,7 +27,36 @@ const INDICADORES_DEFAULT={
   factorCM:3.4,         // % factor corrección monetaria anual (referencial)
   retHonorarios:15.25,  // % retención honorarios (2026; se ajusta por año)
   retHonorariosManual:false, // true = usar el valor fijo de arriba en vez de la tabla por año
+  // V2.21.47 — Asignación familiar (Ley 18.020 / DFL 150). Tramos por ingreso
+  // mensual del trabajador; valor por carga (Previred, remuneraciones oct-2026).
+  asigFamA_hasta:649039, asigFamA_monto:22601,
+  asigFamB_hasta:947990, asigFamB_monto:13870,
+  asigFamC_hasta:1478539, asigFamC_monto:4382,
+  // Rentas mínimas imponibles especiales
+  rentaMinimaEspecial:412938,   // menores de 18 y mayores de 65
+  rentaMinimaCasa:553553,       // trabajadores de casa particular
+  rentaMinimaNoRem:356815,      // para fines no remuneracionales (referencial)
+  // Cotización trabajo pesado (Ley 19.404): % empleador / % trabajador
+  tpPesadoEmp:2, tpPesadoTrab:2, tpMenosEmp:1, tpMenosTrab:1,
 };
+// ── Asignación familiar ──
+// Tramo según el ingreso mensual: A, B, C o D (sin derecho)
+export function tramoAsignacionFamiliar(ingreso,i=getIndicadores()){
+  const r=+ingreso||0;
+  if(r<=+i.asigFamA_hasta)return 'A';
+  if(r<=+i.asigFamB_hasta)return 'B';
+  if(r<=+i.asigFamC_hasta)return 'C';
+  return 'D';
+}
+export function montoAsignacionTramo(tramo,i=getIndicadores()){
+  return tramo==='A'?+i.asigFamA_monto||0:tramo==='B'?+i.asigFamB_monto||0:tramo==='C'?+i.asigFamC_monto||0:0;
+}
+// Tasas de trabajo pesado según la calificación del puesto
+export function tasasTrabajoPesado(calif,i=getIndicadores()){
+  if(calif==='pesado')return {emp:+i.tpPesadoEmp||0,trab:+i.tpPesadoTrab||0};
+  if(calif==='menos')return {emp:+i.tpMenosEmp||0,trab:+i.tpMenosTrab||0};
+  return {emp:0,trab:0};
+}
 // Devuelve los indicadores vigentes (mezcla defaults con lo guardado)
 function getIndicadores(){
   const g=(S.empresa&&S.empresa.indicadores)||{};
@@ -161,7 +190,7 @@ function renderIndicadores(){
   const el=document.getElementById('ind-content');
   const campo=(id,lbl,val,step,sufijo,hint)=>`<div class="grp">
     <label>${lbl}${sufijo?' <span style="color:var(--mt)">('+sufijo+')</span>':''}</label>
-    <input type="number" class="${['utm','uta','ingresoMinimo'].includes(id)?'money-input':''}" id="ind-${id}" value="${val}" step="${step||'1'}">
+    <input type="number" class="${['utm','uta','ingresoMinimo','rentaMinimaEspecial','rentaMinimaCasa','rentaMinimaNoRem','asigFamA_hasta','asigFamA_monto','asigFamB_hasta','asigFamB_monto','asigFamC_hasta','asigFamC_monto'].includes(id)?'money-input':''}" id="ind-${id}" value="${val}" step="${step||'1'}">
     ${hint?`<div style="font-size:10px;color:var(--mt);margin-top:2px">${hint}</div>`:''}
   </div>`;
   el.innerHTML=`<div class="card" style="margin-bottom:14px">
@@ -197,7 +226,10 @@ function renderIndicadores(){
     <div class="fg">
       ${campo('topeAFP_UF','Tope imponible AFP / Salud',i.topeAFP_UF,'0.1','UF','Tope 2026: 90 UF')}
       ${campo('topeCesantia_UF','Tope imponible Cesantía',i.topeCesantia_UF,'0.1','UF','Tope 2026: 135,2 UF')}
-      ${campo('ingresoMinimo','Ingreso mínimo mensual',i.ingresoMinimo,'1000','pesos','2026: $539.000')}
+      ${campo('ingresoMinimo','Ingreso mínimo mensual',i.ingresoMinimo,'1000','pesos','Oct 2026: $553.553 (Previred)')}
+      ${campo('rentaMinimaEspecial','Renta mínima menores de 18 y mayores de 65',i.rentaMinimaEspecial,'1','pesos','Oct 2026: $412.938')}
+      ${campo('rentaMinimaCasa','Renta mínima casa particular',i.rentaMinimaCasa,'1','pesos','Oct 2026: $553.553')}
+      ${campo('rentaMinimaNoRem','Renta mínima fines no remuneracionales',i.rentaMinimaNoRem,'1','pesos','Oct 2026: $356.815 (referencial)')}
     </div>
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">
       <div class="card-title" style="margin-bottom:10px">Gratificación legal (Art. 50 Código del Trabajo)</div>
@@ -214,6 +246,24 @@ function renderIndicadores(){
         ${campo('gratifPct','Porcentaje de gratificación',i.gratifPct,'0.5','%','Legal: 25% de la remuneración imponible')}
         ${campo('gratifTopeIMM','Tope en ingresos mínimos (anual)',i.gratifTopeIMM,'0.05','IMM','Legal: 4,75 IMM al año')}
       </div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">👨‍👩‍👧 Asignación familiar y trabajo pesado</div>
+    <div style="font-size:11px;color:var(--mt);margin-bottom:8px">Tramos por ingreso mensual y valor por carga. Las cargas inválidas valen el doble. Con menos de 25 días trabajados se paga en proporción a los días (Art. 12 DFL 150). El tramo D no tiene derecho.</div>
+    <div class="fg">
+      ${campo('asigFamA_hasta','Tramo A: ingreso hasta',i.asigFamA_hasta,'1','pesos','')}
+      ${campo('asigFamA_monto','Tramo A: valor por carga',i.asigFamA_monto,'1','pesos','Oct 2026: $22.601')}
+      ${campo('asigFamB_hasta','Tramo B: ingreso hasta',i.asigFamB_hasta,'1','pesos','')}
+      ${campo('asigFamB_monto','Tramo B: valor por carga',i.asigFamB_monto,'1','pesos','Oct 2026: $13.870')}
+      ${campo('asigFamC_hasta','Tramo C: ingreso hasta',i.asigFamC_hasta,'1','pesos','Sobre este valor: tramo D')}
+      ${campo('asigFamC_monto','Tramo C: valor por carga',i.asigFamC_monto,'1','pesos','Oct 2026: $4.382')}
+    </div>
+    <div class="fg" style="margin-top:10px">
+      ${campo('tpPesadoEmp','Trabajo pesado: empleador',i.tpPesadoEmp,'0.1','%','2% de la renta imponible')}
+      ${campo('tpPesadoTrab','Trabajo pesado: trabajador',i.tpPesadoTrab,'0.1','%','2%')}
+      ${campo('tpMenosEmp','Trabajo menos pesado: empleador',i.tpMenosEmp,'0.1','%','1%')}
+      ${campo('tpMenosTrab','Trabajo menos pesado: trabajador',i.tpMenosTrab,'0.1','%','1%')}
     </div>
   </div>
   <div class="card" style="margin-bottom:14px">
@@ -369,7 +419,8 @@ function renderIUSCTabla(){
 }
 
 async function guardarIndicadores(){
-  const num=id=>['utm','uta','ingresoMinimo'].includes(id)
+  const MONEY=['utm','uta','ingresoMinimo','rentaMinimaEspecial','rentaMinimaCasa','rentaMinimaNoRem','asigFamA_hasta','asigFamA_monto','asigFamB_hasta','asigFamB_monto','asigFamC_hasta','asigFamC_monto'];
+  const num=id=>MONEY.includes(id)
     ?pn(document.getElementById('ind-'+id).value)
     :+document.getElementById('ind-'+id).value||0;
   const ind={
@@ -379,6 +430,11 @@ async function guardarIndicadores(){
     gratifPct:num('gratifPct'),gratifTopeIMM:num('gratifTopeIMM'),
     tasaAFP:num('tasaAFP'),tasaSalud:num('tasaSalud'),tasaCesantiaTrab:+getIndicadores().tasaCesantiaTrab||0.6,
     factorCM:num('factorCM'),
+    asigFamA_hasta:num('asigFamA_hasta'),asigFamA_monto:num('asigFamA_monto'),
+    asigFamB_hasta:num('asigFamB_hasta'),asigFamB_monto:num('asigFamB_monto'),
+    asigFamC_hasta:num('asigFamC_hasta'),asigFamC_monto:num('asigFamC_monto'),
+    rentaMinimaEspecial:num('rentaMinimaEspecial'),rentaMinimaCasa:num('rentaMinimaCasa'),rentaMinimaNoRem:num('rentaMinimaNoRem'),
+    tpPesadoEmp:num('tpPesadoEmp'),tpPesadoTrab:num('tpPesadoTrab'),tpMenosEmp:num('tpMenosEmp'),tpMenosTrab:num('tpMenosTrab'),
     retHonorarios:num('retHonorarios'),
     retHonorariosManual:document.getElementById('ind-retHonorariosManual').value==='true',
     // Tabla del impuesto único: sólo se persiste si difiere de la oficial,
