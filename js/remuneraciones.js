@@ -5,7 +5,8 @@ import {S} from './state.js';
 import {logAccion} from './firebase.js';
 import {proxFolioAsiento} from './asientos.js';
 import {getIndicadores, IND, calcularGratificacion, topeGratificacionMensual,
-        getIUSCTabla, calcularIUSCDetalle, IUSC_TABLA_OFICIAL} from './indicadores.js';
+        getIUSCTabla, calcularIUSCDetalle, IUSC_TABLA_OFICIAL,
+        tramoAsignacionFamiliar, montoAsignacionTramo, tasasTrabajoPesado} from './indicadores.js';
 import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal, tasasAFC} from './previsional.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {numeroMostrar} from './correlativo-contable.js';
@@ -47,6 +48,53 @@ function gratificacionModo(t){
   return (t.gratifPct!=null&&t.gratifPct!=='')?'pct':'monto';
 }
 
+// Renta mínima que corresponde al trabajador (V2.21.47)
+function rentaMinimaDe(t){
+  const i=getIndicadores();const k=(t.lre&&t.lre.rentaMinima)||'general';
+  if(k==='especial')return {k,nm:'para menores de 18 y mayores de 65',monto:+i.rentaMinimaEspecial||0};
+  if(k==='casa')return {k,nm:'de casa particular',monto:+i.rentaMinimaCasa||0};
+  return {k:'general',nm:'(ingreso mínimo)',monto:+i.ingresoMinimo||0};
+}
+
+// ── Asignación familiar (V2.21.47) ──
+// Cargas: simples + maternales + 2 × inválidas (las inválidas valen doble).
+// Tramo: el fijado en la ficha o, en automático, según el ingreso promedio del
+// semestre anterior (enero-junio para julio-diciembre y julio-diciembre del año
+// anterior para enero-junio) tomado de los libros cerrados. Sin libros, se usa
+// la renta imponible del mes completo.
+// Con menos de 25 días trabajados se paga en proporción a los días (Art. 12
+// DFL 150; Previred campo 22).
+function cargasFamiliares(t){
+  const l=t.lre||{};
+  const s=Math.max(0,Math.floor(+l.cargasLegales||0)),m=Math.max(0,Math.floor(+l.cargasMaternales||0)),i=Math.max(0,Math.floor(+l.cargasInvalidez||0));
+  return {simples:s,maternales:m,invalidas:i,total:s+m+i,equivalentes:s+m+2*i};
+}
+function ingresoSemestreAnterior(t,periodo){
+  if(!/^\d{4}-\d{2}$/.test(periodo||''))return null;
+  const [y,m]=periodo.split('-').map(Number);
+  const meses=m>=7?[1,2,3,4,5,6].map(x=>`${y}-${String(x).padStart(2,'0')}`):[7,8,9,10,11,12].map(x=>`${y-1}-${String(x).padStart(2,'0')}`);
+  const libros=S.libroRem||{};
+  const vals=meses.map(p=>{const L=libros[p];const ln=L&&Array.isArray(L.lineas)?L.lineas.find(x=>x.id===t.id):null;return ln?+ln.totalImponible||0:0;}).filter(v=>v>0);
+  if(!vals.length)return null;
+  return {promedio:Math.round(vals.reduce((a,b)=>a+b,0)/vals.length),meses:vals.length};
+}
+function asignacionFamiliar(t,{totalImponible,factor=1,dias=30,periodo}={}){
+  const c=cargasFamiliares(t);
+  const manual=String((t.lre&&t.lre.tramoAsignacion)||'').toUpperCase();
+  let ingreso=null,fuente='';
+  const hist=ingresoSemestreAnterior(t,periodo);
+  if(hist){ingreso=hist.promedio;fuente=`promedio semestre anterior (${hist.meses} mes${hist.meses>1?'es':''})`;}
+  else{ingreso=factor>0&&factor<1?Math.round(totalImponible/factor):totalImponible;fuente='renta imponible del mes';}
+  const tramoIngreso=/^[ABCD]$/.test(manual)?manual:tramoAsignacionFamiliar(ingreso);
+  // Sin cargas no hay derecho: se informa tramo D (Previred tabla 8)
+  const tramo=c.equivalentes?tramoIngreso:'D';
+  const valor=montoAsignacionTramo(tramo);
+  const completo=valor*c.equivalentes;
+  const d=Math.max(0,Math.min(30,+dias||0));
+  const monto=c.equivalentes?Math.round(d>=25?completo:completo/30*d):0;
+  return {tramo,tramoIngreso,manual:/^[ABCD]$/.test(manual),ingreso,fuente,valor,cargas:c,dias:d,proporcional:d<25,monto};
+}
+
 // `asis` (opcional, V2.21.30): asistencia del mes calculada por asistencia.js.
 // Sin ella se liquida el mes completo (30 días), como antes.
 //  - Sueldo mensual: base, otros haberes, gratificación, colación y movilización
@@ -84,7 +132,11 @@ function calcularLiquidacion(t,uf,utm,asis){
   }
   // Total imponible (haberes que cotizan)
   const totalImponible=base+grat+otros;
-  const totalNoImponible=colacion+movilizacion;
+  // V2.21.47 — Asignación familiar: no imponible ni tributable. La paga el
+  // empleador y la recupera al descontarla de las cotizaciones (Previred).
+  const af=asignacionFamiliar(t,{totalImponible,factor,dias:asis?asis.diasPagados:30,periodo:asis&&asis.periodo});
+  const asigFamiliar=af.monto;
+  const totalNoImponible=colacion+movilizacion+asigFamiliar;
   const totalHaberes=totalImponible+totalNoImponible;
   // Topes
   const topeAFP=Math.round(REM_PARAMS.topeAFP_UF*uf*factor);
@@ -113,8 +165,16 @@ function calcularLiquidacion(t,uf,utm,asis){
   // Cesantía trabajador (solo contrato indefinido)
   const tasaCesTrab=tasasAFC(t.contrato||'indefinido').trab;
   const descCesantia=Math.round(baseCes*tasaCesTrab/100);
+  // V2.21.47 — Cotización de trabajo pesado (Ley 19.404), sobre la renta
+  // imponible AFP: una parte la paga el trabajador y otra el empleador.
+  const califPesado=(t.lre&&t.lre.puestoPesado)||'';
+  const tasasTP=tasasTrabajoPesado(califPesado);
+  // El total se redondea una vez (Previred campo 39 = renta imponible × %)
+  const totalTrabPesado=Math.round(baseAFP*(tasasTP.trab+tasasTP.emp)/100);
+  const descTrabPesado=Math.round(baseAFP*tasasTP.trab/100);
+  const aporteTrabPesado=totalTrabPesado-descTrabPesado;
   // Total cotizaciones previsionales
-  const totalPrevisional=descAFP+descSalud+descCesantia;
+  const totalPrevisional=descAFP+descSalud+descCesantia+descTrabPesado;
   // Base tributable = imponible − cotizaciones previsionales
   const baseTributable=totalImponible-totalPrevisional;
   // Impuesto único de Segunda Categoría, según la tabla configurada en Indicadores
@@ -136,13 +196,19 @@ function calcularLiquidacion(t,uf,utm,asis){
     baseAFC=Math.min(Math.round(REM_PARAMS.topeCesantia_UF*uf),baseCes+extra);
   }
   const patronal=calcularAportePatronal(t,baseAFP,baseCes,{sis:baseSIS,afc:baseAFC,periodo:asis&&asis.periodo});
-  const costoEmpresa=totalHaberes+patronal.total;
+  if(aporteTrabPesado>0){
+    patronal.trabPesado=aporteTrabPesado;patronal.total+=aporteTrabPesado;
+    patronal.detalle.push({concepto:`Trabajo ${califPesado==='pesado'?'pesado':'menos pesado'} (Ley 19.404)`,tasa:tasasTP.emp,monto:aporteTrabPesado,institucion:'AFP del trabajador'});
+  }else patronal.trabPesado=0;
+  // La asignación familiar no es costo: se compensa con las cotizaciones
+  const costoEmpresa=totalHaberes-asigFamiliar+patronal.total;
   return {patronal,costoEmpresa,
     base,baseContrato,otros,colacion,movilizacion,porHora,horas,valorHora:porHora?(+t.valorHora||0):null,
     factor,asis:asis||null,tasaCesTrab,
     grat,gratModo,gratInfo,
     totalImponible,totalNoImponible,totalHaberes,baseAFP,baseCes,baseSIS,baseAFC,
     descAFP,descAFP_pension,descAFP_comision,descSalud,saludLegal,adicionalIsapre,planUF,planPesos,descCesantia,
+    asigFamiliar,af,descTrabPesado,aporteTrabPesado,califPesado,tasasTP,
     totalPrevisional,baseTributable,iusc,iuscDet,totalDescuentos,liquido,
     afpNm:afp.nm, saludNm:(t.salud&&t.salud!=='fonasa')?isapreInfo(t.salud).nm:'Fonasa'};
 }
@@ -224,7 +290,10 @@ function leerLRETrabajador(){
     jornada:g('remf-lre-jornada')||'101',diasTrabajados:g('remf-lre-dias')||'30',diasLicencia:g('remf-lre-licencia'),diasVacaciones:g('remf-lre-vacaciones'),
     discapacidad:g('remf-lre-discapacidad')||'0',pensionadoVejez:g('remf-lre-vejez')||'0',tecnicoExtranjero:g('remf-lre-extranjero')||'0',
     apvIndividual:g('remf-lre-apv')||'0',apvColectivo:g('remf-lre-apvc')||'0',indemnizacionTodoEvento:g('remf-lre-ite')||'0',
-    otrosCodigo:g('remf-lre-otros')||'2111'
+    otrosCodigo:g('remf-lre-otros')||'2111',
+    cargasLegales:String(Math.max(0,Math.floor(+g('remf-cargas-s')||0))),cargasMaternales:String(Math.max(0,Math.floor(+g('remf-cargas-m')||0))),
+    cargasInvalidez:String(Math.max(0,Math.floor(+g('remf-cargas-i')||0))),tramoAsignacion:g('remf-tramo'),
+    puestoPesado:g('remf-pesado'),nombrePuestoPesado:String(g('remf-pesado-nombre')).trim().slice(0,40),rentaMinima:g('remf-rentamin')||'general'
   };
 }
 function cargarLREForm(lre={}){
@@ -234,6 +303,8 @@ function cargarLREForm(lre={}){
   set('remf-lre-jornada',lre.jornada||'101');set('remf-lre-dias',lre.diasTrabajados??'30');set('remf-lre-licencia',lre.diasLicencia||'');set('remf-lre-vacaciones',lre.diasVacaciones||'');
   set('remf-lre-discapacidad',lre.discapacidad||'0');set('remf-lre-vejez',lre.pensionadoVejez||'0');set('remf-lre-extranjero',lre.tecnicoExtranjero||'0');
   set('remf-lre-apv',lre.apvIndividual||'0');set('remf-lre-apvc',lre.apvColectivo||'0');set('remf-lre-ite',lre.indemnizacionTodoEvento||'0');set('remf-lre-otros',lre.otrosCodigo||'2111');
+  set('remf-cargas-s',+lre.cargasLegales||'');set('remf-cargas-m',+lre.cargasMaternales||'');set('remf-cargas-i',+lre.cargasInvalidez||'');
+  set('remf-tramo',lre.tramoAsignacion||'');set('remf-pesado',lre.puestoPesado||'');set('remf-pesado-nombre',lre.nombrePuestoPesado||'');set('remf-rentamin',lre.rentaMinima||'general');
 }
 function leerFormTrabajador(){
   return {
@@ -279,6 +350,8 @@ function previewLiq(){
       <span style="color:var(--mt)">Salud 7% legal</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.saludLegal)}</span>
       ${l.adicionalIsapre?`<span style="color:var(--mt)">Adicional isapre (${l.planUF} UF)</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.adicionalIsapre)}</span>`:''}
       <span style="color:var(--mt)">Cesantía (${l.tasaCesTrab.toLocaleString('es-CL')}%)</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.descCesantia)}</span>
+      ${l.descTrabPesado?`<span style="color:var(--mt)">Trabajo ${l.califPesado==='pesado'?'pesado':'menos pesado'} (${l.tasasTP.trab.toLocaleString('es-CL')}% trabajador, ${l.tasasTP.emp.toLocaleString('es-CL')}% empleador)</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.descTrabPesado)}</span>`:''}
+      ${l.af&&l.af.cargas.total?`<span style="color:var(--mt)">Asignación familiar: tramo ${l.af.tramo}${l.af.manual?' (fijado)':` (${l.af.fuente}: ${fmtC(l.af.ingreso)})`} · ${l.af.cargas.total} carga(s) × ${fmtC(l.af.valor)}${l.af.cargas.invalidas?' (inválidas al doble)':''}</span><span style="font-family:var(--mono);text-align:right">+${fmtC(l.asigFamiliar)}</span>`:''}
       <span style="color:var(--mt)">Impuesto único${l.iuscDet&&l.iuscDet.idx>=0?` <span style="font-size:10px">(tramo ${l.iuscDet.idx+1} · ${(l.iuscDet.factor*100).toFixed(2)}% · ${l.iuscDet.baseUTM.toFixed(1)} UTM)</span>`:''}</span><span style="font-family:var(--mono);text-align:right;color:var(--err)">−${fmtC(l.iusc)}</span>
       <span style="font-weight:700;border-top:1px solid var(--bd);padding-top:4px">LÍQUIDO A PAGAR</span><span style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--ach);border-top:1px solid var(--bd);padding-top:4px">${fmtC(l.liquido)}</span>
     </div>
@@ -291,10 +364,13 @@ function guardarTrabajador(){
     if(t.valorHora<=0){toast('⚠️ Ingresa el valor hora','e');return;}
     t.base=0;
   }else if(t.base<=0){toast('⚠️ Ingresa el sueldo base','e');return;}
-  const _rp=remParams();
-  if(t.tipoPago!=='hora'&&t.base<_rp.ingresoMinimo){
-    if(!confirm(`El sueldo base (${fmtC(t.base)}) es menor al ingreso mínimo (${fmtC(_rp.ingresoMinimo)}). ¿Continuar de todas formas?`))return;
+  const rm=rentaMinimaDe(t);
+  if(t.tipoPago!=='hora'&&String(t.lre.jornada||'101')!=='201'&&t.base<rm.monto){
+    if(!confirm(`El sueldo base (${fmtC(t.base)}) es menor a la renta mínima ${rm.nm} (${fmtC(rm.monto)}). ¿Continuar de todas formas?`))return;
   }
+  const cg=cargasFamiliares(t);
+  if(cg.simples>13||cg.maternales>1||cg.invalidas>1){toast('⚠️ Previred acepta hasta 13 cargas simples, 1 maternal y 1 inválida','e');return;}
+  if(t.lre.puestoPesado&&!t.lre.nombrePuestoPesado){toast('⚠️ Indica el nombre del puesto de trabajo pesado (Previred campo 37)','e');return;}
   const bien={id:REMF.editId||'tr_'+Date.now(),...t};
   if(REMF.editId){const i=S.trabajadores.findIndex(x=>x.id===REMF.editId);if(i>=0)S.trabajadores[i]=bien;toast('✅ Trabajador actualizado');}
   else{S.trabajadores.push(bien);toast('✅ Trabajador registrado');}
@@ -372,13 +448,17 @@ function renderRemuneraciones(){
     el.innerHTML=tabs+`<div class="empty"><div class="ei">👷</div>No hay trabajadores registrados.<br><br><button class="btn btn-p" onclick="abrirFormTrabajador()">+ Registrar primer trabajador</button></div>`;
     return;
   }
-  let totHab=0,totLiq=0,totPrev=0,totIusc=0,totPatronal=0;
+  let totHab=0,totLiq=0,totPrev=0,totIusc=0,totPatronal=0,totAFk=0;
   let conAusencias=0;
   const filas=S.trabajadores.map(t=>{
     const l=liquidacionMes(t,uf,utm);
     const a=l.asis;if(a&&!a.completo)conAusencias++;
-    const notaDias=l.porHora?`${l.horas||0} h × ${fmtC(l.valorHora)}`:(a&&!a.completo?`<span style="color:var(--warn)">${a.diasPagados}/30 días pagados</span>`:'');
-    totHab+=l.totalHaberes;totLiq+=l.liquido;totPrev+=l.totalPrevisional;totIusc+=l.iusc;totPatronal+=l.patronal.total;
+    const rm=rentaMinimaDe(t);
+    const bajoMinimo=!l.porHora&&String((t.lre&&t.lre.jornada)||'101')!=='201'&&(+t.base||0)<rm.monto;
+    const notaDias=(l.porHora?`${l.horas||0} h × ${fmtC(l.valorHora)}`:(a&&!a.completo?`<span style="color:var(--warn)">${a.diasPagados}/30 días pagados</span>`:''))
+      +(bajoMinimo?`${l.porHora||(a&&!a.completo)?' · ':''}<span style="color:var(--err)" title="Renta mínima ${rm.nm}: ${fmtC(rm.monto)}">⚠️ sueldo base bajo la renta mínima</span>`:'')
+      +(l.asigFamiliar?` · AF ${fmtC(l.asigFamiliar)}`:'');
+    totHab+=l.totalHaberes;totLiq+=l.liquido;totAFk+=l.asigFamiliar||0;totPrev+=l.totalPrevisional;totIusc+=l.iusc;totPatronal+=l.patronal.total;
     return `<tr>
       <td class="tl" style="font-size:12px">${t.nombre}<div style="font-size:10px;color:var(--mt)">${t.cargo||''} ${t.rut?'· '+t.rut:''}${notaDias?' · '+notaDias:''}</div></td>
       <td style="font-family:var(--mono);text-align:right">${fmtC(l.totalHaberes)}</td>
@@ -400,7 +480,7 @@ function renderRemuneraciones(){
     <div class="kpi"><div class="kpi-lbl">Impuesto Único</div><div class="kpi-val neg">${fmtC(totIusc)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Líquido a Pagar</div><div class="kpi-val pos">${fmtC(totLiq)}</div></div>
     <div class="kpi"><div class="kpi-lbl">Aporte Empleador</div><div class="kpi-val">${fmtC(totPatronal)}</div></div>
-    <div class="kpi"><div class="kpi-lbl">Costo Total Empresa</div><div class="kpi-val">${fmtC(totHab+totPatronal)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Costo Total Empresa</div><div class="kpi-val">${fmtC(totHab-totAFk+totPatronal)}</div>${totAFk?`<div style="font-size:10px;color:var(--mt)">sin asignación familiar (${fmtC(totAFk)}), que se compensa</div>`:''}</div>
   </div>
   <div class="card-np"><div class="tw"><table>
     <thead><tr><th class="tl">TRABAJADOR</th><th style="text-align:right">HABERES</th><th style="text-align:right">AFP</th><th style="text-align:right">SALUD</th><th style="text-align:right">CESANTÍA</th><th style="text-align:right">IUSC</th><th style="text-align:right">LÍQUIDO</th><th></th></tr></thead>
@@ -433,7 +513,7 @@ function verLiquidacion(id){
   const esIsapre=t.salud&&t.salud!=='fonasa';
   const diasNoTrab=a?Math.max(0,30-a.diasPagados):0;
   const fila=(lbl,val,cls='')=>`<div class="liq2-f ${cls}"><span>${lbl}</span><span>${val===null?'':n(val)}</span></div>`;
-  const descLegales=l.saludLegal+l.descAFP+l.adicionalIsapre+l.descCesantia+l.iusc;
+  const descLegales=l.saludLegal+l.descAFP+l.adicionalIsapre+l.descCesantia+(l.descTrabPesado||0)+l.iusc;
   const html=`<div class="card liq-print liq2" style="max-width:760px;margin:0 auto">
     <div class="liq2-tit">LIQUIDACIÓN DE REMUNERACIONES<div>${mes} - ${S.empresa.anio}</div></div>
 
@@ -451,7 +531,7 @@ function verLiquidacion(id){
           <div><span class="liq2-k">${esIsapre?'ISAPRE':'SALUD'}:</span> <b>${esIsapre?l.saludNm.replace(/^Isapre\s+/i,''):'Fonasa'}</b>${esIsapre&&l.planUF?` &nbsp; <span class="liq2-k">Plan:</span> <b>UF ${(+l.planUF).toLocaleString('es-CL',{maximumFractionDigits:4})}</b>`:''}</div>
           <div><span class="liq2-k">Tope Imponible:</span> <b>${(+P.topeAFP_UF).toLocaleString('es-CL')} UF ($ ${n(topeAFP)})</b> &nbsp; <span class="liq2-k">UF:</span> <b>${(+uf).toLocaleString('es-CL',{maximumFractionDigits:2})}</b></div>
           <div><span class="liq2-k">Tope Imp. Cesantía:</span> <b>${(+P.topeCesantia_UF).toLocaleString('es-CL')} UF ($ ${n(topeCes)})</b> &nbsp; <span class="liq2-k">UTM:</span> <b>${n(utm)}</b></div>
-          <div><span class="liq2-k">Cargas:</span> <b>${+(t.lre&&t.lre.cargasLegales)||0}</b></div>
+          <div><span class="liq2-k">Cargas:</span> <b>${l.af?l.af.cargas.total:0}</b>${l.af&&l.af.cargas.total?` <span class="liq2-k">Tramo</span> <b>${l.af.tramo}</b>`:''}</div>
         </div>
       </div>
       <table class="liq2-afp"><thead><tr><th class="tl">AFP</th><th>Aportación Trabajador/a</th><th>Aportación Empresa</th><th>Aportación Total</th></tr></thead>
@@ -475,6 +555,7 @@ function verLiquidacion(id){
         ${fila('No imponible',l.totalNoImponible,'liq2-sub')}
         ${l.movilizacion?fila('Movilización',l.movilizacion,'liq2-in'):''}
         ${l.colacion?fila('Colación',l.colacion,'liq2-in'):''}
+        ${l.asigFamiliar?fila(`Asignación familiar (${l.af.cargas.total} carga${l.af.cargas.total>1?'s':''})`,l.asigFamiliar,'liq2-in'):''}
       </div>
       <div>
         <div class="liq2-h">DESCUENTOS</div>
@@ -483,6 +564,7 @@ function verLiquidacion(id){
         ${fila('AFP',l.descAFP,'liq2-in')}
         ${l.adicionalIsapre?fila('Adicional Isapre',l.adicionalIsapre,'liq2-in'):''}
         ${l.descCesantia?fila('Seguro de cesantía (trabajador)',l.descCesantia,'liq2-in'):''}
+        ${l.descTrabPesado?fila(`Cotización trabajo ${l.califPesado==='pesado'?'pesado':'menos pesado'} (${String(l.tasasTP.trab).replace('.',',')}%)`,l.descTrabPesado,'liq2-in'):''}
         ${l.iusc?fila('Impuesto único',l.iusc,'liq2-in'):''}
       </div>
     </div>
@@ -532,10 +614,10 @@ async function generarAsientoRemuneraciones(){
   const uf=getUF(),utm=getUTM();
   if(!S.trabajadores.length){toast('⚠️ No hay trabajadores','e');return;}
   // Acumular
-  let totSueldo=0,totColMov=0,totAFP=0,totSalud=0,totCes=0,totIusc=0,totLiq=0,totPatronal=0;
+  let totSueldo=0,totColMov=0,totAFP=0,totSalud=0,totCes=0,totIusc=0,totLiq=0,totPatronal=0,totAF=0,totTP=0;
   S.trabajadores.forEach(t=>{
     const l=liquidacionMes(t,uf,utm,mesNum);
-    totSueldo+=l.totalImponible;totColMov+=l.totalNoImponible;
+    totSueldo+=l.totalImponible;totColMov+=l.totalNoImponible-(l.asigFamiliar||0);totAF+=l.asigFamiliar||0;totTP+=l.descTrabPesado||0;
     totAFP+=l.descAFP;totSalud+=l.descSalud;totCes+=l.descCesantia;totIusc+=l.iusc;totLiq+=l.liquido;
     totPatronal+=l.patronal.total;
   });
@@ -563,14 +645,17 @@ async function generarAsientoRemuneraciones(){
   movs.push({cd:'3201001',nm:pdcNm('3201001'),debe:totSueldo,haber:0,desc:'Sueldos '+MESES[mesNum-1]});
   if(totColMov)movs.push({cd:'3201003',nm:pdcNm('3201003'),debe:totColMov,haber:0,desc:'Colación y movilización'});
   // HABER: retenciones previsionales e impuesto (por pagar), líquido por pagar
-  const totPrev=totAFP+totSalud+totCes;
+  const totPrev=totAFP+totSalud+totCes+totTP;
   if(totPrev)movs.push({cd:'2104001',nm:pdcNm('2104001'),debe:0,haber:totPrev,desc:'Instituciones previsionales por pagar'});
+  // Asignación familiar: se paga al trabajador y se descuenta de las cotizaciones
+  // a enterar, por eso rebaja las instituciones previsionales por pagar.
+  if(totAF)movs.push({cd:'2104001',nm:pdcNm('2104001'),debe:totAF,haber:0,desc:'Asignación familiar compensada'});
   if(totIusc)movs.push({cd:'2104002',nm:pdcNm('2104002'),debe:0,haber:totIusc,desc:'Impuesto único por pagar'});
   movs.push({cd:'2104005',nm:pdcNm('2104005'),debe:0,haber:totLiq,desc:'Líquidos por pagar'});
   // Aporte patronal: es GASTO de la empresa (no se descuenta al trabajador),
   // con contrapartida en instituciones previsionales por pagar.
   if(totPatronal>0){
-    movs.push({cd:'3201013',nm:pdcNm('3201013'),debe:totPatronal,haber:0,desc:'Aporte patronal (SIS, mutual, AFC)'});
+    movs.push({cd:'3201013',nm:pdcNm('3201013'),debe:totPatronal,haber:0,desc:'Aporte patronal (SIS, mutual, AFC'+(totTP?', trabajo pesado':'')+')'});
     movs.push({cd:'2104001',nm:pdcNm('2104001'),debe:0,haber:totPatronal,desc:'Aporte patronal por pagar'});
   }
   // El número lo asigna la secuencia contable al guardar (numeroContable).
@@ -620,4 +705,4 @@ async function refrescarAsientosDesdeNube(anio){
 }
 
 
-export {remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, REMF};
+export {rentaMinimaDe, cargasFamiliares, asignacionFamiliar, ingresoSemestreAnterior, remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, REMF};

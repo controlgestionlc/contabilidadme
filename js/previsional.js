@@ -71,6 +71,10 @@ export const PATRONAL_DEFAULT={
   afcIndef11:0.80,        // empleador, indefinido con más de 11 años de antigüedad
   afcTrabIndef11:0.00,    // trabajador, más de 11 años (deja de aportar)
   cajaCompensacion:0.00,  // si la empresa está afiliada (habitualmente 0,6%)
+  // V2.21.46 — Distribución del 7% de salud de afiliados a Fonasa cuando la
+  // empresa está afiliada a una CCAF (Previred, remuneraciones oct-2026).
+  ccafSaludCaja:4.20,     // % de la renta imponible que va a la caja
+  ccafSaludFonasa:2.80,   // % que va a Fonasa
   mutualInstitucion:'achs',
   cajaInstitucion:'ninguna',
 };

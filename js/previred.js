@@ -31,8 +31,8 @@ const PAGADOR_SUBSIDIO={
   cruzblanca:'96501450-0',fonasa:'61603000-0',nuevamasvida:'96504160-5',
   achs:'70360100-6',mutual:'70285100-9',ist:'70015580-3',isl:'61533000-0',
 };
-// Fonasa con empresa afiliada a CCAF: 0,55% a Fonasa y 6,45% a la caja (v58)
-const TASA_FONASA_CON_CCAF=0.55, TASA_CCAF_FONASA=6.45;
+// Fonasa con empresa afiliada a CCAF: el 7% se reparte entre Fonasa y la caja.
+// Las tasas se configuran en Previsional (Previred oct-2026: 2,8% Fonasa y 4,2% caja).
 const N_CAMPOS=105;
 
 // ── Configuración de la empresa para Previred ──
@@ -174,9 +174,29 @@ function construirPrevired(mes){
     if(movs.length)lineaMovimiento(c,movs[0]);else c[15]='0';
     if(dias===0&&!movs.some(m=>m.codigo===3||m.codigo===6||m.codigo===4||m.codigo===11||m.codigo===2||m.codigo===1||m.codigo===7))
       err(quien,'Campo 13','0 días trabajados sin movimiento de personal: registra la ausencia en Asistencia.');
-    // Asignación familiar: no se calcula
-    c[18]='D';
-    if(+(l.lre?.cargasLegales||0)>0)adv(quien,'Campos 18-22','Tiene cargas familiares en la ficha, pero el sistema no calcula asignación familiar: se informa tramo D.');
+    // Asignación familiar (campos 18-22). Libros cerrados antes de V2.21.47 no la traen.
+    if(l.tramoAF!==undefined){
+      const cg=l.cargasAF||{};
+      c[18]=/^[ABCD]$/.test(l.tramoAF)?l.tramoAF:'D';
+      if(cg.simples)c[19]=num(cg.simples);
+      if(cg.maternales)c[20]=num(cg.maternales);
+      if(cg.invalidas)c[21]=num(cg.invalidas);
+      if(+l.asigFamiliar>0)c[22]=num(l.asigFamiliar);
+      if((cg.simples||0)>13||(cg.maternales||0)>1||(cg.invalidas||0)>1)err(quien,'Campos 19-21','Previred acepta hasta 13 cargas simples, 1 maternal y 1 inválida.');
+      if(c[18]==='D'&&(cg.simples||cg.maternales||cg.invalidas))adv(quien,'Campo 18','Tiene cargas familiares, pero su tramo es D (sin derecho a asignación).');
+    }else{
+      c[18]='D';
+      if(+(l.lre?.cargasLegales||0)>0)adv(quien,'Campos 18-22','Libro cerrado antes de calcular asignación familiar: se informa tramo D. Reabre y cierra el libro para incluirla.');
+    }
+    // Trabajo pesado (campos 37-39): % total 04,00 (pesado) o 02,00 (menos pesado)
+    if(+l.descTrabPesado>0||+l.trabPesado>0){
+      const pct=+l.tasaTrabPesado||0;
+      c[37]=textoPrevired(l.puestoPesado||'',40);
+      c[38]=(pct<10?'0':'')+pct.toFixed(2).replace('.',',');
+      c[39]=num((+l.descTrabPesado||0)+(+l.trabPesado||0));
+      if(!c[37])err(quien,'Campo 37','Falta el nombre del puesto de trabajo pesado en la ficha.');
+      if(c[38]!=='04,00'&&c[38]!=='02,00')err(quien,'Campo 38',`Previred solo acepta 04,00 o 02,00 como % de trabajo pesado (calculado ${c[38]}).`);
+    }
 
     // Bases (con respaldo para libros cerrados en versiones anteriores)
     const topeAFP=Math.round((+getIndicadores().topeAFP_UF||0)*(+L.uf||0));
@@ -206,8 +226,11 @@ function construirPrevired(mes){
     c[75]=codSalud??'0';
     if(salud==='fonasa'){
       if(conCaja){
-        c[70]=num(baseAFP*TASA_FONASA_CON_CCAF/100);
-        c[90]=num(baseAFP*TASA_CCAF_FONASA/100);
+        const tCaja=isFinite(+P.ccafSaludCaja)&&P.ccafSaludCaja!==''?+P.ccafSaludCaja:4.2;
+        const tFon=isFinite(+P.ccafSaludFonasa)&&P.ccafSaludFonasa!==''?+P.ccafSaludFonasa:2.8;
+        if(Math.abs(tCaja+tFon-7)>0.001)adv(quien,'Campos 70 y 90',`La distribución del 7% con caja suma ${(tCaja+tFon).toLocaleString('es-CL')}%: revisa las tasas en Previsional.`);
+        c[70]=num(baseAFP*tFon/100);
+        c[90]=num(baseAFP*tCaja/100);
       }else c[70]=num(l.saludLegal);
       c[78]='1';
     }else{

@@ -86,6 +86,11 @@ export function renderPrevisional(){
         <div style="font-size:10px;color:var(--mt);margin-top:2px">Solo si la empresa está afiliada (habitual 0,6%)</div>
       </div>
       <div class="grp">
+        <label>Salud 7% con caja: % a la caja / % a Fonasa</label>
+        <div style="display:flex;gap:6px"><input type="number" id="pat-ccaf-caja" step="0.01" value="${p.ccafSaludCaja}"><input type="number" id="pat-ccaf-fonasa" step="0.01" value="${p.ccafSaludFonasa}"></div>
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">Solo trabajadores en Fonasa. Previred oct-2026: 4,2% caja y 2,8% Fonasa</div>
+      </div>
+      <div class="grp">
         <label>Caja — institución</label>
         <select id="pat-caja-inst">
           ${P.cajas.map(cj=>`<option value="${cj.k}" ${cj.k===p.cajaInstitucion?'selected':''}>${cj.nm}</option>`).join('')}
@@ -205,6 +210,8 @@ export async function guardarPrevisional(){
     afcIndef11:num('pat-afcIndef11'),
     afcTrabIndef11:num('pat-afcTrabIndef11'),
     cajaCompensacion:num('pat-caja'),
+    ccafSaludCaja:num('pat-ccaf-caja'),
+    ccafSaludFonasa:num('pat-ccaf-fonasa'),
     mutualInstitucion:document.getElementById('pat-mutual-inst').value,
     cajaInstitucion:document.getElementById('pat-caja-inst').value,
   };

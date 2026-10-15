@@ -127,7 +127,7 @@ export function construirRegistroLRE(linea){
   r['1105']=val(p.region); r['1106']=val(p.comuna); r['1170']=val(p.tipoImpuesto,'1'); r['1146']=val(p.tecnicoExtranjero,'0');
   r['1107']=val(p.jornada,'101'); r['1108']=val(p.discapacidad,'0'); r['1109']=val(p.pensionadoVejez,'0'); r['1141']=afpCodigo(linea,p);
   r['1142']=val(p.ips,'0'); r['1143']=saludCodigo(linea,p); r['1151']=val(p.afc,'1'); r['1110']=ccafCodigo(p); r['1152']=mutualCodigo(p);
-  r['1111']=val(p.cargasLegales); r['1112']=val(p.cargasMaternales); r['1113']=val(p.cargasInvalidez); r['1114']=val(p.tramoAsignacion);
+  r['1111']=val(p.cargasLegales); r['1112']=val(p.cargasMaternales); r['1113']=val(p.cargasInvalidez); r['1114']=val(linea.tramoAF||p.tramoAsignacion);
   for(let i=1;i<=10;i++)r[String(1170+i)]=val(p[`rutSindicato${i}`]);
   r['1115']=val(p.diasTrabajados,'30'); r['1116']=val(p.diasLicencia); r['1117']=val(p.diasVacaciones); r['1118']=val(p.subsidioJoven,'0');
   r['1154']=val(p.trabajoPesado); r['1155']=val(p.apvIndividual,'0'); r['1157']=val(p.apvColectivo,'0'); r['1131']=val(p.indemnizacionTodoEvento,'0'); r['1132']=val(p.tasaIndemnizacion);
@@ -137,10 +137,12 @@ export function construirRegistroLRE(linea){
   const otrosCodigo=/^(2102|2103|2111|2113)$/.test(String(p.otrosCodigo||''))?String(p.otrosCodigo):'2111';
   if(linea.otros)r[otrosCodigo]=nz(linea.otros);
   r['2301']=linea.colacion?nz(linea.colacion):''; r['2302']=linea.movilizacion?nz(linea.movilizacion):'';
+  r['2311']=linea.asigFamiliar?nz(linea.asigFamiliar):'';
 
   // Descuentos y aportes
   r['3141']=nz(linea.descAFP); r['3143']=nz(linea.saludLegal); r['3144']=linea.adicionalIsapre?nz(linea.adicionalIsapre):'';
   r['3151']=linea.descCesantia?nz(linea.descCesantia):''; r['3161']=nz(linea.iusc);
+  r['3154']=linea.descTrabPesado?nz(linea.descTrabPesado):''; r['4154']=linea.trabPesado?nz(linea.trabPesado):'';
   r['4151']=linea.afc?nz(linea.afc):''; r['4152']=nz(linea.mutual); r['4155']=nz(linea.sis);
 
   // Totales oficiales
