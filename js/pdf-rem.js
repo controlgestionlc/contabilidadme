@@ -10,6 +10,7 @@ import {S} from './state.js';
 import {logAccion} from './firebase.js';
 import {htmlLiquidacion, membreteEmpresa, mesRemSel} from './remuneraciones.js';
 import {libroDelMes} from './libroremuneraciones.js';
+import {construirImposiciones} from './imposiciones.js';
 
 const H2P_URL='https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js';
 let cargando=null;
@@ -123,7 +124,32 @@ function htmlLibro(L,mes){
       <div class="lp-rf lp-rt"><span>Costo total empresa</span><b>${n(T.costoEmpresa)}</b></div></div>
     <div class="lp-firma"><div class="lp-linea"></div>${esc(S.empresa.rep||'Representante legal')}<div class="lp-sub">${esc(S.empresa.nombre||'')}${S.empresa.rut?' · RUT '+esc(S.empresa.rut):''}</div></div>
   </div>`;
-  return hojas.join('')+resumen;
+  return hojas.join('')+resumen+htmlInstituciones(mes,per);
+}
+// Hoja de pago por institución (V2.21.50), como el resumen de Previred.
+// Usa el mismo cálculo del detalle de imposiciones y del archivo Previred.
+function htmlInstituciones(mes,per){
+  let I;
+  try{I=construirImposiciones(mes);}catch(e){console.error(e);return '';}
+  if(!I||!I.instituciones||!I.instituciones.length)return '';
+  const sumaCargo=(i,c)=>i.conceptos.filter(x=>x.cargo===c).reduce((s,x)=>s+x.monto,0);
+  const hayComp=I.instituciones.some(i=>sumaCargo(i,'Compensación'));
+  const filasRes=I.instituciones.map(i=>`<tr><td class="tl"><b>${esc(i.institucion)}</b></td><td class="tl">${esc(i.tipo)}</td>
+      <td>${n(sumaCargo(i,'Trabajador'))}</td><td>${n(sumaCargo(i,'Empleador'))}</td>${hayComp?`<td>${sumaCargo(i,'Compensación')?n(sumaCargo(i,'Compensación')):''}</td>`:''}<td class="lp-b">${n(i.total)}</td></tr>`).join('');
+  const totT=I.instituciones.reduce((s,i)=>s+sumaCargo(i,'Trabajador'),0),totE=I.instituciones.reduce((s,i)=>s+sumaCargo(i,'Empleador'),0);
+  const totC=I.instituciones.reduce((s,i)=>s+sumaCargo(i,'Compensación'),0),totG=I.instituciones.reduce((s,i)=>s+i.total,0);
+  const tarjetas=I.instituciones.map(i=>`<div class="li-card"><div class="li-h"><span>${esc(i.institucion)}</span><span>${esc(i.tipo)}</span></div>
+      <table class="li-t">${i.conceptos.map(c=>`<tr><td class="tl">${esc(c.concepto)}<div class="lp-sub">${esc(c.cargo)} · ${c.trabajadores} trab.</div></td><td>${n(c.monto)}</td></tr>`).join('')}
+      <tr class="li-sub"><td class="tl">Total a pagar</td><td>${n(i.total)}</td></tr></table></div>`).join('');
+  return `<div class="lp-hoja pdf-salto">
+    <div class="lp-cab">${membreteEmpresa()}
+      <div class="lp-tit"><div class="lp-t1">DETALLE DE PAGO POR INSTITUCIÓN</div><div class="lp-t2">Remuneraciones ${per}</div>
+        <div class="lp-t3">Resumen de cotizaciones a pagar en Previred</div></div></div>
+    <table class="lp-tab li-res"><thead><tr><th class="tl">INSTITUCIÓN</th><th class="tl">TIPO</th><th>CARGO TRABAJADOR</th><th>CARGO EMPLEADOR</th>${hayComp?'<th>ASIG. FAMILIAR (SE DESCUENTA)</th>':''}<th>TOTAL A PAGAR</th></tr></thead>
+      <tbody>${filasRes}<tr class="lp-tot"><td class="tl" colspan="2">TOTAL A PAGAR EN PREVIRED</td><td>${n(totT)}</td><td>${n(totE)}</td>${hayComp?`<td>${n(totC)}</td>`:''}<td>${n(totG)}</td></tr></tbody></table>
+    <div class="li-grid">${tarjetas}</div>
+    <div class="li-nota">No incluye el impuesto único de segunda categoría (${n(I.libro&&I.libro.totales?I.libro.totales.iusc:0)}), que se declara y paga en el F29. Las cotizaciones se pagan hasta el día 10 del mes siguiente, o hasta el 13 si el pago es electrónico.</div>
+  </div>`;
 }
 async function pdfLibroRem(){
   if(EN_CURSO){toast('⏳ Ya se está generando un PDF');return;}
@@ -141,4 +167,4 @@ async function pdfLibroRem(){
   finally{EN_CURSO=false;}
 }
 
-export {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, htmlLibro, cargarHtml2pdf};
+export {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, htmlLibro, htmlInstituciones, cargarHtml2pdf};

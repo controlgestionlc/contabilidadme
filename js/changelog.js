@@ -15,6 +15,8 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.50',fecha:'15-10-2026',titulo:'Pago por institución en el libro en PDF',items:[
+    {tipo:'nuevo',txt:'El PDF del Libro de Remuneraciones suma una hoja con el detalle a pagar por cada institución, como el resumen de Previred: un cuadro con cargo trabajador, cargo empleador, asignación familiar descontada y total por institución, y el detalle de conceptos de cada una (AFP, Seguro Social Previsional, salud, caja, AFC, mutual o ISL). Usa el mismo cálculo del archivo Previred y del detalle de imposiciones.'}]},
   {version:'V2.21.49',fecha:'15-10-2026',titulo:'Salud en la liquidación',items:[
     {tipo:'mejora',txt:'La liquidación muestra la salud con su porcentaje: "Salud Fonasa (7%)" o "Salud Isapre (7%)". En Isapre, la diferencia entre el valor del plan en UF y ese 7% aparece como "Adicional Isapre (plan UF x)".'}]},
   {version:'V2.21.48',fecha:'15-10-2026',titulo:'Liquidación simplificada y PDF de liquidaciones y libro',items:[
