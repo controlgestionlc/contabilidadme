@@ -1734,3 +1734,19 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .li-t td.tl{text-align:left;font-family:Sora,Arial,sans-serif}
 .li-sub td{font-weight:700;border-top:1px solid #000!important}
 .li-nota{font-size:8.5px;color:#444;margin-top:10px}
+
+/* ── V2.21.53 Impresión de Remuneraciones en carta horizontal ── */
+.rem-midiendo{width:max-content!important;max-width:none!important}
+.rem-midiendo .tw,.rem-midiendo .card-np{overflow:visible!important;max-width:none!important}
+@media print{
+  body.print-rem #s-remuneraciones > :not(#rem-content):not(.sec-hdr){display:none!important}
+  body.print-rem #s-remuneraciones .sec-hdr{display:none!important}
+  body.print-rem #rem-content{zoom:var(--rem-zoom,1);width:auto}
+  body.print-rem #rem-content .tw,body.print-rem #rem-content .card-np{overflow:visible!important;max-width:none!important}
+  body.print-rem #rem-content table{width:auto;min-width:100%}
+  body.print-rem #rem-content thead{display:table-header-group}
+  body.print-rem #rem-content tr,body.print-rem #rem-content .kpi,body.print-rem #rem-content .card{break-inside:avoid;page-break-inside:avoid}
+  body.print-rem #rem-content .kpi-grid{grid-template-columns:repeat(4,1fr)!important;gap:8px!important}
+  body.print-rem #rem-content .info-tip,body.print-rem #rem-content .aux-tabs,body.print-rem #rem-content .no-print,body.print-rem #rem-content button{display:none!important}
+  body.print-rem #rem-content td,body.print-rem #rem-content th{color:#000!important}
+}
