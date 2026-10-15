@@ -1721,3 +1721,16 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .lp-rt{border-top:1px solid #999;margin-top:2px}
 .lp-firma{align-self:end;text-align:center;font-size:9.5px;padding-top:40px}
 .lp-linea{border-top:1px solid #000;margin-bottom:3px}
+
+/* V2.21.50 Hoja de pago por institución (libro en PDF) */
+.li-res{margin-bottom:12px}
+.li-res td,.li-res th{font-size:9px!important}
+.li-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.li-card{border:1px solid #999;break-inside:avoid;page-break-inside:avoid}
+.li-h{display:flex;justify-content:space-between;background:#e9e9e9;font-weight:700;font-size:9px;padding:4px 6px;border-bottom:1px solid #999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.li-h span:last-child{font-weight:400;color:#444}
+.li-t{width:100%;border-collapse:collapse;font-size:8.5px}
+.li-t td{padding:2.5px 6px;border:none!important;border-bottom:1px solid #e3e3e3!important;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:8.5px}
+.li-t td.tl{text-align:left;font-family:Sora,Arial,sans-serif}
+.li-sub td{font-weight:700;border-top:1px solid #000!important}
+.li-nota{font-size:8.5px;color:#444;margin-top:10px}
