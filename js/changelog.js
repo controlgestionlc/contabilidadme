@@ -15,6 +15,8 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.54',fecha:'15-10-2026',titulo:'Corrección urgente: inicio de sesión',items:[
+    {tipo:'correccion',txt:'La versión V2.21.53 no terminaba de cargar (faltaba una referencia interna de la impresión de Remuneraciones) y el botón de iniciar sesión no respondía. Corregido.'}]},
   {version:'V2.21.53',fecha:'15-10-2026',titulo:'Impresión de Remuneraciones en horizontal',items:[
     {tipo:'mejora',txt:'El botón Imprimir de Remuneraciones imprime en hoja carta horizontal y ajusta el contenido al ancho de la hoja, así las tablas (por ejemplo, el Libro de Remuneraciones) salen completas. Sólo imprime la pestaña abierta, sin los parámetros del mes ni los botones, y no corta filas ni recuadros entre hojas. Una liquidación o un finiquito abiertos se imprimen con su propio formato vertical.'}]},
   {version:'V2.21.52',fecha:'15-10-2026',titulo:'Reajuste del remanente de crédito fiscal como el SII',items:[

@@ -123,7 +123,7 @@ import {renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento,
 import {asegurarNumerosContables} from './correlativo-contable.js';
 import {renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF,
         editarAF, eliminarAF, generarAsientoDepreciacion, AFB} from './activofijo.js';
-import {renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
+import {imprimirRemuneraciones,renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
         previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador,
         onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired} from './remuneraciones.js';
 import {exportarPrevired, mostrarValidacionPrevired, setCfgPrevired, setCodigoPrevired} from './previred.js';
