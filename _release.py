@@ -67,6 +67,8 @@ if release:
         s=re.sub(r'(<meta name="app-release" content=")[^"]+(">)',r'\1'+release+r'\2',s)
     else:
         s=s.replace('<meta name="app-version" content="'+version+'">','<meta name="app-version" content="'+version+'">\n<meta name="app-release" content="'+release+'">')
+    # Texto de la pantalla de login, para que no parpadee una versión antigua
+    s=re.sub(r'(<strong id="login-app-release"[^>]*>)Versión [^<]*(</strong>)',r'\1Versión '+release+r'\2',s)
 
 open('index.html','w',encoding='utf-8').write(s)
 
