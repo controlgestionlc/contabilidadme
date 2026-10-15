@@ -134,6 +134,7 @@ import {renderFiniquitos, nuevoFiniquito, editarFiniquito, volverFiniquitos, onF
         duplicarPlantillaFin, cancelarPlantillaFin, subirPlantillaFin, guardarPlantillaFin, restaurarPlantillaFin,
         eliminarPlantillaFin, insertarMarcadorFin, abrirAsientoFiniquito, cerrarAsientoFiniquito, onAsientoFinCambio,
         generarAsientoFiniquito} from './finiquitos.js';
+import {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem} from './pdf-rem.js';
 import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
         guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
@@ -824,6 +825,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
         duplicarPlantillaFin, cancelarPlantillaFin, subirPlantillaFin, guardarPlantillaFin, restaurarPlantillaFin,
         eliminarPlantillaFin, insertarMarcadorFin, abrirAsientoFiniquito, cerrarAsientoFiniquito, onAsientoFinCambio,
         generarAsientoFiniquito,
+  pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem,
   renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
   guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel,
   renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,

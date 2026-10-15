@@ -15,6 +15,12 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.49',fecha:'15-10-2026',titulo:'Salud en la liquidación',items:[
+    {tipo:'mejora',txt:'La liquidación muestra la salud con su porcentaje: "Salud Fonasa (7%)" o "Salud Isapre (7%)". En Isapre, la diferencia entre el valor del plan en UF y ese 7% aparece como "Adicional Isapre (plan UF x)".'}]},
+  {version:'V2.21.48',fecha:'15-10-2026',titulo:'Liquidación simplificada y PDF de liquidaciones y libro',items:[
+    {tipo:'mejora',txt:'Liquidación de sueldo: membrete con los datos de la empresa a la izquierda, AFP con el porcentaje que se descuenta al trabajador (sin el cuadro de aportaciones), días trabajados en vez de días no trabajados y el líquido a pagar en palabras. Se quitan los topes imponibles, la UF, la UTM, el SIS y el adicional AFP del empleador.'},
+    {tipo:'nuevo',txt:'Botón "PDF liquidaciones (masivo)" en Remuneraciones: descarga un PDF con la liquidación de cada trabajador del mes, una por hoja carta. Cada liquidación también tiene su botón PDF individual.'},
+    {tipo:'nuevo',txt:'Botón "PDF" en el Libro de Remuneraciones: hoja carta horizontal con membrete, tabla por trabajador (el encabezado se repite en cada hoja), totales, resumen del mes, aportes del empleador y firma del representante legal.'}]},
   {version:'V2.21.47',fecha:'15-10-2026',titulo:'Asignación familiar, trabajo pesado y rentas mínimas',items:[
     {tipo:'nuevo',txt:'Asignación familiar: en la ficha del trabajador se registran cargas simples, maternales e inválidas (valen el doble). El tramo se calcula con el ingreso promedio del semestre anterior (libros cerrados) o, sin ellos, con la renta del mes; también se puede fijar a mano. Con menos de 25 días trabajados se paga proporcional (Art. 12 DFL 150). Aparece en la liquidación como haber no imponible, en el libro, en el LRE (códigos 1111 a 1114 y 2311) y en Previred (campos 18 a 22).'},
     {tipo:'nuevo',txt:'Trabajo pesado y menos pesado (Ley 19.404): 2% + 2% o 1% + 1% sobre la renta imponible. La parte del trabajador se descuenta en la liquidación y rebaja la base tributable; la del empleador suma al aporte patronal. Se informa en el LRE (3154 y 4154) y en Previred (campos 37 a 39, con 04,00 o 02,00).'},
