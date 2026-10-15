@@ -1684,3 +1684,40 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .fin-cks{display:flex;gap:8px 18px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--tx)}
 .fin-cks label{display:inline-flex!important;gap:6px;align-items:center;text-transform:none!important;letter-spacing:0!important;font-size:12px!important;font-weight:400!important;margin:0!important;color:var(--tx)!important}
 .fin-cks input[type=checkbox]{width:auto!important;margin:0}
+
+/* ── V2.21.48 Membrete, líquido en palabras y PDF ── */
+.memb{text-align:left;font-size:10.5px;line-height:1.45;color:var(--mt);margin-bottom:10px}
+.memb-nom{font-size:12.5px;font-weight:700;color:var(--tx);text-transform:uppercase}
+.liq2-palabras{font-size:11px;font-style:italic;padding:6px 14px 0}
+@media print{body.print-liq .memb,body.print-liq .memb *{color:#000!important}}
+.pdf-doc{--tx:#000;--mt:#333;--bd:#999;--bg:#fff;--sf:#fff;--sf2:#fff;--ach:#000;--err:#000;--warn:#000;--ac:#000;
+  background:#fff;color:#000;font-family:Sora,Arial,sans-serif}
+.pdf-doc .card{background:#fff!important;border:none!important;box-shadow:none!important;padding:0!important;max-width:none!important;margin:0!important}
+.pdf-doc .liq2{font-size:11.5px}
+.pdf-doc .liq2 *{color:#000}
+.pdf-doc .liq2-k,.pdf-doc .liq2-firma-sub,.pdf-doc .memb{color:#333}
+.pdf-doc .no-print{display:none!important}
+.pdf-doc .pdf-pag{padding:0 2px}
+/* Libro de remuneraciones en PDF */
+.lp-cab{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;border-bottom:1.5px solid #000;padding-bottom:6px}
+.lp-cab .memb{margin:0}
+.lp-tit{text-align:right}
+.lp-t1{font-size:15px;font-weight:700;letter-spacing:.5px}
+.lp-t2{font-size:12px;font-weight:600}
+.lp-t3{font-size:9.5px;color:#444;margin-top:2px}
+.lp-cont{font-size:9.5px;color:#444;margin-bottom:6px}
+.lp-tab{width:100%;border-collapse:collapse;font-size:8.2px}
+.lp-tab th{background:#e9e9e9;font-weight:700;font-size:7.4px;letter-spacing:0;padding:4px 3px;text-align:right;border:1px solid #bbb;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.lp-tab td{padding:3px 3px;text-align:right;border:1px solid #d0d0d0;font-family:'IBM Plex Mono',monospace;white-space:nowrap;font-size:8px}
+.lp-tab .tl{text-align:left;font-family:Sora,Arial,sans-serif;white-space:normal}
+.lp-tab td.tl:nth-child(2){min-width:125px;font-size:8.2px}
+.lp-tab .lp-b{font-weight:700}
+.lp-sub{font-size:7px;color:#555}
+.lp-tot td{font-weight:700;background:#f2f2f2;border-top:1.5px solid #000}
+.lp-res{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;margin-top:16px;font-size:9.5px;break-inside:avoid;page-break-inside:avoid}
+.lp-rh{font-weight:700;font-size:9px;border-bottom:1px solid #000;padding-bottom:2px;margin-bottom:4px}
+.lp-rf{display:flex;justify-content:space-between;padding:1.5px 0}
+.lp-rf b{font-family:'IBM Plex Mono',monospace}
+.lp-rt{border-top:1px solid #999;margin-top:2px}
+.lp-firma{align-self:end;text-align:center;font-size:9.5px;padding-top:40px}
+.lp-linea{border-top:1px solid #000;margin-bottom:3px}
