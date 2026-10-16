@@ -74,9 +74,40 @@ export function acBuscar(id){
   AC_ACTIVO=id;AC_SEL=0;
   if(!AC_RES.length){
     box.innerHTML='<div class="ac-item" style="color:var(--mt)">Sin coincidencias</div>';
-    box.style.display='block';return;
+    box.style.display='block';posicionarLista(inp,box);return;
   }
   pintarLista(id,box);
+  posicionarLista(inp,box);
+}
+
+// V2.21.61: la lista usa posición fija calculada sobre el campo, para que no
+// quede recortada por contenedores con desplazamiento (tablas .tw, ventanas).
+// Si abajo no hay espacio suficiente, se abre hacia arriba.
+function posicionarLista(inp,box){
+  if(!inp||!box||box.style.display==='none')return;
+  const r=inp.getBoundingClientRect();
+  if(r.bottom<0||r.top>innerHeight){box.style.display='none';return;}
+  const w=Math.min(Math.max(r.width,280),innerWidth-16);
+  const abajo=innerHeight-r.bottom-8,arriba=r.top-8;
+  const st=box.style;
+  st.position='fixed';st.zIndex='5000';st.margin='0';st.right='auto';
+  st.width=w+'px';st.minWidth='0';
+  st.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
+  if(abajo<180&&arriba>abajo){
+    st.top='auto';st.bottom=(innerHeight-r.top+2)+'px';st.maxHeight=Math.min(260,arriba)+'px';
+  }else{
+    st.bottom='auto';st.top=(r.bottom+2)+'px';st.maxHeight=Math.min(260,abajo)+'px';
+  }
+}
+function reposicionarActiva(ev){
+  if(!AC_ACTIVO)return;
+  const box=document.getElementById(AC_ACTIVO+'-ac');
+  if(!box||box.style.display==='none'||(ev&&ev.target===box))return;
+  posicionarLista(document.getElementById(AC_ACTIVO),box);
+}
+if(typeof window!=='undefined'&&window.addEventListener){
+  window.addEventListener('scroll',reposicionarActiva,true);
+  window.addEventListener('resize',reposicionarActiva);
 }
 
 function pintarLista(id,box){

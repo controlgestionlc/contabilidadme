@@ -15,6 +15,8 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.61',fecha:'16-10-2026',titulo:'La lista de cuentas ya no queda oculta',items:[
+    {tipo:'correccion',txt:'Al escribir en un campo de cuenta, la lista de sugerencias quedaba cortada bajo el cuadro siguiente (por ejemplo, en el Paso 2 del importador RCV). Ahora se muestra siempre encima de todo y, si abajo no hay espacio, se abre hacia arriba. Aplica a todos los buscadores de cuenta.'}]},
   {version:'V2.21.60',fecha:'16-10-2026',titulo:'Estado y Detalle en la primera columna del importador',items:[
     {tipo:'mejora',txt:'En los importadores del RCV de compras y de ventas, la columna de estado (NUEVO, SIN CUENTA, etc.) con el botón ✏️ Detalle pasa a ser la primera columna, para verla sin desplazarse a la derecha.'}]},
   {version:'V2.21.59',fecha:'16-10-2026',titulo:'Compras de meses anteriores se contabilizan el día 1',items:[
