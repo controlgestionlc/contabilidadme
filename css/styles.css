@@ -416,10 +416,10 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .linea-dte-badge .ldb-info b{color:var(--ach)}
 .linea-dte-badge button{padding:3px 8px;font-size:10px}
 /* IMPORT SII */
-.imp-row{display:grid;grid-template-columns:26px 88px 42px 66px 112px minmax(180px,2fr) 78px 76px 76px 92px 155px 135px 145px 68px;min-width:1360px;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(48,54,61,.5);align-items:center;font-size:11px}
+.imp-row{display:grid;grid-template-columns:26px 88px 42px 66px 112px minmax(180px,2fr) 78px 76px 76px 92px 155px 135px 145px 88px;min-width:1380px;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(48,54,61,.5);align-items:center;font-size:11px}
 .imp-row.dup{background:rgba(248,81,73,.08)}
 .imp-row.excluded{opacity:.4}
-.imp-row-hdr{display:grid;grid-template-columns:26px 88px 42px 66px 112px minmax(180px,2fr) 78px 76px 76px 92px 155px 135px 145px 68px;min-width:1360px;gap:6px;padding:8px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
+.imp-row-hdr{display:grid;grid-template-columns:26px 88px 42px 66px 112px minmax(180px,2fr) 78px 76px 76px 92px 155px 135px 145px 88px;min-width:1380px;gap:6px;padding:8px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
 .imp-row input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 .imp-row select{background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:3px 5px;border-radius:4px;font-size:11px;width:100%;font-family:var(--sans)}
 .imp-row .dup-badge{display:inline-block;background:rgba(248,81,73,.2);color:var(--err);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:3px}
@@ -1770,3 +1770,37 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   #ind-content .tw,#previsional-content .tw,#ind-content .card-np,#previsional-content .card-np{display:block}
 }
 #ind-content .grp.full select,#previsional-content .grp.full select,#ind-content > .card > select,#previsional-content .card select{max-width:420px}
+
+/* ── V2.21.57 Paso 2 del importador RCV ── */
+.rd-modal{z-index:1200}
+.rd-box{max-height:94vh;overflow:auto}
+.rd-cab{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 10px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-top:8px}
+.rd-dato{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rd-dato span{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mt)}
+.rd-dato b{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rd-dato input{font-size:12px;padding:3px 6px}
+.rd-dato.rd-ancho{grid-column:span 2}
+.rd-dato.rd-num b{font-family:var(--mono);text-align:right}
+.rd-dato.rd-tot b{color:var(--ac,var(--info))}
+.rd-tab{width:100%}
+.rd-tab td{padding:4px 5px;vertical-align:middle}
+.rd-tab td.rd-n{width:24px;text-align:center;color:var(--mt)}
+.rd-tab td.rd-cta{min-width:230px}
+.rd-tab .rd-monto{text-align:right;font-family:var(--mono);min-width:110px}
+.rd-tab td.rd-acc{white-space:nowrap;width:80px}
+.rd-tab .linea-inp{width:100%}
+.rd-chk{display:inline-flex!important;gap:6px;align-items:center;font-size:11.5px!important;text-transform:none!important;letter-spacing:0!important;font-weight:400!important;color:var(--tx)!important;margin-left:6px}
+.rd-chk input{width:auto!important}
+.rd-badge{font-size:11px;font-weight:700;color:var(--ok,#2e7d32);background:rgba(63,185,80,.12);padding:2px 8px;border-radius:10px}
+.rd-vt{width:auto;min-width:440px;margin-bottom:6px}
+.rd-vt td,.rd-vt th{padding:3px 10px;text-align:right;font-family:var(--mono);font-size:11.5px}
+.rd-vt td.tl,.rd-vt th.tl{text-align:left;font-family:var(--sans)}
+.rd-vt tr.rd-mal td{color:var(--err)}
+.rd-vt tr.rd-bien td:last-child{color:var(--ok,#2e7d32)}
+.rd-err{font-size:11.5px;color:var(--err);margin:2px 0}
+.rd-avi{font-size:11px;color:var(--mt);margin:2px 0}
+.rd-ok{font-size:12px;color:var(--ok,#2e7d32);font-weight:600;margin:4px 0}
+.rd-pie{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.rd-btn-fila{font-size:10px!important;padding:1px 6px!important}
+.rd-btn-fila.rd-rev{color:var(--ok,#2e7d32)!important;border-color:rgba(63,185,80,.5)!important}
+@media (max-width:760px){.rd-dato.rd-ancho{grid-column:span 1}.rd-tab td.rd-cta{min-width:160px}}

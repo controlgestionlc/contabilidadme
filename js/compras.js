@@ -15,6 +15,12 @@ import './storage.js';
 import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
 import {buscarRecepcionParaCompra} from './conciliacion-compras-motor.js';
+import {validarDetalleRCV} from './rcv-detalle.js';
+
+// V2.21.57 — Distribución revisada en el paso 2 del importador RCV
+function distDesdeDetalle(d){
+  return (d.detalleRCV?.lineas||[]).map(l=>({cuenta:l.cuenta,monto:Math.round(+l.monto||0),cc:l.cc||'',desc:l.desc||'',afecto:l.afecto!==false,tratamientoTributario:'aceptado'}));
+}
 
 // Estado del formulario de compras (interno del módulo)
 // CF NUNCA debe reasignarse: app.js expone este objeto con Object.assign(window,{CF})
@@ -40,6 +46,11 @@ function validarCuadraturaImportCompras(){
     if(prev&&Array.isArray(prev.dist)&&prev.dist.length>1){
       const sum=prev.dist.reduce((s,l)=>s+(+l.monto||0),0);
       if(Math.abs(sum-base)<=1)dist=prev.dist.map(l=>({...l}));
+    }
+    if(d.detalleRCV?.revisado){
+      dist=distDesdeDetalle(d);
+      const vd=validarDetalleRCV('compra',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo});
+      if(!vd.ok){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:'Detalle del paso 2: '+vd.errores[0],tipo:'detalle'});return;}
     }
     const doc={...d,id:prev?.id||`preview-c-${i}`,fecha:d.fechaOriginal||d.fecha,
       periodoContable:periodoImportSeleccionado(),fechaContabilizacion:fechaContabilizacionImport(d),dist,
@@ -1114,7 +1125,7 @@ function renderImportModal(){
       <div>${selHtml}</div>
       <div>${ccHtml}</div>
       <div>${refHtml}</div>
-      <div>${estado}</div>
+      <div>${estado}<div style="margin-top:3px"><button type="button" class="imp-pending-mini rd-btn-fila${d.detalleRCV?.revisado?' rd-rev':''}" onclick="abrirDetalleRCV('compra',${i})" title="Paso 2: distribuir en líneas con cuenta, descripción, centro de costo y afecto/exento">${d.detalleRCV?.revisado?`✓ ${d.detalleRCV.lineas.length} línea${d.detalleRCV.lineas.length>1?'s':''}`:'✏️ Detalle'}</button></div></div>
     </div>`;
   }).join('');
 }
@@ -1181,6 +1192,9 @@ function toggleAllImport(checked){
   renderImportModal();
 }
 function setImportCuenta(i,cuenta){
+  const det=IM.docs[i].detalleRCV;
+  if(det&&det.lineas.length>1){toast('ℹ️ Este documento tiene varias líneas: cambia las cuentas en su detalle (paso 2)','e');renderImportModal();return;}
+  if(det)det.lineas[0].cuenta=cuenta;
   IM.docs[i].cuenta=cuenta;
   delete IM.docs[i].errorImport;
   renderImportModal();
@@ -1196,13 +1210,17 @@ function aplicarCuentaATodos(){
     (document.getElementById('imp-bulk')&&document.getElementById('imp-bulk').value)||'';
   if(!cta){toast('⚠️ Selecciona una cuenta primero','e');return;}
   let n=0;
-  IM.docs.forEach(d=>{if(d.incluir){d.cuenta=cta;delete d.errorImport;n++;}});
+  let omitidos=0;
+  IM.docs.forEach(d=>{if(d.incluir){if(d.detalleRCV?.revisado){omitidos++;return;}d.cuenta=cta;delete d.errorImport;n++;}});
   renderImportModal();
-  toast(`✅ Aplicada cuenta a ${n} documento${n===1?'':'s'}`);
+  toast(`✅ Aplicada cuenta a ${n} documento${n===1?'':'s'}${omitidos?` · ${omitidos} ya revisado(s) en el paso 2 no se modificaron`:''}`);
 }
 
 // ── Centro de costo en el importador ──
 function setImportCC(i,cc){
+  const det=IM.docs[i].detalleRCV;
+  if(det&&det.lineas.length===1)det.lineas[0].cc=cc;
+  else if(det){toast('ℹ️ Este documento tiene varias líneas: cambia los centros de costo en su detalle (paso 2)','e');renderImportModal();return;}
   IM.docs[i].cc=cc;
   delete IM.docs[i].errorImport;
 }
@@ -1217,7 +1235,7 @@ function aplicarCCATodos(){
   const cc=sel?sel.value:'';
   // Se aplica también con cc vacío: eso significa "quitar CC a todos"
   let n=0;
-  IM.docs.forEach(d=>{if(d.incluir){d.cc=cc;delete d.errorImport;n++;}});
+  IM.docs.forEach(d=>{if(d.incluir&&!d.detalleRCV?.revisado){d.cc=cc;delete d.errorImport;n++;}});
   renderImportModal();
   toast(cc
     ? `✅ Centro de costo aplicado a ${n} documento${n===1?'':'s'}`
@@ -1389,6 +1407,7 @@ async function confirmarImportacion(){
       const sumPrev=prev.dist.reduce((s,l)=>s+(l.monto||0),0);
       if(Math.abs(sumPrev-montoDist)<=1)dist=prev.dist.map(l=>({...l}));
     }
+    if(d.detalleRCV?.revisado)dist=distDesdeDetalle(d);   // V2.21.57: líneas del paso 2
     // V2.22 — Conciliación automática con recepciones de inventario (misma lógica que el registro manual).
     const recepcionesPrevias=prev?.recepcionesVinculadas||[];
     const recepcionMatch=(!recepcionesPrevias.length&&(+d.tipoDTE===33||+d.tipoDTE===34))?buscarRecepcionParaCompra({tipoDTE:d.tipoDTE,rutCodigo:d.rutCodigo,numero:d.numero},S.inventario?.recepciones||[]):null;
@@ -1440,7 +1459,7 @@ async function confirmarImportacion(){
       dist,
       ...(recepcionesVinculadas.length?{recepcionesVinculadas}:{}),
       // Descripción/glosa de la compra ingresada en el importador (se muestra en el asiento).
-      ...((d.glosa||prev?.glosa)?{glosa:d.glosa||prev.glosa}:{}),
+      ...((d.glosa||d.detalleRCV?.glosa||prev?.glosa)?{glosa:d.glosa||d.detalleRCV?.glosa||prev.glosa}:{}),
       // Referencia de nota (56/61) asociada en el importador a una factura del proveedor.
       ...(d.referencia&&d.referencia.folio?{referencia:{tipoDTE:+d.referencia.tipoDTE||33,folio:String(d.referencia.folio),...(d.referencia.fecha?{fecha:d.referencia.fecha}:{}),...(d.referencia.razon?{razon:d.referencia.razon}:{razon:d.razonSocial||''})}}:{}),
       estado:'activo',

@@ -135,6 +135,7 @@ import {renderFiniquitos, nuevoFiniquito, editarFiniquito, volverFiniquitos, onF
         eliminarPlantillaFin, insertarMarcadorFin, abrirAsientoFiniquito, cerrarAsientoFiniquito, onAsientoFinCambio,
         generarAsientoFiniquito} from './finiquitos.js';
 import {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem} from './pdf-rem.js';
+import {abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD} from './rcv-detalle.js';
 import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
         guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
@@ -826,6 +827,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
         eliminarPlantillaFin, insertarMarcadorFin, abrirAsientoFiniquito, cerrarAsientoFiniquito, onAsientoFinCambio,
         generarAsientoFiniquito,
   pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, imprimirRemuneraciones,
+  abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD,
   renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
   guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel,
   renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,

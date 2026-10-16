@@ -13,6 +13,11 @@ import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerr
 import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 import {asientoVenta} from './motor-contable.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
+import {validarDetalleRCV} from './rcv-detalle.js';
+// V2.21.57 — Distribución revisada en el paso 2 del importador RCV
+function distDesdeDetalleV(d){
+  return (d.detalleRCV?.lineas||[]).map(l=>({cuenta:l.cuenta,monto:Math.round(+l.monto||0),cc:l.cc||'',desc:l.desc||'',afecto:l.afecto!==false}));
+}
 
 // Estado del formulario de ventas (interno del módulo)
 // Mismo cuidado que con AF y CF: este objeto se publica en window desde app.js,
@@ -27,8 +32,14 @@ function validarCuadraturaImportVentas(){
   const out=[];
   IMV.docs.forEach((d,i)=>{
     if(!d.incluir)return;
+    const rev=d.detalleRCV?.revisado;
+    if(rev){
+      const vd=validarDetalleRCV('venta',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo});
+      if(!vd.ok){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:'Detalle del paso 2: '+vd.errores[0],tipo:'detalle'});return;}
+    }
     const doc={...d,id:d.dup?.id||`preview-v-${i}`,fecha:d.fechaOriginal||d.fecha,
-      formaPago:d.dup?.formaPago||d.fp||'clientes',cuentaIngreso:d.dup?.cuentaIngreso||d.cuenta||''};
+      formaPago:d.dup?.formaPago||d.fp||'clientes',cuentaIngreso:rev?(d.detalleRCV.lineas[0].cuenta):(d.dup?.cuentaIngreso||d.cuenta||''),
+      ...(rev?{dist:distDesdeDetalleV(d)}:(d.dup?.dist?{dist:d.dup.dist}:{}))};
     try{
       const a=asientoVenta(doc);
       const vp=validarMovimientosPDC(a.movs||[]);
@@ -484,7 +495,10 @@ async function guardarVenta(){
   const fechaVencimientoOrigen=fechaVencimiento
     ?((prevEdit?.fechaVencimiento===fechaVencimiento&&prevEdit?.fechaVencimientoOrigen)?prevEdit.fechaVencimientoOrigen:'manual')
     :'';
-  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(referencia?{referencia}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||''}:{})};
+  // V2.21.57: una venta distribuida en varias líneas conserva su distribución
+  // mientras neto + exento no cambien; si cambian, vuelve a una sola cuenta.
+  const distPrev=prevEdit&&Array.isArray(prevEdit.dist)&&prevEdit.dist.length&&Math.abs(prevEdit.dist.reduce((s,l)=>s+(+l.monto||0),0)-(neto+exento))<=1?prevEdit.dist:null;
+  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(distPrev?{dist:distPrev}:{}),...(referencia?{referencia}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||''}:{})};
   const editando=!!VF.editId;
   const rSave=await guardarDocumentoContabilizado('ventas',doc,S.ventas,editando);
   if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
@@ -618,7 +632,7 @@ function aplicarCuentaATodosV(){
   const cd=_bulkCuentaImpV||(bulkInp?bulkInp.dataset.cd:'')||
     (document.getElementById('impv-bulk')&&document.getElementById('impv-bulk').value)||'';
   if(!cd){toast('⚠️ Elige una cuenta primero','e');return;}
-  IMV.docs.forEach(d=>{if(d.incluir){d.cuenta=cd;delete d.errorImport;}});
+  IMV.docs.forEach(d=>{if(d.incluir&&!d.detalleRCV?.revisado){d.cuenta=cd;delete d.errorImport;}});
   renderImportModalVentas();
 }
 
@@ -651,7 +665,7 @@ function renderImportModalVentas(){
       <option value="clientes" ${d.fp==='clientes'?'selected':''}>📇 Cliente</option>
       <option value="deudores" ${d.fp==='deudores'?'selected':''}>📋 Deudor</option>
     </select>`;
-    return `<div id="impv-row-${i}" class="imp-row${pendiente?' imp-pending-row':''}" style="display:grid;grid-template-columns:26px 90px 60px 80px 120px 1fr 90px 80px 80px 100px 180px 110px 80px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--bd);font-size:11px;align-items:center">
+    return `<div id="impv-row-${i}" class="imp-row${pendiente?' imp-pending-row':''}" style="display:grid;grid-template-columns:26px 90px 60px 80px 120px 1fr 90px 80px 80px 100px 180px 110px 92px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--bd);font-size:11px;align-items:center">
       <div style="text-align:center">${(d.estadoImport==='igual'||d.estadoImport==='manual')?'':`<input type="checkbox" ${d.incluir?'checked':''} onchange="IMV.docs[${i}].incluir=this.checked;renderImportModalVentas()">`}</div>
       <div>${fechaMostrar}</div>
       <div>${d.tipoDTE}</div>
@@ -665,9 +679,9 @@ function renderImportModalVentas(){
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.iva)}</div>
       <div style="text-align:right;font-family:var(--mono)">${fmtC(d.otrosImpuestos||0)}</div>
       <div style="text-align:right;font-family:var(--mono);font-weight:600">${fmtC(d.total)}</div>
-      <div>${inputCuenta({id:`impv-cd-${i}`,value:d.cuenta||'',onPick:`IMV.docs[${i}].cuenta='%CD%';delete IMV.docs[${i}].errorImport;renderImportModalVentas()`,placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'ingreso'})}</div>
+      <div>${inputCuenta({id:`impv-cd-${i}`,value:d.cuenta||'',onPick:`if(IMV.docs[${i}].detalleRCV&&IMV.docs[${i}].detalleRCV.lineas.length>1){toast('ℹ️ Este documento tiene varias líneas: cambia las cuentas en su detalle (paso 2)','e')}else{if(IMV.docs[${i}].detalleRCV)IMV.docs[${i}].detalleRCV.lineas[0].cuenta='%CD%';IMV.docs[${i}].cuenta='%CD%'};delete IMV.docs[${i}].errorImport;renderImportModalVentas()`,placeholder:'Buscar cuenta…',clase:'linea-inp',filtro:'ingreso'})}</div>
       <div>${fpSel}</div>
-      <div>${estado}</div>
+      <div>${estado}<div style="margin-top:3px"><button type="button" class="imp-pending-mini rd-btn-fila${d.detalleRCV?.revisado?' rd-rev':''}" onclick="abrirDetalleRCV('venta',${i})" title="Paso 2: distribuir en líneas con cuenta, descripción, centro de costo y afecto/exento">${d.detalleRCV?.revisado?`✓ ${d.detalleRCV.lineas.length} línea${d.detalleRCV.lineas.length>1?'s':''}`:'✏️ Detalle'}</button></div></div>
     </div>`;
   }).join('');
 
@@ -784,8 +798,9 @@ async function confirmarImportacionV(){
       neto:d.neto, exento:d.exento, iva:d.iva,
       otrosImpuestos:d.otrosImpuestos||0, total:d.total,
       formaPago:prev?.formaPago||d.fp||'clientes',
-      cuentaIngreso:prev?.cuentaIngreso||d.cuenta||'',
-      ...((d.glosa||prev?.glosa)?{glosa:d.glosa||prev.glosa}:{}),
+      cuentaIngreso:d.detalleRCV?.revisado?d.detalleRCV.lineas[0].cuenta:(prev?.cuentaIngreso||d.cuenta||''),
+      ...(d.detalleRCV?.revisado?{dist:distDesdeDetalleV(d)}:(prev?.dist&&Math.abs(prev.dist.reduce((s,l)=>s+(+l.monto||0),0)-((+d.neto||0)+(+d.exento||0)))<=1?{dist:prev.dist}:{})),
+      ...((d.glosa||d.detalleRCV?.glosa||prev?.glosa)?{glosa:d.glosa||d.detalleRCV?.glosa||prev.glosa}:{}),
       estado:'activo',
       importadoEn:prev?.importadoEn||new Date().toISOString(),
       ...(prev?{reimportadoEn:new Date().toISOString()}:{}),

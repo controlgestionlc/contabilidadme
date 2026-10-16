@@ -61,7 +61,24 @@ function asientoVenta(d){
   }
   const cuentaIng=d.cuentaIngreso||(dteInfo?dteInfo.cuenta:'4101002');
   const descIng=descUser||undefined;
-  if(ingreso){ if(ingreso>0)movs.push(mov(cuentaIng,0,ingreso,{docId:d.id,desc:descIng})); else movs.push(mov(cuentaIng,-ingreso,0,{docId:d.id,desc:descIng})); }
+  // V2.21.57 — Distribución en varias líneas (paso 2 del importador RCV):
+  // cada línea lleva su cuenta, descripción y centro de costo. Lo que el Total
+  // agrega sobre la suma de líneas (otros impuestos o redondeo) va a la primera.
+  const distV=(d.dist||[]).filter(l=>l&&l.cuenta&&n(l.monto));
+  if(ingreso&&distV.length){
+    const montos=distV.map(l=>n(l.monto)*signo);
+    const resto=ingreso-montos.reduce((a,b)=>a+b,0);
+    montos[0]+=resto;
+    distV.forEach((l,i)=>{
+      const m=montos[i];if(!m)return;
+      const extra={docId:d.id};
+      const desc=String(l.desc||'').trim()||descUser;
+      if(desc)extra.desc=desc;
+      if(l.cc&&reglaCuenta(l.cuenta)?.aceptaCentroCosto){extra.cc=l.cc;extra.desc=[extra.desc,`CC: ${l.cc}`].filter(Boolean).join(' · ');}
+      if(i===0&&resto)extra.desc=[extra.desc,Math.abs(resto)<=1?`Ajuste redondeo DTE ${resto>0?'+':''}${resto}`:'Incluye otros impuestos'].filter(Boolean).join(' · ');
+      if(m>0)movs.push(mov(l.cuenta,0,m,extra)); else movs.push(mov(l.cuenta,-m,0,extra));
+    });
+  }else if(ingreso){ if(ingreso>0)movs.push(mov(cuentaIng,0,ingreso,{docId:d.id,desc:descIng})); else movs.push(mov(cuentaIng,-ingreso,0,{docId:d.id,desc:descIng})); }
   if(iva){ if(iva>0)movs.push(mov('2103003',0,iva,{docId:d.id})); else movs.push(mov('2103003',-iva,0,{docId:d.id})); }
   return {fecha:d.fecha,glosa,movs,fuente:'ventas',docId:d.id,tipoDTE:d.tipoDTE,folio:d.numero,rutCodigo:d.rutCodigo,cuadre:cuadratura(movs)};
 }
@@ -230,7 +247,9 @@ function asientoCompra(d){
     // importador no debe bloquear el asiento: el CC inaplicable se ignora.
     const extra={docId:d.id};
     const partesDesc=[];
-    if(descUser)partesDesc.push(descUser);
+    // V2.21.57: la descripción de la línea (paso 2 del importador RCV) manda
+    const descLinea=String(l.desc||'').trim();
+    if(descLinea)partesDesc.push(descLinea);else if(descUser)partesDesc.push(descUser);
     if(l.cc&&reglaCuenta(l.cuenta)?.aceptaCentroCosto){partesDesc.push(`CC: ${l.cc}`);extra.cc=l.cc;}
     if(partesDesc.length)extra.desc=partesDesc.join(' · ');
     if(l.tratamientoTributario==='rechazado'){extra.tributario='gasto_rechazado';extra.motivoTributario=l.motivoTributario||'Marcado como gasto rechazado en documento de compra';}
