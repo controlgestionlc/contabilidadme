@@ -1830,3 +1830,7 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .lcv-ref-btn{font-size:10px!important;padding:1px 7px!important}
 .lcv-volver{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 10px;margin-bottom:10px;border:1px solid rgba(88,166,255,.3);background:rgba(88,166,255,.08);border-radius:8px;font-size:11px;color:var(--info)}
 .lcv-foco{outline:2px solid var(--warn)!important;box-shadow:0 0 0 4px rgba(210,153,34,.25)!important}
+
+/* V2.21.67: contrato de trabajo */
+.ct-falta{background:rgba(210,153,34,.25);border-radius:3px;padding:0 3px;color:var(--warn)}
+@media print{.ct-falta{background:none!important}}

@@ -181,7 +181,7 @@ export function tabsRemuneraciones(){
     <div class="aux-tab ${REM_VIEW==='asistencia'?'active':''}" onclick="setRemView('asistencia')">📅 Asistencia</div>
     <div class="aux-tab ${REM_VIEW==='vacaciones'?'active':''}" onclick="setRemView('vacaciones')">🏖️ Vacaciones</div>
     <div class="aux-tab ${REM_VIEW==='libro'?'active':''}" onclick="setRemView('libro')">📗 Libro de Remuneraciones</div>
-    <div class="aux-tab ${REM_VIEW==='contratosdt'?'active':''}" onclick="setRemView('contratosdt')">📑 Contratos DT</div>
+    <div class="aux-tab ${REM_VIEW==='contratosdt'?'active':''}" onclick="window.ctReset&&window.ctReset();setRemView('contratosdt')">📑 Contratos</div>
     <div class="aux-tab ${REM_VIEW==='finiquitos'?'active':''}" onclick="setRemView('finiquitos')">📝 Finiquitos</div>
   </div>`;
 }

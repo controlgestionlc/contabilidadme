@@ -142,6 +142,9 @@ import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFor
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
         cerrarMesRem, reabrirMesRem, exportarLibroRemExcel} from './libroremuneraciones.js';
+import {ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
+  ctInsertar, verPlantillasContrato, ctEditarPlantilla, ctNuevaPlantilla, ctDuplicarPlantilla, ctCancelarPlantilla, ctSubirPlantilla, ctGuardarPlantilla,
+  ctRestaurarPlantilla, ctEliminarPlantilla} from './contratos-trabajo.js';
 import {renderContratosDT, cdtSel, cdtSelTodos, cdtVerInformados, cdtGuardarDefaults, cdtEditar, cdtCerrar, cdtGuardar, cdtCSVUno, cdtCSVMasivo, cdtMarcar} from './contratos-dt.js';
 import {abrirAnticipos, cerrarAnticipos, anFechaCambio, guardarAnticipo, eliminarAnticipo} from './anticipos.js';
 import {exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS} from './lre-dt.js';
@@ -368,6 +371,7 @@ async function loadYear(y){
   await leer('trabajadores',p=>{if(Array.isArray(p))S.trabajadores=p;});
   await leer('asistencia',p=>{if(p&&typeof p==='object'&&!Array.isArray(p))S.asistencia=p;});
   S.finiquitos=null;await leer('finiquitos',p=>{if(p&&typeof p==='object'&&!Array.isArray(p))S.finiquitos=p;});
+  S.contratosTrab=null;await leer('contratosTrab',p=>{if(p&&typeof p==='object'&&!Array.isArray(p))S.contratosTrab=p;});
 
   if(S.cargaFallida.length){
     toast(`🚫 No se pudieron cargar ${S.cargaFallida.length} registro(s) — el guardado quedó bloqueado para protegerlos`,'e');
@@ -693,7 +697,7 @@ async function recargarEmpresaActiva(){
   window.__entornoBypass=true;
   // Resetear estado en memoria
   S.ventas=[];S.compras=[];S.honorarios=[];S.asientos=[];
-  S.activos=[];S.trabajadores=[];S.asistencia={eventos:[],horas:{}};S.finiquitos=null;S.apertura=null;
+  S.activos=[];S.trabajadores=[];S.asistencia={eventos:[],horas:{}};S.finiquitos=null;S.contratosTrab=null;S.apertura=null;
   await asegurarAccesoEmpresa(EMPRESAS.activa);
   S.inventario={cargado:false,grupos:[],bodegas:[],productos:[],movimientos:[],tomas:[],ordenesCompra:[],recepciones:[]};
   S.empresa={...S.empresa,nombre:'',rut:'',domicilio:'',giro:'',codigo:'',ciudad:'',comuna:'',rep:'',rutrep:''};
@@ -817,7 +821,9 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF, editarAF,
   eliminarAF, generarAsientoDepreciacion,
   // remuneraciones
-  renderRemuneraciones, renderContratosDT, cdtSel, cdtSelTodos, cdtVerInformados, cdtGuardarDefaults, cdtEditar, cdtCerrar, cdtGuardar, cdtCSVUno, cdtCSVMasivo, cdtMarcar, abrirAnticipos, cerrarAnticipos, anFechaCambio, guardarAnticipo, eliminarAnticipo, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
+  renderRemuneraciones, ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
+  ctInsertar, verPlantillasContrato, ctEditarPlantilla, ctNuevaPlantilla, ctDuplicarPlantilla, ctCancelarPlantilla, ctSubirPlantilla, ctGuardarPlantilla,
+  ctRestaurarPlantilla, ctEliminarPlantilla, renderContratosDT, cdtSel, cdtSelTodos, cdtVerInformados, cdtGuardarDefaults, cdtEditar, cdtCerrar, cdtGuardar, cdtCSVUno, cdtCSVMasivo, cdtMarcar, abrirAnticipos, cerrarAnticipos, anFechaCambio, guardarAnticipo, eliminarAnticipo, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
   renderLibroRem, setRemView, getRemView, tabsRemuneraciones, cerrarMesRem, reabrirMesRem,
   exportarLibroRemExcel, exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS, libroDelMes,
   previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem,

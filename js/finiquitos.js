@@ -915,7 +915,7 @@ async function eliminarPlantillaFin(id){
   toast('🗑 Plantilla eliminada');renderFiniquitos();
 }
 
-export {CAUSALES, PLANTILLAS_TIPO, calcularFiniquito, habilesACorridos, antiguedad, aniosIndemnizacion, numeroALetras,
+export {leerArchivoTexto, CAUSALES, PLANTILLAS_TIPO, calcularFiniquito, habilesACorridos, antiguedad, aniosIndemnizacion, numeroALetras,
   combinar, textoAHTML, valoresMarcadores, cargarFiniquitos, renderFiniquitos, nuevoFiniquito, editarFiniquito,
   volverFiniquitos, onFinCambio, agregarFilaFin, quitarFilaFin, previewFiniquito, editarTextoFiniquito, quitarTextoFiniquito,
   subirTextoFiniquito, guardarFiniquito, verFiniquito, eliminarFiniquito, marcarRatificado, imprimirFiniquito,

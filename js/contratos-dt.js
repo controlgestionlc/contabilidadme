@@ -239,6 +239,8 @@ function optsNac(val){return '<option value="">Seleccionar…</option>'+DT_NACIO
 
 function renderContratosDT(){
   const el=document.getElementById('rem-content');if(!el)return;
+  // V2.21.67: vistas de contrato de trabajo (documento, plantillas) en la misma pestaña
+  if(typeof window.ctVistaActiva==='function'&&window.ctVistaActiva())return;
   const tabs=window.tabsRemuneraciones?window.tabsRemuneraciones():'';
   const D=defaultsEmpresa();
   const hoy=new Date().toISOString().slice(0,10);
@@ -259,6 +261,7 @@ function renderContratosDT(){
       <td class="tl">${estado}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-i" onclick="cdtEditar('${t.id}')" title="Datos del contrato">✏️ Datos</button>
+        <button class="btn btn-i" onclick="abrirContratoTrabajo('${t.id}')" title="Generar el contrato de trabajo desde la plantilla de su cargo">📄 Contrato</button>
         <button class="btn btn-i" onclick="cdtCSVUno('${t.id}')" ${v.ok?'':'disabled'} title="Descargar CSV sólo de este trabajador">⬇️ CSV</button>
         ${inf?`<button class="btn btn-g" onclick="cdtMarcar('${t.id}',false)" title="Volver a pendiente">↺</button>`:`<button class="btn btn-g" onclick="cdtMarcar('${t.id}',true)" title="Marcar como informado a la DT">✓</button>`}
       </td></tr>`;}).join('');
@@ -285,6 +288,7 @@ function renderContratosDT(){
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <label style="display:inline-flex;gap:6px;align-items:center;font-size:12px;text-transform:none;letter-spacing:0;font-weight:400"><input type="checkbox" ${CDT.verInformados?'checked':''} onchange="cdtVerInformados(this.checked)" style="width:auto"> Mostrar también los ya informados</label>
     <span style="flex:1"></span>
+    <button class="btn btn-g" onclick="verPlantillasContrato()">📄 Plantillas de contrato</button>
     <button class="btn btn-g" onclick="cdtSelTodos(true)">Seleccionar listos</button>
     <button class="btn btn-p" onclick="cdtCSVMasivo()" ${nSel?'':'disabled'}>⬇️ CSV masivo (${nSel})</button>
   </div>
@@ -363,7 +367,7 @@ function cdtEditar(id){
     <div id="cdt-hgrid" style="display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:6px;margin-top:6px;opacity:${dc.horarioPropio?1:.5}">${DIAS.map(([k,,nm])=>`<div class="grp"><label>${nm}</label><input type="time" id="cdt-${k}-i" value="${esc((H[k]||[])[0]||'')}"><input type="time" id="cdt-${k}-f" value="${esc((H[k]||[])[1]||'')}" style="margin-top:3px"></div>`).join('')}</div>
     ${v.faltan.length?`<div class="rd-err" style="margin-top:8px">⛔ Falta: ${esc(v.faltan.join(', '))}</div>`:''}
     ${v.avisos.map(a=>`<div class="rd-avi">⚠️ ${esc(a)}</div>`).join('')}
-    <div class="modal-footer"><button class="btn btn-d" onclick="cdtCerrar()">Cancelar</button><span style="flex:1"></span><button class="btn btn-g" onclick="cdtGuardar()">💾 Guardar datos</button><button class="btn btn-p" onclick="cdtGuardar(true)" title="Guarda y descarga el CSV de este trabajador para subirlo a Mi DT">⬇️ Guardar y descargar CSV DT</button></div>`;
+    <div class="modal-footer"><button class="btn btn-d" onclick="cdtCerrar()">Cancelar</button><span style="flex:1"></span><button class="btn btn-g" onclick="cdtGuardar()">💾 Guardar datos</button><button class="btn btn-i" onclick="cdtGuardar(false,true)" title="Guarda y abre el contrato de trabajo con la plantilla de su cargo">📄 Guardar y ver contrato</button><button class="btn btn-p" onclick="cdtGuardar(true)" title="Guarda y descarga el CSV de este trabajador para subirlo a Mi DT">⬇️ Guardar y descargar CSV DT</button></div>`;
 }
 // Al cerrar se vuelve a la vista desde donde se abrió (pestaña Contratos DT o ficha/lista)
 function cdtCerrar(){
@@ -371,7 +375,7 @@ function cdtCerrar(){
   if(window.getRemView&&window.getRemView()==='contratosdt')renderContratosDT();
   else if(typeof window.renderRemuneraciones==='function')window.renderRemuneraciones();
 }
-async function cdtGuardar(descargarCSV){
+async function cdtGuardar(descargarCSV,verContrato){
   const t=(S.trabajadores||[]).find(x=>x.id===CDT.editId);if(!t)return;
   const g=id=>document.getElementById(id)?.value??'';
   const prev=t.contratoDT||{};
@@ -390,6 +394,7 @@ async function cdtGuardar(descargarCSV){
   toast(v.ok?'💾 Datos guardados · listo para informar':`💾 Guardado · faltan ${v.faltan.length} dato(s)`);
   if(descargarCSV&&!v.ok){toast(`⚠️ Para descargar el CSV completa: ${v.faltan.join(', ')}`,'e');cdtEditar(t.id);return;}
   if(v.ok)CDT.sel.add(t.id);
+  if(verContrato&&typeof window.abrirContratoTrabajo==='function'){const m=document.getElementById('cdt-modal');if(m)m.classList.remove('open');window.abrirContratoTrabajo(t.id);return;}
   cdtCerrar();
   if(descargarCSV)exportar([t]);
 }

@@ -167,4 +167,4 @@ async function pdfLibroRem(){
   finally{EN_CURSO=false;}
 }
 
-export {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, htmlLibro, htmlInstituciones, cargarHtml2pdf};
+export {generarPDF, pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, htmlLibro, htmlInstituciones, cargarHtml2pdf};

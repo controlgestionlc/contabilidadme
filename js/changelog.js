@@ -15,6 +15,10 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.67',fecha:'16-10-2026',titulo:'Contrato de trabajo con plantillas por cargo',items:[
+    {tipo:'nuevo',txt:'Remuneraciones → Contratos: botón "📄 Contrato" en cada trabajador. Genera el contrato de trabajo con la plantilla de su cargo (o la de su tipo de contrato), llenando los datos de la ficha y del registro DT: partes, nacionalidad, domicilio, funciones, lugar, jornada y horario, sueldo en palabras, gratificación, colación y movilización, día y forma de pago, AFP y salud, plazo. Se puede imprimir, descargar en PDF o en Word (para seguir editando) y ajustar el texto sólo para ese trabajador. Los datos vacíos se marcan en el documento.'},
+    {tipo:'nuevo',txt:'Plantillas de contrato (📄 Plantillas de contrato): cuatro plantillas tipo editables (indefinido, plazo fijo, obra o faena y trabajador agrícola de temporada) y plantillas propias que cada contador crea escribiéndolas, duplicando una tipo o subiendo un .docx/.txt. Cada plantilla se asocia a los cargos que la usan y a un tipo de contrato; los marcadores {{campo}} se insertan con un clic.'},
+    {tipo:'mejora',txt:'La ventana de datos del contrato DT tiene el botón "📄 Guardar y ver contrato". La pestaña "Contratos DT" pasa a llamarse "Contratos".'}]},
   {version:'V2.21.66',fecha:'16-10-2026',titulo:'CSV de contrato DT desde la ficha del trabajador',items:[
     {tipo:'nuevo',txt:'La ficha del trabajador tiene el botón "📑 Guardar y generar CSV contrato DT": guarda la ficha y abre los datos del contrato. En esa ventana, "⬇️ Guardar y descargar CSV DT" descarga el archivo de ese trabajador para subirlo a Mi DT.'},
     {tipo:'correccion',txt:'Al editar la ficha de un trabajador ya no se pierden sus anticipos ni los datos del contrato DT (el formulario reemplazaba la ficha completa).'}]},
