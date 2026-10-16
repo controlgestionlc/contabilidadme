@@ -363,10 +363,15 @@ function cdtEditar(id){
     <div id="cdt-hgrid" style="display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:6px;margin-top:6px;opacity:${dc.horarioPropio?1:.5}">${DIAS.map(([k,,nm])=>`<div class="grp"><label>${nm}</label><input type="time" id="cdt-${k}-i" value="${esc((H[k]||[])[0]||'')}"><input type="time" id="cdt-${k}-f" value="${esc((H[k]||[])[1]||'')}" style="margin-top:3px"></div>`).join('')}</div>
     ${v.faltan.length?`<div class="rd-err" style="margin-top:8px">⛔ Falta: ${esc(v.faltan.join(', '))}</div>`:''}
     ${v.avisos.map(a=>`<div class="rd-avi">⚠️ ${esc(a)}</div>`).join('')}
-    <div class="modal-footer"><button class="btn btn-d" onclick="cdtCerrar()">Cancelar</button><span style="flex:1"></span><button class="btn btn-p" onclick="cdtGuardar()">💾 Guardar datos del contrato</button></div>`;
+    <div class="modal-footer"><button class="btn btn-d" onclick="cdtCerrar()">Cancelar</button><span style="flex:1"></span><button class="btn btn-g" onclick="cdtGuardar()">💾 Guardar datos</button><button class="btn btn-p" onclick="cdtGuardar(true)" title="Guarda y descarga el CSV de este trabajador para subirlo a Mi DT">⬇️ Guardar y descargar CSV DT</button></div>`;
 }
-function cdtCerrar(){const m=document.getElementById('cdt-modal');if(m)m.classList.remove('open');renderContratosDT();}
-async function cdtGuardar(){
+// Al cerrar se vuelve a la vista desde donde se abrió (pestaña Contratos DT o ficha/lista)
+function cdtCerrar(){
+  const m=document.getElementById('cdt-modal');if(m)m.classList.remove('open');
+  if(window.getRemView&&window.getRemView()==='contratosdt')renderContratosDT();
+  else if(typeof window.renderRemuneraciones==='function')window.renderRemuneraciones();
+}
+async function cdtGuardar(descargarCSV){
   const t=(S.trabajadores||[]).find(x=>x.id===CDT.editId);if(!t)return;
   const g=id=>document.getElementById(id)?.value??'';
   const prev=t.contratoDT||{};
@@ -383,8 +388,10 @@ async function cdtGuardar(){
   if(!(await guardarTrabajadores())){toast('❌ No se pudieron guardar los datos','e');return;}
   const v=validarContrato(t);
   toast(v.ok?'💾 Datos guardados · listo para informar':`💾 Guardado · faltan ${v.faltan.length} dato(s)`);
+  if(descargarCSV&&!v.ok){toast(`⚠️ Para descargar el CSV completa: ${v.faltan.join(', ')}`,'e');cdtEditar(t.id);return;}
   if(v.ok)CDT.sel.add(t.id);
   cdtCerrar();
+  if(descargarCSV)exportar([t]);
 }
 
 // ── Descargas ──

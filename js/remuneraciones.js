@@ -360,7 +360,7 @@ function previewLiq(){
     </div>
   </div>`;
 }
-function guardarTrabajador(){
+function guardarTrabajador(abrirContratoDT){
   const t=leerFormTrabajador();
   if(!t.nombre){toast('⚠️ Ingresa el nombre','e');return;}
   if(t.tipoPago==='hora'){
@@ -374,11 +374,16 @@ function guardarTrabajador(){
   const cg=cargasFamiliares(t);
   if(cg.simples>13||cg.maternales>1||cg.invalidas>1){toast('⚠️ Previred acepta hasta 13 cargas simples, 1 maternal y 1 inválida','e');return;}
   if(t.lre.puestoPesado&&!t.lre.nombrePuestoPesado){toast('⚠️ Indica el nombre del puesto de trabajo pesado (Previred campo 37)','e');return;}
-  const bien={id:REMF.editId||'tr_'+Date.now(),...t};
+  // V2.21.66: se conservan los datos que el formulario no edita (anticipos,
+  // datos del contrato DT, etc.); antes se perdían al editar la ficha.
+  const previo=REMF.editId?S.trabajadores.find(x=>x.id===REMF.editId):null;
+  const bien={...(previo||{}),id:REMF.editId||'tr_'+Date.now(),...t};
   if(REMF.editId){const i=S.trabajadores.findIndex(x=>x.id===REMF.editId);if(i>=0)S.trabajadores[i]=bien;toast('✅ Trabajador actualizado');}
   else{S.trabajadores.push(bien);toast('✅ Trabajador registrado');}
   window.storage.set('trabajadores',JSON.stringify(S.trabajadores)).catch(()=>toast('❌ Error al guardar','e'));
   cerrarFormTrabajador();renderRemuneraciones();updateHdr();
+  // V2.21.66: registrar el contrato en la DT directo desde la ficha
+  if(abrirContratoDT===true&&typeof window.cdtEditar==='function')window.cdtEditar(bien.id);
 }
 function editarTrabajador(id){
   const t=S.trabajadores.find(x=>x.id===id);if(!t)return;

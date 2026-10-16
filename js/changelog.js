@@ -15,6 +15,9 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.66',fecha:'16-10-2026',titulo:'CSV de contrato DT desde la ficha del trabajador',items:[
+    {tipo:'nuevo',txt:'La ficha del trabajador tiene el botón "📑 Guardar y generar CSV contrato DT": guarda la ficha y abre los datos del contrato. En esa ventana, "⬇️ Guardar y descargar CSV DT" descarga el archivo de ese trabajador para subirlo a Mi DT.'},
+    {tipo:'correccion',txt:'Al editar la ficha de un trabajador ya no se pierden sus anticipos ni los datos del contrato DT (el formulario reemplazaba la ficha completa).'}]},
   {version:'V2.21.65',fecha:'16-10-2026',titulo:'Registro de contratos en la DT (CSV masivo o uno a uno)',items:[
     {tipo:'nuevo',txt:'Remuneraciones → pestaña "📑 Contratos DT": genera el CSV del Registro Masivo de Contratos de Trabajo de Mi DT (plantilla del instructivo DT: 100 columnas, separador punto y coma, fechas DD/MM/AAAA, RUT con guion, códigos DT de comuna, nacionalidad, AFP, salud, jornada, gratificación y haberes). Se puede descargar por trabajador o en forma masiva; si hay cargos distintos se genera un archivo por cargo, como exige la DT.'},
     {tipo:'nuevo',txt:'Cada trabajador muestra la fecha de firma, el plazo de registro (15 días hábiles, aproximado) y su estado: faltan datos (con el detalle), listo para informar o informado. Al descargar se ofrece marcar los contratos como informados.'},
