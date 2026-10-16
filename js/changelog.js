@@ -15,6 +15,10 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.62',fecha:'16-10-2026',titulo:'Paso 2 del RCV: cruce de otros impuestos',items:[
+    {tipo:'nuevo',txt:'En el paso 2 de compras, cada otro impuesto del RCV (por ejemplo, impuesto específico cód. 28) aparece como una línea propia de tipo "Otro impuesto", con su cuenta, descripción y centro de costo. Si se asigna a 1108006 queda como recuperable; en cualquier otra cuenta, como costo o gasto en esa cuenta.'},
+    {tipo:'mejora',txt:'El control del paso 2 agrega la fila "Otros impuestos": las líneas de otro impuesto deben sumar lo informado por el RCV, y el total se valida con ese monto. No se puede guardar si falta la línea o si el monto no coincide.'},
+    {tipo:'mejora',txt:'La línea de otro impuesto no obliga a escribir descripción en la línea de base; la descripción sigue siendo obligatoria cuando hay varias líneas de base.'}]},
   {version:'V2.21.61',fecha:'16-10-2026',titulo:'La lista de cuentas ya no queda oculta',items:[
     {tipo:'correccion',txt:'Al escribir en un campo de cuenta, la lista de sugerencias quedaba cortada bajo el cuadro siguiente (por ejemplo, en el Paso 2 del importador RCV). Ahora se muestra siempre encima de todo y, si abajo no hay espacio, se abre hacia arriba. Aplica a todos los buscadores de cuenta.'}]},
   {version:'V2.21.60',fecha:'16-10-2026',titulo:'Estado y Detalle en la primera columna del importador',items:[

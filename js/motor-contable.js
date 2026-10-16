@@ -139,6 +139,9 @@ function clasificacionOtrosImpuestosCompra(d){
     monto:Math.abs(n(x.monto)),
     tratamiento:x.tratamiento==='recuperable'?'recuperable':'costo',
     codigoF29:String(x.codigoF29||''),
+    // V2.21.62: cuenta propia (paso 2 del importador RCV). Sin cuenta, el
+    // impuesto de costo se suma a la primera línea de la distribución.
+    ...(x.cuenta&&x.tratamiento!=='recuperable'?{cuenta:String(x.cuenta),cc:String(x.cc||''),desc:String(x.desc||'')}:{}),
   })):[];
   if(!det.length&&total>0)det=[{tipo:'otro',nombre:'Otros impuestos',monto:total,tratamiento:d.tratamientoOtrosImpuestos==='recuperable'?'recuperable':'costo',codigoF29:''}];
   const suma=det.reduce((a,x)=>a+x.monto,0);
@@ -149,7 +152,8 @@ function clasificacionOtrosImpuestosCompra(d){
   const efectivo=total||det.reduce((a,x)=>a+x.monto,0);
   const recuperable=det.filter(x=>x.tratamiento==='recuperable').reduce((a,x)=>a+x.monto,0);
   const costo=efectivo-recuperable;
-  return {total:efectivo,recuperable,costo,detalle:det};
+  const costoCuenta=det.filter(x=>x.tratamiento!=='recuperable'&&x.cuenta).reduce((a,x)=>a+x.monto,0);
+  return {total:efectivo,recuperable,costo,costoCuenta,detalle:det};
 }
 
 // Clasificación V2.7 del IVA de compras. `iva` sigue siendo el IVA total del
@@ -231,7 +235,7 @@ function asientoCompra(d){
   // inventar una cuenta nueva. Los documentos V2 deben distribuir Neto+Exento.
   const faltanteBase=Math.abs(sumDist-n(d.neto))<0.000001 ? n(d.exento) : 0;
   const otrosClas=clasificacionOtrosImpuestosCompra(d);
-  const otros=otrosClas.costo;
+  const otros=otrosClas.costo-otrosClas.costoCuenta;   // lo con cuenta propia va aparte
   const ivaClas=clasificacionIVACompra(d);
   // El IVA no recuperable forma parte del costo del bien/servicio. Se distribuye
   // proporcionalmente entre las mismas cuentas/CC de la base económica.
@@ -261,6 +265,15 @@ function asientoCompra(d){
     if(monto>0)movs.push(mov(l.cuenta,monto,0,extra)); else movs.push(mov(l.cuenta,0,-monto,extra));
   });
   const movAjusteBase=movs.length?movs[movs.length-1]:null;
+  // V2.21.62: otros impuestos de costo con cuenta propia (línea del paso 2)
+  otrosClas.detalle.filter(x=>x.tratamiento!=='recuperable'&&x.cuenta).forEach(x=>{
+    const m=x.monto*signo;if(!m)return;
+    const extra={docId:d.id,tributo:'otro_impuesto_costo'};
+    const partes=[x.desc||x.nombre].filter(Boolean);
+    if(x.cc&&reglaCuenta(x.cuenta)?.aceptaCentroCosto){partes.push(`CC: ${x.cc}`);extra.cc=x.cc;}
+    if(partes.length)extra.desc=partes.join(' · ');
+    if(m>0)movs.push(mov(x.cuenta,m,0,extra)); else movs.push(mov(x.cuenta,0,-m,extra));
+  });
   const ivaAF=ivaClas.activoFijo*signo;
   const ivaGeneral=(ivaClas.recuperable-ivaClas.activoFijo)*signo;
   if(ivaGeneral){ if(ivaGeneral>0)movs.push(mov('1108002',ivaGeneral,0,{docId:d.id,tributo:'iva_credito'})); else movs.push(mov('1108002',0,-ivaGeneral,{docId:d.id,tributo:'iva_credito'})); }

@@ -19,7 +19,7 @@ import {validarDetalleRCV} from './rcv-detalle.js';
 
 // V2.21.57 — Distribución revisada en el paso 2 del importador RCV
 function distDesdeDetalle(d){
-  return (d.detalleRCV?.lineas||[]).map(l=>({cuenta:l.cuenta,monto:Math.round(+l.monto||0),cc:l.cc||'',desc:l.desc||'',afecto:l.afecto!==false,tratamientoTributario:'aceptado'}));
+  return (d.detalleRCV?.lineas||[]).filter(l=>!l.otroImp).map(l=>({cuenta:l.cuenta,monto:Math.round(+l.monto||0),cc:l.cc||'',desc:l.desc||'',afecto:l.afecto!==false,tratamientoTributario:'aceptado'}));
 }
 
 // Estado del formulario de compras (interno del módulo)
@@ -49,7 +49,7 @@ function validarCuadraturaImportCompras(){
     }
     if(d.detalleRCV?.revisado){
       dist=distDesdeDetalle(d);
-      const vd=validarDetalleRCV('compra',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo});
+      const vd=validarDetalleRCV('compra',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo,legacyOtros:!(d.detalleRCV.v>=2)});
       if(!vd.ok){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:'Detalle del paso 2: '+vd.errores[0],tipo:'detalle'});return;}
     }
     const doc={...d,id:prev?.id||`preview-c-${i}`,fecha:d.fechaOriginal||d.fecha,

@@ -358,9 +358,10 @@ function auditoriaIntegridad(){
     const recAF=Math.abs((a.movs||[]).filter(m=>m.cd==='1108008').reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
     if(Math.abs(recGeneral-(ci.recuperable-ci.activoFijo))>1)agregar('critica','iva_credito_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: crédito general esperado ${Math.round(ci.recuperable-ci.activoFijo)} ≠ asiento ${Math.round(recGeneral)}`,d.id);
     if(Math.abs(recAF-ci.activoFijo)>1)agregar('critica','iva_activo_fijo_difiere',`Compra DTE ${d.tipoDTE} N°${d.numero}: crédito activo fijo esperado ${Math.round(ci.activoFijo)} ≠ asiento ${Math.round(recAF)}`,d.id);
-    const cuentasCosto=new Set((d.dist||[]).map(l=>l.cuenta).filter(Boolean));
-    const costoAs=Math.abs((a.movs||[]).filter(m=>cuentasCosto.has(m.cd)).reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
     const oi=clasificacionOtrosImpuestosCompra(d);
+    // V2.21.62: las cuentas propias de otros impuestos de costo también son costo
+    const cuentasCosto=new Set([...(d.dist||[]).map(l=>l.cuenta),...(oi.detalle||[]).filter(x=>x.cuenta&&x.tratamiento!=='recuperable').map(x=>x.cuenta)].filter(Boolean));
+    const costoAs=Math.abs((a.movs||[]).filter(m=>cuentasCosto.has(m.cd)).reduce((s,m)=>s+n(m.debe)-n(m.haber),0));
     // El costo incorpora, además de Neto+Exento+otros+IVA no recuperable, el
     // residual reconciliado contra el Total del RCV (impuesto específico no
     // informado o recuperación/descuento de específico diésel). Mismo criterio
