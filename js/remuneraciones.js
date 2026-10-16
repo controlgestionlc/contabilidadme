@@ -478,6 +478,7 @@ function renderRemuneraciones(){
       <td style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--ach)">${fmtC(l.liquido)}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-i" onclick="verLiquidacion('${t.id}')" title="Ver liquidación">📄</button>
+        <button class="btn btn-i" onclick="abrirContratoTrabajo('${t.id}')" title="Contrato de trabajo: ver, editar, imprimir o descargar">📑 Contrato</button>
         <button class="btn btn-i" onclick="abrirAnticipos('${t.id}')" title="Anticipos de sueldo${(t.anticipos||[]).length?' ('+t.anticipos.length+')':''}">💵</button>
         <button class="btn btn-i" onclick="editarTrabajador('${t.id}')">✏️</button>
         <button class="btn btn-d" onclick="eliminarTrabajador('${t.id}')">🗑</button>

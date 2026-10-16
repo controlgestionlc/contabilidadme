@@ -15,6 +15,8 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.71',fecha:'16-10-2026',titulo:'Acceso directo al contrato desde la lista de trabajadores',items:[
+    {tipo:'mejora',txt:'Cada trabajador de la lista de Remuneraciones tiene el botón "📑 Contrato", que abre su contrato de trabajo (ver, ✏️ Editar contrato, imprimir, PDF, Word). Antes sólo se llegaba desde la pestaña Contratos.'}]},
   {version:'V2.21.70',fecha:'16-10-2026',titulo:'Editor visual del contrato',items:[
     {tipo:'nuevo',txt:'"✏️ Editar contrato" abre el contrato editable directo en el sistema: se escribe sobre el documento y cada dato automático (nombre, RUT, sueldo, jornada, etc.) se ve con su valor real, destacado en azul y bloqueado; no se puede borrar ni editar (se cambia en la ficha o en los datos del contrato). Los datos que faltan se ven en amarillo. "➕ Insertar dato automático" agrega cualquier dato donde está el cursor.'},
     {tipo:'nuevo',txt:'Dos formas de guardar: "💾 Guardar este contrato" (sólo para ese trabajador) o "💾 Guardar y dejar como plantilla del cargo": actualiza la plantilla asociada a su cargo o crea "Contrato · <cargo>", que se usará para los próximos trabajadores con ese cargo.'}]},
