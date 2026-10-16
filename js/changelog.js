@@ -15,6 +15,9 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.70',fecha:'16-10-2026',titulo:'Editor visual del contrato',items:[
+    {tipo:'nuevo',txt:'"✏️ Editar contrato" abre el contrato editable directo en el sistema: se escribe sobre el documento y cada dato automático (nombre, RUT, sueldo, jornada, etc.) se ve con su valor real, destacado en azul y bloqueado; no se puede borrar ni editar (se cambia en la ficha o en los datos del contrato). Los datos que faltan se ven en amarillo. "➕ Insertar dato automático" agrega cualquier dato donde está el cursor.'},
+    {tipo:'nuevo',txt:'Dos formas de guardar: "💾 Guardar este contrato" (sólo para ese trabajador) o "💾 Guardar y dejar como plantilla del cargo": actualiza la plantilla asociada a su cargo o crea "Contrato · <cargo>", que se usará para los próximos trabajadores con ese cargo.'}]},
   {version:'V2.21.69',fecha:'16-10-2026',titulo:'Representante legal en los datos del contrato',items:[
     {tipo:'mejora',txt:'La ventana de datos del contrato pide el representante legal del empleador y su RUT (con validación del dígito verificador). Son datos de la empresa: se prellenan desde Configuración → Empresa y, si se cambian aquí, se actualizan allá y en todos los contratos y finiquitos.'}]},
   {version:'V2.21.68',fecha:'16-10-2026',titulo:'Plantillas de contrato: editar en Word y volver a subir',items:[

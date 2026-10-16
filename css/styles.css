@@ -1834,3 +1834,15 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 /* V2.21.67: contrato de trabajo */
 .ct-falta{background:rgba(210,153,34,.25);border-radius:3px;padding:0 3px;color:var(--warn)}
 @media print{.ct-falta{background:none!important}}
+
+/* V2.21.70: editor visual del contrato */
+.ct-editor{outline:none;min-height:400px;padding:18px 22px;border:1px dashed var(--bd);border-radius:8px;background:var(--sf)}
+.ct-editor:focus{border-color:var(--ac)}
+.ct-editor p{margin:0 0 12px}
+.ct-editor .ct-ed-tit{text-align:center;font-weight:700;font-size:15px;letter-spacing:.5px;margin:4px 0 18px}
+.ct-chip{background:rgba(88,166,255,.16);color:var(--info,#58a6ff);border:1px solid rgba(88,166,255,.35);border-radius:4px;padding:0 4px;font-weight:600;cursor:not-allowed;user-select:none;white-space:normal}
+.ct-chip-falta{background:rgba(210,153,34,.22);color:var(--warn);border-color:rgba(210,153,34,.5)}
+.ct-chip-vacio{background:transparent;border-style:dashed;opacity:.6;font-weight:400;font-style:italic;font-size:.9em}
+.ct-chip-mal{background:rgba(248,81,73,.15);color:var(--err);border-color:rgba(248,81,73,.5)}
+.ct-leyenda{font-size:11px;color:var(--mt)}
+.ct-ed-bar{position:sticky;top:0;z-index:6;margin-bottom:10px}

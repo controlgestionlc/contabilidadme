@@ -142,7 +142,7 @@ import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFor
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
         cerrarMesRem, reabrirMesRem, exportarLibroRemExcel} from './libroremuneraciones.js';
-import {ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
+import {ctGuardarEdicion, ctInsertarDato, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
   ctInsertar, verPlantillasContrato, ctEditarPlantilla, ctNuevaPlantilla, ctDuplicarPlantilla, ctCancelarPlantilla, ctSubirPlantilla, ctGuardarPlantilla,
   ctRestaurarPlantilla, ctEliminarPlantilla} from './contratos-trabajo.js';
 import {renderContratosDT, cdtSel, cdtSelTodos, cdtVerInformados, cdtGuardarDefaults, cdtEditar, cdtCerrar, cdtGuardar, cdtCSVUno, cdtCSVMasivo, cdtMarcar} from './contratos-dt.js';
@@ -821,7 +821,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF, editarAF,
   eliminarAF, generarAsientoDepreciacion,
   // remuneraciones
-  renderRemuneraciones, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
+  renderRemuneraciones, ctGuardarEdicion, ctInsertarDato, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
   ctInsertar, verPlantillasContrato, ctEditarPlantilla, ctNuevaPlantilla, ctDuplicarPlantilla, ctCancelarPlantilla, ctSubirPlantilla, ctGuardarPlantilla,
   ctRestaurarPlantilla, ctEliminarPlantilla, renderContratosDT, cdtSel, cdtSelTodos, cdtVerInformados, cdtGuardarDefaults, cdtEditar, cdtCerrar, cdtGuardar, cdtCSVUno, cdtCSVMasivo, cdtMarcar, abrirAnticipos, cerrarAnticipos, anFechaCambio, guardarAnticipo, eliminarAnticipo, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
   renderLibroRem, setRemView, getRemView, tabsRemuneraciones, cerrarMesRem, reabrirMesRem,

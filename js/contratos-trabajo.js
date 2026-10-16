@@ -292,7 +292,7 @@ function renderDocCT(){
       <div class="grp" style="min-width:280px;flex:1"><label>Plantilla</label><select id="ct-plantilla" onchange="ctCambiarPlantilla(this.value)">${pls.map(x=>`<option value="${x.id}" ${x.id===p.id?'selected':''}>${esc(x.nombre)}${x.tipo?'':' · propia'}${cargosDe(x).includes(norm(t.cargo))?' · de su cargo':''}</option>`).join('')}</select></div>
       <button class="btn btn-g" onclick="volverContratos()">← Volver</button>
       <button class="btn btn-i" onclick="cdtEditar('${t.id}')">✏️ Datos del contrato</button>
-      <button class="btn btn-g" onclick="ctEditarTexto()">${CT.editTexto?'👁 Ver documento':'📝 Editar texto de este contrato'}</button>
+      <button class="btn ${CT.editTexto?'btn-g':'btn-p'}" onclick="ctEditarTexto()">${CT.editTexto?'👁 Ver documento':'✏️ Editar contrato'}</button>
       <button class="btn btn-g" onclick="ctImprimir()">🖨️ Imprimir</button>
       <button class="btn btn-g" onclick="ctWord()">⬇️ Word</button>
       <button class="btn btn-p" onclick="ctPDF()">📄 PDF</button>
@@ -302,9 +302,157 @@ function renderDocCT(){
     ${falt.length?`<div class="rd-err" style="margin-top:6px">⚠️ Datos vacíos en el contrato: ${esc(falt.join(', '))}. Complétalos en la ficha o en ✏️ Datos del contrato.</div>`:''}
     ${!vdt.ok?`<div class="rd-avi" style="margin-top:4px">ℹ️ Para el CSV de la DT falta: ${esc(vdt.faltan.join(', '))}</div>`:''}
   </div>
-  ${CT.editTexto?`<div class="card no-print"><textarea id="ct-texto" rows="26" style="width:100%;font-family:var(--mono);font-size:12px;line-height:1.5">${esc(texto)}</textarea>${ayudaMarcadores('ct-texto')}
-    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-p" onclick="ctGuardarTexto()">💾 Guardar texto de este contrato</button><button class="btn btn-g" onclick="ctEditarTexto()">Cancelar</button></div></div>`
-  :htmlDocumento(t,texto)}`;
+  ${CT.editTexto?htmlEditorCT(t,texto,vals,p):htmlDocumento(t,texto)}`;
+  if(CT.editTexto)activarEditorCT();
+}
+
+// ── Editor visual del contrato (V2.21.70) ──
+// El texto se edita directo sobre el documento. Cada dato automático se muestra
+// con su valor real, destacado y bloqueado (no se puede borrar ni editar: se
+// cambia en la ficha o en los datos del contrato). Al guardar, el editor se
+// vuelve a convertir en texto con {{marcadores}}.
+const DESC_MARCADOR=Object.fromEntries(MARCADORES);
+function chipHTML(k,vals){
+  const conocido=k in vals;const v=conocido?vals[k]:'';
+  const cls=!conocido?' ct-chip-mal':(v?'':(OPCIONALES.has(k)?' ct-chip-vacio':' ct-chip-falta'));
+  const txt=!conocido?`dato desconocido: ${k}`:(v||(OPCIONALES.has(k)?`sin ${(DESC_MARCADOR[k]||k).toLowerCase()}`:`falta: ${(DESC_MARCADOR[k]||k).toLowerCase()}`));
+  return `<span class="ct-chip${cls}" contenteditable="false" data-k="${esc(k)}" title="Dato automático: ${esc(DESC_MARCADOR[k]||k)}. Se cambia en la ficha o en ✏️ Datos del contrato">${esc(txt)}</span>`;
+}
+function inlineEditable(texto,vals){
+  let out='',ult=0;const re=/\{\{\s*([a-z_]+)\s*\}\}/gi;let m;
+  while((m=re.exec(texto))){out+=esc(texto.slice(ult,m.index)).replace(/\n/g,'<br>')+chipHTML(m[1].toLowerCase(),vals);ult=m.index+m[0].length;}
+  return out+esc(texto.slice(ult)).replace(/\n/g,'<br>');
+}
+function editableDesdeTexto(texto,vals){
+  const bloques=String(texto||'').replace(/\r/g,'').split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
+  return bloques.map((b,i)=>{
+    const tit=i===0&&b.length<90&&b===b.toUpperCase()&&!b.includes('\n');
+    if(tit)return `<p class="ct-ed-tit">${inlineEditable(b,vals)}</p>`;
+    const m=b.match(/^([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ]{2,40}:)/);
+    return `<p>${m?`<b>${esc(m[1])}</b>${inlineEditable(b.slice(m[1].length),vals)}`:inlineEditable(b,vals)}</p>`;
+  }).join('');
+}
+// Editor → texto de plantilla
+const BLOQUES=new Set(['P','DIV','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','UL','OL','PRE','SECTION','ARTICLE']);
+function serializarEditor(root){
+  const parrafos=[];let actual='';
+  const inline=n=>{
+    if(n.nodeType===3)return n.textContent.replace(/\u00a0/g,' ');
+    if(n.nodeType!==1)return '';
+    if(n.classList&&n.classList.contains('ct-chip'))return `{{${n.dataset.k}}}`;
+    if(n.tagName==='BR')return '\n';
+    let t='';n.childNodes.forEach(c=>{
+      if(c.nodeType===1&&BLOQUES.has(c.tagName)){const x=inline(c);t+=(t&&!t.endsWith('\n')?'\n':'')+x+'\n';}
+      else t+=inline(c);
+    });
+    return t;
+  };
+  const cerrar=()=>{const x=actual.replace(/[ \t]+\n/g,'\n').replace(/\n+$/,'').replace(/^\n+/,'').trim();if(x)parrafos.push(x);actual='';};
+  root.childNodes.forEach(n=>{
+    if(n.nodeType===1&&BLOQUES.has(n.tagName)){cerrar();actual=inline(n);cerrar();}
+    else actual+=inline(n);
+  });
+  cerrar();
+  return parrafos.join('\n\n');
+}
+function htmlEditorCT(t,texto,vals,p){
+  const destino=plantillaCargo(t);
+  return `<div class="card no-print ct-ed-bar">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="ct-ins" onchange="ctInsertarDato(this.value);this.value=''" style="width:auto;min-width:210px"><option value="">➕ Insertar dato automático…</option>${MARCADORES.map(([k,d])=>`<option value="${k}">${esc(d)}</option>`).join('')}</select>
+        <span class="ct-leyenda"><span class="ct-chip" contenteditable="false">dato automático</span> no se puede borrar ni editar aquí · <span class="ct-chip ct-chip-falta" contenteditable="false">falta</span> completar en la ficha</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-g" onclick="ctEditarTexto()">Cancelar</button>
+        <button class="btn btn-g" onclick="ctGuardarEdicion(false)" title="Guarda el texto sólo para el contrato de ${esc(t.nombre||'')}">💾 Guardar este contrato</button>
+        <button class="btn btn-p" onclick="ctGuardarEdicion(true)" title="${destino?`Actualiza la plantilla «${esc(destino.nombre)}»`:'Crea una plantilla nueva para este cargo'}">💾 Guardar y dejar como plantilla de «${esc(t.cargo||'sin cargo')}»</button>
+      </div>
+      <div style="font-size:11px;color:var(--mt);margin-top:6px">Escribe directo sobre el contrato. Enter crea una cláusula nueva; Mayús+Enter, un salto de línea dentro de la cláusula. Plantilla base: ${esc(p.nombre)}${destino?` · al guardar como plantilla se actualiza «${esc(destino.nombre)}»`:' · al guardar como plantilla se crea una nueva para este cargo'}.</div>
+    </div>
+    <div class="fin-doc ct-doc ct-editor-wrap"><div id="ct-editor" class="ct-editor" contenteditable="true" spellcheck="true">${editableDesdeTexto(texto,vals)}</div></div>`;
+}
+let ED={html:'',chips:0,rango:null};
+function contarChips(root){return root.querySelectorAll('.ct-chip').length;}
+function activarEditorCT(){
+  const ed=g('ct-editor');if(!ed)return;
+  try{document.execCommand('defaultParagraphSeparator',false,'p');}catch(e){}
+  ED={html:ed.innerHTML,chips:contarChips(ed),rango:null};
+  const chips=()=>[...ed.querySelectorAll('.ct-chip')];
+  ed.addEventListener('beforeinput',e=>{
+    const rs=e.getTargetRanges?e.getTargetRanges():[];
+    for(const sr of rs){
+      const r=document.createRange();
+      try{r.setStart(sr.startContainer,sr.startOffset);r.setEnd(sr.endContainer,sr.endOffset);}catch(x){continue;}
+      if(r.collapsed&&!String(e.inputType).startsWith('delete'))continue;
+      if(chips().some(c=>r.intersectsNode(c))){e.preventDefault();toast('🔒 Los datos automáticos no se pueden borrar ni editar aquí: cámbialos en la ficha o en ✏️ Datos del contrato','e');return;}
+    }
+  });
+  ed.addEventListener('input',()=>{
+    if(contarChips(ed)<ED.chips){ed.innerHTML=ED.html;toast('🔒 Se restauró un dato automático que se había borrado','e');return;}
+    ED.html=ed.innerHTML;ED.chips=contarChips(ed);
+  });
+  ed.addEventListener('paste',e=>{e.preventDefault();const txt=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,txt.replace(/\{\{|\}\}/g,''));});
+  ed.addEventListener('drop',e=>e.preventDefault());
+  ed.addEventListener('dragstart',e=>e.preventDefault());
+  ed.addEventListener('cut',e=>{const sel=window.getSelection();if(sel.rangeCount&&chips().some(c=>sel.getRangeAt(0).intersectsNode(c))){e.preventDefault();toast('🔒 La selección incluye datos automáticos: no se puede cortar','e');}});
+  document.addEventListener('selectionchange',()=>{const sel=window.getSelection();if(sel.rangeCount&&ed.contains(sel.anchorNode))ED.rango=sel.getRangeAt(0).cloneRange();});
+}
+function ctInsertarDato(k){
+  if(!k)return;const ed=g('ct-editor');const t=(S.trabajadores||[]).find(x=>x.id===CT.tid);if(!ed||!t)return;
+  const tmp=document.createElement('span');tmp.innerHTML=chipHTML(k,valoresContrato(t));const chip=tmp.firstChild;
+  let r=ED.rango&&ed.contains(ED.rango.startContainer)?ED.rango:null;
+  if(!r){r=document.createRange();const ult=ed.lastElementChild||ed;r.selectNodeContents(ult);r.collapse(false);}
+  if(!r.collapsed&&[...ed.querySelectorAll('.ct-chip')].some(c=>r.intersectsNode(c)))r.collapse(false);
+  r.deleteContents();r.insertNode(chip);
+  const sp=document.createTextNode(' ');chip.after(sp);
+  const sel=window.getSelection();const r2=document.createRange();r2.setStartAfter(sp);r2.collapse(true);sel.removeAllRanges();sel.addRange(r2);
+  ED.html=ed.innerHTML;ED.chips=contarChips(ed);ed.focus();
+}
+// Plantilla del cargo: propia o tipo cuyo campo "cargos" incluye el cargo
+function plantillaCargo(t){
+  const cargo=norm(t.cargo);if(!cargo)return null;
+  const pls=plantillas();
+  return pls.find(p=>!p.tipo&&cargosDe(p).includes(cargo))||pls.find(p=>p.tipo&&cargosDe(p).includes(cargo))||null;
+}
+async function ctGuardarEdicion(comoPlantilla){
+  const t=(S.trabajadores||[]).find(x=>x.id===CT.tid);const ed=g('ct-editor');if(!t||!ed)return;
+  const texto=serializarEditor(ed);
+  const v=validarPlantilla(texto,null);
+  if(!v.ok){toast('⛔ '+v.errores[0],'e');return;}
+  if(!texto.trim()){toast('⚠️ El contrato no tiene texto','e');return;}
+  const D=datos();const prev=D.items[t.id]||{};
+  const base=plantillaPorId(prev.plantillaId)||plantillaSugerida(t);
+  if(!comoPlantilla){
+    D.items[t.id]={plantillaId:base.id,texto:texto.trim()===String(base.texto).trim()?'':texto,fecha:new Date().toISOString()};
+    if(!(await guardarDatos())){toast('❌ No se pudo guardar','e');return;}
+    toast('💾 Contrato guardado (sólo para este trabajador)');CT.editTexto=false;renderDocCT();return;
+  }
+  if(!String(t.cargo||'').trim()){toast('⚠️ El trabajador no tiene cargo en su ficha: no se puede asociar la plantilla','e');return;}
+  const destino=plantillaCargo(t);
+  const usos=destino?Object.entries(D.items).filter(([id,x])=>id!==t.id&&x.plantillaId===destino.id&&!x.texto).length:0;
+  const msg=destino
+    ?`Se actualizará la plantilla «${destino.nombre}» (cargos: ${destino.cargos}).${usos?`
+
+${usos} contrato(s) más usan esta plantilla sin texto propio y tomarán este texto.`:''}
+
+¿Continuar?`
+    :`Se creará la plantilla «Contrato · ${t.cargo}» asociada al cargo «${t.cargo}». Los próximos trabajadores con ese cargo la usarán.
+
+¿Continuar?`;
+  if(!confirm(msg))return;
+  const antes=JSON.stringify(D.plantillas);const antesItem=D.items[t.id];
+  let id;
+  if(destino){
+    id=destino.id;const i=D.plantillas.findIndex(x=>x.id===id);
+    const reg={id,nombre:destino.nombre,cargos:destino.cargos||t.cargo,tipoContrato:destino.tipoContrato||'',texto,actualizado:new Date().toISOString()};
+    if(i>=0)D.plantillas[i]=reg;else D.plantillas.push(reg);
+  }else{
+    id='ctp_'+Date.now().toString(36);
+    D.plantillas.push({id,nombre:`Contrato · ${t.cargo}`,cargos:t.cargo,tipoContrato:datosContrato(t).tipoContrato||'',texto,actualizado:new Date().toISOString()});
+  }
+  D.items[t.id]={plantillaId:id,texto:'',fecha:new Date().toISOString()};
+  if(!(await guardarDatos())){D.plantillas=JSON.parse(antes);D.items[t.id]=antesItem;toast('❌ No se pudo guardar','e');return;}
+  logAccion('Guardó plantilla de contrato por cargo',t.cargo);
+  toast(`💾 Contrato guardado y plantilla de «${t.cargo}» ${destino?'actualizada':'creada'}`);CT.editTexto=false;renderDocCT();
 }
 async function ctCambiarPlantilla(id){
   const t=(S.trabajadores||[]).find(x=>x.id===CT.tid);if(!t)return;
@@ -520,7 +668,7 @@ async function ctEliminarPlantilla(id){
   toast('🗑 Plantilla eliminada');renderPlantillasCT();
 }
 
-export {validarPlantilla, ESENCIALES, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, PLANTILLAS_TIPO, MARCADORES, valoresContrato, textoHorario, plantillaSugerida, combinar, faltantes, htmlDocumento,
+export {serializarEditor, editableDesdeTexto, plantillaCargo, ctGuardarEdicion, ctInsertarDato, validarPlantilla, ESENCIALES, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, PLANTILLAS_TIPO, MARCADORES, valoresContrato, textoHorario, plantillaSugerida, combinar, faltantes, htmlDocumento,
   ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
   ctInsertar, verPlantillasContrato, ctEditarPlantilla, ctNuevaPlantilla, ctDuplicarPlantilla, ctCancelarPlantilla, ctSubirPlantilla, ctGuardarPlantilla,
   ctRestaurarPlantilla, ctEliminarPlantilla};
