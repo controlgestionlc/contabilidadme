@@ -142,6 +142,7 @@ import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFor
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
         cerrarMesRem, reabrirMesRem, exportarLibroRemExcel} from './libroremuneraciones.js';
+import {abrirAnticipos, cerrarAnticipos, anFechaCambio, guardarAnticipo, eliminarAnticipo} from './anticipos.js';
 import {exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS} from './lre-dt.js';
 import {renderCierre, generarAsientoCierre, reabrirEjercicio, renderProvisiones, previewProvInc,
         previewProvFer, generarProvisionIncobrables, generarProvisionFeriado,
@@ -814,7 +815,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF, editarAF,
   eliminarAF, generarAsientoDepreciacion,
   // remuneraciones
-  renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
+  renderRemuneraciones, abrirAnticipos, cerrarAnticipos, anFechaCambio, guardarAnticipo, eliminarAnticipo, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
   renderLibroRem, setRemView, getRemView, tabsRemuneraciones, cerrarMesRem, reabrirMesRem,
   exportarLibroRemExcel, exportarLRECSV, mostrarValidacionLRE, validarLibroLRE, construirRegistroLRE, LRE_CONCEPTOS, libroDelMes,
   previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem,

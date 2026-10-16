@@ -15,6 +15,10 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.63',fecha:'16-10-2026',titulo:'Anticipos de sueldo y ajustes a la liquidación',items:[
+    {tipo:'nuevo',txt:'Anticipos de sueldo por trabajador (botón 💵 en la lista de Remuneraciones): fecha, monto, motivo y mes en que se descuenta. Opcionalmente contabiliza el pago (Debe 1106001 Anticipo de sueldo / Haber caja o banco). Al eliminar un anticipo su asiento de pago queda anulado. Los meses con libro cerrado no admiten cambios.'},
+    {tipo:'nuevo',txt:'Los anticipos se descuentan en la liquidación bajo "Otros Descuentos" (con fecha y motivo), en el libro de remuneraciones, en el LRE (códigos 3188 y 5302) y en el asiento de remuneraciones, que abona 1106001 por lo descontado.'},
+    {tipo:'mejora',txt:'Liquidación: se quita el salario mínimo, los días trabajados pasan al recuadro del trabajador (bajo la fecha de incorporación) y el líquido en palabras termina en punto.'}]},
   {version:'V2.21.62',fecha:'16-10-2026',titulo:'Paso 2 del RCV: cruce de otros impuestos',items:[
     {tipo:'nuevo',txt:'En el paso 2 de compras, cada otro impuesto del RCV (por ejemplo, impuesto específico cód. 28) aparece como una línea propia de tipo "Otro impuesto", con su cuenta, descripción y centro de costo. Si se asigna a 1108006 queda como recuperable; en cualquier otra cuenta, como costo o gasto en esa cuenta.'},
     {tipo:'mejora',txt:'El control del paso 2 agrega la fila "Otros impuestos": las líneas de otro impuesto deben sumar lo informado por el RCV, y el total se valida con ese monto. No se puede guardar si falta la línea o si el monto no coincide.'},

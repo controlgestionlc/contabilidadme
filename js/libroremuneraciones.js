@@ -90,6 +90,7 @@ function lineaLibro(t,uf,utm,mes){
     iuscTramo:l.iuscDet&&l.iuscDet.idx>=0?l.iuscDet.idx+1:0,
     iuscFactor:l.iuscDet?l.iuscDet.factor:0,
     totalDescuentos:l.totalDescuentos,
+    anticipo:l.anticipo||0,
     liquido:l.liquido,
     // Aportes del empleador
     sis:l.patronal.sis, mutual:l.patronal.mutual, afc:l.patronal.afc,
@@ -106,7 +107,7 @@ function lineaLibro(t,uf,utm,mes){
 
 const CAMPOS_SUMA=['base','gratificacion','otros','totalImponible','colacion','movilizacion',
   'totalNoImponible','totalHaberes','descAFP','descSalud','saludLegal','adicionalIsapre','descCesantia',
-  'totalPrevisional','baseTributable','iusc','totalDescuentos','liquido','sis','mutual','afc','caja','capInd','cev','crp','ssp',
+  'totalPrevisional','baseTributable','iusc','anticipo','totalDescuentos','liquido','sis','mutual','afc','caja','capInd','cev','crp','ssp',
   'asigFamiliar','descTrabPesado','trabPesado',
   'totalPatronal','costoEmpresa'];
 

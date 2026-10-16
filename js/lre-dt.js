@@ -147,7 +147,7 @@ export function construirRegistroLRE(linea){
 
   // Totales oficiales
   r['5201']=nz(linea.totalHaberes); r['5210']=nz(linea.totalImponible); r['5220']=0; r['5230']=nz(linea.totalNoImponible); r['5240']=0;
-  r['5301']=nz(linea.totalDescuentos); r['5361']=nz(linea.iusc); r['5341']=nz(linea.totalPrevisional); r['5302']=0;
+  r['5301']=nz(linea.totalDescuentos); r['5361']=nz(linea.iusc); r['5341']=nz(linea.totalPrevisional); r['5302']=nz(linea.anticipo||0); r['3188']=nz(linea.anticipo||0);
   r['5410']=nz(linea.totalPatronal); r['5501']=nz(linea.liquido); r['5564']=0;
 
   // Todo concepto obligatorio numérico no calculado explícitamente se informa como 0.

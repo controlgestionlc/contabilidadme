@@ -12,6 +12,7 @@ import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {numeroMostrar} from './correlativo-contable.js';
 import {asistenciaMes} from './asistencia.js';
 import {numeroALetras} from './numletras.js';
+import {anticiposMes,aplicarAnticipos} from './anticipos.js';
 import './storage.js';
 
 let REMF={editId:null}; // form trabajador (estado interno)
@@ -218,7 +219,8 @@ function calcularLiquidacion(t,uf,utm,asis){
 function mesRemSel(){return +(document.getElementById('rem-mes')?.value||1);}
 function liquidacionMes(t,uf,utm,mes){
   const m=mes||mesRemSel();
-  return calcularLiquidacion(t,uf,utm,asistenciaMes(t,S.empresa.anio,m));
+  // V2.21.63: los anticipos del mes se descuentan como otro descuento
+  return aplicarAnticipos(calcularLiquidacion(t,uf,utm,asistenciaMes(t,S.empresa.anio,m)),anticiposMes(t,S.empresa.anio,m));
 }
 
 function abrirFormTrabajador(){
@@ -470,6 +472,7 @@ function renderRemuneraciones(){
       <td style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--ach)">${fmtC(l.liquido)}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-i" onclick="verLiquidacion('${t.id}')" title="Ver liquidación">📄</button>
+        <button class="btn btn-i" onclick="abrirAnticipos('${t.id}')" title="Anticipos de sueldo${(t.anticipos||[]).length?' ('+t.anticipos.length+')':''}">💵</button>
         <button class="btn btn-i" onclick="editarTrabajador('${t.id}')">✏️</button>
         <button class="btn btn-d" onclick="eliminarTrabajador('${t.id}')">🗑</button>
       </td>
@@ -542,6 +545,7 @@ function htmlLiquidacion(t,opts={}){
           ${t.centroCosto?`<div><span class="liq2-k">C. Costo:</span> <b>${t.centroCosto}</b></div>`:''}
           <div><span class="liq2-k">Cargo:</span> <b>${String(t.cargo||'').toUpperCase()}</b></div>
           <div><span class="liq2-k">Incorporación:</span> <b>${fFecha(t.lre&&t.lre.fechaInicio)}</b></div>
+          <div><span class="liq2-k">Días trabajados:</span> <b>${diasTrab}</b></div>
         </div>
         <div style="text-align:right">
           <div><span class="liq2-k">${esIsapre?'ISAPRE':'SALUD'}:</span> <b>${esIsapre?l.saludNm.replace(/^Isapre\s+/i,''):'Fonasa'}</b>${esIsapre&&l.planUF?` &nbsp; <span class="liq2-k">Plan:</span> <b>UF ${(+l.planUF).toLocaleString('es-CL',{maximumFractionDigits:4})}</b>`:''}</div>
@@ -551,10 +555,6 @@ function htmlLiquidacion(t,opts={}){
       </div>
     </div>
 
-    <div class="liq2-info">
-      <div><span>Días trabajados</span><b>${diasTrab}</b></div>
-      <div><span>Salario Mínimo</span><b>${n(P.ingresoMinimo)}</b></div>
-    </div>
 
     <div class="liq2-cols">
       <div>
@@ -577,6 +577,8 @@ function htmlLiquidacion(t,opts={}){
         ${l.descCesantia?fila('Seguro de cesantía (trabajador)',l.descCesantia,'liq2-in'):''}
         ${l.descTrabPesado?fila(`Cotización trabajo ${l.califPesado==='pesado'?'pesado':'menos pesado'} (${String(l.tasasTP.trab).replace('.',',')}%)`,l.descTrabPesado,'liq2-in'):''}
         ${l.iusc?fila('Impuesto único',l.iusc,'liq2-in'):''}
+        ${l.anticipo?fila('Otros Descuentos',l.anticipo,'liq2-sub'):''}
+        ${(l.anticipos||[]).map(a=>fila(`Anticipo ${fFecha(a.fecha).slice(0,5)}${a.motivo?' · '+String(a.motivo).replace(/</g,'&lt;'):''}`,a.monto,'liq2-in')).join('')}
       </div>
     </div>
     <div class="liq2-cols liq2-tot">
@@ -584,7 +586,7 @@ function htmlLiquidacion(t,opts={}){
       <div><b>TOTAL DESCUENTOS:</b> &nbsp; ${n(l.totalDescuentos)}</div>
     </div>
     <div class="liq2-pagar"><b>TOTAL A PAGAR:</b><b>${n(l.liquido)}</b></div>
-    <div class="liq2-palabras">Son: ${palabras.charAt(0).toUpperCase()+palabras.slice(1)}</div>
+    <div class="liq2-palabras">Son: ${palabras.charAt(0).toUpperCase()+palabras.slice(1)}.</div>
     ${a&&!a.completo?`<div class="liq2-nota">Días pagados: ${a.diasPagados} de 30${[a.diasLicencia?a.diasLicencia+' de licencia':'',a.diasPermisoSin?a.diasPermisoSin+' de permiso sin goce':'',a.diasAusencia?a.diasAusencia+' de ausencia':'',a.diasFueraContrato?a.diasFueraContrato+' fuera de contrato':''].filter(Boolean).map(x=>' · '+x).join('')}</div>`:''}
 
     <div class="liq2-fecha">Fecha: ${fecha}</div>
@@ -655,11 +657,11 @@ async function generarAsientoRemuneraciones(){
   const uf=getUF(),utm=getUTM();
   if(!S.trabajadores.length){toast('⚠️ No hay trabajadores','e');return;}
   // Acumular
-  let totSueldo=0,totColMov=0,totAFP=0,totSalud=0,totCes=0,totIusc=0,totLiq=0,totPatronal=0,totAF=0,totTP=0;
+  let totSueldo=0,totColMov=0,totAFP=0,totSalud=0,totCes=0,totIusc=0,totLiq=0,totPatronal=0,totAF=0,totTP=0,totAnt=0;
   S.trabajadores.forEach(t=>{
     const l=liquidacionMes(t,uf,utm,mesNum);
     totSueldo+=l.totalImponible;totColMov+=l.totalNoImponible-(l.asigFamiliar||0);totAF+=l.asigFamiliar||0;totTP+=l.descTrabPesado||0;
-    totAFP+=l.descAFP;totSalud+=l.descSalud;totCes+=l.descCesantia;totIusc+=l.iusc;totLiq+=l.liquido;
+    totAFP+=l.descAFP;totSalud+=l.descSalud;totCes+=l.descCesantia;totIusc+=l.iusc;totLiq+=l.liquido;totAnt+=l.anticipo||0;
     totPatronal+=l.patronal.total;
   });
   if(totSueldo<=0){toast('⚠️ No hay montos','e');return;}
@@ -692,6 +694,8 @@ async function generarAsientoRemuneraciones(){
   // a enterar, por eso rebaja las instituciones previsionales por pagar.
   if(totAF)movs.push({cd:'2104001',nm:pdcNm('2104001'),debe:totAF,haber:0,desc:'Asignación familiar compensada'});
   if(totIusc)movs.push({cd:'2104002',nm:pdcNm('2104002'),debe:0,haber:totIusc,desc:'Impuesto único por pagar'});
+  // V2.21.63: los anticipos descontados rebajan la cuenta de anticipos (activo)
+  if(totAnt)movs.push({cd:'1106001',nm:pdcNm('1106001'),debe:0,haber:totAnt,desc:'Anticipos descontados en liquidación'});
   movs.push({cd:'2104005',nm:pdcNm('2104005'),debe:0,haber:totLiq,desc:'Líquidos por pagar'});
   // Aporte patronal: es GASTO de la empresa (no se descuenta al trabajador),
   // con contrapartida en instituciones previsionales por pagar.
