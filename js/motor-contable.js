@@ -11,8 +11,9 @@ const mov=(cd,debe,haber,extra={})=>({cd,nm:pdcNm(cd),debe:n(debe),haber:n(haber
 // V2.11.1 — fecha tributaria del documento y periodo contable son conceptos distintos.
 // En compras importadas desde el RCV, `fecha` conserva siempre la fecha original del DTE.
 // `periodoContable` determina el mes en que el documento se reconoce contablemente y en F29.
-// `fechaContabilizacion` es la fecha del asiento dentro de ese periodo; por defecto, el último
-// día del mes para documentos cuya fecha documental pertenece a otro periodo.
+// `fechaContabilizacion` es la fecha del asiento dentro de ese periodo. V2.21.59: si la fecha
+// documental es de un mes ANTERIOR al periodo, el asiento va el día 1 del mes del libro; si es
+// posterior (caso excepcional), el último día.
 function periodoContableCompra(d){
   const pc=String(d?.periodoContable||'').trim();
   if(/^\d{4}-\d{2}$/.test(pc))return pc;
@@ -30,7 +31,11 @@ function fechaContabilizacionCompra(d){
   if(/^\d{4}-\d{2}-\d{2}$/.test(fc)&&fc.slice(0,7)===per)return fc;
   const fd=String(d?.fecha||'').trim();
   if(fd.slice(0,7)===per)return fd;
+  if(/^\d{4}-\d{2}$/.test(per)&&fd&&fd.slice(0,7)<per)return primerDiaPeriodo(per);
   return ultimoDiaPeriodo(per)||fd;
+}
+function primerDiaPeriodo(periodo){
+  return /^\d{4}-\d{2}$/.test(String(periodo||''))?`${periodo}-01`:'';
 }
 
 function cuadratura(movs){

@@ -175,6 +175,49 @@ function verDuplicadoC(numero){
   renderCompras();
   document.getElementById('c-tbody')?.scrollIntoView({behavior:'smooth',block:'center'});
 }
+// V2.21.59 — Documentos emitidos en un mes anterior al de su libro van el día 1.
+// Los contabilizados antes de este cambio quedaron el último día del mes: se
+// ofrece moverlos (sólo en períodos abiertos; la fecha de emisión no cambia).
+function comprasParaDia1(){
+  return (S.compras||[]).filter(d=>{
+    if(d.estado==='anulado')return false;
+    const per=periodoContableCompra(d),fd=String(d.fecha||'');
+    if(!/^\d{4}-\d{2}$/.test(per)||!fd||fd.slice(0,7)>=per)return false;
+    const fc=String(d.fechaContabilizacion||'');
+    if(fc===`${per}-01`)return false;
+    return puedeOperarFecha(`${per}-01`)&&puedeOperarFecha(fechaContabilizacionCompra(d));
+  });
+}
+function renderCDia1Alert(){
+  const el=document.getElementById('c-dia1-alert');if(!el)return;
+  const docs=comprasParaDia1();
+  if(!docs.length){el.style.display='none';el.innerHTML='';return;}
+  const pers=[...new Set(docs.map(periodoContableCompra))].sort().map(p=>{const [y,m]=p.split('-');return `${MESES[+m-1]} ${y}`;});
+  el.style.display='block';
+  el.innerHTML=`<div class="info-tip" style="margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <span style="flex:1;min-width:260px">📅 <strong>${docs.length}</strong> documento${docs.length===1?'':'s'} emitido${docs.length===1?'':'s'} en un mes anterior al de su libro (${pers.join(', ')}) tiene${docs.length===1?'':'n'} el asiento en otra fecha. Desde ahora estos documentos se contabilizan el <strong>día 1 del mes del libro</strong>.</span>
+    <button class="btn btn-p" style="font-size:11px" onclick="moverComprasDia1()">Mover sus asientos al día 1</button></div>`;
+}
+async function moverComprasDia1(){
+  const docs=comprasParaDia1();if(!docs.length)return;
+  if(!confirm(`Se moverán al día 1 del mes del libro los asientos de ${docs.length} documento(s) emitidos en un mes anterior.\n\nLa fecha de emisión, el período y los montos no cambian; sólo la fecha del asiento.\n\n¿Continuar?`))return;
+  if(window.__snapshotAntesOperacion){const seg=await window.__snapshotAntesOperacion('Antes de mover asientos de compras al día 1');if(!seg?.ok&&!confirm('No se pudo crear el punto de recuperación previo. ¿Continuar igual?'))return;}
+  const snapC=JSON.stringify(S.compras),snapA=JSON.stringify(S.asientos||[]);
+  try{
+    docs.forEach(d=>{d.fechaContabilizacion=`${periodoContableCompra(d)}-01`;upsertAsientoDocumento('compras',d);});
+    await persistirClavesCritico([
+      {key:'compras-'+S.empresa.anio,value:JSON.stringify(S.compras)},
+      {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
+    ]);
+  }catch(e){
+    S.compras=JSON.parse(snapC);S.asientos=JSON.parse(snapA);
+    toast('❌ No se pudieron mover los asientos ('+(e.message||e)+'). No se aplicaron cambios.','e');return;
+  }
+  toast(`✅ ${docs.length} asiento${docs.length===1?'':'s'} movido${docs.length===1?'':'s'} al día 1 del mes del libro`);
+  logAccion('Movió asientos de compras al día 1',`${docs.length} documentos emitidos en mes anterior`);
+  rerender();
+}
+
 function renderCDupAlert(){
   const el=document.getElementById('c-dup-alert');if(!el)return;
   const grupos=gruposDuplicadosCompras();
@@ -294,6 +337,7 @@ function renderCompras(){
 
   // Aviso de documentos duplicados (se calcula sobre todo el libro, con o sin filtro)
   renderCDupAlert();
+  renderCDia1Alert();
 
   const fMes=+(document.getElementById('cf-mes')?.value||0);
   const fDesde=(document.getElementById('cf-desde')?.value||'');
@@ -995,6 +1039,8 @@ function fechaContabilizacionImport(d){
   const per=periodoImportSeleccionado();
   const fd=String(d?.fechaOriginal||'');
   if(fd.slice(0,7)===per)return fd;
+  // V2.21.59: emitido en un mes anterior → se contabiliza el día 1 del mes del libro
+  if(fd&&fd.slice(0,7)<per)return `${per}-01`;
   const [y,m]=per.split('-').map(Number);
   const dia=new Date(y,m,0).getDate();
   return `${per}-${String(dia).padStart(2,'0')}`;
@@ -1030,7 +1076,7 @@ function renderImportModal(){
     periodoInfo+=`<br><span style="color:var(--mt);font-size:10px">Detectado en archivo: ${detallado}</span>`;
   }
   if(fuera>0){
-    periodoInfo+=`<br><span style="color:var(--info);font-size:11px;margin-top:2px;display:inline-block">✓ ${fuera} documento${fuera===1?'':'s'} con fecha de emisión distinta del período RCV: conservarán su fecha original y se contabilizarán en ${periodoStr}.</span>`;
+    periodoInfo+=`<br><span style="color:var(--info);font-size:11px;margin-top:2px;display:inline-block">✓ ${fuera} documento${fuera===1?'':'s'} con fecha de emisión distinta del período RCV: conservarán su fecha de emisión y se contabilizarán en ${periodoStr} (los de meses anteriores, el día 1).</span>`;
   }
   document.getElementById('imp-periodo-info').innerHTML=periodoInfo;
 
@@ -1610,6 +1656,6 @@ function initImportListener(){
 }
 
 
-export {onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
+export {moverComprasDia1, comprasParaDia1, onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
         renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setImportGlosa, setImportReferencia, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
         toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, validarCuadraturaImportCompras, CF};

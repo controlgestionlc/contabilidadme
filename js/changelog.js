@@ -15,6 +15,9 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.59',fecha:'16-10-2026',titulo:'Compras de meses anteriores se contabilizan el día 1',items:[
+    {tipo:'mejora',txt:'Los documentos del RCV emitidos en un mes anterior al del libro (por ejemplo, una factura del 31 de mayo que va en el libro de junio) se contabilizan el día 1 del mes del libro, en vez del último día. La fecha de emisión del documento no cambia.'},
+    {tipo:'nuevo',txt:'En el Libro de Compras aparece un aviso con los documentos ya contabilizados con la regla anterior y un botón para mover sus asientos al día 1 (sólo en períodos abiertos; cada asiento conserva su número).'}]},
   {version:'V2.21.58',fecha:'16-10-2026',titulo:'Ventanas dentro de la pantalla',items:[
     {tipo:'correccion',txt:'Las ventanas emergentes ya no crecen más que la pantalla: los botones (Aplicar, Paso 2, Cancelar) quedaban bajo la barra de tareas de Windows. Ahora la barra de botones queda fija abajo y, en los importadores RCV de compras, ventas y balance, sólo se desplaza la lista de documentos.'}]},
   {version:'V2.21.57',fecha:'16-10-2026',titulo:'Importador RCV: paso 2 documento por documento',items:[
