@@ -15,6 +15,10 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.64',fecha:'16-10-2026',titulo:'Libro de Compras y Ventas: observaciones clicables',items:[
+    {tipo:'nuevo',txt:'Las observaciones y errores del Libro de Compras y Ventas que apuntan a un documento son clicables: abren el documento en su formulario de edición, con un botón para volver al libro. Si el documento está dentro de un comprobante, se abre ese comprobante.'},
+    {tipo:'nuevo',txt:'Notas de crédito o débito sin documento referenciado: la observación y la columna Referencia del detalle tienen el botón "🔗 Referenciar", que abre la nota con la lista de documentos del mismo proveedor o cliente lista para elegir.'},
+    {tipo:'correccion',txt:'Se corrige el texto "observaciónes" por "observaciones".'}]},
   {version:'V2.21.63',fecha:'16-10-2026',titulo:'Anticipos de sueldo y ajustes a la liquidación',items:[
     {tipo:'nuevo',txt:'Anticipos de sueldo por trabajador (botón 💵 en la lista de Remuneraciones): fecha, monto, motivo y mes en que se descuenta. Opcionalmente contabiliza el pago (Debe 1106001 Anticipo de sueldo / Haber caja o banco). Al eliminar un anticipo su asiento de pago queda anulado. Los meses con libro cerrado no admiten cambios.'},
     {tipo:'nuevo',txt:'Los anticipos se descuentan en la liquidación bajo "Otros Descuentos" (con fecha y motivo), en el libro de remuneraciones, en el LRE (códigos 3188 y 5302) y en el asiento de remuneraciones, que abona 1106001 por lo descontado.'},

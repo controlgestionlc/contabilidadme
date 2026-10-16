@@ -1821,3 +1821,12 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .modal-box.modal-fit > .modal-scroll{flex:1 1 auto;min-height:180px;max-height:none;overflow:auto}
 .rd-box{max-height:calc(100vh - 32px)!important;max-height:calc(100dvh - 32px)!important}
 @media (max-width:640px){.modal-bkd{padding:8px}.modal-box{max-height:calc(100dvh - 16px)}}
+
+/* V2.21.64: observaciones clicables del Libro de Compras y Ventas */
+.lcv-obs{cursor:pointer;border-radius:5px;padding:1px 4px;margin:0 -4px}
+.lcv-obs:hover,.lcv-obs:focus{background:rgba(210,153,34,.14);outline:none}
+.lcv-validacion.error .lcv-obs:hover{background:rgba(248,81,73,.12)}
+.lcv-obs-btn{font-weight:700;text-decoration:underline;white-space:nowrap;margin-left:6px}
+.lcv-ref-btn{font-size:10px!important;padding:1px 7px!important}
+.lcv-volver{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 10px;margin-bottom:10px;border:1px solid rgba(88,166,255,.3);background:rgba(88,166,255,.08);border-radius:8px;font-size:11px;color:var(--info)}
+.lcv-foco{outline:2px solid var(--warn)!important;box-shadow:0 0 0 4px rgba(210,153,34,.25)!important}

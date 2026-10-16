@@ -2,7 +2,7 @@
 // Replica las dimensiones de resumen/detalle del RCV del SII, sin presentarse
 // como sustituto del Registro oficial ni como archivo de carga directa.
 import {S} from './state.js';
-import {MESES,fmtC,rutFmt,dteC,dteV,esDteHonorario} from './core.js';
+import {MESES,fmtC,rutFmt,dteC,dteV,esDteHonorario,toast} from './core.js';
 import {todosDocsCompras,todosDocsVentas} from './asientos.js';
 import {periodoContableCompra} from './motor-contable.js';
 import {foliosMensuales} from './helpers.js';
@@ -86,11 +86,15 @@ function resumir(tipo,docs){
 
 function validarLibro(tipo,docs){
   const errores=[],avisos=[],claves=new Map(),corrs=new Map();
+  // V2.21.64: cada observación sabe a qué documento apunta y qué acción ofrece
+  const erroresDet=[],avisosDet=[];
+  const err=(txt,id,accion='editar')=>{errores.push(txt);erroresDet.push({txt,id,accion});};
+  const avi=(txt,id,accion='editar')=>{avisos.push(txt);avisosDet.push({txt,id,accion});};
   let especialFuel=0;
   docs.forEach(d=>{
     const ref=`Corr. ${d.corr} · DTE ${d.tipoDTE} N°${d.folio||'?'}`;
-    if(!d.fecha||!d.tipoDTE||!d.folio||!d.rut||!d.razonSocial)errores.push(`${ref}: faltan datos esenciales del detalle SII.`);
-    if(!(d.total>0))errores.push(`${ref}: el monto total debe ser mayor que cero.`);
+    if(!d.fecha||!d.tipoDTE||!d.folio||!d.rut||!d.razonSocial)err(`${ref}: faltan datos esenciales del detalle SII.`,d.id);
+    if(!(d.total>0))err(`${ref}: el monto total debe ser mayor que cero.`,d.id);
     const componentes=d.neto+d.exento+d.iva+d.otrosConCredito+d.otrosSinCredito;
     const cuadraTotal=Math.abs(componentes-d.total)<=1||(tipo==='compras'&&d.ivaRetenido>0&&Math.abs((componentes-d.ivaRetenido)-d.total)<=1);
     if(!cuadraTotal){
@@ -100,20 +104,20 @@ function validarLibro(tipo,docs){
       // el Total llevando esa diferencia al costo. Se informa como observación.
       // En ventas sí es un descuadre real del documento y se mantiene como error.
       if(tipo==='compras')especialFuel++;
-      else errores.push(`${ref}: Neto + Exento + IVA + Otros no concilia con el Total informado.`);
+      else err(`${ref}: Neto + Exento + IVA + Otros no concilia con el Total informado.`,d.id);
     }
     const k=`${d.rut}|${d.tipoDTE}|${d.folio}`;
-    if(claves.has(k))errores.push(`${ref}: documento duplicado con correlativo ${claves.get(k)}.`);else claves.set(k,d.corr);
-    if(corrs.has(d.corr))errores.push(`${ref}: correlativo interno repetido.`);else corrs.set(d.corr,true);
-    if(tipo==='compras'&&d.ivaNoRecuperable>0&&!d.codigoIvaNoRecuperable)avisos.push(`${ref}: falta código de IVA no recuperable (1, 2, 3, 4 o 9).`);
-    if([56,60,61].includes(d.tipoDTE)&&!d.refFolio)avisos.push(`${ref}: nota sin folio de documento referenciado.`);
+    if(claves.has(k))err(`${ref}: documento duplicado con correlativo ${claves.get(k)}.`,d.id);else claves.set(k,d.corr);
+    if(corrs.has(d.corr))err(`${ref}: correlativo interno repetido.`,d.id);else corrs.set(d.corr,true);
+    if(tipo==='compras'&&d.ivaNoRecuperable>0&&!d.codigoIvaNoRecuperable)avi(`${ref}: falta código de IVA no recuperable (1, 2, 3, 4 o 9).`,d.id);
+    if([56,60,61].includes(d.tipoDTE)&&!d.refFolio)avi(`${ref}: nota sin folio de documento referenciado.`,d.id,'referenciar');
   });
   // Combustibles con impuesto específico / recuperación de diésel: el RCV no
   // expone toda la partida en columnas, así que Neto+Exento+IVA+Otros no da el
   // Total. No es un error: el asiento lo reconoce en el costo y cuadra contra el
   // Total. Se informa como una sola observación para no repetir por documento.
-  if(especialFuel>0)avisos.unshift(`${especialFuel} documento(s) de combustible con impuesto específico o recuperación de diésel: el Total del SII no cuadra con Neto+Exento+IVA+Otros por columnas, pero se reconoce en el costo y el asiento cuadra contra el Total. No requiere corrección.`);
-  return {ok:errores.length===0,errores,avisos};
+  if(especialFuel>0){avisosDet.unshift({txt:null,id:null});avisos.unshift(`${especialFuel} documento(s) de combustible con impuesto específico o recuperación de diésel: el Total del SII no cuadra con Neto+Exento+IVA+Otros por columnas, pero se reconoce en el costo y el asiento cuadra contra el Total. No requiere corrección.`);avisosDet[0].txt=avisos[0];}
+  return {ok:errores.length===0,errores,avisos,erroresDet,avisosDet};
 }
 
 function construirLibroCV(tipo=LCV.tipo,mes=LCV.mes){
@@ -143,6 +147,11 @@ function resumenHTML(libro){
   return `<div class="card-np lcv-resumen"><div class="card-title">Resumen por tipo de documento</div><div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${libro.resumen.map(fila).join('')}</tbody><tfoot>${foot}</tfoot></table></div><div class="lcv-efecto"><strong>Efecto tributario neto (facturas/débitos − créditos):</strong><span>Exento ${fmtC(ef.exento)}</span><span>Neto ${fmtC(ef.neto)}</span><span>IVA ${fmtC(ef.iva)}</span><span>Total ${fmtC(ef.total)}</span></div></div>`;
 }
 
+function refCelda(tipo,d){
+  if(d.refFolio)return `DTE ${d.refTipo} N°${esc(d.refFolio)}`;
+  if([56,60,61].includes(d.tipoDTE))return `<button class="btn btn-g lcv-ref-btn" onclick="lcvAtender('${tipo}','${esc(d.id)}','referenciar')" title="Nota sin documento referenciado">🔗 Referenciar</button>`;
+  return '—';
+}
 function detalleHTML(libro){
   const compra=libro.tipo==='compras';
   const tipos=libro.resumen.filter(g=>!LCV.dte||+LCV.dte===g.tipoDTE);
@@ -151,17 +160,23 @@ function detalleHTML(libro){
     const head=compra?'<th>CORR.</th><th>FECHA</th><th>FOLIO</th><th>RUT PROVEEDOR</th><th>RAZÓN SOCIAL</th><th>EXENTO</th><th>NETO</th><th>IVA REC.</th><th>IVA NO REC.</th><th>IVA USO COMÚN</th><th>OTROS IMP.</th><th>IVA RET.</th><th>TOTAL</th><th>REFERENCIA</th>'
       :'<th>CORR.</th><th>FECHA</th><th>FOLIO</th><th>RUT CLIENTE</th><th>RAZÓN SOCIAL</th><th>EXENTO</th><th>NETO</th><th>IVA DÉBITO</th><th>OTROS IMP.</th><th>TOTAL</th><th>REFERENCIA</th>';
     const rows=docs.map(d=>compra
-      ?`<tr><td>${d.corr}</td><td>${d.fecha}</td><td class="tl">${esc(d.folio)}</td><td class="tl">${esc(d.rut)}</td><td class="tl">${esc(d.razonSocial)}</td><td>${fmtC(d.exento)}</td><td>${fmtC(d.neto)}</td><td>${fmtC(d.ivaRecuperable)}</td><td>${fmtC(d.ivaNoRecuperable)}</td><td>${fmtC(d.ivaUsoComun)}</td><td>${fmtC(d.otrosConCredito+d.otrosSinCredito)}</td><td>${fmtC(d.ivaRetenido)}</td><td>${fmtC(d.total)}</td><td class="tl">${d.refFolio?`DTE ${d.refTipo} N°${esc(d.refFolio)}`:'—'}</td></tr>`
-      :`<tr><td>${d.corr}</td><td>${d.fecha}</td><td class="tl">${esc(d.folio)}</td><td class="tl">${esc(d.rut)}</td><td class="tl">${esc(d.razonSocial)}</td><td>${fmtC(d.exento)}</td><td>${fmtC(d.neto)}</td><td>${fmtC(d.iva)}</td><td>${fmtC(d.otrosSinCredito)}</td><td>${fmtC(d.total)}</td><td class="tl">${d.refFolio?`DTE ${d.refTipo} N°${esc(d.refFolio)}`:'—'}</td></tr>`).join('');
+      ?`<tr><td>${d.corr}</td><td>${d.fecha}</td><td class="tl">${esc(d.folio)}</td><td class="tl">${esc(d.rut)}</td><td class="tl">${esc(d.razonSocial)}</td><td>${fmtC(d.exento)}</td><td>${fmtC(d.neto)}</td><td>${fmtC(d.ivaRecuperable)}</td><td>${fmtC(d.ivaNoRecuperable)}</td><td>${fmtC(d.ivaUsoComun)}</td><td>${fmtC(d.otrosConCredito+d.otrosSinCredito)}</td><td>${fmtC(d.ivaRetenido)}</td><td>${fmtC(d.total)}</td><td class="tl">${refCelda(libro.tipo,d)}</td></tr>`
+      :`<tr><td>${d.corr}</td><td>${d.fecha}</td><td class="tl">${esc(d.folio)}</td><td class="tl">${esc(d.rut)}</td><td class="tl">${esc(d.razonSocial)}</td><td>${fmtC(d.exento)}</td><td>${fmtC(d.neto)}</td><td>${fmtC(d.iva)}</td><td>${fmtC(d.otrosSinCredito)}</td><td>${fmtC(d.total)}</td><td class="tl">${refCelda(libro.tipo,d)}</td></tr>`).join('');
     return `<div class="card-np lcv-grupo"><div class="lcv-grupo-title"><strong>DTE ${g.tipoDTE} — ${esc(g.nombreDTE)}</strong><span>${docs.length} documento${docs.length===1?'':'s'} · ${fmtC(g.total)}</span></div><div class="tw"><table class="lcv-detalle"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }).join('');
 }
 
-function validacionHTML(v){
+// Línea de observación: clicable cuando apunta a un documento
+function obsLinea(tipo,x){
+  if(!x.id)return `<div>• ${esc(x.txt)}</div>`;
+  const btn=x.accion==='referenciar'?'🔗 Referenciar documento':'✏️ Abrir y corregir';
+  return `<div class="lcv-obs" role="button" tabindex="0" onclick="lcvAtender('${tipo}','${esc(x.id)}','${x.accion}')" onkeydown="if(event.key==='Enter')this.click()" title="Abrir el documento">• ${esc(x.txt)} <span class="lcv-obs-btn">${btn} →</span></div>`;
+}
+function validacionHTML(v,tipo){
   if(v.ok&&!v.avisos.length)return '<div class="lcv-ok">✅ Estructura completa: sin duplicados ni datos esenciales faltantes.</div>';
   const bloques=[];
-  if(v.errores.length)bloques.push(`<strong>⛔ ${v.errores.length} error${v.errores.length===1?'':'es'} que deben corregirse</strong>${v.errores.slice(0,12).map(x=>`<div>• ${esc(x)}</div>`).join('')}`);
-  if(v.avisos.length)bloques.push(`<strong>⚠️ ${v.avisos.length} observación${v.avisos.length===1?'':'es'} tributaria${v.avisos.length===1?'':'s'}</strong>${v.avisos.slice(0,12).map(x=>`<div>• ${esc(x)}</div>`).join('')}`);
+  if(v.errores.length)bloques.push(`<strong>⛔ ${v.errores.length} error${v.errores.length===1?'':'es'} que deben corregirse</strong>${(v.erroresDet||v.errores.map(txt=>({txt}))).slice(0,30).map(x=>obsLinea(tipo,x)).join('')}${v.errores.length>30?`<div>… y ${v.errores.length-30} más</div>`:''}`);
+  if(v.avisos.length)bloques.push(`<strong>⚠️ ${v.avisos.length} ${v.avisos.length===1?'observación':'observaciones'} tributaria${v.avisos.length===1?'':'s'}</strong>${(v.avisosDet||v.avisos.map(txt=>({txt}))).slice(0,30).map(x=>obsLinea(tipo,x)).join('')}${v.avisos.length>30?`<div>… y ${v.avisos.length-30} más</div>`:''}`);
   return `<div class="lcv-validacion ${v.errores.length?'error':'warn'}">${bloques.join('<hr>')}</div>`;
 }
 
@@ -182,7 +197,7 @@ function renderLibrosCV(){
     <button class="btn btn-g" onclick="window.print()">🖨️ Imprimir / PDF</button>
   </div>
   <div class="lcv-nota no-print">ℹ️ El RCV disponible en sii.cl es el registro tributario oficial. Este reporte sirve para control, conciliación y respaldo; compáralo con la descarga del SII antes de declarar el F29.</div>
-  ${validacionHTML(libro.validacion)}
+  ${validacionHTML(libro.validacion,libro.tipo)}
   ${libro.docs.length?resumenHTML(libro)+detalleHTML(libro):'<div class="empty"><div class="ei">📚</div>No hay documentos registrados para este período.</div>'}`;
 }
 
@@ -244,4 +259,40 @@ function exportarLibroCVCSV(){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=nombreArchivo(libro.tipo,'csv');a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
-export {LCV,construirLibroCV,validarLibro,renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV,encabezadosDetalle,filaDetalle,encabezadosCSV,filaCSV};
+// ── Atender una observación: abre el documento en su formulario de edición ──
+function lcvAtender(tipo,id,accion){
+  const compra=tipo==='compras';
+  const todos=compra?todosDocsCompras():todosDocsVentas();
+  const d=todos.find(x=>x.id===id);
+  if(!d){toast('⚠️ No se encontró el documento','e');return;}
+  if(d.origen==='asiento'&&d.asientoId){
+    if(window.nav)window.nav('comprobantes');
+    setTimeout(()=>{if(window.editarAsiento)window.editarAsiento(d.asientoId);toast('ℹ️ El documento está dentro de un comprobante: corrígelo en su línea');},60);
+    return;
+  }
+  if(window.nav)window.nav(compra?'compras':'ventas');
+  setTimeout(()=>{
+    const ed=compra?window.editarCompra:window.editarVenta;
+    if(typeof ed!=='function')return;
+    ed(id);
+    const form=document.getElementById(compra?'cf-form':'vf-form');
+    if(form&&!form.querySelector('.lcv-volver')){
+      const b=document.createElement('div');b.className='lcv-volver no-print';
+      b.innerHTML=`<button type="button" class="btn btn-g">← Volver al Libro de ${compra?'Compras':'Ventas'}</button><span>Corrige y guarda el documento; luego vuelve para revisar el libro.</span>`;
+      b.querySelector('button').onclick=()=>{b.remove();if(window.nav)window.nav('libroscv');renderLibrosCV();};
+      form.insertBefore(b,form.firstChild);
+    }
+    if(accion==='referenciar'){
+      const pre=compra?'cf':'vf';
+      const refr=compra?window.cfRefrescarDocs:window.vfRefrescarDocs;
+      if(typeof refr==='function')refr();
+      const row=document.getElementById(pre+'-ref-row');const sel=document.getElementById(pre+'-ref-doc');
+      if(row&&row.style.display==='none')row.style.display='';
+      if(row)row.scrollIntoView({behavior:'smooth',block:'center'});
+      if(sel){sel.classList.add('lcv-foco');setTimeout(()=>sel.classList.remove('lcv-foco'),2600);try{sel.focus();}catch(e){}}
+      toast('🔗 Elige el documento referenciado en la lista y guarda');
+    }
+  },60);
+}
+
+export {lcvAtender,LCV,construirLibroCV,validarLibro,renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV,encabezadosDetalle,filaDetalle,encabezadosCSV,filaCSV};

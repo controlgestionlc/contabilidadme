@@ -154,7 +154,7 @@ import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBala
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla,
         exportarMayorExcel, toggleMayorCuenta} from './reportes.js';
-import {renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV} from './libroscv.js';
+import {lcvAtender,renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV} from './libroscv.js';
 import {initMoneyInputs,normalizarMontos} from './money-inputs.js';
 import {cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
@@ -727,6 +727,7 @@ setOnAuthReady(initApp);
 // así que hay que publicar esas funciones en window.
 // Objetos de estado usados directamente en onclick del HTML
 Object.assign(window,{
+  lcvAtender,
   renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios,AF, VF, CF, REMF, AFB, PF, APF, IMB, IM, IMV, US, BD, S, getCurSec, CD, IVAC, PAGOF29, DJ, ACC});
 
 Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS, 
