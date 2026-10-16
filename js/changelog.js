@@ -15,6 +15,8 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.58',fecha:'16-10-2026',titulo:'Ventanas dentro de la pantalla',items:[
+    {tipo:'correccion',txt:'Las ventanas emergentes ya no crecen más que la pantalla: los botones (Aplicar, Paso 2, Cancelar) quedaban bajo la barra de tareas de Windows. Ahora la barra de botones queda fija abajo y, en los importadores RCV de compras, ventas y balance, sólo se desplaza la lista de documentos.'}]},
   {version:'V2.21.57',fecha:'16-10-2026',titulo:'Importador RCV: paso 2 documento por documento',items:[
     {tipo:'nuevo',txt:'Los importadores del RCV de compras y de ventas tienen un paso 2 ("📝 Paso 2: revisar documento por documento" o "✏️ Detalle" en cada fila). Cada documento se abre con los datos del RCV (tipo, folio, fecha de emisión y vencimiento, RUT, auxiliar, exento, neto, IVA, otros impuestos y total) y se distribuye en líneas con cuenta, descripción, monto neto, centro de costo y la marca afecto o exento, para casos como las facturas de seguros con prima afecta y exenta.'},
     {tipo:'nuevo',txt:'Validador que no permite guardar con diferencias: las líneas afectas deben sumar el neto, las exentas el exento, el IVA calculado (19% de las afectas) debe ser igual al IVA del RCV y líneas + IVA + otros impuestos deben dar el total. La descripción es obligatoria cuando hay más de una línea y el centro de costo cuando la cuenta lo exige. Una diferencia de $1 por redondeo del emisor sólo se acepta marcándola.'},
