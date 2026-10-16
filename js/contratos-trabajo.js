@@ -23,6 +23,7 @@ import {DT_COMUNAS, DT_NACIONALIDADES} from './contratos-dt-tablas.js';
 import {generarPDF} from './pdf-rem.js';
 import {calcularLiquidacion, getUF, getUTM} from './remuneraciones.js';
 import {leerArchivoTexto} from './finiquitos.js';
+import {descargarDocx} from './docx-simple.js';
 import './storage.js';
 
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -343,14 +344,78 @@ async function ctPDF(){
   catch(e){console.error(e);toast('❌ '+(e.message||e),'e');}
 }
 // Word: HTML que Word abre y permite seguir editando
-function ctWord(){
+// ── Word de plantillas (V2.21.68): bajar, editar en Word y volver a subir ──
+async function ctBajarWordPlantilla(id){
+  const p=plantillaPorId(id);if(!p)return;
+  try{await descargarDocx(p.texto,`plantilla_contrato_${slug(p.nombre)}.docx`,{titulo:p.nombre,asunto:'Plantilla de contrato · no borres ni cambies los textos entre {{ }}'});
+    toast('⬇️ Plantilla descargada. Edítala en Word sin cambiar los {{marcadores}} (en amarillo) y súbela con 📤 Subir Word');}
+  catch(e){console.error(e);toast('❌ '+(e.message||e),'e');}
+}
+async function ctBajarWordEditor(){
+  const p=CT.plantilla;if(!p)return;const texto=g('ctp-texto')?.value||'';const nombre=(g('ctp-nombre')?.value||p.nombre||'plantilla').trim();
+  try{await descargarDocx(texto,`plantilla_contrato_${slug(nombre)}.docx`,{titulo:nombre});}catch(e){toast('❌ '+(e.message||e),'e');}
+}
+async function ctSubirWordPlantilla(input,id){
+  const file=input.files&&input.files[0];if(!file)return;
+  const p=plantillaPorId(id);if(!p){input.value='';return;}
+  try{
+    const txt=String(await leerArchivoTexto(file)||'').replace(/\r/g,'').trim();
+    if(!txt){toast('⚠️ El archivo no tiene texto','e');return;}
+    CT.plantilla={...p,texto:txt,originalTexto:p.texto,desdeWord:file.name};
+    renderPlantillasCT();
+    const v=validarPlantilla(txt,p.texto);
+    toast(!v.ok?`⛔ El Word tiene ${v.errores.length} marcador(es) dañado(s): corrígelos antes de guardar`:(v.avisos.length?'⚠️ Word cargado: revisa los avisos y guarda':'✅ Word cargado: marcadores intactos. Revisa y guarda'),v.ok?undefined:'e');
+  }catch(e){toast('❌ '+e.message,'e');}finally{input.value='';}
+}
+async function ctWord(){
   const t=(S.trabajadores||[]).find(x=>x.id===CT.tid);if(!t)return;
-  const cuerpo=htmlDocumento(t,textoDe(t));
-  const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Contrato</title>
-<style>@page{size:21.59cm 27.94cm;margin:2.2cm}body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.5;text-align:justify}.fin-tit{text-align:center;font-weight:bold;font-size:13pt;margin:0 0 14pt}p{margin:0 0 10pt}.fin-firmas{margin-top:60pt;width:100%}.fin-firmas>div{display:inline-block;width:45%;text-align:center;vertical-align:top;font-size:10pt}.fin-linea{border-top:1px solid #000;margin:0 10% 4pt}.ct-falta{background:#ff0}</style></head><body>${cuerpo.replace('<div class="fin-firmas">','<br><br><br><table style="width:100%;margin-top:40pt"><tr>').replace(/<div><div class="fin-linea"><\/div>([\s\S]*?)<\/div>/g,'<td style="width:50%;text-align:center;vertical-align:top;font-size:10pt"><div style="border-top:1px solid #000;margin:0 12% 4pt"></div>$1</td>').replace(/<\/div><\/div>\s*$/,'</tr></table></div>')}</body></html>`;
-  const blob=new Blob(['﻿',html],{type:'application/msword'});const u=URL.createObjectURL(blob);const a=document.createElement('a');
-  a.href=u;a.download=`contrato_${slug(t.nombre)}.doc`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);
-  logAccion('Descargó contrato de trabajo (Word)',t.nombre||'');
+  const vals=valoresContrato(t);const E=S.empresa||{};
+  const firmas=[[E.nombre||'EMPLEADOR',`RUT ${E.rut||''}`,...(E.rep?[`p.p. ${E.rep}`]:[])],[vals.trabajador,vals.rut_trabajador,'TRABAJADOR']];
+  try{await descargarDocx(combinar(textoDe(t),vals),`contrato_${slug(t.nombre)}.docx`,{titulo:`Contrato de trabajo · ${t.nombre||''}`,firmas});
+    logAccion('Descargó contrato de trabajo (Word)',t.nombre||'');}
+  catch(e){console.error(e);toast('❌ '+(e.message||e),'e');}
+}
+
+// ── Validación de marcadores (V2.21.68) ──
+// Datos que el contrato debe traer según el Art. 10 del Código del Trabajo; si
+// faltan sus marcadores, el contrato no capturará esos datos automáticamente.
+const ESENCIALES=['ciudad','fecha_contrato','empresa','rut_empresa','trabajador','rut_trabajador','nacionalidad','fecha_nacimiento',
+  'cargo','lugar_trabajo','sueldo_base','jornada_horas','distribucion_jornada','fecha_inicio'];
+const CONOCIDOS=new Set(MARCADORES.map(m=>m[0]));
+function distancia(a,b){const d=Array.from({length:a.length+1},(_,i)=>[i,...Array(b.length).fill(0)]);for(let j=1;j<=b.length;j++)d[0][j]=j;
+  for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[a.length][b.length];}
+function sugerir(k){let mejor=null,dm=99;CONOCIDOS.forEach(c=>{const dd=distancia(k,c);if(dd<dm){dm=dd;mejor=c;}});return dm<=3?mejor:null;}
+function validarPlantilla(texto,original){
+  const t=String(texto||'');const errores=[],avisos=[];
+  const usados=[...t.matchAll(/\{\{\s*([^{}]*?)\s*\}\}/g)].map(m=>m[1]);
+  const validos=new Set();
+  usados.forEach(k=>{
+    const kk=k.toLowerCase().replace(/\s+/g,'_');
+    if(CONOCIDOS.has(k))validos.add(k);
+    else{const sg=CONOCIDOS.has(kk)?kk:sugerir(kk);errores.push(`{{${k}}} no es un marcador válido${sg?`; ¿quisiste decir {{${sg}}}?`:''}`);}
+  });
+  // Llaves sueltas o incompletas (marcadores dañados al editar)
+  const resto=t.replace(/\{\{\s*[^{}]*?\s*\}\}/g,'');
+  const rotos=[...resto.matchAll(/.{0,25}[{}].{0,25}/g)].map(m=>m[0].replace(/\s+/g,' ').trim());
+  rotos.slice(0,5).forEach(r=>errores.push(`Marcador incompleto o llave suelta: "…${r}…"`));
+  if(rotos.length>5)errores.push(`… y ${rotos.length-5} llave(s) suelta(s) más`);
+  const faltanEsenciales=ESENCIALES.filter(k=>!validos.has(k));
+  if(faltanEsenciales.length)avisos.push(`No están los marcadores de datos esenciales del contrato (Art. 10 del Código del Trabajo): ${faltanEsenciales.map(k=>`{{${k}}}`).join(', ')}. Esos datos no se llenarán solos.`);
+  if(original){
+    const antes=new Set([...String(original).matchAll(/\{\{\s*([a-z_]+)\s*\}\}/g)].map(m=>m[1]));
+    const quitados=[...antes].filter(k=>!validos.has(k)&&!faltanEsenciales.includes(k));
+    if(quitados.length)avisos.push(`Se quitaron marcadores que tenía la plantilla: ${quitados.map(k=>`{{${k}}}`).join(', ')}.`);
+  }
+  if(!t.trim())errores.push('La plantilla no tiene texto.');
+  return {ok:!errores.length,errores,avisos,usados:[...validos]};
+}
+function htmlValidacion(v){
+  if(v.ok&&!v.avisos.length)return `<div class="rd-ok">✅ Marcadores correctos (${v.usados.length} en uso): el contrato capturará los datos automáticamente.</div>`;
+  return `${v.errores.map(e=>`<div class="rd-err">⛔ ${esc(e)}</div>`).join('')}${v.avisos.map(e=>`<div class="rd-avi" style="color:var(--warn)">⚠️ ${esc(e)}</div>`).join('')}${v.ok?`<div class="rd-avi">Los marcadores existentes están bien escritos (${v.usados.length} en uso).</div>`:''}`;
+}
+function ctValidarEditor(){
+  const p=CT.plantilla;const box=g('ctp-val');if(!p||!box)return null;
+  const v=validarPlantilla(g('ctp-texto')?.value||'',p.originalTexto||null);box.innerHTML=htmlValidacion(v);return v;
 }
 
 // ── Plantillas ──
@@ -383,6 +448,8 @@ function renderPlantillasCT(){
         <td style="text-align:right;white-space:nowrap">
           <button class="btn btn-i" onclick="ctEditarPlantilla('${x.id}')">✏️</button>
           <button class="btn btn-g" onclick="ctDuplicarPlantilla('${x.id}')" title="Duplicar">📋</button>
+          <button class="btn btn-g" onclick="ctBajarWordPlantilla('${x.id}')" title="Descargar en Word para editarla">⬇️ Word</button>
+          <label class="btn btn-g" style="cursor:pointer;text-transform:none;letter-spacing:0" title="Subir el Word editado de esta plantilla">📤 Subir Word<input type="file" accept=".docx,.txt,.md,.html,.htm" style="display:none" onchange="ctSubirWordPlantilla(this,'${x.id}')"></label>
           ${x.tipo?(x.editada?`<button class="btn btn-g" onclick="ctRestaurarPlantilla('${x.id}')" title="Restaurar texto original">↺</button>`:''):`<button class="btn btn-d" onclick="ctEliminarPlantilla('${x.id}')">🗑</button>`}
         </td></tr>`).join('')}</tbody>
     </table></div>
@@ -399,11 +466,13 @@ function renderPlantillasCT(){
       <div class="grp"><label>Cargos que la usan (separados por coma)</label><input type="text" id="ctp-cargos" value="${esc(p.cargos||'')}" placeholder="Ej: Operador de maquinaria, Motosierrista"></div>
       <div class="grp"><label>Tipo de contrato</label><select id="ctp-tc"><option value="">Cualquiera</option>${[1,2,3].map(v=>`<option value="${v}" ${+p.tipoContrato===v?'selected':''}>${tc[v]}</option>`).join('')}</select></div>
     </div>
+    ${p.desdeWord?`<div class="info-tip" style="font-size:11px;margin-top:6px">📤 Texto cargado desde <b>${esc(p.desdeWord)}</b>. Revisa la validación y guarda para reemplazar la plantilla.</div>`:''}
     <textarea id="ctp-texto" rows="24" style="width:100%;font-family:var(--mono);font-size:12px;line-height:1.5;margin-top:6px">${esc(p.texto||'')}</textarea>
+    <div id="ctp-val" style="margin-top:6px"></div>
     ${ayudaMarcadores('ctp-texto')}
-    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-p" onclick="ctGuardarPlantilla()">💾 Guardar plantilla</button><button class="btn btn-g" onclick="ctCancelarPlantilla()">Cancelar</button></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-p" onclick="ctGuardarPlantilla()">💾 Guardar plantilla</button><button class="btn btn-g" onclick="ctValidarEditor()">✔ Validar marcadores</button><button class="btn btn-g" onclick="ctBajarWordEditor()">⬇️ Descargar este texto en Word</button><button class="btn btn-g" onclick="ctCancelarPlantilla()">Cancelar</button></div>
   </div>`:''}`;
-  if(p)g('ctp-nombre')?.focus();
+  if(p){g('ctp-nombre')?.focus();ctValidarEditor();}
 }
 function ctEditarPlantilla(id){const p=plantillaPorId(id);if(!p)return;CT.plantilla={...p};renderPlantillasCT();}
 function ctNuevaPlantilla(texto,nombre){CT.plantilla={id:null,nombre:nombre||'',cargos:'',tipoContrato:'',texto:texto||PLANTILLAS_TIPO[0].texto};renderPlantillasCT();}
@@ -415,7 +484,8 @@ async function ctSubirPlantilla(input){
     const txt=await leerArchivoTexto(file);
     if(!String(txt||'').trim()){toast('⚠️ El archivo no tiene texto','e');return;}
     ctNuevaPlantilla(String(txt).replace(/\r/g,'').trim(),file.name.replace(/\.[^.]+$/,''));
-    toast('✅ Texto cargado. Agrega los marcadores que necesites y guarda');
+    const v=validarPlantilla(txt,null);
+    toast(v.ok&&!v.avisos.length?'✅ Texto cargado con marcadores correctos. Revisa y guarda':'⚠️ Texto cargado: revisa la validación de marcadores antes de guardar',v.ok?undefined:'e');
   }catch(e){toast('❌ '+e.message,'e');}finally{input.value='';}
 }
 async function ctGuardarPlantilla(){
@@ -423,6 +493,10 @@ async function ctGuardarPlantilla(){
   const nombre=(g('ctp-nombre')?.value||'').trim(),texto=g('ctp-texto')?.value||'',cargos=(g('ctp-cargos')?.value||'').trim(),tipoContrato=+(g('ctp-tc')?.value||0)||'';
   if(!nombre){toast('⚠️ Ponle un nombre a la plantilla','e');return;}
   if(!texto.trim()){toast('⚠️ La plantilla no tiene texto','e');return;}
+  const v=validarPlantilla(texto,p.originalTexto||null);
+  const box=g('ctp-val');if(box)box.innerHTML=htmlValidacion(v);
+  if(!v.ok){toast('⛔ Corrige los marcadores dañados antes de guardar','e');box?.scrollIntoView({behavior:'smooth',block:'center'});return;}
+  if(v.avisos.length&&!confirm(`Revisa antes de guardar:\n\n• ${v.avisos.join('\n• ')}\n\n¿Guardar de todas formas?`))return;
   const D=datos();const antes=JSON.stringify(D.plantillas);
   const id=p.id||('ctp_'+Date.now().toString(36));
   const reg={id,nombre,cargos,tipoContrato,texto,actualizado:new Date().toISOString()};
@@ -446,7 +520,7 @@ async function ctEliminarPlantilla(id){
   toast('🗑 Plantilla eliminada');renderPlantillasCT();
 }
 
-export {PLANTILLAS_TIPO, MARCADORES, valoresContrato, textoHorario, plantillaSugerida, combinar, faltantes, htmlDocumento,
+export {validarPlantilla, ESENCIALES, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, PLANTILLAS_TIPO, MARCADORES, valoresContrato, textoHorario, plantillaSugerida, combinar, faltantes, htmlDocumento,
   ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
   ctInsertar, verPlantillasContrato, ctEditarPlantilla, ctNuevaPlantilla, ctDuplicarPlantilla, ctCancelarPlantilla, ctSubirPlantilla, ctGuardarPlantilla,
   ctRestaurarPlantilla, ctEliminarPlantilla};
