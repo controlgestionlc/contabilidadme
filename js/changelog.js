@@ -15,6 +15,8 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.69',fecha:'16-10-2026',titulo:'Representante legal en los datos del contrato',items:[
+    {tipo:'mejora',txt:'La ventana de datos del contrato pide el representante legal del empleador y su RUT (con validación del dígito verificador). Son datos de la empresa: se prellenan desde Configuración → Empresa y, si se cambian aquí, se actualizan allá y en todos los contratos y finiquitos.'}]},
   {version:'V2.21.68',fecha:'16-10-2026',titulo:'Plantillas de contrato: editar en Word y volver a subir',items:[
     {tipo:'nuevo',txt:'Cada plantilla de contrato tiene "⬇️ Word" (descarga un .docx con los {{marcadores}} resaltados en amarillo) y "📤 Subir Word" (carga el Word editado sobre esa plantilla). El texto queda en el editor para revisarlo y guardarlo.'},
     {tipo:'nuevo',txt:'Validación de marcadores al subir y al guardar: bloquea marcadores mal escritos (con sugerencia, por ejemplo {{afps}} → {{afp}}) y llaves sueltas o incompletas; avisa si faltan los marcadores de datos esenciales del contrato (Art. 10 del Código del Trabajo) o si se quitaron marcadores que tenía la plantilla. Botón "✔ Validar marcadores" en el editor.'},

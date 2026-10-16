@@ -13,7 +13,7 @@
 // empresa en S.empresa.contratoDT (comuna de celebración, jornada, horario,
 // colación, día y forma de pago).
 
-import {toast, fmtC, MESES} from './core.js';
+import {toast, fmtC, MESES, rutParse, rutFmt} from './core.js';
 import {S} from './state.js';
 import {DT_COMUNAS, DT_NACIONALIDADES} from './contratos-dt-tablas.js';
 import {calcularLiquidacion, getUF, getUTM} from './remuneraciones.js';
@@ -346,6 +346,8 @@ function cdtEditar(id){
       <div class="grp"><label>Calle *</label><input type="text" id="cdt-dcalle" value="${esc(dc.domCalle)}"></div>
       <div class="grp"><label>Número</label><input type="text" id="cdt-dnum" value="${esc(dc.domNumero)}"></div>
       <div class="grp"><label>Depto.</label><input type="text" id="cdt-ddpto" value="${esc(dc.domDpto)}"></div>
+      <div class="grp"><label>Representante legal del empleador</label><input type="text" id="cdt-rep" value="${esc((S.empresa||{}).rep||'')}" placeholder="Nombre de quien firma por la empresa"></div>
+      <div class="grp"><label>RUT representante legal</label><input type="text" id="cdt-rutrep" value="${esc((S.empresa||{}).rutrep||'')}" placeholder="12.345.678-9"><div style="font-size:10px;color:var(--mt);margin-top:2px">Dato de la empresa (Configuración → Empresa): se usa en todos los contratos y finiquitos</div></div>
       <div class="grp full"><label>Funciones * (máx. 300)</label><input type="text" id="cdt-func" maxlength="300" value="${esc(dc.funciones)}"></div>
       <div class="grp"><label>Comuna de celebración *</label><select id="cdt-celeb">${optsComunas(dc.comunaCelebracion)}</select></div>
       <div class="grp"><label>Comuna prestación de servicios *</label><select id="cdt-zona">${optsComunas(dc.zona1)}</select></div>
@@ -389,6 +391,16 @@ async function cdtGuardar(descargarCSV,verContrato){
     gratModalidad:g('cdt-gratmod').trim(),diaPago:+g('cdt-dia')||'',formaPago:+g('cdt-forma')||'',anticipo:+g('cdt-ant')||'',
     colacion:g('cdt-col'),subcontratacion:+g('cdt-sub')||0,rutPrincipal:g('cdt-rutp').trim(),otrosPactos:g('cdt-otros').trim(),
     horarioPropio,...(horarioPropio?{horario}:{})};
+  // V2.21.69: representante legal (dato de la empresa) editable desde aquí
+  const rep=g('cdt-rep').trim(),rutRepTxt=g('cdt-rutrep').trim();
+  if(rutRepTxt){const r=rutParse(rutRepTxt);if(!r.valido){toast('⚠️ El RUT del representante legal no es válido','e');return;}}
+  const rutrep=rutRepTxt?(()=>{const r=rutParse(rutRepTxt);return rutFmt(r.codigo,r.dv);})():'';
+  const E=S.empresa||{};
+  if(rep!==(E.rep||'')||rutrep!==(E.rutrep||'')){
+    const antes={rep:E.rep,rutrep:E.rutrep};E.rep=rep;E.rutrep=rutrep;
+    try{const r=await window.storage.set('empresa',JSON.stringify(S.empresa));if(r&&r.ok===false)throw new Error('no ok');}
+    catch(e){E.rep=antes.rep;E.rutrep=antes.rutrep;toast('❌ No se pudo guardar el representante legal en la empresa','e');return;}
+  }
   if(!(await guardarTrabajadores())){toast('❌ No se pudieron guardar los datos','e');return;}
   const v=validarContrato(t);
   toast(v.ok?'💾 Datos guardados · listo para informar':`💾 Guardado · faltan ${v.faltan.length} dato(s)`);
