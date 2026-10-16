@@ -444,6 +444,7 @@ function renderRemuneraciones(){
   if(window.getRemView&&window.getRemView()==='asistencia'&&window.renderAsistencia){window.renderAsistencia();return;}
   if(window.getRemView&&window.getRemView()==='vacaciones'&&window.renderVacaciones){window.renderVacaciones();return;}
   if(window.getRemView&&window.getRemView()==='finiquitos'&&window.renderFiniquitos){window.renderFiniquitos();return;}
+  if(window.getRemView&&window.getRemView()==='contratosdt'&&window.renderContratosDT){window.renderContratosDT();return;}
   const tabs=window.tabsRemuneraciones?window.tabsRemuneraciones():'';
   const uf=getUF(),utm=getUTM();
   const el=document.getElementById('rem-content');

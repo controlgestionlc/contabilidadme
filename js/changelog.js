@@ -15,6 +15,10 @@ const APP_VERSION='v2026.10.14-1100';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.65',fecha:'16-10-2026',titulo:'Registro de contratos en la DT (CSV masivo o uno a uno)',items:[
+    {tipo:'nuevo',txt:'Remuneraciones → pestaña "📑 Contratos DT": genera el CSV del Registro Masivo de Contratos de Trabajo de Mi DT (plantilla del instructivo DT: 100 columnas, separador punto y coma, fechas DD/MM/AAAA, RUT con guion, códigos DT de comuna, nacionalidad, AFP, salud, jornada, gratificación y haberes). Se puede descargar por trabajador o en forma masiva; si hay cargos distintos se genera un archivo por cargo, como exige la DT.'},
+    {tipo:'nuevo',txt:'Cada trabajador muestra la fecha de firma, el plazo de registro (15 días hábiles, aproximado) y su estado: faltan datos (con el detalle), listo para informar o informado. Al descargar se ofrece marcar los contratos como informados.'},
+    {tipo:'nuevo',txt:'Datos del contrato por trabajador (fecha de suscripción, nacimiento, nacionalidad, domicilio, funciones, jornada, horario propio, pago) y valores por defecto de la empresa (comuna de celebración y de prestación de servicios, jornada, horario semanal, colación, día y forma de pago). Sueldo, AFP, salud, sexo, inicio y tipo de contrato se toman de la ficha.'}]},
   {version:'V2.21.64',fecha:'16-10-2026',titulo:'Libro de Compras y Ventas: observaciones clicables',items:[
     {tipo:'nuevo',txt:'Las observaciones y errores del Libro de Compras y Ventas que apuntan a un documento son clicables: abren el documento en su formulario de edición, con un botón para volver al libro. Si el documento está dentro de un comprobante, se abre ese comprobante.'},
     {tipo:'nuevo',txt:'Notas de crédito o débito sin documento referenciado: la observación y la columna Referencia del detalle tienen el botón "🔗 Referenciar", que abre la nota con la lista de documentos del mismo proveedor o cliente lista para elegir.'},
