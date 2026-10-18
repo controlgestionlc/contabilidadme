@@ -44,6 +44,55 @@ function bdStatusSet(status,msg){
   }
 }
 
+// Excel no admite más de 32.767 caracteres por celda. Los textos JSON largos
+// (asientos con muchas líneas, documentos con mucha distribución) se reparten en
+// columnas de continuación "<columna>__2", "<columna>__3"... y se vuelven a unir al
+// importar. Un archivo sin columnas de continuación se lee igual que antes.
+const BD_MAX_CELDA=32000;
+function trozosBD(v){
+  const out=[];let i=0;
+  while(i<v.length){
+    let f=Math.min(i+BD_MAX_CELDA,v.length);
+    // No partir un par sustituto (emojis y similares)
+    if(f<v.length){const c=v.charCodeAt(f);if(c>=0xDC00&&c<=0xDFFF)f--;}
+    out.push(v.slice(i,f));i=f;
+  }
+  return out;
+}
+function hojaBD(aoa){
+  if(!aoa.length||!Array.isArray(aoa[0]))return XLSX.utils.aoa_to_sheet(aoa);
+  const hdr=aoa[0].slice(),rows=aoa.slice(1).map(r=>(r||[]).slice()),n0=hdr.length,largas=[];
+  for(let j=0;j<n0;j++){
+    let max=1;
+    for(const r of rows){const v=r[j];if(typeof v==='string'&&v.length>BD_MAX_CELDA)max=Math.max(max,trozosBD(v).length);}
+    if(max>1)largas.push({j,max});
+  }
+  if(!largas.length)return XLSX.utils.aoa_to_sheet(aoa);
+  for(const {j,max} of largas){
+    const base=hdr.length;
+    for(let k=2;k<=max;k++)hdr.push(hdr[j]+'__'+k);
+    for(const r of rows){
+      while(r.length<base)r.push('');
+      const v=r[j],t=(typeof v==='string'&&v.length>BD_MAX_CELDA)?trozosBD(v):null;
+      if(t)r[j]=t[0];
+      for(let k=2;k<=max;k++)r[base+k-2]=t&&t[k-1]?t[k-1]:'';
+    }
+  }
+  return XLSX.utils.aoa_to_sheet([hdr,...rows]);
+}
+function unirTrozosBD(rows){
+  return (rows||[]).map(r=>{
+    if(!r||Array.isArray(r))return r;
+    const ks=Object.keys(r).filter(k=>/__\d+$/.test(k));
+    if(!ks.length)return r;
+    const o={...r};
+    ks.sort((a,b)=>(+a.match(/__(\d+)$/)[1])-(+b.match(/__(\d+)$/)[1]));
+    for(const k of ks){const b=k.replace(/__\d+$/,'');o[b]=String(o[b]??'')+String(o[k]??'');delete o[k];}
+    return o;
+  });
+}
+function leerHojaBD(ws,opts){return unirTrozosBD(XLSX.utils.sheet_to_json(ws,opts));}
+
 // Genera el workbook Excel con TODOS los datos del año actual
 function construirWorkbookBD(){
   if(typeof XLSX==='undefined'){throw new Error('Biblioteca Excel (SheetJS) no cargada');}
@@ -64,12 +113,12 @@ function construirWorkbookBD(){
     ['IMPORTANTE: NO editar las primeras 2 filas de las demás hojas — son encabezados de control.'],
     ['Para restaurar: usa el botón "📤 Importar" en Contabilidad.']
   ];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),'Empresa');
+  XLSX.utils.book_append_sheet(wb,hojaBD(meta),'Empresa');
 
   // VENTAS
   const ventasHdr=['id','fecha','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','otrosImpuestos','total','formaPago','cuentaIngreso','estado','referenciaJSON','documentoJSON'];
   const ventasRows=S.ventas.map(v=>ventasHdr.map(k=>k==='referenciaJSON'?JSON.stringify(v.referencia||null):k==='documentoJSON'?JSON.stringify(v):(v[k]!==undefined?v[k]:'')));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ventasHdr,...ventasRows]),'Ventas');
+  XLSX.utils.book_append_sheet(wb,hojaBD([ventasHdr,...ventasRows]),'Ventas');
 
   // COMPRAS (con distribución serializada como JSON)
   const comprasHdr=['id','fecha','periodoContable','fechaContabilizacion','origenRegistro','fechaVencimiento','tipoDTE','numero','rutCodigo','rutDV','razonSocial','neto','exento','iva','ivaRecuperable','ivaNoRecuperable','ivaActivoFijo','ivaUsoComun','porcentajeIvaRecuperable','tratamientoIVA','ivaRetenido','totalSII','otrosImpuestos','tratamientoOtrosImpuestos','otrosImpuestosDetalleJSON','total','estado','referenciaJSON','distJSON','documentoJSON'];
@@ -77,46 +126,46 @@ function construirWorkbookBD(){
     c.id,c.fecha,c.periodoContable||'',c.fechaContabilizacion||'',c.origenRegistro||'',c.fechaVencimiento||'',c.tipoDTE,c.numero,c.rutCodigo,c.rutDV,c.razonSocial,
     c.neto||0,c.exento||0,c.iva||0,c.ivaRecuperable??'',c.ivaNoRecuperable??'',c.ivaActivoFijo??'',c.ivaUsoComun??'',c.porcentajeIvaRecuperable??'',c.tratamientoIVA||'',c.ivaRetenido??'',c.totalSII??'',c.otrosImpuestos||0,c.tratamientoOtrosImpuestos||'costo',JSON.stringify(c.otrosImpuestosDetalle||[]),c.total||0,c.estado||'',JSON.stringify(c.referencia||null),JSON.stringify(c.dist||[]),JSON.stringify(c)
   ]);
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([comprasHdr,...comprasRows]),'Compras');
+  XLSX.utils.book_append_sheet(wb,hojaBD([comprasHdr,...comprasRows]),'Compras');
 
   // HONORARIOS
   const honHdr=['id','mes','fecha','nombre','rut','bruto','cc','modalidad','cuentaPago','fechaPago','tasaRetencion','estado','anuladoEn'];
   const honRows=S.honorarios.map(h=>honHdr.map(k=>h[k]!==undefined?h[k]:''));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([honHdr,...honRows]),'Honorarios');
+  XLSX.utils.book_append_sheet(wb,hojaBD([honHdr,...honRows]),'Honorarios');
 
   // ASIENTOS (con movimientos como JSON)
   const asHdr=['id','n','fecha','glosa','movsJSON','asientoJSON'];
   const asRows=S.asientos.map(a=>[a.id,a.n,a.fecha,a.glosa,JSON.stringify(a.movs||[]),JSON.stringify(a)]);
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([asHdr,...asRows]),'Asientos');
+  XLSX.utils.book_append_sheet(wb,hojaBD([asHdr,...asRows]),'Asientos');
 
   // APERTURA (Balance inicial del año — Asiento N°0)
   const apHdr=['fecha','glosa','movsJSON'];
   const apRows=S.apertura?[[S.apertura.fecha,S.apertura.glosa,JSON.stringify(S.apertura.movs||[])]]:[];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([apHdr,...apRows]),'Apertura');
+  XLSX.utils.book_append_sheet(wb,hojaBD([apHdr,...apRows]),'Apertura');
 
   // CIERRES CONTABLES MENSUALES (V2.15)
   const ciHdr=['periodo','estado','cerradoEn','cerradoPor','motivo','reabiertoEn','reabiertoPor','motivoReapertura'];
   const ciRows=(S.cierresContables||[]).map(c=>ciHdr.map(k=>c[k]!==undefined?c[k]:''));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ciHdr,...ciRows]),'CierresContables');
+  XLSX.utils.book_append_sheet(wb,hojaBD([ciHdr,...ciRows]),'CierresContables');
 
   // ACTIVOS FIJOS (bases contable/tributaria + trazabilidad de compra)
   const afHdr=['id','desc','cat','fecha','valor','residual','vida','metodo','valorContable','residualContable','vidaContable','metodoContable','fechaInicioDepContable','valorTributario','residualTributario','vidaTributaria','metodoTributario','fechaInicioDepTributaria','cuentaActivo','cuentaDeprAcum','cuentaGasto','compraOrigenId','compraOrigenRefJSON'];
   const afRows=(S.activos||[]).map(a=>afHdr.map(k=>k==='compraOrigenRefJSON'?JSON.stringify(a.compraOrigenRef||null):(a[k]!==undefined?a[k]:'')));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([afHdr,...afRows]),'ActivosFijos');
+  XLSX.utils.book_append_sheet(wb,hojaBD([afHdr,...afRows]),'ActivosFijos');
 
   // TRABAJADORES (remuneraciones)
   const trHdr=['id','nombre','rut','cargo','base','grat','otros','colacion','movilizacion','afp','salud','plan','contrato'];
   const trRows=(S.trabajadores||[]).map(t=>trHdr.map(k=>t[k]!==undefined?t[k]:''));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([trHdr,...trRows]),'Trabajadores');
+  XLSX.utils.book_append_sheet(wb,hojaBD([trHdr,...trRows]),'Trabajadores');
 
   // CENTROS DE COSTO (predios y cuarteles)
   const ccHdr=['id','nivel','nombre','codigo','padre','estado','fechaInicio','curva','pctsCapitalizacionJSON','cuentaCosto','capitalizadoEn'];
   const ccRows=(S.centros||[]).map(c=>ccHdr.map(k=>k==='pctsCapitalizacionJSON'?JSON.stringify(c.pctsCapitalizacion||null):(c[k]!==undefined&&c[k]!==null?c[k]:'')));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ccHdr,...ccRows]),'CentrosCosto');
+  XLSX.utils.book_append_sheet(wb,hojaBD([ccHdr,...ccRows]),'CentrosCosto');
 
   // INVENTARIO (maestros y libro continuo; no se separa por ejercicio)
   const invSheet=(nombre,rows)=>XLSX.utils.book_append_sheet(wb,
-    XLSX.utils.aoa_to_sheet([['id','registroJSON'],...(rows||[]).map(x=>[x.id||'',JSON.stringify(x)])]),nombre);
+    hojaBD([['id','registroJSON'],...(rows||[]).map(x=>[x.id||'',JSON.stringify(x)])]),nombre);
   invSheet('InvGrupos',S.inventario?.grupos);
   invSheet('InvBodegas',S.inventario?.bodegas);
   invSheet('InvProductos',S.inventario?.productos);
@@ -128,7 +177,7 @@ function construirWorkbookBD(){
   // PLAN DE CUENTAS (solo referencia, no se importa)
   const pdcHdr=['Código','Nombre','Naturaleza','Tipo'];
   const pdcRows=PDC.map(c=>[c.cd,c.nm,c.nat||'',c.tp||'']);
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([pdcHdr,...pdcRows]),'PlanDeCuentas');
+  XLSX.utils.book_append_sheet(wb,hojaBD([pdcHdr,...pdcRows]),'PlanDeCuentas');
 
   // AUXILIARES: resumen por RUT (reporte, no se importa)
   const auxClientes={},auxProv={};
@@ -159,7 +208,7 @@ function construirWorkbookBD(){
     ...Object.values(auxClientes).map(c=>['Cliente',c.rut,c.rs,c.docs,c.total]),
     ...Object.values(auxProv).map(p=>['Proveedor',p.rut,p.rs,p.docs,p.total])
   ];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([auxHdr,...auxRows]),'Auxiliares');
+  XLSX.utils.book_append_sheet(wb,hojaBD([auxHdr,...auxRows]),'Auxiliares');
 
   return wb;
 }
@@ -345,10 +394,10 @@ async function importarExcelBD(file){
     }
 
     // Preview
-    const vRows=XLSX.utils.sheet_to_json(wb.Sheets['Ventas']);
-    const cRows=XLSX.utils.sheet_to_json(wb.Sheets['Compras']);
-    const aRows=hojas.includes('Asientos')?XLSX.utils.sheet_to_json(wb.Sheets['Asientos']):[];
-    const hRows=hojas.includes('Honorarios')?XLSX.utils.sheet_to_json(wb.Sheets['Honorarios']):[];
+    const vRows=leerHojaBD(wb.Sheets['Ventas']);
+    const cRows=leerHojaBD(wb.Sheets['Compras']);
+    const aRows=hojas.includes('Asientos')?leerHojaBD(wb.Sheets['Asientos']):[];
+    const hRows=hojas.includes('Honorarios')?leerHojaBD(wb.Sheets['Honorarios']):[];
 
     const msg=`Este archivo contiene:\n\n`+
       `  • ${vRows.length} documentos de ventas\n`+
@@ -426,7 +475,7 @@ async function importarExcelBD(file){
     // Restaurar apertura (Asiento N°0)
     S.apertura=null;
     if(hojas.includes('Apertura')){
-      const apRows=XLSX.utils.sheet_to_json(wb.Sheets['Apertura']);
+      const apRows=leerHojaBD(wb.Sheets['Apertura']);
       if(apRows.length){
         const ap=apRows[0];
         let movs=[];
@@ -439,7 +488,7 @@ async function importarExcelBD(file){
 
     // Restaurar activos fijos (clave global)
     if(hojas.includes('ActivosFijos')){
-      const afRows=XLSX.utils.sheet_to_json(wb.Sheets['ActivosFijos']);
+      const afRows=leerHojaBD(wb.Sheets['ActivosFijos']);
       S.activos=afRows.map(r=>{
         let compraOrigenRef=null;try{compraOrigenRef=r.compraOrigenRefJSON?JSON.parse(r.compraOrigenRefJSON):null;}catch(e){}
         const valor=+r.valor||+r.valorContable||0,residual=+r.residual||+r.residualContable||0,vida=+r.vida||+r.vidaTributaria||0,metodo=r.metodo||r.metodoTributario||'lineal';
@@ -461,7 +510,7 @@ async function importarExcelBD(file){
 
     // Restaurar centros de costo
     if(hojas.includes('CentrosCosto')){
-      const ccRows=XLSX.utils.sheet_to_json(wb.Sheets['CentrosCosto']);
+      const ccRows=leerHojaBD(wb.Sheets['CentrosCosto']);
       S.centros=ccRows.map(r=>({
         id:r.id||'cc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
         nivel:+r.nivel||1,nombre:r.nombre||'',codigo:String(r.codigo||''),
@@ -476,7 +525,7 @@ async function importarExcelBD(file){
     // completo para no perder lotes, vínculos, auditoría ni campos futuros.
     const leerInv=nombre=>{
       if(!hojas.includes(nombre))return null;
-      return XLSX.utils.sheet_to_json(wb.Sheets[nombre]).map(r=>{
+      return leerHojaBD(wb.Sheets[nombre]).map(r=>{
         try{return JSON.parse(r.registroJSON||'{}');}catch(e){return null;}
       }).filter(x=>x&&x.id);
     };
@@ -486,7 +535,7 @@ async function importarExcelBD(file){
 
     // Restaurar trabajadores (clave global)
     if(hojas.includes('Trabajadores')){
-      const trRows=XLSX.utils.sheet_to_json(wb.Sheets['Trabajadores']);
+      const trRows=leerHojaBD(wb.Sheets['Trabajadores']);
       S.trabajadores=trRows.map(r=>({
         id:r.id||'tr_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
         nombre:r.nombre||'',rut:String(r.rut||''),cargo:r.cargo||'',
@@ -498,7 +547,7 @@ async function importarExcelBD(file){
     // Restaurar cierres contables mensuales
     S.cierresContables=[];
     if(hojas.includes('CierresContables')){
-      const ciRows=XLSX.utils.sheet_to_json(wb.Sheets['CierresContables']);
+      const ciRows=leerHojaBD(wb.Sheets['CierresContables']);
       S.cierresContables=ciRows.filter(r=>r.periodo).map(r=>({
         periodo:String(r.periodo),estado:r.estado||'cerrado',cerradoEn:r.cerradoEn||'',cerradoPor:r.cerradoPor||'',motivo:r.motivo||'',
         reabiertoEn:r.reabiertoEn||'',reabiertoPor:r.reabiertoPor||'',motivoReapertura:r.motivoReapertura||''
@@ -507,7 +556,7 @@ async function importarExcelBD(file){
 
     // Restaurar empresa si viene
     if(hojas.includes('Empresa')){
-      const emp=XLSX.utils.sheet_to_json(wb.Sheets['Empresa'],{header:1});
+      const emp=leerHojaBD(wb.Sheets['Empresa'],{header:1});
       const mapa={};emp.forEach(row=>{if(row[0]&&row[1]!=null)mapa[row[0]]=row[1];});
       if(mapa.Empresa&&!S.empresa.nombre)S.empresa.nombre=mapa.Empresa;
       if(mapa.RUT&&!S.empresa.rut)S.empresa.rut=mapa.RUT;
@@ -565,7 +614,7 @@ function simularRestauracionBackup(){
     const contar=(hoja)=>{
       const ws=copia.Sheets[hoja];
       if(!ws)return 0;
-      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      const rows=leerHojaBD(ws,{defval:''});
       return rows.length;
     };
     const esperado={
@@ -578,7 +627,7 @@ function simularRestauracionBackup(){
 
     // Los asientos son especialmente sensibles: comprobar que el JSON completo
     // pueda reconstruirse y conserve id/movimientos.
-    const filasAs=XLSX.utils.sheet_to_json(copia.Sheets['Asientos'],{defval:''});
+    const filasAs=leerHojaBD(copia.Sheets['Asientos'],{defval:''});
     for(const row of filasAs){
       if(!row.asientoJSON)continue;
       const a=JSON.parse(String(row.asientoJSON));

@@ -8,13 +8,15 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.14-1100';
+const APP_VERSION='v2026.10.18-1300';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.72',fecha:'18-10-2026',titulo:'Exportar Excel funciona con asientos muy grandes',items:[
+    {tipo:'arreglo',txt:'"Exportar Excel" fallaba con "Text length must not exceed 32767 characters" cuando un asiento o documento tenía demasiadas líneas para una sola celda de Excel. Ahora ese contenido se reparte en columnas extra y se vuelve a unir al importar. Los respaldos anteriores se siguen importando igual.'}]},
   {version:'V2.21.71',fecha:'16-10-2026',titulo:'Acceso directo al contrato desde la lista de trabajadores',items:[
     {tipo:'mejora',txt:'Cada trabajador de la lista de Remuneraciones tiene el botón "📑 Contrato", que abre su contrato de trabajo (ver, ✏️ Editar contrato, imprimir, PDF, Word). Antes sólo se llegaba desde la pestaña Contratos.'}]},
   {version:'V2.21.70',fecha:'16-10-2026',titulo:'Editor visual del contrato',items:[
