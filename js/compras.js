@@ -269,8 +269,20 @@ function onMesChangeC(){
 
 function limpiarFiltrosC(){
   ['cf-mes','cf-desde','cf-hasta','cf-dte-flt','cf-search'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  C_CTA='';
   renderCompras();
 }
+// V2.21.80 — Desde los cuadros de resumen: un mes o una cuenta abren su detalle en el libro.
+let C_CTA='';
+function irALibroC(){const t=document.getElementById('c-tbody');if(t)try{t.closest('.card-np,.tw,table')?.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}}
+function verMesC(m){
+  const sm=document.getElementById('cf-mes');
+  if(sm){if(sm.options.length<=1)sm.innerHTML=mesOpts('');sm.value=String(m);}
+  ['cf-desde','cf-hasta'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  renderCompras();irALibroC();
+}
+function verCuentaC(cd){C_CTA=String(cd||'');renderCompras();irALibroC();}
+function quitarCuentaC(){C_CTA='';renderCompras();}
 
 // ═══ COMPRAS — Documentos individuales ═══
 function dteComprasOpts(sel=''){
@@ -362,14 +374,17 @@ function renderCompras(){
     if(fHasta&&d.fecha>fHasta)return false;
     if(fDte&&+d.tipoDTE!==fDte)return false;
     if(fQ){const t=(d.rutCodigo+' '+(d.razonSocial||'')+' '+(d.numero||'')).toLowerCase();if(!t.includes(fQ))return false;}
+    if(C_CTA&&!(d.dist||[]).some(l=>String(l.cuenta)===C_CTA))return false;
     return true;
   });
 
   const cntMan=todos.filter(d=>d.origen==='asiento').length;
+  const chip=document.getElementById('cf-cta-chip');
+  if(chip)chip.innerHTML=C_CTA?`<span class="flt-chip" title="Documentos con esta cuenta en su distribución">Cuenta ${C_CTA} · ${pdcNm(C_CTA)} <button onclick="quitarCuentaC()" title="Quitar filtro">✕</button></span>`:'';
 
   // Sin ningún filtro activo no cargamos las filas (pueden ser cientos). El
   // usuario debe aplicar un filtro de búsqueda para ver documentos.
-  const hayFiltroC=!!(fMes||fDesde||fHasta||fDte||fQ);
+  const hayFiltroC=!!(fMes||fDesde||fHasta||fDte||fQ||C_CTA);
   const tb=document.getElementById('c-tbody');
   const tf=document.getElementById('c-tfoot');
   if(!hayFiltroC){
@@ -472,12 +487,12 @@ function renderCResumen(){
   let rowsM=porMes.map((p,i)=>{
     tN+=p.neto;tE+=p.exento;tI+=p.iva;tO+=p.otros;tT+=p.total;tC+=p.cant;
     if(!p.cant)return '';
-    return `<tr><td class="tl">${MESES[i]}</td><td>${p.cant}</td><td>${fmt(p.neto)}</td><td>${fmt(p.exento)}</td><td>${fmt(p.iva)}</td><td>${fmt(p.otros)}</td><td style="font-weight:600">${fmt(p.total)}</td></tr>`;
+    return `<tr class="fila-link" onclick="verMesC(${i+1})" title="Ver el libro de ${MESES[i]}"><td class="tl"><a href="#" onclick="return false">${MESES[i]}</a></td><td>${p.cant}</td><td>${fmt(p.neto)}</td><td>${fmt(p.exento)}</td><td>${fmt(p.iva)}</td><td>${fmt(p.otros)}</td><td style="font-weight:600">${fmt(p.total)}</td></tr>`;
   }).join('');
   if(!rowsM)rowsM=`<tr><td colspan="7" class="empty" style="padding:18px">Sin movimientos</td></tr>`;
 
   const ctaKeys=Object.keys(porCta).sort();
-  const rowsC=ctaKeys.map(k=>`<tr><td class="tl" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${k}</td><td class="tnm">${porCta[k].nm}</td><td style="font-weight:600">${fmt(porCta[k].monto)}</td></tr>`).join('');
+  const rowsC=ctaKeys.map(k=>`<tr class="fila-link${C_CTA===k?' fila-act':''}" onclick="verCuentaC('${k}')" title="Ver los documentos con esta cuenta"><td class="tl" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${k}</td><td class="tnm"><a href="#" onclick="return false">${porCta[k].nm}</a></td><td style="font-weight:600">${fmt(porCta[k].monto)}</td></tr>`).join('');
 
   el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
     <div class="card-np"><div style="padding:12px 16px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--bd)">📅 Resumen Mensual</div><div class="tw"><table>
@@ -1662,4 +1677,4 @@ function initImportListener(){
 
 export {moverComprasDia1, comprasParaDia1, onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
         renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setImportGlosa, setImportReferencia, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
-        toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, validarCuadraturaImportCompras, recalcularEstadoImportCompras, CF};
+        toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, validarCuadraturaImportCompras, recalcularEstadoImportCompras, verMesC, verCuentaC, quitarCuentaC, CF};

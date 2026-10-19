@@ -97,14 +97,14 @@ import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, ap
 import {abrirAperturaAux, cerrarAperturaAux, renderAperturaAux, apxAddDoc, apxDelDoc,
         apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
         descargarPlantillaAperturaAux, initAperturaAuxListener, APX} from './aperturaaux.js';
-import {onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerrarVF,
+import {onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, editarVenta, cerrarVF,
         vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
         eliminarVenta, VF, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas,
         initImportListenerV, setBulkCuentaImpV, enfocarPendienteImportV,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, IMV} from './ventas.js';
-import {moverComprasDia1,onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
+import {moverComprasDia1,onMesChangeC, limpiarFiltrosC, verMesC, verCuentaC, quitarCuentaC, renderCompras, abrirCF, editarCompra, cerrarCF,
         cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
         guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal,
         cambiarPeriodoImport, cerrarImportModal, toggleImportDoc, toggleAllImport,
@@ -135,7 +135,7 @@ import {renderFiniquitos, nuevoFiniquito, editarFiniquito, volverFiniquitos, onF
         eliminarPlantillaFin, insertarMarcadorFin, abrirAsientoFiniquito, cerrarAsientoFiniquito, onAsientoFinCambio,
         generarAsientoFiniquito} from './finiquitos.js';
 import {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem} from './pdf-rem.js';
-import {abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar} from './rcv-captura.js';
+import {renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar} from './rcv-captura.js';
 import {abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdOtroTrat, rdOtroCC, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD} from './rcv-detalle.js';
 import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
         guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
@@ -629,6 +629,7 @@ function renderSec(s){
   else if(s==='integridad')renderIntegridad();
   else if(s==='ventas')renderVentas();
   else if(s==='compras')renderCompras();
+  else if(s==='importrcv')renderImportRCV();
   else if(s==='inventario')renderInventario();
   else if(s==='honorarios')renderHon();
   else if(s==='remuneraciones')renderRemuneraciones();
@@ -802,10 +803,10 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
   descargarPlantillaAperturaAux, APX,
   // ventas
-  onMesChangeV, limpiarFiltrosV, renderVentas, abrirVF, editarVenta, cerrarVF,
+  onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, editarVenta, cerrarVF,
   vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
   // compras
-  onMesChangeC, limpiarFiltrosC, renderCompras, abrirCF, editarCompra, cerrarCF,
+  onMesChangeC, limpiarFiltrosC, verMesC, verCuentaC, quitarCuentaC, renderCompras, abrirCF, editarCompra, cerrarCF,
   cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, renderDist, addDist, delDist, updCfCheck,
   guardarCompra, eliminarCompra, abrirImportSII, abrirImportModal, cambiarPeriodoImport,
   cerrarImportModal, toggleImportDoc, toggleAllImport, setImportCuenta,
@@ -839,7 +840,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
         generarAsientoFiniquito,
   pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, imprimirRemuneraciones,
   moverComprasDia1,
-  abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar,
+  renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar,
   abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdOtroTrat, rdOtroCC, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD,
   renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
   guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel,

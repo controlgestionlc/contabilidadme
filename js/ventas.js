@@ -93,6 +93,13 @@ function onMesChangeV(){
   else{document.getElementById('vf-desde').value='';document.getElementById('vf-hasta').value='';}
   renderVentas();
 }
+// V2.21.80 — El mes del resumen abre el libro de ese mes
+function verMesV(m){
+  const sm=document.getElementById('vf-mes');
+  if(sm){if(sm.options.length<=1)sm.innerHTML=mesOpts('');sm.value=String(m);}
+  onMesChangeV();
+  const t=document.getElementById('v-tbody');if(t)try{t.closest('.card-np,.tw,table')?.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}
+}
 function limpiarFiltrosV(){
   ['vf-mes','vf-desde','vf-hasta','vf-dte-flt','vf-search'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   renderVentas();
@@ -294,7 +301,7 @@ function renderVResumen(){
   let rows=porMes.map((p,i)=>{
     tN+=p.neto;tE+=p.exento;tI+=p.iva;tO+=p.otros;tT+=p.total;tC+=p.cant;
     if(!p.cant)return '';
-    return `<tr><td class="tl">${MESES[i]}</td><td>${p.cant}</td><td>${fmt(p.neto)}</td><td>${fmt(p.exento)}</td><td>${fmt(p.iva)}</td><td>${fmt(p.otros)}</td><td style="font-weight:600">${fmt(p.total)}</td></tr>`;
+    return `<tr class="fila-link" onclick="verMesV(${i+1})" title="Ver el libro de ${MESES[i]}"><td class="tl"><a href="#" onclick="return false">${MESES[i]}</a></td><td>${p.cant}</td><td>${fmt(p.neto)}</td><td>${fmt(p.exento)}</td><td>${fmt(p.iva)}</td><td>${fmt(p.otros)}</td><td style="font-weight:600">${fmt(p.total)}</td></tr>`;
   }).join('');
   if(!rows)rows=`<tr><td colspan="7" class="empty" style="padding:18px">Sin movimientos</td></tr>`;
   el.innerHTML=`<div class="card-np"><div style="padding:12px 16px;background:var(--sf2);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--bd)">📅 Resumen Mensual</div><div class="tw"><table>
@@ -914,4 +921,4 @@ export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV, enfocarPendienteImportV,
         IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
-        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, recalcularEstadoImportVentas, abrirImportModalVentas, VF};
+        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, recalcularEstadoImportVentas, abrirImportModalVentas, verMesV, VF};

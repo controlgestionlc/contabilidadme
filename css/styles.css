@@ -1947,3 +1947,15 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .cap-filtros input{background:var(--campo,#fff)!important;border:1px solid var(--bd)!important;color:var(--tx)}
 .rd-box input:focus,.rd-box select:focus,.cap-editor input:focus,.cap-editor select:focus,.cap-ficha input:focus,.cap-ficha select:focus{border-color:var(--ac)!important;outline:none}
 .rd-tab tbody.rd-gen input#rd-iva{border-color:var(--ac)!important}
+
+/* V2.21.80 — filas clicables de resúmenes y módulo Importador RCV */
+tr.fila-link{cursor:pointer}
+tr.fila-link:hover td{background:rgba(10,110,209,.06)}
+tr.fila-link a{color:var(--ac);text-decoration:none;font-weight:600}
+tr.fila-act td{background:rgba(10,110,209,.10)}
+.flt-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(10,110,209,.10);color:var(--ac);border:1px solid var(--ac);border-radius:14px;padding:3px 6px 3px 10px;font-size:11px;font-weight:600;white-space:nowrap}
+.flt-chip button{border:none;background:transparent;color:var(--ac);cursor:pointer;font-size:11px;padding:0 2px}
+.imp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.imp-estado{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.6;margin-bottom:12px}
+.imp-estado.imp-vacio{color:var(--mt)}
+.imp-acc{display:flex;gap:8px;flex-wrap:wrap}

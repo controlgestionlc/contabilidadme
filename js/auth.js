@@ -97,6 +97,8 @@ function permisosDeRol(rol){
 function permiso(seccion){
   // El Balance de 8 columnas es una vista del Balance: comparte su permiso.
   if(seccion==='balance8')seccion='balance';
+  // El Importador RCV opera sobre el Libro de Compras/Ventas: comparte el permiso de Compras.
+  if(seccion==='importrcv')seccion='compras';
   if(!AUTH.user||!AUTH.user.activo)return 'none';
   // Permisos custom sobrescriben rol
   if(AUTH.user.permisos&&AUTH.user.permisos[seccion])return AUTH.user.permisos[seccion];

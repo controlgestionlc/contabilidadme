@@ -22,8 +22,8 @@ import {inputCuenta} from './buscadorcuentas.js';
 import {ccOpts} from './centroscosto.js';
 import {logAccion} from './firebase.js';
 import {abrirEditorEmbebido, guardarDoc, RD} from './rcv-detalle.js';
-import {IM, confirmarImportacion, abrirImportModal, recalcularEstadoImportCompras} from './compras.js';
-import {IMV, confirmarImportacionV, abrirImportModalVentas, recalcularEstadoImportVentas} from './ventas.js';
+import {IM, confirmarImportacion, abrirImportModal, recalcularEstadoImportCompras, abrirImportSII} from './compras.js';
+import {IMV, confirmarImportacionV, abrirImportModalVentas, recalcularEstadoImportVentas, abrirImportSIIVentas} from './ventas.js';
 
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const n=v=>Math.round(+v||0);
@@ -76,8 +76,9 @@ function abrirCapturaRCV(tipo){
 function cerrarCapturaRCV(){
   const m=document.getElementById('cap-modal');if(m)m.classList.remove('open');
   RD.embebido=false;
+  renderImportRCV();   // si el módulo Importador RCV está a la vista, refleja el avance
 }
-function verTablaRCV(){cerrarCapturaRCV();cfg().tabla();}
+function verTablaRCV(tipo){if(tipo)CAP.tipo=tipo==='venta'?'venta':'compra';cerrarCapturaRCV();cfg().tabla();}
 
 function setCapPeriodo(){
   const c=cfg();
@@ -280,5 +281,36 @@ async function capContabilizar(){
   renderCaptura();
 }
 
-export {abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar,
+// ── Módulo "Importador RCV" (menú lateral, bajo Libro de Compras) ──
+function tarjetaImport(tipo){
+  const c=tipo==='compra'
+    ?{IMx:IM,t:'Compras',ico:'🧾',cargar:"abrirImportSII()",libro:"nav('compras')",desc:'Registro de Compras del SII (archivo CSV "Detalle" o Excel).'}
+    :{IMx:IMV,t:'Ventas',ico:'🛒',cargar:"abrirImportSIIVentas()",libro:"nav('ventas')",desc:'Registro de Ventas del SII (archivo CSV "Detalle" o Excel).'};
+  const ds=c.IMx.docs||[];
+  const pend=ds.filter(d=>!(d.capturado||d.estadoImport==='igual')).length;
+  const per=c.IMx.periodoMes?`${MESES[c.IMx.periodoMes-1]} ${c.IMx.periodoAnio}`:'';
+  return `<div class="card imp-card">
+    <div class="card-title">${c.ico} RCV ${c.t}</div>
+    <div style="font-size:11px;color:var(--mt);margin-bottom:12px">${c.desc}</div>
+    ${ds.length?`<div class="imp-estado">
+        <div><b>${esc(c.IMx.archivo||'Archivo cargado')}</b>${per?` · período ${per}`:''}</div>
+        <div>${ds.length} documento(s) en el registro · <b>${pend}</b> por contabilizar · ${ds.length-pend} en el libro</div>
+      </div>`:'<div class="imp-estado imp-vacio">Aún no cargas un archivo en esta sesión.</div>'}
+    <div class="imp-acc">
+      <button class="btn btn-p" onclick="${c.cargar}">📂 ${ds.length?'Cargar otro archivo':'Cargar archivo RCV'}</button>
+      ${ds.length?`<button class="btn btn-i" onclick="abrirCapturaRCV('${tipo}')">📝 Continuar paso 2</button><button class="btn btn-g" onclick="verTablaRCV('${tipo}')">▦ Vista tabla</button>`:''}
+      <button class="btn btn-g" onclick="${c.libro}">📖 Ver libro</button>
+    </div>
+  </div>`;
+}
+function renderImportRCV(){
+  const el=document.getElementById('importrcv-content');if(!el)return;
+  el.innerHTML=`<div class="imp-grid">${tarjetaImport('compra')}${tarjetaImport('venta')}</div>
+    <div class="info-tip" style="margin-top:14px;font-size:11px;line-height:1.6">
+      <b>Cómo funciona:</b> 1) carga el archivo del SII; 2) en el paso 2 eliges cada documento de la lista y tocas <b>⬇ Importar</b>;
+      3) si el proveedor o cliente es nuevo, creas su ficha; 4) revisas el asiento (cuenta, descripción y centro de costo) y
+      tocas <b>📒 Contabilizar documento</b>: queda en el libro con su asiento.</div>`;
+}
+
+export {renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar,
   capFicha, capCrearFicha, capCerrarEditor, capContabilizar, CAP};

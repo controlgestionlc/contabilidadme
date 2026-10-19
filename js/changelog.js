@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.19-1830';
+const APP_VERSION='v2026.10.19-1930';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.80',fecha:'19-10-2026',titulo:'Libros clicables e Importador RCV como módulo',items:[
+    {tipo:'mejora',txt:'En el Libro de Compras y en el de Ventas, cada mes del Resumen Mensual se puede tocar y abre el libro de ese mes.'},
+    {tipo:'mejora',txt:'En el cuadro "Por Cuenta de Gasto" del Libro de Compras cada cuenta se puede tocar y muestra los documentos que la tienen en su distribución; el filtro aparece como etiqueta junto al buscador y se quita con ✕ o con "Limpiar".'},
+    {tipo:'nuevo',txt:'El importador del RCV es un módulo propio, "📥 Importador RCV", en el menú Registros bajo Libro de Compras: carga el archivo de compras o ventas, muestra cuántos documentos quedan por contabilizar y permite continuar el paso 2. El botón "Importar SII" de los libros lleva a este módulo.'}]},
   {version:'V2.21.79',fecha:'19-10-2026',titulo:'RCV paso 2: centro de costo en todas las líneas y casillas en blanco',items:[
     {tipo:'mejora',txt:'Las líneas de otros impuestos de costo permiten elegir su centro de costo. Por defecto siguen al de la línea de gasto hasta que se cambie a mano.'},
     {tipo:'mejora',txt:'Todas las casillas que se pueden editar (cuenta, descripción, centro de costo, tipo, montos, IVA, glosa y vencimiento) tienen fondo blanco; lo que se completa solo queda en gris.'}]},
