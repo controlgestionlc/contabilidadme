@@ -34,7 +34,7 @@ function validarCuadraturaImportVentas(){
     if(!d.incluir)return;
     const rev=d.detalleRCV?.revisado;
     if(rev){
-      const vd=validarDetalleRCV('venta',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo});
+      const vd=validarDetalleRCV('venta',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo,ivaLinea:d.detalleRCV.iva??null});
       if(!vd.ok){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:'Detalle del paso 2: '+vd.errores[0],tipo:'detalle'});return;}
     }
     const doc={...d,id:d.dup?.id||`preview-v-${i}`,fecha:d.fechaOriginal||d.fecha,

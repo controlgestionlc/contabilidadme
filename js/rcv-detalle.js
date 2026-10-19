@@ -21,7 +21,7 @@ import {fmtC, IVA, dteC, dteV, rutFmt, pdcNm, toast} from './core.js';
 import {reglaCuenta} from './pdc-reglas.js';
 import {ccOpts} from './centroscosto.js';
 import {inputCuenta} from './buscadorcuentas.js';
-import {tributacionCompra} from './motor-contable.js';
+import {tributacionCompra, asientoCompra, asientoVenta} from './motor-contable.js';
 
 const n=v=>Math.round(+v||0);
 // V2.21.62: tipo de línea. 'otro' = línea de otros impuestos del RCV (sólo compras)
@@ -30,7 +30,8 @@ const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 
 // ── Validador puro (testeable) ──
 // tipo: 'compra' | 'venta'. doc: datos del RCV. lineas: [{cuenta,desc,monto,cc,afecto}]
-function validarDetalleRCV(tipo,doc,lineas,{aceptaRedondeo=false,legacyOtros=false}={}){
+// ivaLinea: IVA escrito en la línea de IVA del asiento (V2.21.75). Si no viene, se usa el 19% de las afectas.
+function validarDetalleRCV(tipo,doc,lineas,{aceptaRedondeo=false,legacyOtros=false,ivaLinea=null}={}){
   const errores=[],avisos=[];
   const dte=tipo==='compra'?dteC(doc.tipoDTE):dteV(doc.tipoDTE);
   const neto=n(doc.neto),exento=n(doc.exento),iva=n(doc.iva),otros=n(doc.otrosImpuestos),total=n(doc.total);
@@ -73,19 +74,28 @@ function validarDetalleRCV(tipo,doc,lineas,{aceptaRedondeo=false,legacyOtros=fal
     if(otros>0&&!sumOtros)errores.push(`El RCV informa otros impuestos por ${fmtC(otros)}: agrega una línea de tipo "Otro impuesto" con su cuenta (costo/gasto, o 1108006 si es recuperable).`);
     else errores.push(`Las líneas de otros impuestos suman ${fmtC(sumOtros)} y el RCV informa ${fmtC(otros)} (diferencia ${fmtC(difOtros)}).`);
   }
-  if(difIva&&!redondeoOk(difIva))errores.push(`IVA calculado ${fmtC(ivaCalc)} (19% de ${fmtC(sumAfecto)}) distinto del IVA del RCV ${fmtC(iva)} (diferencia ${fmtC(difIva)}).${Math.abs(difIva)<=1?' Si es redondeo del emisor, marca "Aceptar diferencia de $1".':''}`);
+  // Con línea de IVA editable, el IVA del asiento es el escrito en ella. Se acepta
+  // hasta $1 de diferencia con el 19% de las afectas (redondeo del emisor).
+  const conIvaLinea=ivaLinea!=null&&Number.isFinite(+ivaLinea);
+  const ivaUsado=conIvaLinea?n(ivaLinea):ivaCalc;
+  if(conIvaLinea){
+    const difCalc=ivaUsado-ivaCalc;
+    if(Math.abs(difCalc)>1)errores.push(`El IVA del asiento ${fmtC(ivaUsado)} no corresponde al 19% de las líneas afectas (${fmtC(ivaCalc)}; diferencia ${fmtC(difCalc)}).`);
+    else if(difCalc)avisos.push(`El IVA del asiento difiere en ${fmtC(difCalc)} del 19% de las afectas: redondeo del emisor.`);
+    if(ivaUsado!==iva)avisos.push(`El IVA del asiento (${fmtC(ivaUsado)}) es distinto del informado en el RCV (${fmtC(iva)}): se registrará el del asiento y es el que tomará el F29.`);
+  }else if(difIva&&!redondeoOk(difIva))errores.push(`IVA calculado ${fmtC(ivaCalc)} (19% de ${fmtC(sumAfecto)}) distinto del IVA del RCV ${fmtC(iva)} (diferencia ${fmtC(difIva)}).${Math.abs(difIva)<=1?' Si es redondeo del emisor, marca "Aceptar diferencia de $1".':''}`);
   // Total: en facturas de compra (45/46) el total del RCV puede informar el
   // total del documento o sólo lo pagadero al proveedor (sin el IVA retenido).
   const base=sumAfecto+sumExento;
-  // El total se controla con el IVA CALCULADO desde las líneas, no con el del RCV
-  let totalCalc=base+ivaCalc+otrosLineas, difTotal=totalCalc-total;
+  // El total se controla con el IVA CALCULADO desde las líneas (o el de la línea de IVA), no con el del RCV
+  let totalCalc=base+ivaUsado+otrosLineas, difTotal=totalCalc-total;
   const facturaCompra=tipo==='compra'&&(+doc.tipoDTE===45||+doc.tipoDTE===46||doc.ivaRetenido!=null);
   if(facturaCompra){
     const sinRet=base+otrosLineas;
     if(Math.abs(sinRet-total)<Math.abs(difTotal)){totalCalc=sinRet;difTotal=sinRet-total;}
   }
   if(difTotal&&!redondeoOk(difTotal))errores.push(`Líneas + IVA calculado + otros impuestos = ${fmtC(totalCalc)} y el total del RCV es ${fmtC(total)} (diferencia ${fmtC(difTotal)}).`);
-  return {ok:errores.length===0,errores,avisos,resumen:{sumAfecto,sumExento,sumOtros,difOtros,cruzaOtros,ivaCalc,totalCalc,difNeto,difExento,difIva,difTotal,neto,exento,iva,otros,total}};
+  return {ok:errores.length===0,errores,avisos,resumen:{sumAfecto,sumExento,sumOtros,difOtros,cruzaOtros,ivaCalc,ivaUsado,conIvaLinea,totalCalc,difNeto,difExento,difIva,difTotal,neto,exento,iva,otros,total}};
 }
 
 // Líneas por defecto para un documento del RCV
@@ -123,7 +133,7 @@ function lineasBase(tipo,d){
 
 // ── Estado del editor ──
 // RD nunca se reasigna: los onPick/oninput generados escriben en window.RD.
-const RD={tipo:'compra',pos:0,lista:[],lineas:[],glosa:'',vence:'',aceptaRedondeo:false};
+const RD={tipo:'compra',pos:0,lista:[],lineas:[],glosa:'',vence:'',aceptaRedondeo:false,iva:0};
 const ctx=()=>RD.tipo==='compra'
   ?{IMx:window.IM,render:window.renderImportModal,confirmar:window.confirmarImportacion,filtro:'compra',titulo:'Compras'}
   :{IMx:window.IMV,render:window.renderImportModalVentas,confirmar:window.confirmarImportacionV,filtro:'ingreso',titulo:'Ventas'};
@@ -156,6 +166,8 @@ function cargarDoc(){
   RD.glosa=d.detalleRCV?.glosa??d.glosa??'';
   RD.vence=d.fechaVencimiento||'';
   RD.aceptaRedondeo=!!d.detalleRCV?.aceptaRedondeo;
+  // IVA del asiento: el guardado en el detalle o, si no hay, el del RCV
+  RD.iva=d.detalleRCV?.iva!=null?n(d.detalleRCV.iva):n(d.ivaRCV!=null?d.ivaRCV:d.iva);
 }
 function cerrarDetalleRCV(){
   const m=document.getElementById('rd-modal');if(m)m.classList.remove('open');
@@ -188,19 +200,20 @@ function rdCompletar(i){
 function rdValidar(){
   const d=docActual();const box=document.getElementById('rd-val');if(!d||!box)return null;
   leerCampos();
-  const v=validarDetalleRCV(RD.tipo,d,RD.lineas,{aceptaRedondeo:RD.aceptaRedondeo});
+  const v=validarDetalleRCV(RD.tipo,docRCV(d),RD.lineas,{aceptaRedondeo:RD.aceptaRedondeo,ivaLinea:RD.iva});
   const R=v.resumen;
   const fila=(lbl,calc,rcv,dif)=>`<tr class="${dif?'rd-mal':'rd-bien'}"><td class="tl">${lbl}</td><td>${fmtC(calc)}</td><td>${fmtC(rcv)}</td><td>${dif?fmtC(dif):'✓'}</td></tr>`;
   box.innerHTML=`<table class="rd-vt"><thead><tr><th class="tl">CONTROL</th><th>LÍNEAS</th><th>RCV</th><th>DIF.</th></tr></thead><tbody>
     ${fila('Neto (líneas afectas)',R.sumAfecto,R.neto,R.difNeto)}
     ${fila('Exento (líneas exentas)',R.sumExento,R.exento,R.difExento)}
-    ${fila('IVA (19% de afectas)',R.ivaCalc,R.iva,R.difIva)}
+    ${R.conIvaLinea?fila('IVA (línea del asiento)',R.ivaUsado,R.iva,R.ivaUsado-R.iva):fila('IVA (19% de afectas)',R.ivaCalc,R.iva,R.difIva)}
     ${R.cruzaOtros&&(R.otros||R.sumOtros)?fila('Otros impuestos (líneas)',R.sumOtros,R.otros,R.difOtros):''}
     ${fila('Total',R.totalCalc,R.total,R.difTotal)}
   </tbody></table>
   ${v.errores.map(e=>`<div class="rd-err">⛔ ${esc(e)}</div>`).join('')}
   ${v.avisos.map(e=>`<div class="rd-avi">ℹ️ ${esc(e)}</div>`).join('')}
   ${v.ok?'<div class="rd-ok">✅ Documento cuadrado: listo para contabilizar.</div>':''}`;
+  renderAsientoRD(d);
   const b=document.getElementById('rd-guardar');if(b)b.disabled=!v.ok;
   const b2=document.getElementById('rd-guardar-sig');if(b2)b2.disabled=!v.ok;
   return v;
@@ -209,6 +222,11 @@ function guardarDoc(){
   const d=docActual();if(!d)return false;
   const v=rdValidar();
   if(!v||!v.ok){toast('⛔ Corrige las diferencias antes de guardar','e');return false;}
+  // IVA del asiento: si se corrigió, el documento lo adopta (se guarda el del RCV aparte)
+  const ivaAs=n(RD.iva);
+  if(d.ivaRCV==null&&ivaAs!==n(d.iva))d.ivaRCV=n(d.iva);
+  d.iva=ivaAs;
+  if(d.ivaRCV!=null&&n(d.ivaRCV)===ivaAs)delete d.ivaRCV;
   const lineas=RD.lineas.map(l=>({cuenta:l.cuenta,desc:String(l.desc||'').trim(),monto:n(l.monto),cc:l.cc||'',afecto:tipoL(l)==='afecto',...(l.otroImp?{otroImp:true,codImp:l.codImp||''}:{})}));
   // V2.21.62: los otros impuestos se contabilizan en la cuenta de su línea.
   // 1108006 = recuperable; cualquier otra cuenta = costo/gasto en esa cuenta.
@@ -218,7 +236,7 @@ function guardarDoc(){
     if(ol.length)d.otrosImpuestosDetalle=ol.map(l=>({tipo:l.codImp||'otro',nombre:l.desc||'Otros impuestos',monto:l.monto,
       tratamiento:l.cuenta==='1108006'?'recuperable':'costo',...(l.cuenta!=='1108006'?{cuenta:l.cuenta,cc:l.cc||'',desc:l.desc||''}:{})}));
   }
-  d.detalleRCV={v:2,lineas,glosa:String(RD.glosa||'').trim(),aceptaRedondeo:!!RD.aceptaRedondeo,revisado:true,revisadoEn:new Date().toISOString()};
+  d.detalleRCV={v:2,lineas,glosa:String(RD.glosa||'').trim(),aceptaRedondeo:!!RD.aceptaRedondeo,iva:ivaAs,revisado:true,revisadoEn:new Date().toISOString()};
   // Compatibilidad con el paso 1: cuenta/CC de la primera línea y glosa
   d.cuenta=lineas[0].cuenta;d.cc=lineas[0].cc||'';
   d.glosa=d.detalleRCV.glosa;
@@ -248,7 +266,7 @@ function rdIrA(pos){leerCampos();RD.pos=+pos;cargarDoc();renderDetalleRCV();}
 function rdLimpiar(){
   const d=docActual();if(!d)return;
   if(!confirm('¿Descartar el detalle de este documento y volver a la distribución por defecto?'))return;
-  delete d.detalleRCV;if(d._otrosDetRCV){d.otrosImpuestosDetalle=d._otrosDetRCV.map(x=>({...x}));delete d._otrosDetRCV;}cargarDoc();renderDetalleRCV();
+  delete d.detalleRCV;if(d.ivaRCV!=null){d.iva=n(d.ivaRCV);delete d.ivaRCV;}if(d._otrosDetRCV){d.otrosImpuestosDetalle=d._otrosDetRCV.map(x=>({...x}));delete d._otrosDetRCV;}cargarDoc();renderDetalleRCV();
 }
 async function rdContabilizar(){
   const c=ctx();
@@ -261,6 +279,55 @@ async function rdContabilizar(){
   docs.forEach((d,i)=>{if(d.incluir&&!d.detalleRCV?.revisado)d.incluir=false;});
   const m=document.getElementById('rd-modal');if(m)m.classList.remove('open');
   if(typeof c.confirmar==='function')await c.confirmar();
+}
+
+// ── Asiento que se generará (V2.21.75) ──
+// Se arma con el mismo motor que contabiliza, sobre una copia del documento con
+// las líneas del paso 2 y el IVA de la línea editable. Así se ven todas las
+// líneas (incluidas IVA y proveedor/cliente) antes de contabilizar.
+const docRCV=d=>(d.ivaRCV!=null?{...d,iva:d.ivaRCV}:d);   // datos del RCV tal como vinieron
+function docVirtual(d){
+  const base=docRCV(d);
+  const v={...base,iva:n(RD.iva),glosa:String(RD.glosa||'').trim()};
+  if(RD.tipo==='compra'){
+    v.dist=RD.lineas.filter(l=>!l.otroImp).map(l=>({cuenta:l.cuenta,monto:n(l.monto),cc:l.cc||'',desc:l.desc||'',afecto:tipoL(l)==='afecto'}));
+    const ol=RD.lineas.filter(l=>l.otroImp);
+    if(ol.length)v.otrosImpuestosDetalle=ol.map(l=>({tipo:l.codImp||'otro',nombre:l.desc||'Otros impuestos',monto:n(l.monto),
+      tratamiento:l.cuenta==='1108006'?'recuperable':'costo',...(l.cuenta!=='1108006'?{cuenta:l.cuenta,cc:l.cc||'',desc:l.desc||''}:{})}));
+  }else{
+    v.dist=RD.lineas.map(l=>({cuenta:l.cuenta,monto:n(l.monto),cc:l.cc||'',desc:l.desc||'',afecto:l.afecto!==false}));
+    v.cuentaIngreso=RD.lineas[0]?.cuenta||v.cuentaIngreso;
+    v.formaPago=d.dup?.formaPago||d.fp||d.formaPago||'clientes';
+  }
+  return v;
+}
+const esCuentaIva=cd=>['1108002','1108008','2103003'].includes(String(cd));
+function renderAsientoRD(d){
+  const box=document.getElementById('rd-asiento');if(!box)return;
+  let as;
+  try{as=(RD.tipo==='compra'?asientoCompra:asientoVenta)(docVirtual(d));}
+  catch(e){box.innerHTML=`<div class="rd-avi">ℹ️ No se pudo armar la vista del asiento: ${esc(e.message)}</div>`;return;}
+  const movs=(as&&as.movs)||[];
+  const tD=movs.reduce((s,m)=>s+n(m.debe),0),tH=movs.reduce((s,m)=>s+n(m.haber),0);
+  // La línea de IVA se edita; si el IVA se reparte (activo fijo, no recuperable) se edita en la primera
+  let ivaEditable=false;
+  const filas=movs.map(m=>{
+    const esIva=esCuentaIva(m.cd)&&!ivaEditable&&(RD.tipo==='venta'?m.cd==='2103003':m.cd!=='2103003');
+    if(esIva)ivaEditable=true;
+    const monto=n(m.debe)||n(m.haber),lado=n(m.debe)?'debe':'haber';
+    const celdaIva=`<input type="text" inputmode="numeric" class="linea-inp rd-monto money-input" id="rd-iva" value="${n(RD.iva).toLocaleString('es-CL')}" title="IVA del documento: corrígelo si el emisor redondeó distinto" onchange="rdIva(this.value)">`;
+    const val=(l)=>esIva&&lado===l?celdaIva:(l==='debe'?(n(m.debe)?fmtC(m.debe):''):(n(m.haber)?fmtC(m.haber):''));
+    return `<tr${esIva?' class="rd-as-iva"':''}><td class="tl rd-as-cd">${esc(m.cd)}</td><td class="tl">${esc(pdcNm(m.cd)||'')}</td><td class="tl rd-as-desc">${esc(m.desc||'')}</td><td>${val('debe')}</td><td>${val('haber')}</td></tr>`;
+  }).join('');
+  const cuadra=Math.abs(tD-tH)<0.5;
+  box.innerHTML=`<div class="rd-as-tit">Asiento que se generará${ivaEditable?' · el IVA se puede corregir':''}</div>
+    <div class="tw"><table class="rd-as"><thead><tr><th class="tl">CUENTA</th><th class="tl">NOMBRE</th><th class="tl">DESCRIPCIÓN</th><th>DEBE</th><th>HABER</th></tr></thead>
+    <tbody>${filas||'<tr><td colspan="5" class="tl" style="color:var(--mt)">Completa las líneas para ver el asiento.</td></tr>'}</tbody>
+    <tfoot><tr><td class="tl" colspan="3">Totales${cuadra?'':' · <span style="color:var(--err)">no cuadra</span>'}</td><td>${fmtC(tD)}</td><td>${fmtC(tH)}</td></tr></tfoot></table></div>`;
+}
+function rdIva(valor){
+  RD.iva=Math.max(0,n(String(valor).replace(/\./g,'').replace(',','.')));
+  rdValidar();
 }
 
 function renderDetalleRCV(){
@@ -308,6 +375,7 @@ function renderDetalleRCV(){
       <label class="rd-chk"><input type="checkbox" id="rd-redondeo" ${RD.aceptaRedondeo?'checked':''} onchange="rdValidar()"> Aceptar diferencia de $1 por redondeo del emisor</label>
       ${d.detalleRCV?.revisado?'<span class="rd-badge">✓ Revisado</span>':''}
     </div>
+    <div id="rd-asiento" class="rd-asiento"></div>
     <div id="rd-val"></div>
     <div class="modal-footer rd-pie">
       <button class="btn btn-d" onclick="cerrarDetalleRCV()" title="Cierra el paso 2; lo ya guardado en cada documento se conserva">Cancelar</button>
@@ -321,5 +389,5 @@ function renderDetalleRCV(){
   rdValidar();
 }
 
-export {validarDetalleRCV, lineasIniciales, abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar,
+export {validarDetalleRCV, lineasIniciales, abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
   rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD};

@@ -8,13 +8,23 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.19-1000';
+const APP_VERSION='v2026.10.19-1215';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.75',fecha:'19-10-2026',titulo:'RCV paso 2: se ve el asiento completo y el IVA se puede corregir',items:[
+    {tipo:'mejora',txt:'En el paso 2 de compras y ventas aparece el "Asiento que se generará" con todas sus líneas: gasto o ingreso, otros impuestos, IVA crédito o débito y proveedor o cliente, con totales.'},
+    {tipo:'mejora',txt:'El monto del IVA se edita en su propia línea del asiento. Por defecto toma el IVA del RCV, así una diferencia de $1 por redondeo del emisor cuadra sin marcar la casilla. Se acepta hasta $1 de diferencia con el 19% de las líneas afectas.'},
+    {tipo:'mejora',txt:'Si el IVA corregido es distinto del RCV, se avisa y el documento queda con el IVA corregido (es el que toma el F29); "Volver a la distribución por defecto" restaura el del RCV.'}]},
+  {version:'V2.21.74',fecha:'19-10-2026',titulo:'Balance de apertura: documentos por cuenta con auxiliar',items:[
+    {tipo:'nuevo',txt:'En el ingreso manual del Balance de Apertura, las cuentas de clientes, proveedores y honorarios por pagar permiten detallar el saldo por documento: auxiliar (con buscador por RUT o nombre), tipo de documento según el auxiliar, N°, emisión, vencimiento y monto, con "+ Agregar documento" para varios por cuenta.'},
+    {tipo:'mejora',txt:'Con documentos, el saldo de la línea es la suma de ellos (las notas de crédito restan) y al guardar se registra un movimiento por auxiliar. Los documentos quedan en el Detalle de auxiliares de la apertura, así el auxiliar y el aging arrancan con cada factura pendiente.'},
+    {tipo:'arreglo',txt:'Editar el Balance de Apertura ya no borra el detalle de auxiliares capturado ni el folio del comprobante.'},
+    {tipo:'arreglo',txt:'La lista "Documento" del Detalle de auxiliares venía vacía: ahora muestra los tipos de documento.'},
+    {tipo:'mejora',txt:'Las columnas Debe y Haber del formulario de apertura quedan alineadas con su encabezado y muestran separador de miles.'}]},
   {version:'V2.21.73',fecha:'19-10-2026',titulo:'Formulario 29: resumen anual y detalle por mes',items:[
     {tipo:'mejora',txt:'Tributario SII → Formulario 29 abre ahora el resumen del año: débito, crédito, remanentes, IVA a pagar, PPM, retenciones, impuesto único, total y estado de cada mes, con totales.'},
     {tipo:'mejora',txt:'Al hacer clic en el nombre de un mes se abre su detalle de siempre (códigos, declaración, conciliación, compensación de IVA y pago), con "← Formulario 29" para volver y accesos a los demás meses. Los cálculos no cambian.'},

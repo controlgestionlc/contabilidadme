@@ -49,7 +49,7 @@ function validarCuadraturaImportCompras(){
     }
     if(d.detalleRCV?.revisado){
       dist=distDesdeDetalle(d);
-      const vd=validarDetalleRCV('compra',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo,legacyOtros:!(d.detalleRCV.v>=2)});
+      const vd=validarDetalleRCV('compra',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo,legacyOtros:!(d.detalleRCV.v>=2),ivaLinea:d.detalleRCV.iva??null});
       if(!vd.ok){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:'Detalle del paso 2: '+vd.errores[0],tipo:'detalle'});return;}
     }
     const doc={...d,id:prev?.id||`preview-c-${i}`,fecha:d.fechaOriginal||d.fecha,

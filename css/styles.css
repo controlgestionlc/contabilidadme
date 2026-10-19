@@ -1848,3 +1848,39 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .ct-chip-mal{background:rgba(248,81,73,.15);color:var(--err);border-color:rgba(248,81,73,.5)}
 .ct-leyenda{font-size:11px;color:var(--mt)}
 .ct-ed-bar{position:sticky;top:0;z-index:6;margin-bottom:10px}
+
+/* ═══ Balance de apertura: documentos por cuenta con auxiliar ═══ */
+@media (min-width:721px){
+  .linea-row.ap-row{grid-template-columns:36px 200px 1fr 110px 110px 36px}
+}
+.linea-row.ap-row-docs{border-bottom:none}
+.linea-row.ap-row input:disabled{opacity:.85;background:var(--sf2);cursor:default}
+.ap-docs{margin:0 10px 10px 46px;padding:8px 10px;border-left:3px solid var(--ac);background:var(--sf2);border-radius:0 6px 6px 0}
+.ap-doc-row{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(150px,1.3fr) minmax(150px,1fr) 80px 128px 128px 120px 30px;gap:6px;align-items:center;margin-bottom:5px}
+.ap-doc-hdr{font-size:9.5px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.ap-docs-pie{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;font-size:11px;color:var(--mt)}
+.ap-docs-pie span{font-family:var(--mono)}
+.ap-docs-ofrece{margin:-2px 10px 8px 46px}
+.ap-docs-ofrece span{font-family:var(--sans)}
+@media (max-width:1100px){
+  .ap-doc-row{grid-template-columns:1fr 1fr 1fr;}
+  .ap-doc-hdr{display:none}
+  .ap-doc-row{padding-bottom:6px;border-bottom:1px dashed var(--bd)}
+}
+@media (max-width:720px){
+  .ap-docs,.ap-docs-ofrece{margin-left:0;margin-right:0}
+  .ap-doc-row{grid-template-columns:1fr 1fr}
+}
+
+/* ═══ RCV paso 2: asiento que se generará ═══ */
+.rd-asiento{margin:4px 0 10px}
+.rd-as-tit{font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.rd-as{width:100%}
+.rd-as th,.rd-as td{padding:3px 8px;text-align:right;font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.rd-as th.tl,.rd-as td.tl{text-align:left}
+.rd-as td.tl{font-family:var(--sans)}
+.rd-as td.rd-as-cd{font-family:var(--mono);color:var(--mt);width:72px}
+.rd-as td.rd-as-desc{white-space:normal;color:var(--mt);font-size:11px}
+.rd-as tr.rd-as-iva td{background:rgba(10,110,209,.06)}
+.rd-as .rd-monto{max-width:130px;text-align:right}
+.rd-as tfoot td{font-weight:700;border-top:1px solid var(--bd)}

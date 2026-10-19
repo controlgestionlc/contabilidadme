@@ -90,7 +90,7 @@ import {cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
 
 // Negocio
 import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut,
-        apLVal, apDelLinea, apAddLinea, apPrellenar, apUpdCuadre, guardarApertura,
+        apLVal, apDelLinea, apAddLinea, apAddDoc, apDelDoc, apDocCampo, apDocAux, apPrellenar, apUpdCuadre, guardarApertura,
         eliminarApertura, initBalanceImportListener, abrirImpBalModal, cerrarImpBalModal,
         toggleAllBal, confirmarImportBalance, renderImpBalModal,
         descargarPlantillaBalance, APF, IMB} from './apertura.js';
@@ -135,7 +135,7 @@ import {renderFiniquitos, nuevoFiniquito, editarFiniquito, volverFiniquitos, onF
         eliminarPlantillaFin, insertarMarcadorFin, abrirAsientoFiniquito, cerrarAsientoFiniquito, onAsientoFinCambio,
         generarAsientoFiniquito} from './finiquitos.js';
 import {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem} from './pdf-rem.js';
-import {abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD} from './rcv-detalle.js';
+import {abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD} from './rcv-detalle.js';
 import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
         guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
@@ -794,7 +794,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   borrarCT, copiarCTaEmpresa,
   // apertura
   renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut, apLVal,
-  apDelLinea, apAddLinea, apPrellenar, apUpdCuadre, guardarApertura, eliminarApertura,
+  apDelLinea, apAddLinea, apAddDoc, apDelDoc, apDocCampo, apDocAux, apPrellenar, apUpdCuadre, guardarApertura, eliminarApertura,
   abrirImpBalModal, cerrarImpBalModal, toggleAllBal, confirmarImportBalance, renderImpBalModal,
   descargarPlantillaBalance,
   abrirAperturaAux, cerrarAperturaAux, renderAperturaAux, apxAddDoc, apxDelDoc,
@@ -838,7 +838,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
         generarAsientoFiniquito,
   pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, imprimirRemuneraciones,
   moverComprasDia1,
-  abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD,
+  abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD,
   renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
   guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel,
   renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
