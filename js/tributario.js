@@ -405,6 +405,58 @@ function renderConciliacionF29(mes){
   </div>`;
 }
 
+// ═══ Vistas del F29 (sólo presentación) ═══
+// 'anual': resumen de los 12 meses; 'mes': detalle del mes elegido en #f29-mes.
+// El selector #f29-mes sigue siendo la fuente del mes para toda la lógica
+// (declarado, UTM, compensación, pago); aquí sólo se oculta y se maneja con enlaces.
+let F29_VISTA='anual';
+// Casillas de montos: entero con separador de miles (pn() lo vuelve a número al guardar).
+const fmtMontoF29=v=>{const n=Math.round(+v||0);return n?n.toLocaleString('es-CL'):(v===0||v==='0'?'0':'');};
+function iniciarVistaF29(){F29_VISTA='anual';}
+function verF29Anual(){F29_VISTA='anual';renderF29();try{window.scrollTo(0,0);}catch(_){}}
+function verF29Mes(m){
+  const sel=document.getElementById('f29-mes');
+  if(sel)sel.value=String(m);
+  F29_VISTA='mes';renderF29();try{window.scrollTo(0,0);}catch(_){}
+}
+function renderF29Anual(data,el){
+  const tasa=S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0;
+  const tot=k=>data.reduce((s,d)=>s+(+d[k]||0),0);
+  const c=(v,color)=>`<td class="money-cell" style="font-family:var(--mono);text-align:right;white-space:nowrap${color?';color:'+color:''}">${v?fmtC(v):''}</td>`;
+  const filas=data.map(d=>{
+    const decl=d.declaracion, pres=esF29Presentado(decl), difs=pres?diferenciasF29(d,decl):[];
+    const vacio=!d.nDocsV&&!d.nDocsC&&!d.retencionHon&&!d.iusc&&!d.remanenteAnt;
+    const estado=pres?`<span style="color:${difs.length?'var(--warn)':'var(--ok,#107e3e)'}">✓ Presentado${difs.length?' · '+difs.length+' dif.':''}</span>`:decl?'<span style="color:var(--mt)">Borrador</span>':'';
+    return `<tr${vacio?' style="opacity:.45"':''}>
+      <td class="tl"><a href="#" onclick="verF29Mes(${d.m});return false" style="color:var(--ac);font-weight:600;text-decoration:none">${MESES[d.m-1]}</a></td>
+      <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(d.debitoTotal)}</td>
+      <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(d.creditoMes)}</td>
+      ${c(d.remanenteReaj,'var(--mt)')}${c(d.ivaAPagar)}${c(d.remanente,'var(--ok,#107e3e)')}${c(d.ppm)}${c(d.retencionHon)}${c(d.iusc)}
+      <td class="money-cell" style="font-family:var(--mono);text-align:right;font-weight:700">${fmtC(d.totalPagar)}</td>
+      <td class="tl" style="font-size:11px;white-space:nowrap">${estado}</td></tr>`;
+  }).join('');
+  el.innerHTML=`<div style="font-size:12px;color:var(--mt);margin:-4px 0 12px">Ejercicio ${S.empresa.anio} · Tasa PPM ${String(tasa).replace('.',',')}%${tasa===0?` · <a href="#" onclick="nav('empresa');return false" style="color:var(--warn)">configúrala en Empresa</a>`:''} · Calculado desde los libros de compras, ventas, honorarios y remuneraciones.</div>
+  <div class="card card-np"><div class="tw"><table style="min-width:1050px"><thead><tr>
+    <th class="tl">MES</th><th>DÉBITO</th><th>CRÉDITO</th><th>REMANENTE ANT.</th><th>IVA A PAGAR</th><th>REMANENTE</th><th>PPM</th><th>RET. HON.</th><th>IMP. ÚNICO</th><th>TOTAL F29</th><th class="tl">ESTADO</th>
+  </tr></thead><tbody>${filas}</tbody>
+  <tfoot><tr style="font-weight:700;background:rgba(88,166,255,.06)"><td class="tl">Año</td>
+    <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(tot('debitoTotal'))}</td>
+    <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(tot('creditoMes'))}</td><td></td>
+    <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(tot('ivaAPagar'))}</td><td></td>
+    <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(tot('ppm'))}</td>
+    <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(tot('retencionHon'))}</td>
+    <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(tot('iusc'))}</td>
+    <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(tot('totalPagar'))}</td><td></td></tr></tfoot>
+  </table></div></div>
+  <div style="font-size:11px;color:var(--mt);margin-top:10px">Haz clic en el nombre de un mes para ver el detalle por código, declarar, generar la compensación de IVA y registrar el pago.</div>`;
+}
+function barraMesF29(mSel){
+  return `<div class="no-print" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+    <a href="#" onclick="verF29Anual();return false" style="color:var(--ac);font-size:13px;text-decoration:none">← Formulario 29 · ${S.empresa.anio}</a>
+    <div style="display:flex;gap:2px;flex-wrap:wrap">${MESES.map((nm,i)=>`<a href="#" onclick="verF29Mes(${i+1});return false" style="padding:4px 8px;border-radius:6px;font-size:12px;text-decoration:none;${i+1===mSel?'background:var(--sf2);color:var(--ac);font-weight:600':'color:var(--mt)'}">${nm.slice(0,3)}</a>`).join('')}</div>
+  </div>`;
+}
+
 function renderF29(){
   if(!F29DECL.loaded||F29DECL.anio!==+S.empresa.anio){cargarDeclaracionesF29().then(()=>renderF29());}
   const sel=document.getElementById('f29-mes');
@@ -418,6 +470,9 @@ function renderF29(){
   const data=calcularF29Anual();
   const d=data[mSel-1];
   const el=document.getElementById('f29-content');
+  // El mes se elige con enlaces; el selector queda oculto pero sigue mandando.
+  if(sel)sel.style.display='none';
+  if(F29_VISTA==='anual'){renderF29Anual(data,el);return;}
   const per=periodoF29(mSel), decl=declaracionF29(per), presentado=esF29Presentado(decl), difs=diferenciasF29(d,decl);
   const declVal=cod=>decl?.declarado?.[String(cod)]!=null?decl.declarado[String(cod)]:(d.codigos?.[cod]||0);
   const panelDeclaracion=`<div class="card" style="max-width:760px;margin-top:14px">
@@ -425,7 +480,7 @@ function renderF29(){
     ${presentado&&difs.length?`<div class="info-tip" style="margin:10px 0;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ El cálculo actual difiere de la declaración presentada en <strong>${difs.length}</strong> código(s). La historia declarada no fue modificada; revisa la conciliación antes de rectificar.</div>`:''}
     <div class="fg" style="margin:10px 0"><div class="grp"><label>Fecha presentación</label><input type="date" value="${decl?.fechaPresentacion||''}" onchange="setF29DeclCampo('fechaPresentacion',this.value)" ${presentado?'disabled':''}></div><div class="grp"><label>Folio / N° declaración</label><input type="text" value="${String(decl?.folio||'').replace(/"/g,'&quot;')}" onchange="setF29DeclCampo('folio',this.value)" ${presentado?'disabled':''}></div></div>
     <div class="card-np"><div class="tw"><table><thead><tr><th class="tl">CÓDIGO</th><th class="tl">CONCEPTO</th><th>CALCULADO</th><th>DECLARADO</th><th>DIF.</th></tr></thead><tbody>
-    ${[[538,'Total débitos'],[39,'IVA retenido'],[504,'Remanente anterior reajustado'],[537,'Total créditos'],[77,'Remanente siguiente'],[89,'IVA a pagar'],[62,'PPM'],[151,'Ret. honorarios'],[48,'IUSC trabajadores'],[91,'Total a pagar']].map(([c,l])=>{const cv=Math.round(+d.codigos?.[c]||0),dv=Math.round(+declVal(c)||0),df=dv-cv;return `<tr><td class="tl" style="font-family:var(--mono)">${c}</td><td class="tl">${l}</td><td>${fmtC(cv)}</td><td><input type="number" class="money-input" min="0" value="${dv}" onchange="setF29Declarado(${c},this.value)" ${presentado?'disabled':''} style="text-align:right;font-family:var(--mono);max-width:130px"></td><td style="font-family:var(--mono);color:${df?'var(--warn)':'var(--ach)'}">${df?fmtC(df):'—'}</td></tr>`}).join('')}
+    ${[[538,'Total débitos'],[39,'IVA retenido'],[504,'Remanente anterior reajustado'],[537,'Total créditos'],[77,'Remanente siguiente'],[89,'IVA a pagar'],[62,'PPM'],[151,'Ret. honorarios'],[48,'IUSC trabajadores'],[91,'Total a pagar']].map(([c,l])=>{const cv=Math.round(+d.codigos?.[c]||0),dv=Math.round(+declVal(c)||0),df=dv-cv;return `<tr><td class="tl" style="font-family:var(--mono)">${c}</td><td class="tl">${l}</td><td>${fmtC(cv)}</td><td><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${fmtMontoF29(dv)}" onchange="setF29Declarado(${c},this.value)" ${presentado?'disabled':''} style="text-align:right;font-family:var(--mono);max-width:130px"></td><td style="font-family:var(--mono);color:${df?'var(--warn)':'var(--ach)'}">${df?fmtC(df):'—'}</td></tr>`}).join('')}
     </tbody></table></div></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px">${presentado?`<button class="btn btn-g" onclick="reabrirF29()">🔓 Reabrir declaración</button>`:`<button class="btn btn-g" onclick="copiarCalculadoAF29()">↙ Copiar calculado</button><button class="btn btn-s" onclick="guardarBorradorF29()">💾 Guardar borrador</button><button class="btn btn-p" onclick="presentarF29()">✅ Marcar presentado</button>`}</div>
   </div>`;
@@ -434,7 +489,7 @@ function renderF29(){
     <td class="tl f29-desc" style="font-size:12px;${opts.bold?'font-weight:700':''}">${lbl}</td>
     <td class="f29-monto money-cell" style="font-family:var(--mono);text-align:right;${opts.bold?'font-weight:700;':''}color:${opts.color||'var(--tx)'}">${val===''?'':fmtC(val)}</td>
   </tr>`;
-  el.innerHTML=`<div class="card" style="max-width:640px">
+  el.innerHTML=`${barraMesF29(mSel)}<div class="card" style="max-width:640px">
     <div style="text-align:center;margin-bottom:18px">
       <div style="font-size:15px;font-weight:700">${S.empresa.nombre||'(sin empresa)'}</div>
       <div style="color:var(--mt);font-size:12px;margin-top:3px">Formulario 29 — ${MESES[mSel-1]} ${S.empresa.anio}</div>
@@ -474,9 +529,9 @@ function renderF29(){
         <td class="f29-monto money-cell" style="font-family:var(--mono);text-align:right;font-weight:700;font-size:14px;color:${d.totalPagar>0?'var(--err)':'var(--ach)'}">${fmtC(d.totalPagar)}</td>
       </tr>
     </tbody></table>
-    <div class="fg" style="margin-top:12px"><div class="grp"><label>UTM del período ${per}</label><input type="number" class="money-input" min="0" value="${d.utmPeriodo||''}" onchange="setF29UTM(this.value)" ${presentado?'disabled':''}>
+    <div class="fg" style="margin-top:12px"><div class="grp"><label>UTM del período ${per}</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${fmtMontoF29(d.utmPeriodo)}" onchange="setF29UTM(this.value)" ${presentado?'disabled':''}>
       <div style="font-size:10px;color:var(--mt);margin-top:2px">${+declaracionF29(per)?.utm>0?'Ingresada en este F29':fuenteUTM(per)==='sii'?'Histórico oficial SII':fuenteUTM(per)==='mindicador'?'Histórico (mindicador.cl)':fuenteUTM(per)==='manual'?'Histórico corregido a mano':d.utmPeriodo?'Tomada de la liquidación de remuneraciones':'Sin UTM: complétala aquí o en Indicadores'}</div></div>
-      ${mSel===1?(()=>{const ini=remanenteInicialF29(),bloq=ini.fuente==='f29-dic'||presentado;return `<div class="grp"><label>Remanente inicial (cód. 77 de diciembre ${S.empresa.anio-1})</label><input type="number" class="money-input" min="0" value="${ini.fuente==='ninguna'?'':ini.monto}" placeholder="0" onchange="setRemanenteInicialF29(this.value)" ${bloq?'disabled':''}>
+      ${mSel===1?(()=>{const ini=remanenteInicialF29(),bloq=ini.fuente==='f29-dic'||presentado;return `<div class="grp"><label>Remanente inicial (cód. 77 de diciembre ${S.empresa.anio-1})</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${ini.fuente==='ninguna'?'':fmtMontoF29(ini.monto)}" placeholder="0" onchange="setRemanenteInicialF29(this.value)" ${bloq?'disabled':''}>
         <div style="font-size:10px;color:var(--mt);margin-top:2px">${ini.fuente==='f29-dic'?'Desde el F29 de diciembre '+(S.empresa.anio-1)+' ('+ini.estado+')':ini.fuente==='manual'?'Ingresado a mano':'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingrésalo si hubo remanente'} · UTM origen ${d.utmRemanenteAnt?fmtC(d.utmRemanenteAnt):'—'}</div></div>`;})():''}</div>
     ${d.remanenteSinUTM?'<div class="info-tip" style="margin-top:10px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Falta la UTM del mes de origen o del período actual. El código 504 se muestra sin reajuste hasta completar ambas UTM.</div>':''}
     ${d.tasaPPM===0&&(S.empresa.tasaPPM==null||+S.empresa.tasaPPM===0)?'<div class="info-tip" style="margin-top:12px;font-size:11px">⚠️ La tasa de PPM está en 0%. Configúrala en Empresa → Configuración Tributaria para que se calcule el PPM.</div>':''}
@@ -727,9 +782,9 @@ function renderCompensacionIVA(){
     ${d.remanenteAnt>0?`
       <div class="fg" style="margin-bottom:6px">
         <div class="grp"><label>UTM del mes de declaración del período anterior</label>
-          <input type="number" class="money-input" value="${IVAC.utmOrigen}" onchange="setIvacCampo('utmOrigen',this.value)"></div>
+          <input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${fmtMontoF29(IVAC.utmOrigen)}" onchange="setIvacCampo('utmOrigen',this.value)"></div>
         <div class="grp"><label>UTM del mes de declaración de este período</label>
-          <input type="number" class="money-input" value="${IVAC.utmActual}" onchange="setIvacCampo('utmActual',this.value)"></div>
+          <input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${fmtMontoF29(IVAC.utmActual)}" onchange="setIvacCampo('utmActual',this.value)"></div>
       </div>
       <div style="font-size:11px;color:var(--mt);margin-bottom:14px">
         Como el SII: el remanente se convierte a UTM con la UTM del mes en que se declaró el período anterior, se redondea a 2 decimales y se reconvierte con la UTM del mes en que se declara este período.
@@ -1003,7 +1058,7 @@ function renderPagoF29(){
         ${c.nota?`<div style="font-size:10px;color:var(--mt);line-height:1.45;margin-top:2px">${c.nota}</div>`:''}
       </td>
       <td style="width:250px">${inputCuenta({id:'pf29-cd-'+c.k,value:cd||'',onPick:`setPagoF29Cuenta('${c.k}','%CD%')`,placeholder:'Cuenta…',clase:'linea-inp'})}</td>
-      <td style="width:130px"><input type="number" class="money-input" value="${monto||0}" onchange="setPagoF29Monto('${c.k}',this.value)" style="text-align:right;font-family:var(--mono)"></td>
+      <td style="width:130px"><input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${fmtMontoF29(monto||0)}" onchange="setPagoF29Monto('${c.k}',this.value)" style="text-align:right;font-family:var(--mono)"></td>
       <td style="width:150px;font-size:10px;color:var(--mt);text-align:right">
         ${editado?`<div><button class="btn btn-g" style="padding:1px 6px;font-size:9px" onclick="usarSugeridoF29('${c.k}')">↺ saldo ${fmtC(r.sug[c.k])}</button></div>`:''}
         ${!c.gasto?`<div>Pagado: ${fmtC(r.sug._pagado?.[c.k]||0)} · Saldo: ${fmtC(r.sug[c.k]||0)}</div>`:''}
@@ -1113,7 +1168,7 @@ async function generarAsientoPagoF29(){
   renderF29();
 }
 
-export {calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
+export {iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,

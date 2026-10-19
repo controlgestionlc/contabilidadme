@@ -24,6 +24,7 @@
 html[data-theme="dark"]{
   --bg:#0d1117;--sf:#161b22;--sf2:#21262d;--bd:#30363d;
   --ac:#2ea043;--ach:#3fb950;--tx:#e6edf3;--mt:#8b949e;
+  --ok:#3fb950;     /* positivo (presentado, remanente) */
   --err:#f85149;--warn:#d29922;--info:#58a6ff;
   --acc:#2ea043;  /* alias histórico de --ac */
   --logo1:#2ea043;--logo2:#56d364;
@@ -43,6 +44,7 @@ html[data-theme="noche"]{
   --err:#ff8081;
   --warn:#f5a86b;
   --info:#4db1ff;
+  --ok:#5ad17a;
   --acc:#4db1ff;  /* alias histórico de --ac */
   --logo1:#0a6ed1;--logo2:#4db1ff;
   --mono:'IBM Plex Mono',monospace;--sans:'Sora',sans-serif;

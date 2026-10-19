@@ -173,7 +173,7 @@ import {setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux,
         abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
         auxPorRut, abrirReporteAuxDe} from './auxiliares.js';
 // AUX_TAB también viene de auxiliares.js — se recupera desde window.
-import {renderF29, renderPPM, IVAC, renderCompensacionIVA, generarAsientoIVA,
+import {renderF29, iniciarVistaF29, verF29Anual, verF29Mes, renderPPM, IVAC, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente,
         PAGOF29, renderPagoF29, generarAsientoPagoF29, setPagoF29Cuenta, setPagoF29Campo,
         setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29, cargarDeclaracionesF29,
@@ -593,6 +593,7 @@ function nav(s){
     const inicio=document.getElementById('mobile-home');
     if(inicio)inicio.style.visibility=(s==='inicio'?'hidden':'visible');
   }catch(e){}
+  if(s==='f29')iniciarVistaF29(); // entrar desde el menú siempre muestra el resumen anual
   setCurSec(s);renderSec(s);
   recordarNav(s);      // para que el botón atrás deshaga un paso, no salte a Inicio
   ayudaAlNavegar(s);   // aplicar la preferencia de ayuda de esta pantalla
@@ -861,7 +862,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   setAuxTab, setAuxView, setAuxQ, verTodosAux, ocultarTodosAux, toggleAux, renderAuxiliares, toggleAgingDetalle,
   auxPorRut, abrirReporteAuxDe, abrirReporteAux, cerrarReporteAux, setReporteAuxVista,
   renderReporteAux, imprimirReporteAux, exportarReporteAuxExcel,
-  renderF29, renderPPM, setF29Declarado, setF29DeclCampo, setF29UTM, setRemanenteInicialF29, setUTMManual, buscarUTMNuevas, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29, setFCView, renderFlujoCaja,
+  renderF29, verF29Anual, verF29Mes, renderPPM, setF29Declarado, setF29DeclCampo, setF29UTM, setRemanenteInicialF29, setUTMManual, buscarUTMNuevas, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29, setFCView, renderFlujoCaja,
   // asignación manual de centros de costo
   renderAsigCC, resetAsigCC, setAsigCC, limpiarFiltrosCC, setCCMov, toggleSelCC, selTodosCC,
   limpiarSelCC, setBulkCC, asignarSelCC, exportarAsigCCExcel, pendientesCC,

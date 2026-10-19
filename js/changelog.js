@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.18-1300';
+const APP_VERSION='v2026.10.19-1000';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.73',fecha:'19-10-2026',titulo:'Formulario 29: resumen anual y detalle por mes',items:[
+    {tipo:'mejora',txt:'Tributario SII → Formulario 29 abre ahora el resumen del año: débito, crédito, remanentes, IVA a pagar, PPM, retenciones, impuesto único, total y estado de cada mes, con totales.'},
+    {tipo:'mejora',txt:'Al hacer clic en el nombre de un mes se abre su detalle de siempre (códigos, declaración, conciliación, compensación de IVA y pago), con "← Formulario 29" para volver y accesos a los demás meses. Los cálculos no cambian.'},
+    {tipo:'mejora',txt:'Las casillas de montos del F29 (declarado, UTM, remanente inicial, compensación y pago) muestran separador de miles y no aceptan decimales.'}]},
   {version:'V2.21.72',fecha:'18-10-2026',titulo:'Exportar Excel funciona con asientos muy grandes',items:[
     {tipo:'arreglo',txt:'"Exportar Excel" fallaba con "Text length must not exceed 32767 characters" cuando un asiento o documento tenía demasiadas líneas para una sola celda de Excel. Ahora ese contenido se reparte en columnas extra y se vuelve a unir al importar. Los respaldos anteriores se siguen importando igual.'}]},
   {version:'V2.21.71',fecha:'16-10-2026',titulo:'Acceso directo al contrato desde la lista de trabajadores',items:[
