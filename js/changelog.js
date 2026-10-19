@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.19-1215';
+const APP_VERSION='v2026.10.19-1600';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.76',fecha:'19-10-2026',titulo:'RCV: nuevo paso 2 con lista del registro y editor del asiento',items:[
+    {tipo:'nuevo',txt:'Al cargar el RCV de compras o ventas se abre el paso 2: a la izquierda todo el registro leído del SII (proveedor o cliente, folio, fecha y monto), con filtros "Por contabilizar", "En el libro" y "Todos" y un buscador.'},
+    {tipo:'nuevo',txt:'Al elegir un documento se activa "⬇ Importar" (arriba a la derecha), que abre a la derecha el editor del asiento: glosa, líneas con cuenta y centro de costo, IVA y la vista del asiento completo. "📒 Contabilizar documento" genera el asiento sólo de ese documento y lo lleva al libro.'},
+    {tipo:'nuevo',txt:'Si el proveedor o cliente no tiene ficha, primero se crea (razón social, datos de contacto, cuenta y centro de costo por defecto) y recién después se edita el asiento.'},
+    {tipo:'mejora',txt:'La cuenta y el centro de costo del documento parten de la ficha del auxiliar, y los que se usen al contabilizar quedan como los nuevos por defecto de esa ficha.'},
+    {tipo:'mejora',txt:'La vista tabla con asignación masiva sigue disponible con el botón "▦ Vista tabla".'}]},
   {version:'V2.21.75',fecha:'19-10-2026',titulo:'RCV paso 2: se ve el asiento completo y el IVA se puede corregir',items:[
     {tipo:'mejora',txt:'En el paso 2 de compras y ventas aparece el "Asiento que se generará" con todas sus líneas: gasto o ingreso, otros impuestos, IVA crédito o débito y proveedor o cliente, con totales.'},
     {tipo:'mejora',txt:'El monto del IVA se edita en su propia línea del asiento. Por defecto toma el IVA del RCV, así una diferencia de $1 por redondeo del emisor cuadra sin marcar la casilla. Se acepta hasta $1 de diferencia con el 19% de las líneas afectas.'},

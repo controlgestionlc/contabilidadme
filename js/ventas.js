@@ -582,7 +582,9 @@ function mostrarVentasImportadas(res,nombreArchivo){
   IMV.periodoMes=+mesTop;
   IMV.periodoAnio=+anioTop;
   recalcularEstadoImportVentas();
-  abrirImportModalVentas();
+  // V2.21.76: el paso 2 es la captura documento por documento (lista + editor).
+  if(typeof window.abrirCapturaRCV==='function')window.abrirCapturaRCV('venta');
+  else abrirImportModalVentas();
 }
 
 function abrirImportModalVentas(){
@@ -911,4 +913,4 @@ export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV, enfocarPendienteImportV,
         IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
-        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, VF};
+        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, recalcularEstadoImportVentas, abrirImportModalVentas, VF};

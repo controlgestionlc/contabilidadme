@@ -956,7 +956,10 @@ function mostrarDocsImportados(res,nombreArchivo){
   IM.periodoAnio=+anioTop;
   IM.periodos=periodos;
   recalcularEstadoImportCompras();
-  abrirImportModal();
+  // V2.21.76: el paso 2 es la captura documento por documento (lista + editor).
+  // La vista tabla sigue disponible desde su botón "▦ Vista tabla".
+  if(typeof window.abrirCapturaRCV==='function')window.abrirCapturaRCV('compra');
+  else abrirImportModal();
 }
 
 function abrirImportModal(){
@@ -1658,4 +1661,4 @@ function initImportListener(){
 
 export {moverComprasDia1, comprasParaDia1, onMesChangeC, limpiarFiltrosC, dteComprasOpts, cuentasGastoOpts, renderCompras, renderCResumen,
         renderCDupAlert, gruposDuplicadosCompras, verDuplicadoC, cambiarModoImport, abrirCF, editarCompra, cerrarCF, cfRutInput, cfCheckDup, cfDteChanged, cfRefrescarDocs, cfSeleccionarReferencia, cfCalcTotals, cfTratamientoIVAUI, renderDist, addDist, delDist, updCfCheck, guardarCompra, eliminarCompra, IM,  abrirImportSII, handleFileImport,  mostrarDocsImportados, abrirImportModal, cambiarPeriodoImport, cerrarImportModal, fechaEfectivaImport, renderImportModal, toggleImportDoc, toggleAllImport, setImportCuenta, aplicarCuentaATodos, setImportCC, aplicarCCATodos, setImportGlosa, setImportReferencia, setBulkCuentaImp, confirmarImportacion, initImportListener, enfocarPendienteImportC,
-        toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, validarCuadraturaImportCompras, CF};
+        toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, validarCuadraturaImportCompras, recalcularEstadoImportCompras, CF};

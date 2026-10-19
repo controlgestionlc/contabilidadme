@@ -133,7 +133,7 @@ function lineasBase(tipo,d){
 
 // ── Estado del editor ──
 // RD nunca se reasigna: los onPick/oninput generados escriben en window.RD.
-const RD={tipo:'compra',pos:0,lista:[],lineas:[],glosa:'',vence:'',aceptaRedondeo:false,iva:0};
+const RD={tipo:'compra',pos:0,lista:[],lineas:[],glosa:'',vence:'',aceptaRedondeo:false,iva:0,embebido:false};
 const ctx=()=>RD.tipo==='compra'
   ?{IMx:window.IM,render:window.renderImportModal,confirmar:window.confirmarImportacion,filtro:'compra',titulo:'Compras'}
   :{IMx:window.IMV,render:window.renderImportModalVentas,confirmar:window.confirmarImportacionV,filtro:'ingreso',titulo:'Ventas'};
@@ -150,6 +150,9 @@ function asegurarModal(){
 }
 // Abre el paso 2. idx: índice del documento en el importador (opcional)
 function abrirDetalleRCV(tipo,idx){
+  // V2.21.76: el paso 2 ahora es la pantalla de captura (lista + editor). Se
+  // conserva esta entrada para quien llegue desde la vista tabla.
+  RD.embebido=false;
   RD.tipo=tipo==='venta'?'venta':'compra';
   const c=ctx();if(!c.IMx||!Array.isArray(c.IMx.docs)){toast('⚠️ Primero carga el archivo RCV','e');return;}
   RD.lista=c.IMx.docs.map((d,i)=>i).filter(i=>c.IMx.docs[i].incluir||i===idx);
@@ -169,7 +172,17 @@ function cargarDoc(){
   // IVA del asiento: el guardado en el detalle o, si no hay, el del RCV
   RD.iva=d.detalleRCV?.iva!=null?n(d.detalleRCV.iva):n(d.ivaRCV!=null?d.ivaRCV:d.iva);
 }
+// Editor dentro de la pantalla de captura (panel derecho). Trabaja sobre un solo documento.
+function abrirEditorEmbebido(tipo,idx){
+  RD.tipo=tipo==='venta'?'venta':'compra';
+  RD.embebido=true;
+  RD.lista=[idx];RD.pos=0;
+  const viejo=document.getElementById('rd-modal');if(viejo)viejo.remove();   // evita dos #rd-body
+  cargarDoc();
+  renderDetalleRCV();
+}
 function cerrarDetalleRCV(){
+  if(RD.embebido){RD.embebido=false;if(typeof window.capCerrarEditor==='function')window.capCerrarEditor();return;}
   const m=document.getElementById('rd-modal');if(m)m.classList.remove('open');
   const c=ctx();if(typeof c.render==='function')c.render();
 }
@@ -216,6 +229,7 @@ function rdValidar(){
   renderAsientoRD(d);
   const b=document.getElementById('rd-guardar');if(b)b.disabled=!v.ok;
   const b2=document.getElementById('rd-guardar-sig');if(b2)b2.disabled=!v.ok;
+  const bc=document.getElementById('rd-contab');if(bc)bc.disabled=!v.ok;
   return v;
 }
 function guardarDoc(){
@@ -345,8 +359,20 @@ function renderDetalleRCV(){
       <td class="rd-acc"><button class="btn btn-g" title="Completar con lo que falta para cuadrar" onclick="rdCompletar(${i})">⇥</button> <button class="btn btn-d" title="Quitar línea" onclick="rdQuitar(${i})" ${RD.lineas.length<2?'disabled':''}>✕</button></td>
     </tr>`).join('');
   const dato=(lbl,val,cls='')=>`<div class="rd-dato ${cls}"><span>${lbl}</span><b>${val}</b></div>`;
-  body.innerHTML=`
-    <div class="modal-hdr"><div>
+  const cab=RD.embebido
+    ?`<div class="rd-emb-hdr"><div class="modal-title">📝 ${esc(d.razonSocial||'')} · ${d.tipoDTE}-${esc(d.numero)}</div>
+       <button class="btn btn-g" onclick="cerrarDetalleRCV()" title="Cerrar el editor sin contabilizar">✕</button></div>`
+    :null;
+  const pie=RD.embebido
+    ?`<div class="modal-footer rd-pie">
+      <button class="btn btn-d" onclick="cerrarDetalleRCV()">Cancelar</button>
+      ${d.detalleRCV?'<button class="btn btn-g" onclick="rdLimpiar()">↺ Distribución por defecto</button>':''}
+      <span style="flex:1"></span>
+      <button class="btn btn-p" id="rd-contab" onclick="capContabilizar()" title="Genera el asiento y lleva el documento al libro">📒 Contabilizar documento</button>
+    </div>`
+    :null;
+  body.innerHTML=(cab||'')+`
+    <div class="modal-hdr"${RD.embebido?' style="display:none"':''}><div>
       <div class="modal-title">📝 Paso 2 · Contabilizar ${c.titulo.toLowerCase()} documento por documento</div>
       <div class="modal-sub">Documento ${RD.pos+1} de ${RD.lista.length} · ${revisados} revisado(s)
         <select style="margin-left:8px;font-size:11px;padding:2px 4px" onchange="rdIrA(this.value)">${RD.lista.map((i,k)=>{const x=c.IMx.docs[i];return `<option value="${k}" ${k===RD.pos?'selected':''}>${x.detalleRCV?.revisado?'✓':'·'} ${x.tipoDTE}-${esc(x.numero)} ${esc(String(x.razonSocial||'').slice(0,28))}</option>`;}).join('')}</select></div>
@@ -377,7 +403,8 @@ function renderDetalleRCV(){
     </div>
     <div id="rd-asiento" class="rd-asiento"></div>
     <div id="rd-val"></div>
-    <div class="modal-footer rd-pie">
+    ${pie||''}
+    <div class="modal-footer rd-pie"${RD.embebido?' style="display:none"':''}>
       <button class="btn btn-d" onclick="cerrarDetalleRCV()" title="Cierra el paso 2; lo ya guardado en cada documento se conserva">Cancelar</button>
       <button class="btn btn-g" onclick="rdIr(-1)" ${RD.pos===0?'disabled':''}>← Anterior</button>
       <button class="btn btn-g" onclick="rdIr(1)" ${RD.pos>=RD.lista.length-1?'disabled':''}>Siguiente →</button>
@@ -389,5 +416,5 @@ function renderDetalleRCV(){
   rdValidar();
 }
 
-export {validarDetalleRCV, lineasIniciales, abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
+export {validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
   rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD};
