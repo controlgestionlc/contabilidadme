@@ -1,7 +1,8 @@
 // apertura.js — Balance de Apertura (Asiento N°0) + importador Excel
-import {toast, fmtC, fmt, pn, today, pdcNm, PDC, CUENTAS_SEL, rutParse, rutFmt, rutDV} from './core.js';
+import {toast, fmtC, fmt, pn, today, pdcNm, PDC, CUENTAS_SEL, rutParse, rutFmt, rutDV, DTE_VENTAS, DTE_COMPRAS} from './core.js';
 import {CUENTAS_AUX, esAux, cuentasOpts} from './asientos.js';
-import {inputCuenta} from './buscadorcuentas.js';
+import {inputCuenta, inputAux} from './buscadorcuentas.js';
+import {fichaAux} from './importadoraux.js';
 import {S} from './state.js';
 import {bloqueAperturaAux, initAperturaAuxListener} from './aperturaaux.js';
 import {rerender} from './ui.js';
@@ -81,7 +82,7 @@ function renderApertura(){
 function abrirApertura(){
   // Cargar líneas existentes o inicializar vacías
   if(S.apertura){
-    APF.lineas=S.apertura.movs.map(m=>({...m}));
+    APF.lineas=lineasParaEditar(S.apertura);
     document.getElementById('ap-form-title').textContent='Editar Balance de Apertura';
     document.getElementById('ap-fecha').value=S.apertura.fecha;
     document.getElementById('ap-glosa').value=S.apertura.glosa;
@@ -100,14 +101,100 @@ function abrirApertura(){
 
 function cerrarApertura(){document.getElementById('ap-form').style.display='none';APF.lineas=[];}
 
+// ── Documentos por cuenta con auxiliar (clientes, proveedores, honorarios) ──
+// Una línea de cuenta auxiliable puede llevar sub-líneas: un documento por fila
+// (auxiliar, tipo, N°, emisión, vencimiento y monto). Con documentos, el saldo
+// de la línea es la suma de ellos y no se escribe a mano. Al guardar:
+//   · la línea se abre en un movimiento por auxiliar (RUT), igual que antes
+//   · los documentos quedan en S.apertura.auxDocs, el mismo lugar que usa el
+//     "Detalle de auxiliares", así el auxiliar y el aging los ven sin cambios.
+// Una línea auxiliable SIN documentos sigue funcionando como siempre (RUT y
+// razón social en la línea y monto manual).
+const tipoAuxDe=cd=>CUENTAS_AUX[cd]||'';
+const fichaTipo=tipo=>tipo==='cliente'?'cliente':'proveedor';
+function dtesDe(tipo){
+  if(tipo==='cliente')return DTE_VENTAS;
+  if(tipo==='honorario')return DTE_COMPRAS.filter(d=>d.honorario);
+  return DTE_COMPRAS.filter(d=>!d.honorario);
+}
+const signoDTE=(tipo,cod)=>{const d=dtesDe(tipo).find(x=>x.cod===+cod);return d&&d.signo===-1?-1:1;};
+const ladoCuenta=cd=>String(cd)[0]==='1'?'debe':'haber';
+function nuevoDocAp(cd,base={}){
+  const tipo=tipoAuxDe(cd);
+  return {rutCodigo:base.rutCodigo||'',rutDV:base.rutDV||'',razonSocial:base.razonSocial||'',
+    tipoDTE:base.tipoDTE||(tipo==='honorario'?70:33),numero:base.numero||'',
+    fecha:base.fecha||'',fechaVencimiento:base.fechaVencimiento||'',monto:+base.monto||0};
+}
+// Saldo neto de los documentos de una línea (las notas de crédito restan)
+const netoDocs=l=>(l.docs||[]).reduce((s,d)=>s+(+d.monto||0)*signoDTE(tipoAuxDe(l.cd),d.tipoDTE),0);
+function sincronizarLineaDocs(l){
+  if(!l.docs||!l.docs.length)return;
+  const n=netoDocs(l),lado=ladoCuenta(l.cd),otro=lado==='debe'?'haber':'debe';
+  l[lado]=n>=0?n:0;l[otro]=n<0?-n:0;
+}
+
+// Al editar: las cuentas cuyo detalle de documentos cuadra con sus líneas se
+// muestran como una sola línea con sus documentos. Si no cuadra, se dejan las
+// líneas como estaban y el detalle se sigue manejando desde su tarjeta.
+function lineasParaEditar(ap){
+  const docs=ap.auxDocs||[];
+  const out=[],hechas=new Set();
+  ap.movs.forEach(m=>{
+    const tipo=tipoAuxDe(m.cd);
+    if(!tipo){out.push({...m});return;}
+    if(hechas.has(m.cd))return;
+    const dc=docs.filter(d=>d.cd===m.cd);
+    const movsCd=ap.movs.filter(x=>x.cd===m.cd);
+    const lado=ladoCuenta(m.cd);
+    const netoMovs=movsCd.reduce((s,x)=>s+(lado==='debe'?(x.debe||0)-(x.haber||0):(x.haber||0)-(x.debe||0)),0);
+    const netoDc=dc.reduce((s,d)=>s+(+d.saldo||0),0);
+    if(dc.length&&Math.abs(netoMovs-netoDc)<1){
+      hechas.add(m.cd);
+      const l={cd:m.cd,nm:m.nm||pdcNm(m.cd),desc:m.desc||'',debe:0,haber:0,
+        docs:dc.map(d=>nuevoDocAp(m.cd,{...d,monto:Math.abs(+d.saldo||0)}))};
+      sincronizarLineaDocs(l);out.push(l);
+    }else out.push({...m});
+  });
+  return out;
+}
+
+function htmlDocsLinea(l,i){
+  const tipo=tipoAuxDe(l.cd);
+  const lbl=tipo==='cliente'?'Cliente':tipo==='honorario'?'Profesional':'Proveedor';
+  const opts=(sel)=>dtesDe(tipo).map(d=>`<option value="${d.cod}" ${+sel===d.cod?'selected':''}>${d.cod} · ${d.nm}</option>`).join('');
+  const filas=l.docs.map((d,j)=>{
+    const rut=d.rutCodigo?rutFmt(d.rutCodigo,d.rutDV):'';
+    const ok=d.rutCodigo&&d.rutDV&&rutDV(d.rutCodigo)===String(d.rutDV).toUpperCase();
+    return `<div class="ap-doc-row">
+      <div class="ap-doc-aux" title="${ok?'RUT válido':d.rutCodigo?'RUT inválido':''}">${inputAux({id:`ap-doc-rut-${i}-${j}`,tipo:fichaTipo(tipo),value:rut,onPick:`apDocAux(${i},${j},'%RUT%')`,placeholder:`RUT o nombre del ${lbl.toLowerCase()}…`})}</div>
+      <div><input type="text" class="linea-inp" placeholder="Razón social" value="${String(d.razonSocial||'').replace(/"/g,'&quot;')}" oninput="apDocCampo(${i},${j},'razonSocial',this.value)"></div>
+      <div><select class="linea-inp" onchange="apDocCampo(${i},${j},'tipoDTE',this.value)">${opts(d.tipoDTE)}</select></div>
+      <div><input type="text" class="linea-inp" placeholder="N°" value="${String(d.numero||'').replace(/"/g,'&quot;')}" oninput="apDocCampo(${i},${j},'numero',this.value)"></div>
+      <div><input type="date" class="linea-inp" title="Fecha de emisión" value="${d.fecha||''}" onchange="apDocCampo(${i},${j},'fecha',this.value)"></div>
+      <div><input type="date" class="linea-inp" title="Fecha de vencimiento" value="${d.fechaVencimiento||''}" onchange="apDocCampo(${i},${j},'fechaVencimiento',this.value)"></div>
+      <div><input type="text" inputmode="numeric" class="linea-num-inp money-input" placeholder="0" value="${d.monto?fmt(d.monto):''}" oninput="apDocCampo(${i},${j},'monto',this.value)"></div>
+      <div style="text-align:center"><button class="btn btn-d" style="padding:3px 7px;font-size:10px" title="Quitar documento" onclick="apDelDoc(${i},${j})">✕</button></div>
+    </div>`;}).join('');
+  return `<div class="ap-docs">
+    <div class="ap-doc-row ap-doc-hdr"><div>${lbl}</div><div>Razón social</div><div>Tipo documento</div><div>N°</div><div>Emisión</div><div>Vencimiento</div><div style="text-align:right">Monto</div><div></div></div>
+    ${filas}
+    <div class="ap-docs-pie">
+      <button class="btn btn-s" style="font-size:11px" onclick="apAddDoc(${i})">+ Agregar documento</button>
+      <span id="ap-docs-tot-${i}">${l.docs.length} documento(s) · Total ${fmtC(netoDocs(l))}</span>
+    </div>
+  </div>`;
+}
+
 function apRenderLineas(){
   const box=document.getElementById('ap-lineas');
   if(!APF.lineas.length){box.innerHTML='<div style="padding:14px;text-align:center;color:var(--mt);font-size:12px">Agrega al menos 1 línea</div>';return;}
   box.innerHTML=APF.lineas.map((l,i)=>{
     const aux=esAux(l.cd);
     const tipoAux=CUENTAS_AUX[l.cd]||'';
+    const conDocs=aux&&l.docs&&l.docs.length;
     let auxHtml='';
-    if(aux){
+    if(conDocs)auxHtml=htmlDocsLinea(l,i);
+    else if(aux){
       const rutVal=(l.rutCodigo||'')+(l.rutDV||'');
       let dvHtml='',dvCls='rut-dv-ln';
       if(l.rutCodigo){
@@ -122,23 +209,87 @@ function apRenderLineas(){
           <span class="${dvCls}" id="ap-ln-dv-${i}">${dvHtml}</span>
         </div>
         <div><input type="text" class="linea-inp" placeholder="Razón social" value="${l.razonSocial||''}" oninput="APF.lineas[${i}].razonSocial=this.value"></div>
-      </div>`;
+      </div>
+      <div class="ap-docs-pie ap-docs-ofrece"><button class="btn btn-i" style="font-size:11px" onclick="apAddDoc(${i})">+ Detallar por documento</button>
+        <span>Para registrar cada factura o boleta pendiente con su auxiliar, fechas y monto.</span></div>`;
     }
-    return `<div class="linea-row">
+    const bloq=conDocs?' disabled title="Suma de los documentos"':'';
+    return `<div class="linea-row ap-row${conDocs?' ap-row-docs':''}">
       <div class="linea-num">${i+1}</div>
       <div>${inputCuenta({id:`ap-cd-${i}`,value:l.cd,onPick:`apLCd(${i},'%CD%')`,placeholder:'Código o nombre…'})}</div>
       <div><input type="text" class="linea-inp" placeholder="Observación" value="${l.desc||''}" oninput="APF.lineas[${i}].desc=this.value"></div>
-      <div><input type="number" class="linea-num-inp money-input" min="0" placeholder="0" value="${l.debe||''}" oninput="apLVal(${i},'debe',this.value)"></div>
-      <div><input type="number" class="linea-num-inp money-input" min="0" placeholder="0" value="${l.haber||''}" oninput="apLVal(${i},'haber',this.value)"></div>
+      <div><input type="text" inputmode="numeric" id="ap-debe-${i}" class="linea-num-inp money-input" placeholder="0" value="${l.debe?fmt(l.debe):''}" oninput="apLVal(${i},'debe',this.value)"${bloq}></div>
+      <div><input type="text" inputmode="numeric" id="ap-haber-${i}" class="linea-num-inp money-input" placeholder="0" value="${l.haber?fmt(l.haber):''}" oninput="apLVal(${i},'haber',this.value)"${bloq}></div>
       <div style="text-align:center"><button class="btn btn-d" onclick="apDelLinea(${i})">✕</button></div>
     </div>${auxHtml}`;
   }).join('');
+  // Un RUT escrito a mano (sin elegirlo de la lista) también se toma al salir del campo
+  APF.lineas.forEach((l,i)=>(l.docs||[]).forEach((d,j)=>{
+    const inp=document.getElementById(`ap-doc-rut-${i}-${j}`);
+    if(inp)inp.addEventListener('change',()=>apDocRutEscrito(i,j,inp.value));
+  }));
   apUpdCuadre();
 }
 
+function apAddDoc(i){
+  const l=APF.lineas[i];if(!l||!esAux(l.cd))return;
+  if(!l.docs||!l.docs.length){
+    // Primer documento: parte con el RUT, la razón social y el saldo que tenía la línea
+    const lado=ladoCuenta(l.cd),monto=Math.max(0,(l[lado]||0)-(l[lado==='debe'?'haber':'debe']||0));
+    l.docs=[nuevoDocAp(l.cd,{rutCodigo:l.rutCodigo,rutDV:l.rutDV,razonSocial:l.razonSocial,monto})];
+    delete l.rutCodigo;delete l.rutDV;delete l.razonSocial;
+  }else{
+    // Los siguientes heredan el auxiliar del anterior: lo común es varias facturas del mismo
+    const u=l.docs[l.docs.length-1];
+    l.docs.push(nuevoDocAp(l.cd,{rutCodigo:u.rutCodigo,rutDV:u.rutDV,razonSocial:u.razonSocial,tipoDTE:u.tipoDTE}));
+  }
+  sincronizarLineaDocs(l);apRenderLineas();
+}
+function apDelDoc(i,j){
+  const l=APF.lineas[i];if(!l||!l.docs)return;
+  l.docs.splice(j,1);
+  if(!l.docs.length){delete l.docs;l.debe=0;l.haber=0;}
+  else sincronizarLineaDocs(l);
+  apRenderLineas();
+}
+function apDocCampo(i,j,campo,valor){
+  const l=APF.lineas[i],d=l&&l.docs&&l.docs[j];if(!d)return;
+  d[campo]=campo==='monto'?Math.max(0,pn(valor)):valor;
+  if(campo==='monto'||campo==='tipoDTE'){
+    sincronizarLineaDocs(l);
+    const de=document.getElementById('ap-debe-'+i),ha=document.getElementById('ap-haber-'+i);
+    if(de)de.value=l.debe?fmt(l.debe):'';
+    if(ha)ha.value=l.haber?fmt(l.haber):'';
+    const t=document.getElementById('ap-docs-tot-'+i);
+    if(t)t.textContent=`${l.docs.length} documento(s) · Total ${fmtC(netoDocs(l))}`;
+    apUpdCuadre();
+  }
+}
+function apDocAux(i,j,rut){
+  const l=APF.lineas[i],d=l&&l.docs&&l.docs[j];if(!d)return;
+  d.rutCodigo=String(rut||'').replace(/\D/g,'');
+  d.rutDV=rutDV(d.rutCodigo)||'';
+  const f=fichaAux(fichaTipo(tipoAuxDe(l.cd)),d.rutCodigo);
+  if(f)d.razonSocial=f.razonSocial||f.nombre||d.razonSocial;
+  apRenderLineas();
+}
+function apDocRutEscrito(i,j,val){
+  const l=APF.lineas[i],d=l&&l.docs&&l.docs[j];if(!d)return;
+  const r=rutParse(val);
+  if(!r.codigo){d.rutCodigo='';d.rutDV='';return;}
+  if(r.codigo===d.rutCodigo&&String(r.dv||'').toUpperCase()===String(d.rutDV||'').toUpperCase())return;
+  d.rutCodigo=r.codigo;d.rutDV=r.dv||rutDV(r.codigo)||'';
+  const f=fichaAux(fichaTipo(tipoAuxDe(l.cd)),d.rutCodigo);
+  if(f&&!String(d.razonSocial||'').trim()){d.razonSocial=f.razonSocial||f.nombre||'';apRenderLineas();}
+}
+
 function apLCd(i,cd){
-  APF.lineas[i].cd=cd;APF.lineas[i].nm=pdcNm(cd);
-  if(!esAux(cd)){delete APF.lineas[i].rutCodigo;delete APF.lineas[i].rutDV;delete APF.lineas[i].razonSocial;}
+  const l=APF.lineas[i],antes=l.cd;
+  l.cd=cd;l.nm=pdcNm(cd);
+  if(!esAux(cd)){delete l.rutCodigo;delete l.rutDV;delete l.razonSocial;}
+  // Los documentos pertenecen al tipo de auxiliar: si cambia, se descartan
+  if(l.docs&&tipoAuxDe(antes)!==tipoAuxDe(cd)){delete l.docs;l.debe=0;l.haber=0;}
+  else if(l.docs)sincronizarLineaDocs(l);
   apRenderLineas();
 }
 function apLRut(i,val){
@@ -153,6 +304,7 @@ function apLRut(i,val){
   }
 }
 function apLVal(i,side,val){
+  if(APF.lineas[i]?.docs?.length)return; // con documentos el saldo es su suma
   const v=pn(val);
   APF.lineas[i][side]=v;
   if(side==='debe'&&v>0)APF.lineas[i].haber=0;
@@ -192,6 +344,7 @@ async function guardarApertura(){
   const glosa=document.getElementById('ap-glosa').value.trim();
   if(!fecha){toast('⚠️ Ingresa la fecha de apertura','e');return;}
   if(!glosa){toast('⚠️ Ingresa una descripción','e');return;}
+  APF.lineas.forEach(sincronizarLineaDocs);
   const lineas=APF.lineas.filter(l=>l.cd&&(l.debe||l.haber));
   if(!lineas.length){toast('⚠️ Agrega al menos 1 línea con cuenta y saldo','e');return;}
   const tD=lineas.reduce((s,l)=>s+(l.debe||0),0);
@@ -202,7 +355,18 @@ async function guardarApertura(){
   // Validar auxiliares
   for(let i=0;i<lineas.length;i++){
     const l=lineas[i];
-    if(esAux(l.cd)){
+    if(esAux(l.cd)&&l.docs&&l.docs.length){
+      for(let j=0;j<l.docs.length;j++){
+        const d=l.docs[j],donde=`Línea ${i+1}, documento ${j+1}`;
+        if(!d.rutCodigo||!d.rutDV){toast(`⚠️ ${donde}: falta el RUT del auxiliar`,'e');return;}
+        if(rutDV(d.rutCodigo)!==String(d.rutDV).toUpperCase()){toast(`⚠️ ${donde}: RUT inválido`,'e');return;}
+        if(!String(d.razonSocial||'').trim()){toast(`⚠️ ${donde}: falta la razón social`,'e');return;}
+        if(!d.tipoDTE){toast(`⚠️ ${donde}: elige el tipo de documento`,'e');return;}
+        if(!d.fecha){toast(`⚠️ ${donde}: falta la fecha de emisión`,'e');return;}
+        if(d.fechaVencimiento&&d.fechaVencimiento<d.fecha){toast(`⚠️ ${donde}: el vencimiento es anterior a la emisión`,'e');return;}
+        if(!(+d.monto>0)){toast(`⚠️ ${donde}: falta el monto`,'e');return;}
+      }
+    }else if(esAux(l.cd)){
       const tipo=CUENTAS_AUX[l.cd];
       if(!l.rutCodigo||!l.rutDV){toast(`⚠️ Línea ${i+1} (${pdcNm(l.cd)}): falta RUT del ${tipo}`,'e');return;}
       if(rutDV(l.rutCodigo)!==String(l.rutDV).toUpperCase()){toast(`⚠️ Línea ${i+1}: RUT inválido`,'e');return;}
@@ -210,13 +374,41 @@ async function guardarApertura(){
     }
   }
 
-  const movsClean=lineas.map(l=>{
-    const m={cd:l.cd,nm:l.nm||pdcNm(l.cd),desc:l.desc||'',debe:l.debe||0,haber:l.haber||0};
+  // Líneas con documentos: un movimiento por auxiliar (RUT), con la suma de sus documentos
+  const movsClean=[],docsForm={};
+  lineas.forEach(l=>{
+    const base={cd:l.cd,nm:l.nm||pdcNm(l.cd),desc:l.desc||''};
+    if(esAux(l.cd)&&l.docs&&l.docs.length){
+      const tipo=tipoAuxDe(l.cd),lado=ladoCuenta(l.cd),otro=lado==='debe'?'haber':'debe',porRut={};
+      l.docs.forEach(d=>{
+        const saldo=(+d.monto||0)*signoDTE(tipo,d.tipoDTE);
+        (docsForm[l.cd]=docsForm[l.cd]||[]).push({cd:l.cd,rutCodigo:d.rutCodigo,rutDV:String(d.rutDV).toUpperCase(),
+          razonSocial:String(d.razonSocial||'').trim(),tipoDTE:+d.tipoDTE||0,numero:String(d.numero||'').trim(),
+          fecha:d.fecha,fechaVencimiento:d.fechaVencimiento||'',monto:+d.monto||0,saldo});
+        const k=d.rutCodigo;
+        if(!porRut[k])porRut[k]={rutCodigo:d.rutCodigo,rutDV:String(d.rutDV).toUpperCase(),razonSocial:String(d.razonSocial||'').trim(),neto:0};
+        porRut[k].neto+=saldo;
+      });
+      Object.values(porRut).forEach(r=>{
+        if(!r.neto)return;
+        movsClean.push({...base,[lado]:r.neto>0?r.neto:0,[otro]:r.neto<0?-r.neto:0,
+          rutCodigo:r.rutCodigo,rutDV:r.rutDV,razonSocial:r.razonSocial});
+      });
+      return;
+    }
+    const m={...base,debe:l.debe||0,haber:l.haber||0};
     if(esAux(l.cd)){m.rutCodigo=l.rutCodigo;m.rutDV=l.rutDV;m.razonSocial=String(l.razonSocial||'').trim();}
-    return m;
+    movsClean.push(m);
   });
+  movsClean.forEach(m=>{m.debe=m.debe||0;m.haber=m.haber||0;});
 
-  S.apertura={fecha,glosa,movs:movsClean};
+  // Detalle de auxiliares: las cuentas detalladas acá reemplazan su detalle;
+  // las demás conservan el que tenían (capturado desde la tarjeta o importado).
+  const prev=S.apertura||{};
+  const auxDocs=[...(prev.auxDocs||[]).filter(d=>!docsForm[d.cd]),...Object.values(docsForm).flat()];
+  // Se conservan los demás datos de la apertura (folio del comprobante, etc.)
+  S.apertura={...prev,fecha,glosa,movs:movsClean};
+  if(auxDocs.length)S.apertura.auxDocs=auxDocs;else delete S.apertura.auxDocs;
   try{await window.storage.set('apertura-'+S.empresa.anio,JSON.stringify(S.apertura));}
   catch(e){toast('❌ Error guardando: '+e.message,'e');return;}
   cerrarApertura();
@@ -523,4 +715,4 @@ async function confirmarImportBalance(){
 }
 
 
-export {descargarPlantillaBalance, APF, renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut, apLVal, apDelLinea, apAddLinea, apPrellenar, apUpdCuadre, guardarApertura, eliminarApertura, IMB, initBalanceImportListener, procesarBalanceXLSX, abrirImpBalModal, cerrarImpBalModal, renderImpBalModal, toggleAllBal, confirmarImportBalance};
+export {descargarPlantillaBalance, APF, renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut, apLVal, apAddDoc, apDelDoc, apDocCampo, apDocAux, apDelLinea, apAddLinea, apPrellenar, apUpdCuadre, guardarApertura, eliminarApertura, IMB, initBalanceImportListener, procesarBalanceXLSX, abrirImpBalModal, cerrarImpBalModal, renderImpBalModal, toggleAllBal, confirmarImportBalance};

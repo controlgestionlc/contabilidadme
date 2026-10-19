@@ -131,7 +131,7 @@ export function apxRut(i,val){
 function opcionesDTE(tipo,sel){
   const lista=tipo==='cliente'?DTE_VENTAS:DTE_COMPRAS;
   return `<option value="">—</option>`+
-    (lista||[]).map(d=>`<option value="${d.cd}" ${+sel===+d.cd?'selected':''}>${d.cd} — ${d.nm}</option>`).join('');
+    (lista||[]).map(d=>`<option value="${d.cod}" ${+sel===+d.cod?'selected':''}>${d.cod} — ${d.nm}</option>`).join('');
 }
 
 export function renderAperturaAux(){
