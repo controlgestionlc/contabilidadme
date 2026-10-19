@@ -25,6 +25,7 @@ html[data-theme="dark"]{
   --bg:#0d1117;--sf:#161b22;--sf2:#21262d;--bd:#30363d;
   --ac:#2ea043;--ach:#3fb950;--tx:#e6edf3;--mt:#8b949e;
   --ok:#3fb950;     /* positivo (presentado, remanente) */
+  --campo:#0d1117;  /* fondo de casillas editables */
   --err:#f85149;--warn:#d29922;--info:#58a6ff;
   --acc:#2ea043;  /* alias histórico de --ac */
   --logo1:#2ea043;--logo2:#56d364;
@@ -45,6 +46,7 @@ html[data-theme="noche"]{
   --warn:#f5a86b;
   --info:#4db1ff;
   --ok:#5ad17a;
+  --campo:#12171c;
   --acc:#4db1ff;  /* alias histórico de --ac */
   --logo1:#0a6ed1;--logo2:#4db1ff;
   --mono:'IBM Plex Mono',monospace;--sans:'Sora',sans-serif;
@@ -1937,3 +1939,11 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .rd-tab td .rd-ro.rd-num-ro{text-align:right;font-family:var(--mono)}
 .rd-tab tbody.rd-gen td,.rd-tab tr.rd-fija td{text-align:left}
 .rd-tab td.rd-n{text-align:center!important}
+
+/* RCV paso 2: toda casilla editable con fondo blanco (o el de campo en temas oscuros) */
+.rd-box input:not([type=checkbox]):not(:disabled),.rd-box select:not(:disabled),
+.cap-editor input:not([type=checkbox]):not(:disabled),.cap-editor select:not(:disabled),
+.cap-ficha input:not([type=checkbox]):not(:disabled),.cap-ficha select:not(:disabled),
+.cap-filtros input{background:var(--campo,#fff)!important;border:1px solid var(--bd)!important;color:var(--tx)}
+.rd-box input:focus,.rd-box select:focus,.cap-editor input:focus,.cap-editor select:focus,.cap-ficha input:focus,.cap-ficha select:focus{border-color:var(--ac)!important;outline:none}
+.rd-tab tbody.rd-gen input#rd-iva{border-color:var(--ac)!important}

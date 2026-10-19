@@ -194,9 +194,11 @@ function leerCampos(){
 function rdLinea(i,campo,valor){
   const l=RD.lineas[i];if(!l)return;
   if(l.otroImp&&campo!=='afecto')return;   // las líneas de impuesto no se editan
+  const sigue=(campo==='cuenta'||campo==='cc')&&RD.lineas.find(x=>!x.otroImp)===l&&RD.lineas.some(x=>x.otroImp);
   if(campo==='monto')l.monto=n(String(valor).replace(/\./g,'').replace(',','.'));
   else if(campo==='afecto'){l.afecto=valor==='afecto';l.otroImp=valor==='otro';if(l.otroImp&&!String(l.desc||'').trim())l.desc='Otros impuestos';}
   else l[campo]=valor;
+  if(sigue){syncOtrosImp();leerCampos();renderDetalleRCV();return;}
   rdValidar();
 }
 // Cuenta y CC de las líneas de otros impuestos (no se editan a mano)
@@ -205,9 +207,14 @@ function syncOtrosImp(){
   RD.lineas.forEach(l=>{
     if(!l.otroImp)return;
     if(l.cuenta==='1108006'){l.cc='';return;}
-    l.cuenta=base?.cuenta||l.cuenta||'';l.cc=base?.cc||'';
+    l.cuenta=base?.cuenta||l.cuenta||'';
+    if(!l.ccManual)l.cc=base?.cc||'';   // sigue al gasto hasta que se elija otro a mano
     if(!String(l.desc||'').trim())l.desc=l.codImp?`Otro impuesto cód. ${l.codImp}`:'Otros impuestos';
   });
+}
+function rdOtroCC(i,v){
+  const l=RD.lineas[i];if(!l||!l.otroImp)return;
+  l.cc=v;l.ccManual=true;rdValidar();
 }
 function rdOtroTrat(i,v){
   const l=RD.lineas[i];if(!l||!l.otroImp)return;
@@ -258,7 +265,7 @@ function guardarDoc(){
   if(d.ivaRCV==null&&ivaAs!==n(d.iva))d.ivaRCV=n(d.iva);
   d.iva=ivaAs;
   if(d.ivaRCV!=null&&n(d.ivaRCV)===ivaAs)delete d.ivaRCV;
-  const lineas=RD.lineas.map(l=>({cuenta:l.cuenta,desc:String(l.desc||'').trim(),monto:n(l.monto),cc:l.cc||'',afecto:tipoL(l)==='afecto',...(l.otroImp?{otroImp:true,codImp:l.codImp||''}:{})}));
+  const lineas=RD.lineas.map(l=>({cuenta:l.cuenta,desc:String(l.desc||'').trim(),monto:n(l.monto),cc:l.cc||'',afecto:tipoL(l)==='afecto',...(l.otroImp?{otroImp:true,codImp:l.codImp||'',...(l.ccManual?{ccManual:true}:{})}:{})}));
   // V2.21.62: los otros impuestos se contabilizan en la cuenta de su línea.
   // 1108006 = recuperable; cualquier otra cuenta = costo/gasto en esa cuenta.
   if(RD.tipo==='compra'){
@@ -393,7 +400,7 @@ function renderDetalleRCV(){
       <td class="rd-n">${i+1}</td>
       <td class="rd-cta"><div class="rd-ro">${esc(l.cuenta||'')} – ${esc(pdcNm(l.cuenta)||'(elige la cuenta de la línea 1)')}</div></td>
       <td><div class="rd-ro">${esc(l.desc||'Otros impuestos')}</div></td>
-      <td><div class="rd-ro">${esc(nombreCC(l.cc))}</div></td>
+      <td>${l.cuenta==='1108006'?'<div class="rd-ro">—</div>':`<select class="linea-inp" onchange="rdOtroCC(${i},this.value)">${ccOpts(l.cc||'')}</select>`}</td>
       <td><select class="linea-inp" onchange="rdOtroTrat(${i},this.value)"><option value="costo" ${l.cuenta!=='1108006'?'selected':''}>Otro impuesto · costo</option><option value="recuperable" ${l.cuenta==='1108006'?'selected':''}>Otro impuesto · recuperable</option></select></td>
       ${celdas(`<div class="rd-ro rd-num-ro">${n(l.monto).toLocaleString('es-CL')}</div>`)}
       <td class="rd-acc"></td>
@@ -467,5 +474,5 @@ function renderDetalleRCV(){
   rdValidar();
 }
 
-export {rdOtroTrat, validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
+export {rdOtroTrat, rdOtroCC, validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
   rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD};

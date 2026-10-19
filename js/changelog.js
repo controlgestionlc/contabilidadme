@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.19-1800';
+const APP_VERSION='v2026.10.19-1830';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.79',fecha:'19-10-2026',titulo:'RCV paso 2: centro de costo en todas las líneas y casillas en blanco',items:[
+    {tipo:'mejora',txt:'Las líneas de otros impuestos de costo permiten elegir su centro de costo. Por defecto siguen al de la línea de gasto hasta que se cambie a mano.'},
+    {tipo:'mejora',txt:'Todas las casillas que se pueden editar (cuenta, descripción, centro de costo, tipo, montos, IVA, glosa y vencimiento) tienen fondo blanco; lo que se completa solo queda en gris.'}]},
   {version:'V2.21.78',fecha:'19-10-2026',titulo:'RCV paso 2: el asiento completo en una sola tabla',items:[
     {tipo:'mejora',txt:'El detalle del documento muestra en una sola tabla todo el asiento, con columnas Debe y Haber: las líneas de gasto, activo o ingreso (editables), los otros impuestos, el IVA, las retenciones y el proveedor o cliente, con los totales. Se quitó la tabla aparte "Asiento que se generará".'},
     {tipo:'mejora',txt:'Sólo se editan las líneas que lo requieren (cuenta, descripción y centro de costo del gasto, activo o ingreso) y el monto del IVA; el resto se completa solo.'},
