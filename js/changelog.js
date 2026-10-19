@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.19-1930';
+const APP_VERSION='v2026.10.19-2000';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.81',fecha:'19-10-2026',titulo:'Importador RCV: meses cargados y pendientes',items:[
+    {tipo:'nuevo',txt:'Cada archivo RCV que se carga queda guardado por mes. Al entrar al Importador RCV se ve una tabla por Compras y por Ventas con los meses cargados del ejercicio: archivo, fecha de carga, documentos, cuántos están en el libro y cuántos faltan por contabilizar.'},
+    {tipo:'nuevo',txt:'Tocar un mes abre directamente su paso 2 para continuar la contabilización donde quedó. Lo pendiente se calcula siempre contra el libro.'},
+    {tipo:'mejora',txt:'Volver a cargar el archivo de un mes reemplaza la carga anterior de ese mes.'}]},
   {version:'V2.21.80',fecha:'19-10-2026',titulo:'Libros clicables e Importador RCV como módulo',items:[
     {tipo:'mejora',txt:'En el Libro de Compras y en el de Ventas, cada mes del Resumen Mensual se puede tocar y abre el libro de ese mes.'},
     {tipo:'mejora',txt:'En el cuadro "Por Cuenta de Gasto" del Libro de Compras cada cuenta se puede tocar y muestra los documentos que la tienen en su distribución; el filtro aparece como etiqueta junto al buscador y se quita con ✕ o con "Limpiar".'},

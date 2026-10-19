@@ -542,6 +542,7 @@ async function handleFileImportVentas(e){
   const file=e.target.files[0];if(!file)return;
   try{
     const res=await leerArchivo(file,'venta');
+    if(typeof window.guardarCargaRCV==='function'){try{await window.guardarCargaRCV('venta',res,file.name);}catch(e){console.warn('No se pudo guardar la carga RCV',e);}}
     mostrarVentasImportadas(res,file.name);
   }catch(err){
     toast('❌ '+err.message,'e');
@@ -921,4 +922,4 @@ export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV, enfocarPendienteImportV,
         IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
-        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, recalcularEstadoImportVentas, abrirImportModalVentas, verMesV, VF};
+        toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, recalcularEstadoImportVentas, abrirImportModalVentas, verMesV, mostrarVentasImportadas, VF};

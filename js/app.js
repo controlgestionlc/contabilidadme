@@ -135,7 +135,7 @@ import {renderFiniquitos, nuevoFiniquito, editarFiniquito, volverFiniquitos, onF
         eliminarPlantillaFin, insertarMarcadorFin, abrirAsientoFiniquito, cerrarAsientoFiniquito, onAsientoFinCambio,
         generarAsientoFiniquito} from './finiquitos.js';
 import {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem} from './pdf-rem.js';
-import {renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar} from './rcv-captura.js';
+import {guardarCargaRCV, abrirCargaRCV, renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar} from './rcv-captura.js';
 import {abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdOtroTrat, rdOtroCC, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD} from './rcv-detalle.js';
 import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
         guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
@@ -840,7 +840,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
         generarAsientoFiniquito,
   pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, imprimirRemuneraciones,
   moverComprasDia1,
-  renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar,
+  guardarCargaRCV, abrirCargaRCV, renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar,
   abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdOtroTrat, rdOtroCC, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD,
   renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
   guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel,

@@ -1959,3 +1959,14 @@ tr.fila-act td{background:rgba(10,110,209,.10)}
 .imp-estado{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.6;margin-bottom:12px}
 .imp-estado.imp-vacio{color:var(--mt)}
 .imp-acc{display:flex;gap:8px;flex-wrap:wrap}
+
+/* V2.21.81 — Importador RCV: meses cargados */
+.imp-cab{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.imp-tabla{width:100%}
+.imp-tabla th,.imp-tabla td{padding:6px 8px;font-size:12px}
+.imp-tabla td{font-family:var(--mono);text-align:right}
+.imp-tabla td.tl{font-family:var(--sans);text-align:left}
+.imp-tabla td.imp-arch{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mt);font-size:11px}
+.imp-pend{background:rgba(233,115,12,.12);color:var(--warn);border-radius:10px;padding:2px 8px;font-weight:700;font-size:11px;font-family:var(--sans)}
+.imp-ok{color:var(--ok,#107e3e);font-weight:700;font-size:11px;font-family:var(--sans)}
+.imp-ir{color:var(--ac);font-weight:600;font-family:var(--sans);font-size:11px}

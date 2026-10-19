@@ -912,6 +912,8 @@ async function handleFileImport(e){
   const file=e.target.files[0];if(!file)return;
   try{
     const res=await leerArchivo(file,'compra');
+    // V2.21.81: el registro queda guardado para retomarlo desde el Importador RCV
+    if(typeof window.guardarCargaRCV==='function'){try{await window.guardarCargaRCV('compra',res,file.name);}catch(e){console.warn('No se pudo guardar la carga RCV',e);}}
     mostrarDocsImportados(res,file.name);
   }catch(err){
     toast('❌ '+err.message,'e');

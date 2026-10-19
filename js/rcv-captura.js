@@ -22,8 +22,8 @@ import {inputCuenta} from './buscadorcuentas.js';
 import {ccOpts} from './centroscosto.js';
 import {logAccion} from './firebase.js';
 import {abrirEditorEmbebido, guardarDoc, RD} from './rcv-detalle.js';
-import {IM, confirmarImportacion, abrirImportModal, recalcularEstadoImportCompras, abrirImportSII} from './compras.js';
-import {IMV, confirmarImportacionV, abrirImportModalVentas, recalcularEstadoImportVentas, abrirImportSIIVentas} from './ventas.js';
+import {IM, confirmarImportacion, abrirImportModal, recalcularEstadoImportCompras, abrirImportSII, mostrarDocsImportados} from './compras.js';
+import {IMV, confirmarImportacionV, abrirImportModalVentas, recalcularEstadoImportVentas, abrirImportSIIVentas, mostrarVentasImportadas} from './ventas.js';
 
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const n=v=>Math.round(+v||0);
@@ -281,36 +281,94 @@ async function capContabilizar(){
   renderCaptura();
 }
 
+// ── Cargas RCV guardadas (V2.21.81) ──
+// Cada archivo cargado se guarda por tipo y período (`rcv-compra-2026-06`) tal como
+// lo leyó el lector del SII, más un índice por año (`rcv-cargas-2026`). Así el
+// Importador RCV lista los meses cargados antes y permite retomar el paso 2.
+// Lo pendiente se calcula siempre contra el libro, no se guarda.
+const periodoDe=docs=>{const c={};(docs||[]).forEach(d=>{const p=String(d.fecha||'').slice(0,7);if(p)c[p]=(c[p]||0)+1;});return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';};
+async function leerJSON(key){try{const r=await window.storage.get(key);return r&&r.value?JSON.parse(r.value):null;}catch(e){return null;}}
+async function guardarCargaRCV(tipo,res,archivo){
+  const docs=res&&res.docs||[];if(!docs.length)return;
+  const periodo=periodoDe(docs);if(!periodo)return;
+  const cuerpo=JSON.stringify({tipo,periodo,archivo:archivo||'',cargadoEn:new Date().toISOString(),descartados:res.descartados||0,docs});
+  const anio=periodo.slice(0,4);
+  await window.storage.set(`rcv-${tipo}-${periodo}`,cuerpo);
+  const idx=(await leerJSON(`rcv-cargas-${anio}`))||{};
+  idx[`${tipo}:${periodo}`]={tipo,periodo,archivo:archivo||'',cargadoEn:new Date().toISOString(),n:docs.length};
+  await window.storage.set(`rcv-cargas-${anio}`,JSON.stringify(idx));
+  RCVH.idx=null;
+}
+const RCVH={anio:null,idx:null,cache:{},cargando:false};
+const prefRCV=()=>{try{return window.storage.getPrefijo?.()||'';}catch(e){return '';}};
+// El índice se relee en cada visita (una sola lectura); el contenido de cada mes
+// se guarda en memoria por empresa + carga, así no se relee si no cambió.
+async function cargarIndiceRCV(){
+  const anio=String(S.empresa.anio||'');
+  RCVH.anio=anio;RCVH.idx=(await leerJSON(`rcv-cargas-${anio}`))||{};
+  return RCVH.idx;
+}
+async function docsCarga(tipo,periodo,cargadoEn){
+  const k=`${prefRCV()}|${tipo}:${periodo}|${cargadoEn||''}`;
+  if(!RCVH.cache[k])RCVH.cache[k]=await leerJSON(`rcv-${tipo}-${periodo}`);
+  return RCVH.cache[k];
+}
+function pendientesCarga(tipo,docs){
+  const libro=tipo==='compra'?(S.compras||[]):(S.ventas||[]);
+  const claves=new Set(libro.filter(x=>x.estado!=='anulado').map(x=>`${x.rutCodigo}|${+x.tipoDTE}|${String(x.numero).trim()}`));
+  return (docs||[]).filter(d=>!claves.has(`${d.rutCodigo}|${+d.tipoDTE}|${String(d.numero).trim()}`)).length;
+}
+async function abrirCargaRCV(tipo,periodo){
+  const e=(RCVH.idx||{})[`${tipo}:${periodo}`];
+  const c=await docsCarga(tipo,periodo,e&&e.cargadoEn);
+  if(!c||!Array.isArray(c.docs)||!c.docs.length){toast('⚠️ No se encontró ese registro guardado. Vuelve a cargar el archivo.','e');return;}
+  const res={docs:JSON.parse(JSON.stringify(c.docs)),descartados:c.descartados||0};
+  if(tipo==='compra')mostrarDocsImportados(res,c.archivo);else mostrarVentasImportadas(res,c.archivo);
+}
+
 // ── Módulo "Importador RCV" (menú lateral, bajo Libro de Compras) ──
-function tarjetaImport(tipo){
+function tarjetaImport(tipo,filas){
   const c=tipo==='compra'
-    ?{IMx:IM,t:'Compras',ico:'🧾',cargar:"abrirImportSII()",libro:"nav('compras')",desc:'Registro de Compras del SII (archivo CSV "Detalle" o Excel).'}
-    :{IMx:IMV,t:'Ventas',ico:'🛒',cargar:"abrirImportSIIVentas()",libro:"nav('ventas')",desc:'Registro de Ventas del SII (archivo CSV "Detalle" o Excel).'};
-  const ds=c.IMx.docs||[];
-  const pend=ds.filter(d=>!(d.capturado||d.estadoImport==='igual')).length;
-  const per=c.IMx.periodoMes?`${MESES[c.IMx.periodoMes-1]} ${c.IMx.periodoAnio}`:'';
+    ?{t:'Compras',ico:'🧾',cargar:"abrirImportSII()",libro:"nav('compras')"}
+    :{t:'Ventas',ico:'🛒',cargar:"abrirImportSIIVentas()",libro:"nav('ventas')"};
+  const tot=filas.reduce((s,f)=>s+f.pend,0);
+  const fecha=iso=>{try{return new Date(iso).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+  const tabla=filas.length?`<div class="tw"><table class="imp-tabla">
+      <thead><tr><th class="tl">MES</th><th class="tl">ARCHIVO</th><th class="tl">CARGADO</th><th>DOCUMENTOS</th><th>EN EL LIBRO</th><th>POR CONTABILIZAR</th><th></th></tr></thead>
+      <tbody>${filas.map(f=>`<tr class="fila-link" onclick="abrirCargaRCV('${tipo}','${f.periodo}')" title="Abrir el paso 2 de ${MESES[+f.periodo.slice(5,7)-1]}">
+        <td class="tl"><a href="#" onclick="return false">${MESES[+f.periodo.slice(5,7)-1]} ${f.periodo.slice(0,4)}</a></td>
+        <td class="tl imp-arch" title="${esc(f.archivo)}">${esc(f.archivo)}</td>
+        <td class="tl">${fecha(f.cargadoEn)}</td>
+        <td>${f.n}</td><td>${f.n-f.pend}</td>
+        <td>${f.pend?`<span class="imp-pend">${f.pend}</span>`:'<span class="imp-ok">✓ completo</span>'}</td>
+        <td>${f.pend?'<span class="imp-ir">Continuar ›</span>':'<span class="imp-ir">Ver ›</span>'}</td></tr>`).join('')}</tbody>
+    </table></div>`:'<div class="imp-estado imp-vacio">No hay registros cargados para este ejercicio.</div>';
   return `<div class="card imp-card">
-    <div class="card-title">${c.ico} RCV ${c.t}</div>
-    <div style="font-size:11px;color:var(--mt);margin-bottom:12px">${c.desc}</div>
-    ${ds.length?`<div class="imp-estado">
-        <div><b>${esc(c.IMx.archivo||'Archivo cargado')}</b>${per?` · período ${per}`:''}</div>
-        <div>${ds.length} documento(s) en el registro · <b>${pend}</b> por contabilizar · ${ds.length-pend} en el libro</div>
-      </div>`:'<div class="imp-estado imp-vacio">Aún no cargas un archivo en esta sesión.</div>'}
-    <div class="imp-acc">
-      <button class="btn btn-p" onclick="${c.cargar}">📂 ${ds.length?'Cargar otro archivo':'Cargar archivo RCV'}</button>
-      ${ds.length?`<button class="btn btn-i" onclick="abrirCapturaRCV('${tipo}')">📝 Continuar paso 2</button><button class="btn btn-g" onclick="verTablaRCV('${tipo}')">▦ Vista tabla</button>`:''}
+    <div class="imp-cab"><div class="card-title" style="margin:0">${c.ico} RCV ${c.t}</div>
+      ${filas.length?`<span class="${tot?'imp-pend':'imp-ok'}">${tot?`${tot} por contabilizar`:'Todo contabilizado'}</span>`:''}</div>
+    ${tabla}
+    <div class="imp-acc" style="margin-top:12px">
+      <button class="btn btn-p" onclick="${c.cargar}">📂 Cargar archivo RCV</button>
       <button class="btn btn-g" onclick="${c.libro}">📖 Ver libro</button>
     </div>
   </div>`;
 }
-function renderImportRCV(){
+async function renderImportRCV(){
   const el=document.getElementById('importrcv-content');if(!el)return;
-  el.innerHTML=`<div class="imp-grid">${tarjetaImport('compra')}${tarjetaImport('venta')}</div>
+  if(!el.innerHTML)el.innerHTML='<div class="imp-estado imp-vacio">Cargando registros…</div>';
+  const idx=await cargarIndiceRCV();
+  const filas={compra:[],venta:[]};
+  for(const e of Object.values(idx).sort((a,b)=>String(a.periodo).localeCompare(String(b.periodo)))){
+    if(!filas[e.tipo])continue;
+    const c=await docsCarga(e.tipo,e.periodo,e.cargadoEn);
+    const docs=c&&c.docs||[];
+    filas[e.tipo].push({...e,n:docs.length||e.n||0,pend:pendientesCarga(e.tipo,docs)});
+  }
+  el.innerHTML=`<div class="imp-grid">${tarjetaImport('compra',filas.compra)}${tarjetaImport('venta',filas.venta)}</div>
     <div class="info-tip" style="margin-top:14px;font-size:11px;line-height:1.6">
-      <b>Cómo funciona:</b> 1) carga el archivo del SII; 2) en el paso 2 eliges cada documento de la lista y tocas <b>⬇ Importar</b>;
-      3) si el proveedor o cliente es nuevo, creas su ficha; 4) revisas el asiento (cuenta, descripción y centro de costo) y
-      tocas <b>📒 Contabilizar documento</b>: queda en el libro con su asiento.</div>`;
+      Toca un mes para abrir su paso 2 y seguir contabilizando. Cada archivo que cargas queda guardado por mes; si vuelves
+      a cargar el mismo mes, reemplaza al anterior. <b>Por contabilizar</b> se calcula contra el libro, así que se actualiza solo.</div>`;
 }
 
-export {renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar,
+export {guardarCargaRCV, abrirCargaRCV, renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar,
   capFicha, capCrearFicha, capCerrarEditor, capContabilizar, CAP};
