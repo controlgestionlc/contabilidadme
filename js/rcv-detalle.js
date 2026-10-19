@@ -166,7 +166,8 @@ function abrirDetalleRCV(tipo,idx){
 function cargarDoc(){
   const d=docActual();if(!d)return;
   RD.lineas.length=0;lineasIniciales(RD.tipo,d).forEach(l=>RD.lineas.push(l));
-  RD.glosa=d.detalleRCV?.glosa??d.glosa??'';
+  // Glosa por defecto: igual al detalle de la línea de proveedor/cliente (auxiliar · documento N° folio)
+  RD.glosa=d.detalleRCV?.glosa||d.glosa||glosaDefecto(d);
   RD.vence=d.fechaVencimiento||'';
   RD.aceptaRedondeo=!!d.detalleRCV?.aceptaRedondeo;
   // IVA del asiento: el guardado en el detalle o, si no hay, el del RCV
@@ -180,6 +181,10 @@ function abrirEditorEmbebido(tipo,idx){
   const viejo=document.getElementById('rd-modal');if(viejo)viejo.remove();   // evita dos #rd-body
   cargarDoc();
   renderDetalleRCV();
+}
+function glosaDefecto(d){
+  const info=RD.tipo==='compra'?dteC(d.tipoDTE):dteV(d.tipoDTE);
+  return `${d.razonSocial||''} · ${info?.nm||('DTE '+d.tipoDTE)} N°${d.numero}`.trim();
 }
 function cerrarDetalleRCV(){
   if(RD.embebido){RD.embebido=false;if(typeof window.capCerrarEditor==='function')window.capCerrarEditor();return;}

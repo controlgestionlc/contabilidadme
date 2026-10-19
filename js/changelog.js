@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.19-2000';
+const APP_VERSION='v2026.10.19-2030';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.82',fecha:'19-10-2026',titulo:'RCV paso 2: glosa por defecto',items:[
+    {tipo:'mejora',txt:'La descripción general del documento (glosa) parte con el mismo texto de la línea de proveedor o cliente: nombre del auxiliar · tipo de documento N° folio (por ejemplo "FERNANDO DRAKE SPA · Factura Electrónica N°1508"). Se puede cambiar antes de contabilizar.'},
+    {tipo:'mejora',txt:'En los documentos contabilizados desde el paso 2 la glosa del asiento ya no repite el tipo y número de documento al final.'}]},
   {version:'V2.21.81',fecha:'19-10-2026',titulo:'Importador RCV: meses cargados y pendientes',items:[
     {tipo:'nuevo',txt:'Cada archivo RCV que se carga queda guardado por mes. Al entrar al Importador RCV se ve una tabla por Compras y por Ventas con los meses cargados del ejercicio: archivo, fecha de carga, documentos, cuántos están en el libro y cuántos faltan por contabilizar.'},
     {tipo:'nuevo',txt:'Tocar un mes abre directamente su paso 2 para continuar la contabilización donde quedó. Lo pendiente se calcula siempre contra el libro.'},

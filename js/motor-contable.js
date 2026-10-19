@@ -58,7 +58,7 @@ function asientoVenta(d){
   const dteInfo=dteV(d.tipoDTE);
   const nombreDoc=dteInfo?.nm||('DTE '+d.tipoDTE);
   const descUser=(d.glosa||d.descripcion||'').trim();
-  const glosa=descUser?`${descUser} — ${nombreDoc} N°${d.numero}`:`${nombreDoc} N°${d.numero} — ${d.razonSocial||'cliente'}`;
+  const glosa=descUser?(d.descImpuestos?descUser:`${descUser} — ${nombreDoc} N°${d.numero}`):`${nombreDoc} N°${d.numero} — ${d.razonSocial||'cliente'}`;
   const movs=[];
   const total=n(d.total)*signo, neto=n(d.neto)*signo, exento=n(d.exento)*signo;
   const otros=n(d.otrosImpuestos)*signo, iva=n(d.iva)*signo;
@@ -235,7 +235,8 @@ function asientoCompra(d){
   const dteInfo=dteC(d.tipoDTE);
   const nombreDoc=dteInfo?.nm||('DTE '+d.tipoDTE);
   const descUser=(d.glosa||d.descripcion||'').trim();
-  const glosa=descUser?`${descUser} — ${nombreDoc} N°${d.numero}`:`${nombreDoc} N°${d.numero} — ${d.razonSocial||'proveedor'}`;
+  // Paso 2 del RCV: la glosa ya trae auxiliar, documento y folio; no se repiten
+  const glosa=descUser?(d.descImpuestos?descUser:`${descUser} — ${nombreDoc} N°${d.numero}`):`${nombreDoc} N°${d.numero} — ${d.razonSocial||'proveedor'}`;
   const movs=[];
   const dist=(d.dist||[]).filter(l=>l&&l.cuenta&&n(l.monto));
   const sumDist=dist.reduce((s,l)=>s+n(l.monto),0);
