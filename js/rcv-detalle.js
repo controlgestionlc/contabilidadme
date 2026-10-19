@@ -19,9 +19,9 @@
 
 import {fmtC, IVA, dteC, dteV, rutFmt, pdcNm, toast} from './core.js';
 import {reglaCuenta} from './pdc-reglas.js';
-import {ccOpts} from './centroscosto.js';
+import {ccOpts, ccNombre} from './centroscosto.js';
 import {inputCuenta} from './buscadorcuentas.js';
-import {tributacionCompra, asientoCompra, asientoVenta} from './motor-contable.js';
+import {tributacionCompra, asientoCompra, asientoVenta, asientoHonorarioDoc} from './motor-contable.js';
 
 const n=v=>Math.round(+v||0);
 // V2.21.62: tipo de línea. 'otro' = línea de otros impuestos del RCV (sólo compras)
@@ -193,13 +193,29 @@ function leerCampos(){
 }
 function rdLinea(i,campo,valor){
   const l=RD.lineas[i];if(!l)return;
+  if(l.otroImp&&campo!=='afecto')return;   // las líneas de impuesto no se editan
   if(campo==='monto')l.monto=n(String(valor).replace(/\./g,'').replace(',','.'));
   else if(campo==='afecto'){l.afecto=valor==='afecto';l.otroImp=valor==='otro';if(l.otroImp&&!String(l.desc||'').trim())l.desc='Otros impuestos';}
   else l[campo]=valor;
   rdValidar();
 }
+// Cuenta y CC de las líneas de otros impuestos (no se editan a mano)
+function syncOtrosImp(){
+  const base=RD.lineas.find(l=>!l.otroImp);
+  RD.lineas.forEach(l=>{
+    if(!l.otroImp)return;
+    if(l.cuenta==='1108006'){l.cc='';return;}
+    l.cuenta=base?.cuenta||l.cuenta||'';l.cc=base?.cc||'';
+    if(!String(l.desc||'').trim())l.desc=l.codImp?`Otro impuesto cód. ${l.codImp}`:'Otros impuestos';
+  });
+}
+function rdOtroTrat(i,v){
+  const l=RD.lineas[i];if(!l||!l.otroImp)return;
+  l.cuenta=v==='recuperable'?'1108006':'';
+  syncOtrosImp();renderDetalleRCV();
+}
 function rdAgregar(){leerCampos();RD.lineas.push({cuenta:RD.lineas[0]?.cuenta||'',desc:'',monto:0,cc:RD.lineas[0]?.cc||'',afecto:true});renderDetalleRCV();}
-function rdQuitar(i){leerCampos();if(RD.lineas.length>1)RD.lineas.splice(i,1);renderDetalleRCV();}
+function rdQuitar(i){leerCampos();if(RD.lineas[i]?.otroImp)return;if(RD.lineas.filter(x=>!x.otroImp).length>1)RD.lineas.splice(i,1);renderDetalleRCV();}
 // Completa la línea con lo que falta para cuadrar su tipo (afecto o exento)
 function rdCompletar(i){
   const d=docActual();const l=RD.lineas[i];if(!d||!l)return;
@@ -213,6 +229,7 @@ function rdCompletar(i){
 function rdValidar(){
   const d=docActual();const box=document.getElementById('rd-val');if(!d||!box)return null;
   leerCampos();
+  syncOtrosImp();
   const v=validarDetalleRCV(RD.tipo,docRCV(d),RD.lineas,{aceptaRedondeo:RD.aceptaRedondeo,ivaLinea:RD.iva});
   const R=v.resumen;
   const fila=(lbl,calc,rcv,dif)=>`<tr class="${dif?'rd-mal':'rd-bien'}"><td class="tl">${lbl}</td><td>${fmtC(calc)}</td><td>${fmtC(rcv)}</td><td>${dif?fmtC(dif):'✓'}</td></tr>`;
@@ -250,6 +267,7 @@ function guardarDoc(){
     if(ol.length)d.otrosImpuestosDetalle=ol.map(l=>({tipo:l.codImp||'otro',nombre:l.desc||'Otros impuestos',monto:l.monto,
       tratamiento:l.cuenta==='1108006'?'recuperable':'costo',...(l.cuenta!=='1108006'?{cuenta:l.cuenta,cc:l.cc||'',desc:l.desc||''}:{})}));
   }
+  d.descImpuestos=true;   // V2.21.77: las líneas de impuestos del asiento llevan el nombre de su cuenta
   d.detalleRCV={v:2,lineas,glosa:String(RD.glosa||'').trim(),aceptaRedondeo:!!RD.aceptaRedondeo,iva:ivaAs,revisado:true,revisadoEn:new Date().toISOString()};
   // Compatibilidad con el paso 1: cuenta/CC de la primera línea y glosa
   d.cuenta=lineas[0].cuenta;d.cc=lineas[0].cc||'';
@@ -302,7 +320,7 @@ async function rdContabilizar(){
 const docRCV=d=>(d.ivaRCV!=null?{...d,iva:d.ivaRCV}:d);   // datos del RCV tal como vinieron
 function docVirtual(d){
   const base=docRCV(d);
-  const v={...base,iva:n(RD.iva),glosa:String(RD.glosa||'').trim()};
+  const v={...base,iva:n(RD.iva),glosa:String(RD.glosa||'').trim(),descImpuestos:true};
   if(RD.tipo==='compra'){
     v.dist=RD.lineas.filter(l=>!l.otroImp).map(l=>({cuenta:l.cuenta,monto:n(l.monto),cc:l.cc||'',desc:l.desc||'',afecto:tipoL(l)==='afecto'}));
     const ol=RD.lineas.filter(l=>l.otroImp);
@@ -316,28 +334,42 @@ function docVirtual(d){
   return v;
 }
 const esCuentaIva=cd=>['1108002','1108008','2103003'].includes(String(cd));
+// Nombre visible del centro de costo (el valor guardado es un id interno)
+const nombreCC=cc=>cc?(ccNombre(cc)||cc):'—';
+const ROL={'1108002':'IVA crédito','1108008':'IVA activo fijo','1108006':'Otros imp. recuperables','2103005':'IVA retenido','2103003':'IVA débito','2103002':'Retención honorarios',
+  '2102001':'Proveedor','2102006':'Honorarios por pagar','1104001':'Cliente','1101201':'Banco','1107003':'Deudores varios'};
+// Las líneas que arma el motor y no se editan: impuestos, retenciones y proveedor/cliente.
+// Las de gasto/activo/ingreso y las de otros impuestos ya están arriba (líneas del detalle).
+function esAutomatica(m){
+  if(m.tributo==='otro_impuesto_costo')return false;
+  return !!ROL[String(m.cd)]||!!m.tributo;
+}
 function renderAsientoRD(d){
-  const box=document.getElementById('rd-asiento');if(!box)return;
+  const gen=document.getElementById('rd-gen'),tot=document.getElementById('rd-tot');if(!gen||!tot)return;
   let as;
-  try{as=(RD.tipo==='compra'?asientoCompra:asientoVenta)(docVirtual(d));}
-  catch(e){box.innerHTML=`<div class="rd-avi">ℹ️ No se pudo armar la vista del asiento: ${esc(e.message)}</div>`;return;}
+  const dv=docVirtual(d);
+  try{as=RD.tipo==='venta'?asientoVenta(dv):(dteC(dv.tipoDTE)?.honorario?asientoHonorarioDoc(dv):asientoCompra(dv));}
+  catch(e){gen.innerHTML=`<tr><td colspan="8" class="tl"><div class="rd-avi">ℹ️ No se pudo armar el asiento: ${esc(e.message)}</div></td></tr>`;tot.innerHTML='';return;}
   const movs=(as&&as.movs)||[];
   const tD=movs.reduce((s,m)=>s+n(m.debe),0),tH=movs.reduce((s,m)=>s+n(m.haber),0);
-  // La línea de IVA se edita; si el IVA se reparte (activo fijo, no recuperable) se edita en la primera
   let ivaEditable=false;
-  const filas=movs.map(m=>{
-    const esIva=esCuentaIva(m.cd)&&!ivaEditable&&(RD.tipo==='venta'?m.cd==='2103003':m.cd!=='2103003');
+  const filas=movs.filter(esAutomatica).map(m=>{
+    const esIva=!ivaEditable&&(RD.tipo==='venta'?m.cd==='2103003':(m.cd==='1108002'||m.cd==='1108008'));
     if(esIva)ivaEditable=true;
-    const monto=n(m.debe)||n(m.haber),lado=n(m.debe)?'debe':'haber';
-    const celdaIva=`<input type="text" inputmode="numeric" class="linea-inp rd-monto money-input" id="rd-iva" value="${n(RD.iva).toLocaleString('es-CL')}" title="IVA del documento: corrígelo si el emisor redondeó distinto" onchange="rdIva(this.value)">`;
-    const val=(l)=>esIva&&lado===l?celdaIva:(l==='debe'?(n(m.debe)?fmtC(m.debe):''):(n(m.haber)?fmtC(m.haber):''));
-    return `<tr${esIva?' class="rd-as-iva"':''}><td class="tl rd-as-cd">${esc(m.cd)}</td><td class="tl">${esc(pdcNm(m.cd)||'')}</td><td class="tl rd-as-desc">${esc(m.desc||'')}</td><td>${val('debe')}</td><td>${val('haber')}</td></tr>`;
+    const lado=n(m.debe)?'debe':'haber';
+    const inp=`<input type="text" inputmode="numeric" class="linea-inp rd-monto money-input" id="rd-iva" value="${n(RD.iva).toLocaleString('es-CL')}" title="IVA del documento: corrígelo si el emisor redondeó distinto" onchange="rdIva(this.value)">`;
+    const val=l=>esIva&&lado===l?inp:(n(m[l])?`<div class="rd-ro rd-num-ro">${n(m[l]).toLocaleString('es-CL')}</div>`:'');
+    return `<tr class="rd-fija${esIva?' rd-iva-fila':''}" title="${esIva?'El monto del IVA se puede corregir':'Línea automática: no se edita'}">
+      <td class="rd-n">·</td>
+      <td class="rd-cta"><div class="rd-ro">${esc(m.cd)} – ${esc(pdcNm(m.cd)||'')}</div></td>
+      <td><div class="rd-ro" title="${esc(m.desc||'')}">${esc(m.desc||'')}</div></td>
+      <td><div class="rd-ro">—</div></td>
+      <td><div class="rd-ro">${esc(ROL[String(m.cd)]||'Automática')}</div></td>
+      <td>${val('debe')}</td><td>${val('haber')}</td><td class="rd-acc"></td></tr>`;
   }).join('');
+  gen.innerHTML=filas;
   const cuadra=Math.abs(tD-tH)<0.5;
-  box.innerHTML=`<div class="rd-as-tit">Asiento que se generará${ivaEditable?' · el IVA se puede corregir':''}</div>
-    <div class="tw"><table class="rd-as"><thead><tr><th class="tl">CUENTA</th><th class="tl">NOMBRE</th><th class="tl">DESCRIPCIÓN</th><th>DEBE</th><th>HABER</th></tr></thead>
-    <tbody>${filas||'<tr><td colspan="5" class="tl" style="color:var(--mt)">Completa las líneas para ver el asiento.</td></tr>'}</tbody>
-    <tfoot><tr><td class="tl" colspan="3">Totales${cuadra?'':' · <span style="color:var(--err)">no cuadra</span>'}</td><td>${fmtC(tD)}</td><td>${fmtC(tH)}</td></tr></tfoot></table></div>`;
+  tot.innerHTML=`<tr class="rd-tot"><td></td><td class="tl" colspan="4">Totales del asiento${cuadra?'':' · <span style="color:var(--err)">no cuadra</span>'}</td><td>${fmtC(tD)}</td><td>${fmtC(tH)}</td><td></td></tr>`;
 }
 function rdIva(valor){
   RD.iva=Math.max(0,n(String(valor).replace(/\./g,'').replace(',','.')));
@@ -349,14 +381,31 @@ function renderDetalleRCV(){
   const c=ctx();
   const dteInfo=RD.tipo==='compra'?dteC(d.tipoDTE):dteV(d.tipoDTE);
   const revisados=RD.lista.filter(i=>c.IMx.docs[i].detalleRCV?.revisado).length;
-  const lineas=RD.lineas.map((l,i)=>`<tr>
+  syncOtrosImp();
+  // Líneas de otros impuestos: vienen del RCV y no se editan. Su cuenta sigue a la
+  // primera línea de gasto/activo (impuesto de costo) o va a 1108006 si es recuperable.
+  // Lado del asiento de las líneas editables: gasto/activo al Debe en compras,
+  // ingreso al Haber en ventas (al revés en notas de crédito).
+  const signoDoc=(RD.tipo==='compra'?dteC(d.tipoDTE)?.signo:dteV(d.tipoDTE)?.signo)||1;
+  const ladoBase=(RD.tipo==='compra')===(signoDoc>0)?'debe':'haber';
+  const celdas=(contenido)=>ladoBase==='debe'?`<td>${contenido}</td><td></td>`:`<td></td><td>${contenido}</td>`;
+  const filaOtro=(l,i)=>`<tr class="rd-fija" title="Línea de impuesto: se completa sola desde el RCV">
+      <td class="rd-n">${i+1}</td>
+      <td class="rd-cta"><div class="rd-ro">${esc(l.cuenta||'')} – ${esc(pdcNm(l.cuenta)||'(elige la cuenta de la línea 1)')}</div></td>
+      <td><div class="rd-ro">${esc(l.desc||'Otros impuestos')}</div></td>
+      <td><div class="rd-ro">${esc(nombreCC(l.cc))}</div></td>
+      <td><select class="linea-inp" onchange="rdOtroTrat(${i},this.value)"><option value="costo" ${l.cuenta!=='1108006'?'selected':''}>Otro impuesto · costo</option><option value="recuperable" ${l.cuenta==='1108006'?'selected':''}>Otro impuesto · recuperable</option></select></td>
+      ${celdas(`<div class="rd-ro rd-num-ro">${n(l.monto).toLocaleString('es-CL')}</div>`)}
+      <td class="rd-acc"></td>
+    </tr>`;
+  const lineas=RD.lineas.map((l,i)=>l.otroImp?filaOtro(l,i):`<tr>
       <td class="rd-n">${i+1}</td>
       <td class="rd-cta">${inputCuenta({id:`rd-cd-${i}`,value:l.cuenta,onPick:`rdLinea(${i},'cuenta','%CD%')`,placeholder:'Cuenta…',clase:'linea-inp',filtro:c.filtro})}</td>
-      <td><input type="text" class="linea-inp" value="${esc(l.desc)}" placeholder="${RD.lineas.filter(x=>!x.otroImp).length>1||l.otroImp?'Descripción (obligatoria)':'Descripción'}" oninput="rdLinea(${i},'desc',this.value)"></td>
-      <td><input type="text" inputmode="numeric" class="linea-inp rd-monto" value="${n(l.monto)?n(l.monto).toLocaleString('es-CL'):''}" placeholder="0" onchange="rdLinea(${i},'monto',this.value);this.value=(+RD.lineas[${i}].monto||'')?(+RD.lineas[${i}].monto).toLocaleString('es-CL'):''"></td>
+      <td><input type="text" class="linea-inp" value="${esc(l.desc)}" placeholder="${RD.lineas.filter(x=>!x.otroImp).length>1?'Descripción (obligatoria)':'Descripción'}" oninput="rdLinea(${i},'desc',this.value)"></td>
       <td><select class="linea-inp" onchange="rdLinea(${i},'cc',this.value)">${ccOpts(l.cc||'')}</select></td>
-      <td><select class="linea-inp" onchange="rdLinea(${i},'afecto',this.value);renderDetalleRCV()"><option value="afecto" ${tipoL(l)==='afecto'?'selected':''}>Afecto</option><option value="exento" ${tipoL(l)==='exento'?'selected':''}>Exento</option>${RD.tipo==='compra'?`<option value="otro" ${tipoL(l)==='otro'?'selected':''}>Otro impuesto${l.codImp?' (cód. '+esc(l.codImp)+')':''}</option>`:''}</select></td>
-      <td class="rd-acc"><button class="btn btn-g" title="Completar con lo que falta para cuadrar" onclick="rdCompletar(${i})">⇥</button> <button class="btn btn-d" title="Quitar línea" onclick="rdQuitar(${i})" ${RD.lineas.length<2?'disabled':''}>✕</button></td>
+      <td><select class="linea-inp" onchange="rdLinea(${i},'afecto',this.value);renderDetalleRCV()"><option value="afecto" ${tipoL(l)==='afecto'?'selected':''}>Afecto</option><option value="exento" ${tipoL(l)==='exento'?'selected':''}>Exento</option></select></td>
+      ${celdas(`<input type="text" inputmode="numeric" class="linea-inp rd-monto" value="${n(l.monto)?n(l.monto).toLocaleString('es-CL'):''}" placeholder="0" onchange="rdLinea(${i},'monto',this.value);this.value=(+RD.lineas[${i}].monto||'')?(+RD.lineas[${i}].monto).toLocaleString('es-CL'):''">`)}
+      <td class="rd-acc"><button class="btn btn-g" title="Completar con lo que falta para cuadrar" onclick="rdCompletar(${i})">⇥</button> <button class="btn btn-d" title="Quitar línea" onclick="rdQuitar(${i})" ${RD.lineas.filter(x=>!x.otroImp).length<2?'disabled':''}>✕</button></td>
     </tr>`).join('');
   const dato=(lbl,val,cls='')=>`<div class="rd-dato ${cls}"><span>${lbl}</span><b>${val}</b></div>`;
   const cab=RD.embebido
@@ -392,8 +441,11 @@ function renderDetalleRCV(){
     </div>
     <div class="grp" style="margin:10px 0 6px"><label>Descripción general del documento (glosa)</label><input type="text" id="rd-glosa" value="${esc(RD.glosa)}" placeholder="Ej: Seguro flota camiones 2026"></div>
     <div class="tw"><table class="rd-tab">
-      <thead><tr><th>#</th><th class="tl">CUENTA</th><th class="tl">DESCRIPCIÓN</th><th>MONTO</th><th class="tl">CENTRO DE COSTO</th><th class="tl">${RD.tipo==='compra'?'TIPO':'AFECTO / EXENTO'}</th><th></th></tr></thead>
+      <colgroup><col style="width:34px"><col style="width:23%"><col style="width:23%"><col style="width:14%"><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:84px"></colgroup>
+      <thead><tr><th>#</th><th class="tl">CUENTA</th><th class="tl">DESCRIPCIÓN</th><th class="tl">CENTRO DE COSTO</th><th class="tl">TIPO</th><th>DEBE</th><th>HABER</th><th></th></tr></thead>
       <tbody>${lineas}</tbody>
+      <tbody id="rd-gen" class="rd-gen"></tbody>
+      <tfoot id="rd-tot"></tfoot>
     </table></div>
     <div style="display:flex;gap:8px;align-items:center;margin:6px 0 10px;flex-wrap:wrap">
       <button class="btn btn-g" onclick="rdAgregar()">+ Agregar línea</button>
@@ -401,7 +453,6 @@ function renderDetalleRCV(){
       <label class="rd-chk"><input type="checkbox" id="rd-redondeo" ${RD.aceptaRedondeo?'checked':''} onchange="rdValidar()"> Aceptar diferencia de $1 por redondeo del emisor</label>
       ${d.detalleRCV?.revisado?'<span class="rd-badge">✓ Revisado</span>':''}
     </div>
-    <div id="rd-asiento" class="rd-asiento"></div>
     <div id="rd-val"></div>
     ${pie||''}
     <div class="modal-footer rd-pie"${RD.embebido?' style="display:none"':''}>
@@ -416,5 +467,5 @@ function renderDetalleRCV(){
   rdValidar();
 }
 
-export {validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
+export {rdOtroTrat, validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
   rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD};

@@ -7,6 +7,15 @@ import {reglaCuenta} from './pdc-reglas.js';
 
 const n=v=>Number(v)||0;
 const mov=(cd,debe,haber,extra={})=>({cd,nm:pdcNm(cd),debe:n(debe),haber:n(haber),...extra});
+// V2.21.77 — Documentos contabilizados desde el paso 2 del RCV (d.descImpuestos):
+// las líneas de impuestos y retenciones llevan como descripción el nombre de su
+// cuenta. Los otros impuestos de costo conservan la suya ("Otro impuesto cód. 28").
+const CUENTAS_IMPUESTO=new Set(['1108002','1108008','1108006','2103003','2103005','2103002']);
+function describirImpuestos(d,movs){
+  if(!d||!d.descImpuestos)return movs;
+  movs.forEach(m=>{if(CUENTAS_IMPUESTO.has(String(m.cd)))m.desc=m.nm||pdcNm(m.cd);});
+  return movs;
+}
 
 // V2.11.1 — fecha tributaria del documento y periodo contable son conceptos distintos.
 // En compras importadas desde el RCV, `fecha` conserva siempre la fecha original del DTE.
@@ -79,12 +88,13 @@ function asientoVenta(d){
       const extra={docId:d.id};
       const desc=String(l.desc||'').trim()||descUser;
       if(desc)extra.desc=desc;
-      if(l.cc&&reglaCuenta(l.cuenta)?.aceptaCentroCosto){extra.cc=l.cc;extra.desc=[extra.desc,`CC: ${l.cc}`].filter(Boolean).join(' · ');}
+      if(l.cc&&reglaCuenta(l.cuenta)?.aceptaCentroCosto){extra.cc=l.cc;if(!d.descImpuestos)extra.desc=[extra.desc,`CC: ${l.cc}`].filter(Boolean).join(' · ');}
       if(i===0&&resto)extra.desc=[extra.desc,Math.abs(resto)<=1?`Ajuste redondeo DTE ${resto>0?'+':''}${resto}`:'Incluye otros impuestos'].filter(Boolean).join(' · ');
       if(m>0)movs.push(mov(l.cuenta,0,m,extra)); else movs.push(mov(l.cuenta,-m,0,extra));
     });
   }else if(ingreso){ if(ingreso>0)movs.push(mov(cuentaIng,0,ingreso,{docId:d.id,desc:descIng})); else movs.push(mov(cuentaIng,-ingreso,0,{docId:d.id,desc:descIng})); }
   if(iva){ if(iva>0)movs.push(mov('2103003',0,iva,{docId:d.id})); else movs.push(mov('2103003',-iva,0,{docId:d.id})); }
+  describirImpuestos(d,movs);
   return {fecha:d.fecha,glosa,movs,fuente:'ventas',docId:d.id,tipoDTE:d.tipoDTE,folio:d.numero,rutCodigo:d.rutCodigo,cuadre:cuadratura(movs)};
 }
 
@@ -259,7 +269,8 @@ function asientoCompra(d){
     // V2.21.57: la descripción de la línea (paso 2 del importador RCV) manda
     const descLinea=String(l.desc||'').trim();
     if(descLinea)partesDesc.push(descLinea);else if(descUser)partesDesc.push(descUser);
-    if(l.cc&&reglaCuenta(l.cuenta)?.aceptaCentroCosto){partesDesc.push(`CC: ${l.cc}`);extra.cc=l.cc;}
+    // Paso 2 del RCV: el CC va en su campo, no repetido (como id interno) en la descripción
+    if(l.cc&&reglaCuenta(l.cuenta)?.aceptaCentroCosto){if(!d.descImpuestos)partesDesc.push(`CC: ${l.cc}`);extra.cc=l.cc;}
     if(partesDesc.length)extra.desc=partesDesc.join(' · ');
     if(l.tratamientoTributario==='rechazado'){extra.tributario='gasto_rechazado';extra.motivoTributario=l.motivoTributario||'Marcado como gasto rechazado en documento de compra';}
     if(monto>0)movs.push(mov(l.cuenta,monto,0,extra)); else movs.push(mov(l.cuenta,0,-monto,extra));
@@ -270,7 +281,7 @@ function asientoCompra(d){
     const m=x.monto*signo;if(!m)return;
     const extra={docId:d.id,tributo:'otro_impuesto_costo'};
     const partes=[x.desc||x.nombre].filter(Boolean);
-    if(x.cc&&reglaCuenta(x.cuenta)?.aceptaCentroCosto){partes.push(`CC: ${x.cc}`);extra.cc=x.cc;}
+    if(x.cc&&reglaCuenta(x.cuenta)?.aceptaCentroCosto){if(!d.descImpuestos)partes.push(`CC: ${x.cc}`);extra.cc=x.cc;}
     if(partes.length)extra.desc=partes.join(' · ');
     if(m>0)movs.push(mov(x.cuenta,m,0,extra)); else movs.push(mov(x.cuenta,0,-m,extra));
   });
@@ -321,6 +332,7 @@ function asientoCompra(d){
     if(ret>0)movs.push(mov('2103005',0,ret,{desc:'IVA retenido factura de compra',docId:d.id,tributo:'iva_retenido'}));
     else movs.push(mov('2103005',-ret,0,{desc:'IVA retenido factura de compra',docId:d.id,tributo:'iva_retenido'}));
   }
+  describirImpuestos(d,movs);
   return {fecha:fechaContabilizacionCompra(d),glosa,movs,fuente:'compras',docId:d.id,tipoDTE:d.tipoDTE,folio:d.numero,rutCodigo:d.rutCodigo,tributacion:trib,ivaClasificacion:ivaClas,otrosImpuestosClasificacion:otrosClas,cuadre:cuadratura(movs)};
 }
 
@@ -356,6 +368,7 @@ function asientoHonorarioDoc(d){
   else lineaGasto(d.cuentaGasto||'3202019',bruto,d.cc);
   if(ret)movs.push(mov('2103002',0,ret,{docId:d.id,desc:'Retención honorarios',tributo:'retencion_honorarios'}));
   if(liquido)movs.push(mov('2102006',0,liquido,auxProv));
+  describirImpuestos(d,movs);
   return {fecha,glosa:`${nombreDoc}${d.numero?' N°'+d.numero:''} — ${d.razonSocial||'prestador'}`,
     movs,fuente:'compras',docId:d.id,tipoDTE:d.tipoDTE,folio:d.numero,rutCodigo:d.rutCodigo,
     tributacion:{honorario:true,bruto,retencion:ret,liquido},cuadre:cuadratura(movs)};

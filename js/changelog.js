@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.19-1600';
+const APP_VERSION='v2026.10.19-1800';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.78',fecha:'19-10-2026',titulo:'RCV paso 2: el asiento completo en una sola tabla',items:[
+    {tipo:'mejora',txt:'El detalle del documento muestra en una sola tabla todo el asiento, con columnas Debe y Haber: las líneas de gasto, activo o ingreso (editables), los otros impuestos, el IVA, las retenciones y el proveedor o cliente, con los totales. Se quitó la tabla aparte "Asiento que se generará".'},
+    {tipo:'mejora',txt:'Sólo se editan las líneas que lo requieren (cuenta, descripción y centro de costo del gasto, activo o ingreso) y el monto del IVA; el resto se completa solo.'},
+    {tipo:'arreglo',txt:'La descripción de las líneas ya no muestra el código interno del centro de costo (por ejemplo "CC: cc_mu187…"); el centro de costo se ve en su columna con su nombre.'}]},
+  {version:'V2.21.77',fecha:'19-10-2026',titulo:'RCV paso 2: líneas de impuestos automáticas',items:[
+    {tipo:'mejora',txt:'Las líneas de impuestos y retenciones del asiento (IVA crédito y débito, IVA retenido, crédito de activo fijo, otros impuestos recuperables y retención de honorarios) se completan solas con el nombre de su cuenta como descripción. Los otros impuestos conservan la suya ("Otro impuesto cód. 28").'},
+    {tipo:'mejora',txt:'En el detalle sólo se editan la descripción, la cuenta y el centro de costo de las líneas de gasto o activo (compras) y de ingreso (ventas). Las líneas de otros impuestos quedan fijas: su cuenta sigue a la primera línea de gasto, o va a 1108006 si se marcan como recuperables.'}]},
   {version:'V2.21.76',fecha:'19-10-2026',titulo:'RCV: nuevo paso 2 con lista del registro y editor del asiento',items:[
     {tipo:'nuevo',txt:'Al cargar el RCV de compras o ventas se abre el paso 2: a la izquierda todo el registro leído del SII (proveedor o cliente, folio, fecha y monto), con filtros "Por contabilizar", "En el libro" y "Todos" y un buscador.'},
     {tipo:'nuevo',txt:'Al elegir un documento se activa "⬇ Importar" (arriba a la derecha), que abre a la derecha el editor del asiento: glosa, líneas con cuenta y centro de costo, IVA y la vista del asiento completo. "📒 Contabilizar documento" genera el asiento sólo de ese documento y lo lleva al libro.'},

@@ -803,6 +803,7 @@ async function confirmarImportacionV(){
       cuentaIngreso:d.detalleRCV?.revisado?d.detalleRCV.lineas[0].cuenta:(prev?.cuentaIngreso||d.cuenta||''),
       ...(d.detalleRCV?.revisado?{dist:distDesdeDetalleV(d)}:(prev?.dist&&Math.abs(prev.dist.reduce((s,l)=>s+(+l.monto||0),0)-((+d.neto||0)+(+d.exento||0)))<=1?{dist:prev.dist}:{})),
       ...((d.glosa||d.detalleRCV?.glosa||prev?.glosa)?{glosa:d.glosa||d.detalleRCV?.glosa||prev.glosa}:{}),
+      ...((d.descImpuestos||prev?.descImpuestos)?{descImpuestos:true}:{}),
       estado:'activo',
       importadoEn:prev?.importadoEn||new Date().toISOString(),
       ...(prev?{reimportadoEn:new Date().toISOString()}:{}),

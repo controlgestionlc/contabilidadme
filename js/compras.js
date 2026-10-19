@@ -1509,6 +1509,7 @@ async function confirmarImportacion(){
       ...(recepcionesVinculadas.length?{recepcionesVinculadas}:{}),
       // Descripción/glosa de la compra ingresada en el importador (se muestra en el asiento).
       ...((d.glosa||d.detalleRCV?.glosa||prev?.glosa)?{glosa:d.glosa||d.detalleRCV?.glosa||prev.glosa}:{}),
+      ...((d.descImpuestos||prev?.descImpuestos)?{descImpuestos:true}:{}),
       // Referencia de nota (56/61) asociada en el importador a una factura del proveedor.
       ...(d.referencia&&d.referencia.folio?{referencia:{tipoDTE:+d.referencia.tipoDTE||33,folio:String(d.referencia.folio),...(d.referencia.fecha?{fecha:d.referencia.fecha}:{}),...(d.referencia.razon?{razon:d.referencia.razon}:{razon:d.razonSocial||''})}}:{}),
       estado:'activo',
