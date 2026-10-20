@@ -170,18 +170,8 @@ export async function actualizarDesdeBancoCentral(){
   const info=document.getElementById('bcch-info');
   const set=(id,v)=>{const e=document.getElementById('ind-'+id);if(e&&v!=null)e.value=v;};
   try{
-    let d=null,errGeneral='';
-    // 1) Consulta general (todas las series en una llamada)
-    try{d=await fetchJSONConLimite('https://mindicador.cl/api',12000);}catch(e){errGeneral=e.message||String(e);}
-    // 2) Si falla, una serie por vez (son más livianas)
-    if(!d||!d.uf){
-      if(info)info.textContent='La consulta general no respondió; probando indicador por indicador…';
-      d={};
-      for(const k of ['uf','utm','dolar','euro']){
-        try{const v=await ultimoValor(k);if(v)d[k]=v;}catch(e){}
-      }
-      if(!Object.keys(d).length)throw new Error(errGeneral||'sin respuesta');
-    }
+    const d=await fetchJSONConLimite('https://mindicador.cl/api',9000);
+    if(!d||!d.uf)throw new Error('respuesta sin datos');
     const traidos=[];
     if(d.uf&&d.uf.valor){set('uf',d.uf.valor);traidos.push('UF');}
     if(d.utm&&d.utm.valor){set('utm',d.utm.valor);set('uta',Math.round(d.utm.valor*12));traidos.push('UTM','UTA');}
@@ -189,11 +179,11 @@ export async function actualizarDesdeBancoCentral(){
     if(d.euro&&d.euro.valor){set('euro',d.euro.valor);traidos.push('euro');}
     const fecha=d.uf&&d.uf.fecha?new Date(d.uf.fecha).toLocaleDateString('es-CL'):'';
     toast(`✅ Valores actualizados (${traidos.join(', ')})${fecha?' al '+fecha:''}. Recuerda pulsar Guardar.`);
-    if(info)info.textContent='Última consulta: '+new Date().toLocaleString('es-CL')+' · '+traidos.join(', ')+'. Recuerda pulsar "💾 Guardar Indicadores".';
+    if(info)info.textContent='Última consulta: '+new Date().toLocaleString('es-CL')+(d.__fuente?' · fuente: '+d.__fuente:'')+' · '+traidos.join(', ')+'. Recuerda pulsar "💾 Guardar Indicadores".';
   }catch(e){
     toast('⚠️ El servicio de indicadores no respondió. Ingresa los valores a mano.','e');
-    if(info)info.innerHTML='No se pudo conectar con mindicador.cl ('+(e.message||e)+'). El servicio puede estar caído o lento; '+
-      'consulta <a href="https://www.sii.cl/valores_y_fechas/" target="_blank" rel="noopener" style="color:var(--ac)">sii.cl</a> o '+
+    if(info)info.innerHTML='No se pudieron obtener los indicadores ('+(e.message||e)+'). '+
+      'Consulta <a href="https://www.sii.cl/valores_y_fechas/" target="_blank" rel="noopener" style="color:var(--ac)">sii.cl</a> o '+
       '<a href="https://www.bcentral.cl/" target="_blank" rel="noopener" style="color:var(--ac)">bcentral.cl</a> e ingresa los valores manualmente.';
   }finally{
     if(btn){btn.disabled=false;btn.textContent='🔄 Traer valores del Banco Central';}

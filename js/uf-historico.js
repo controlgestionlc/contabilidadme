@@ -9,6 +9,7 @@
 
 import {toast, MESES} from './core.js';
 import {S} from './state.js';
+import {fetchIndicadorJSON} from './net-indicadores.js';
 import './storage.js';
 
 const CLAVE='uf-historico';
@@ -69,6 +70,32 @@ async function setUFMes(p,val){
 }
 const S_libroRem=()=>(S.libroRem&&typeof S.libroRem==='object')?S.libroRem:{};
 
+// Completa SOLO los meses vacíos (y sin libro cerrado) con la UF del último día
+// del mes, tomada de la copia diaria de mindicador. Lo ingresado a mano no se toca.
+async function traerUFFinDeMes(){
+  await cargarUFHistorico();
+  const b=document.getElementById('btn-uf-fin');if(b){b.disabled=true;b.textContent='⏳ Consultando…';}
+  const yHoy=new Date().getFullYear(),hoy=new Date().toISOString().slice(0,10),L=S_libroRem();
+  const nuevos=[];let error='';
+  try{
+    for(let y=ANIO_INICIO;y<=yHoy;y++){
+      let j;try{j=await fetchIndicadorJSON(`https://mindicador.cl/api/uf/${y}`,8000);}catch(e){error=e.message||String(e);continue;}
+      const porDia={};
+      (j&&j.serie||[]).forEach(x=>{const t=Date.parse(x.fecha);if(isFinite(t)&&+x.valor>0)porDia[new Date(t+12*3600e3).toISOString().slice(0,10)]=Math.round(+x.valor*100)/100;});
+      for(let m=1;m<=12;m++){
+        const p=per(y,m),dia=`${p}-${String(ultimoDia(p)).padStart(2,'0')}`;
+        if(dia>hoy)break;
+        if(+UFH.valores[p]||(L[p]&&Array.isArray(L[p].lineas)))continue;
+        if(porDia[dia]){UFH.valores[p]=porDia[dia];nuevos.push(p);}
+      }
+    }
+    if(nuevos.length){
+      if(!await guardarUFHistorico()){nuevos.forEach(p=>delete UFH.valores[p]);toast('❌ No se pudieron guardar las UF','e');return;}
+      toast(`✅ ${nuevos.length} UF de fin de mes agregada(s). Revísalas contra el SII.`);
+    }else toast(error?'⚠️ No se pudo obtener la UF: '+error:'✅ No hay meses vacíos que completar',error?'e':'ok');
+  }finally{renderUFHistoricoBox();}
+}
+
 function renderUFHistoricoHTML(){
   const yHoy=new Date().getFullYear(),mHoy=new Date().getMonth()+1;
   const anios=[];for(let y=ANIO_INICIO;y<=yHoy;y++)anios.push(y);
@@ -90,6 +117,9 @@ function renderUFHistoricoHTML(){
       <thead><tr><th class="tl">MES</th>${anios.map(y=>`<th style="text-align:right">${y}</th>`).join('')}</tr></thead>
       <tbody>${filas}</tbody>
     </table></div></div>
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-g" id="btn-uf-fin" onclick="traerUFFinDeMes()" title="Completa sólo los meses vacíos; lo ingresado a mano no se modifica">📥 Completar meses vacíos</button>
+    </div>
     <div style="margin-top:8px;font-size:10px;color:var(--mt)">${UFH.actualizadoEn?'Última modificación: '+new Date(UFH.actualizadoEn).toLocaleString('es-CL')+' · ':''}Fuente oficial: <a href="https://www.sii.cl/valores_y_fechas/uf/uf${yHoy}.htm" target="_blank" rel="noopener" style="color:var(--ac)">sii.cl UF ${yHoy}</a></div>`;
 }
 function renderUFHistoricoBox(){
@@ -98,4 +128,4 @@ function renderUFHistoricoBox(){
   el.innerHTML=renderUFHistoricoHTML();
 }
 
-export {UFH, ufDelPeriodo, cargarUFHistorico, setUFMes, renderUFHistoricoBox, fmtUF, leerUF};
+export {UFH, ufDelPeriodo, cargarUFHistorico, setUFMes, traerUFFinDeMes, renderUFHistoricoBox, fmtUF, leerUF};

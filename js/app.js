@@ -141,7 +141,7 @@ import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarCon
         guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
-import {cargarUFHistorico, setUFMes} from './uf-historico.js';
+import {cargarUFHistorico, setUFMes, traerUFFinDeMes} from './uf-historico.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
         cerrarMesRem, reabrirMesRem, exportarLibroRemExcel} from './libroremuneraciones.js';
 import {ctGuardarEdicion, ctInsertarDato, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
@@ -735,7 +735,7 @@ setOnAuthReady(initApp);
 // El HTML usa onclick="renderVentas()" etc. Los módulos ES tienen scope propio,
 // así que hay que publicar esas funciones en window.
 // Objetos de estado usados directamente en onclick del HTML
-Object.assign(window,{setUFMes,
+Object.assign(window,{setUFMes,traerUFFinDeMes,
   lcvAtender,
   renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios,AF, VF, CF, REMF, AFB, PF, APF, IMB, IM, IMV, US, BD, S, getCurSec, CD, IVAC, PAGOF29, DJ, ACC});
 

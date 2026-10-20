@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.20-1245';
+const APP_VERSION='v2026.10.20-1315';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.86',fecha:'20-10-2026',titulo:'Indicadores desde una copia diaria propia',items:[
+    {tipo:'arreglo',txt:'mindicador.cl bloquea las consultas desde el navegador y la pasarela corsproxy ahora exige registro. Los indicadores (UF, UTM, dólar y euro) se leen ahora de una copia diaria que una acción de GitHub guarda en la rama "datos" del repositorio; si no está disponible, se intenta mindicador.cl directo y luego una pasarela pública, cada uno con tiempo límite.'},
+    {tipo:'nuevo',txt:'En la tabla "UF al último día de cada mes" el botón "📥 Completar meses vacíos" rellena sólo los meses sin valor (y sin libro cerrado) con la UF del último día de cada mes. Lo ingresado a mano no se modifica.'}]},
   {version:'V2.21.85',fecha:'20-10-2026',titulo:'Indicadores: la consulta al Banco Central ya no se queda pegada',items:[
     {tipo:'arreglo',txt:'"Traer valores del Banco Central" quedaba en "Consultando…" porque mindicador.cl dejó de autorizar la lectura desde el navegador (CORS). Ahora cada consulta tiene un tiempo límite y, si la lectura directa se bloquea, se reintenta por pasarelas públicas. Si todo falla, el botón vuelve a quedar disponible y se indica dónde obtener los valores para ingresarlos a mano.'},
     {tipo:'arreglo',txt:'Lo mismo aplica a "Buscar meses nuevos" del histórico UTM.'}]},
