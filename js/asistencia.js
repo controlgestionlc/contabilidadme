@@ -179,8 +179,33 @@ function abrirFormAsistencia(trabId){
   ASF={editId:null,trab:trabId||''};
   renderAsistencia();
 }
-function editarEventoAsistencia(id){ASF={editId:id,trab:''};renderAsistencia();}
+function editarEventoAsistencia(id){
+  const e=datosAsistencia().eventos.find(x=>x.id===id);
+  const cerr=e?mesesCerradosEn(e.desde,e.hasta||e.desde):[];
+  if(cerr.length){alertaMesCerrado(cerr,'modificar este evento');return;}
+  ASF={editId:id,trab:''};renderAsistencia();
+}
 function cerrarFormAsistencia(){ASF={editId:null,trab:null};renderAsistencia();}
+
+// ── V2.21.83: meses con libro de remuneraciones cerrado ──
+// Un mes cerrado no admite cambios en lo que alimenta su libro (asistencia,
+// horas, vacaciones, término de contrato). Para cambiarlo hay que reabrir el libro.
+function libroRemCerrado(per){const L=S.libroRem&&typeof S.libroRem==='object'?S.libroRem:{};return !!(L[per]&&Array.isArray(L[per].lineas));}
+function mesesDeRango(desde,hasta){
+  const out=[];if(!desde)return out;
+  let [y,m]=String(desde).slice(0,7).split('-').map(Number);
+  const fin=String(hasta||desde).slice(0,7);
+  for(let i=0;i<240;i++){const p=`${y}-${String(m).padStart(2,'0')}`;out.push(p);if(p>=fin)break;m++;if(m>12){m=1;y++;}}
+  return out;
+}
+function mesesCerradosEn(desde,hasta){return mesesDeRango(desde,hasta).filter(libroRemCerrado);}
+const nombreMes=p=>{const [y,m]=String(p).split('-').map(Number);return `${MESES[(m||1)-1]} ${y}`;};
+function alertaMesCerrado(meses,accion='modificar'){
+  const lista=[...new Set(meses)].map(nombreMes).join(', ');
+  const msg=`🔒 El libro de remuneraciones de ${lista} está cerrado.\n\nNo se puede ${accion} porque cambiaría los datos de ese mes. Si necesitas hacerlo, primero reabre el libro en la pestaña "Libro" de Remuneraciones.`;
+  try{alert(msg);}catch(e){}
+  toast(`🔒 ${lista}: libro de remuneraciones cerrado`,'e');
+}
 
 async function guardarEventoAsistencia(){
   const g=id=>document.getElementById(id)?.value??'';
@@ -192,9 +217,10 @@ async function guardarEventoAsistencia(){
   const ev={id:ASF.editId||'as_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     trab,tipo,desde,hasta,obs:g('asis-obs').trim(),creado:new Date().toISOString()};
   if(tipo==='licencia'){ev.licTipo=g('asis-lic')||'1';const f=g('asis-folio').trim();if(f)ev.folio=f;}
-  // Aviso si toca un mes con el libro de remuneraciones ya cerrado
-  const cerrados=Object.keys(S.libroRem||{}).filter(p=>p>=desde.slice(0,7)&&p<=hasta.slice(0,7));
-  if(cerrados.length&&!confirm(`El libro de remuneraciones de ${cerrados.join(', ')} ya está cerrado: su fotografía no cambiará hasta que lo reabras.\n¿Guardar el evento de todas formas?`))return;
+  // Meses con libro cerrado: ni el período nuevo ni (si se edita) el anterior pueden tocarlos
+  const previo=ASF.editId?datosAsistencia().eventos.find(x=>x.id===ASF.editId):null;
+  const cerrados=[...mesesCerradosEn(desde,hasta),...(previo?mesesCerradosEn(previo.desde,previo.hasta||previo.desde):[])];
+  if(cerrados.length){alertaMesCerrado(cerrados,ASF.editId?'modificar este evento':'agregar este evento');return;}
   const A=datosAsistencia();
   const i=A.eventos.findIndex(x=>x.id===ev.id);
   if(i>=0)A.eventos[i]={...A.eventos[i],...ev};else A.eventos.push(ev);
@@ -207,6 +233,8 @@ async function guardarEventoAsistencia(){
 }
 async function eliminarEventoAsistencia(id){
   const A=datosAsistencia(),e=A.eventos.find(x=>x.id===id);if(!e)return;
+  const cerr=mesesCerradosEn(e.desde,e.hasta||e.desde);
+  if(cerr.length){alertaMesCerrado(cerr,'eliminar este evento');return;}
   if(!confirm(`¿Eliminar ${tipoInfo(e.tipo).nm.toLowerCase()} del ${e.desde} al ${e.hasta}?`))return;
   A.eventos=A.eventos.filter(x=>x.id!==id);
   if(!await guardarAsistencia())return;
@@ -215,6 +243,7 @@ async function eliminarEventoAsistencia(id){
 }
 async function setHorasMes(trabId,val){
   const per=`${S.empresa.anio}-${String(mesSel()).padStart(2,'0')}`;
+  if(libroRemCerrado(per)){alertaMesCerrado([per],'cambiar las horas del mes');renderAsistencia();return;}
   const A=datosAsistencia();
   const txt=String(val??'').trim();
   if(!A.horas[per])A.horas[per]={};
@@ -261,7 +290,7 @@ function renderAsistencia(){
     </tr>`;
   }).join('');
   el.innerHTML=tabs
-    +(libroCerrado?`<div class="info-tip" style="font-size:11px;margin-bottom:12px;background:rgba(210,153,34,.10);border-color:var(--warn)">🔒 El libro de ${MESES[m-1]} ${y} está cerrado. Los cambios de asistencia no lo modifican hasta que lo reabras.</div>`:'')
+    +(libroCerrado?`<div class="info-tip" style="font-size:11px;margin-bottom:12px;background:rgba(210,153,34,.10);border-color:var(--warn)">🔒 El libro de ${MESES[m-1]} ${y} está cerrado: no se pueden agregar, editar ni eliminar eventos ni horas que afecten este mes. Para hacerlo, reabre el libro en la pestaña Libro.</div>`:'')
     +(formAbierto?formEventoHTML():`<div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn btn-p" onclick="abrirFormAsistencia()">+ Registrar ausencia, permiso o licencia</button><span style="font-size:11px;color:var(--mt)">Sólo se registran las excepciones: sin eventos, el trabajador tiene los 30 días pagados.</span></div>`)
     +`<div class="card-np"><div class="tw"><table>
       <thead><tr><th class="tl">TRABAJADOR · ${MESES[m-1].toUpperCase()} ${y}</th><th>DÍAS PAGADOS</th><th>LICENCIA</th><th>PERMISO S/GOCE</th><th>AUSENCIA</th><th>PERMISO C/GOCE</th><th>VACACIONES</th><th>HORAS</th><th></th></tr></thead>
@@ -271,6 +300,6 @@ function renderAsistencia(){
   if(formAbierto)onAsisTipoChange();
 }
 
-export {TIPOS_EVENTO, TIPOS_LICENCIA, asistenciaMes, datosAsistencia, renderAsistencia,
+export {libroRemCerrado, mesesCerradosEn, alertaMesCerrado, TIPOS_EVENTO, TIPOS_LICENCIA, asistenciaMes, datosAsistencia, renderAsistencia,
         abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange};

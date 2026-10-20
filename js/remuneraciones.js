@@ -10,7 +10,7 @@ import {getIndicadores, IND, calcularGratificacion, topeGratificacionMensual,
 import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal, tasasAFC} from './previsional.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {numeroMostrar} from './correlativo-contable.js';
-import {asistenciaMes} from './asistencia.js';
+import {asistenciaMes, libroRemCerrado, alertaMesCerrado} from './asistencia.js';
 import {numeroALetras} from './numletras.js';
 import {anticiposMes,aplicarAnticipos} from './anticipos.js';
 import './storage.js';
@@ -377,6 +377,20 @@ function guardarTrabajador(abrirContratoDT){
   // V2.21.66: se conservan los datos que el formulario no edita (anticipos,
   // datos del contrato DT, etc.); antes se perdían al editar la ficha.
   const previo=REMF.editId?S.trabajadores.find(x=>x.id===REMF.editId):null;
+  // V2.21.83: las fechas de inicio y término definen los días pagados del mes;
+  // no se pueden mover hacia, desde o dentro de un mes con libro cerrado.
+  if(previo){
+    const cerr=[];
+    [['fechaInicio'],['fechaTermino']].forEach(([k])=>{
+      const a=String(previo.lre?.[k]||''),b=String(t.lre?.[k]||'');
+      if(a===b)return;
+      [a.slice(0,7),b.slice(0,7)].filter(Boolean).forEach(p=>{if(libroRemCerrado(p))cerr.push(p);});
+    });
+    if(cerr.length){alertaMesCerrado(cerr,'cambiar la fecha de inicio o de término del contrato hacia o desde ese mes');return;}
+  }else if(t.lre?.fechaInicio){
+    const p=String(t.lre.fechaInicio).slice(0,7);
+    if(libroRemCerrado(p)){alertaMesCerrado([p],'incorporar un trabajador con inicio en ese mes');return;}
+  }
   const bien={...(previo||{}),id:REMF.editId||'tr_'+Date.now(),...t};
   if(REMF.editId){const i=S.trabajadores.findIndex(x=>x.id===REMF.editId);if(i>=0)S.trabajadores[i]=bien;toast('✅ Trabajador actualizado');}
   else{S.trabajadores.push(bien);toast('✅ Trabajador registrado');}

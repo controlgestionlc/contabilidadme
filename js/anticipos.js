@@ -15,6 +15,7 @@ import {toast, fmtC, MESES, pdcNm} from './core.js';
 import {S} from './state.js';
 import {ejercicioCerrado, persistirAsientosCritico} from './contabilidad-v2.js';
 import {buscarCuentas} from './buscadorcuentas.js';
+import {alertaMesCerrado} from './asistencia.js';
 import './storage.js';
 
 const n=v=>Math.round(+v||0);
@@ -133,7 +134,7 @@ async function guardarAnticipo(){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)){toast('⚠️ Indica la fecha del anticipo','e');return;}
   if(!(monto>0)){toast('⚠️ El monto debe ser mayor que cero','e');return;}
   if(!motivo){toast('⚠️ Indica el motivo del anticipo','e');return;}
-  if(libroCerrado(mesDesc)){toast('🔒 El libro de remuneraciones de ese mes está cerrado. Elige otro mes de descuento o reabre el libro.','e');return;}
+  if(libroCerrado(mesDesc)){alertaMesCerrado([mesDesc],'descontar un anticipo en ese mes (elige otro mes de descuento)');return;}
   const [ym,mm]=mesDesc.split('-').map(Number);
   if(mesDesc<fecha.slice(0,7)&&!confirm('El mes de descuento es anterior a la fecha del anticipo. ¿Continuar?'))return;
   const a={id:'ant_'+Date.now().toString(36),fecha,monto,motivo,mesDesc,creadoEn:new Date().toISOString()};
@@ -159,7 +160,7 @@ async function guardarAnticipo(){
 async function eliminarAnticipo(aid){
   const t=(S.trabajadores||[]).find(x=>x.id===AN.tid);if(!t)return;
   const a=(t.anticipos||[]).find(x=>x.id===aid);if(!a)return;
-  if(libroCerrado(mesDescDe(a))){toast('🔒 El libro de ese mes está cerrado','e');return;}
+  if(libroCerrado(mesDescDe(a))){alertaMesCerrado([mesDescDe(a)],'eliminar este anticipo');return;}
   if(!confirm(`¿Eliminar el anticipo de ${fmtC(n(a.monto))} del ${fFecha(a.fecha)}?${a.asientoId?'\n\nSu asiento de pago queda ANULADO (conserva el número, sin efecto contable).':''}`))return;
   if(a.asientoId){
     const r=await persistirAsientosCritico(()=>{

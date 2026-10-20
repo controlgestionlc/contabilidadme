@@ -19,7 +19,7 @@
 import {toast, fmtC, MESES} from './core.js';
 import {S} from './state.js';
 import {logAccion} from './firebase.js';
-import {datosAsistencia} from './asistencia.js';
+import {datosAsistencia, mesesCerradosEn, alertaMesCerrado} from './asistencia.js';
 import './storage.js';
 
 const ZONA_EXTREMA_DIAS=20, DIAS_BASE=15;
@@ -247,6 +247,8 @@ async function guardarVacaciones(id){
   const t=(S.trabajadores||[]).find(x=>x.id===id);if(!t)return;
   const desde=document.getElementById('vacf-desde')?.value,hasta=document.getElementById('vacf-hasta')?.value||desde;
   if(!desde||hasta<desde){toast('⚠️ Revisa las fechas','e');return;}
+  const cerr=mesesCerradosEn(desde,hasta);
+  if(cerr.length){alertaMesCerrado(cerr,'registrar vacaciones en esas fechas');return;}
   const r=diasHabiles(desde,hasta);
   if(!r.habiles){toast('⚠️ El período no tiene días hábiles','e');return;}
   const s=saldoVacaciones(t,hasta);

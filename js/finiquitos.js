@@ -39,7 +39,7 @@ import {numeroMostrar} from './correlativo-contable.js';
 import {reglaCuenta, validarMovimientosPDC} from './pdc-reglas.js';
 import {buildMayor} from './reportes.js';
 import {saldoVacaciones, esFeriado, mesesEntre} from './vacaciones.js';
-import {asistenciaMes} from './asistencia.js';
+import {asistenciaMes, libroRemCerrado, alertaMesCerrado} from './asistencia.js';
 import './storage.js';
 import {numeroALetras} from './numletras.js';
 
@@ -567,6 +567,13 @@ async function guardarFiniquito(){
   const r=calcularFiniquito(t,f);
   if(!r.ok){toast('⚠️ '+r.motivo,'e');return;}
   if(f.texto&&f.texto.trim()===(plantillaPorId(f.plantillaId||causalInfo(f.causal).plantilla)||{}).texto)f.texto='';
+  // El término de contrato cambia los días del mes en el libro: no en un mes cerrado
+  if(f.actualizarFicha&&f.fechaTermino){
+    const per=String(f.fechaTermino).slice(0,7);
+    const antes=String(t.lre?.fechaTermino||'').slice(0,7);
+    const cerr=[per,antes].filter(p=>p&&libroRemCerrado(p)&&(p!==antes||String(t.lre?.fechaTermino||'')!==String(f.fechaTermino)));
+    if(cerr.length){alertaMesCerrado(cerr,'registrar el término de contrato en la ficha con esa fecha');return;}
+  }
   const D=datos();
   const rec={...f,nombre:t.nombre,rut:t.rut||'',calc:{total:r.total,totalHaberes:r.totalHaberes,totalDescuentos:r.totalDescuentos,
     lineas:r.lineas,desc:r.desc,ultimaRem:r.ultimaRem,baseIndem:r.baseIndem,feriado:r.feriado,ias:r.ias,sustitutiva:r.sustitutiva,afc:r.afc},
