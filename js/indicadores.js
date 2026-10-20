@@ -4,6 +4,7 @@ import {S} from './state.js';
 import {logAccion} from './firebase.js';
 import './storage.js';
 import {renderUTMHistoricoBox} from './utm-historico.js';
+import {renderUFHistoricoBox} from './uf-historico.js';
 
 // ═══ INDICADORES CONFIGURABLES ═══
 // Fuente única de valores económicos/previsionales. Se guardan en S.empresa.indicadores.
@@ -222,6 +223,10 @@ function renderIndicadores(){
     <div id="utm-hist-box"></div>
   </div>
   <div class="card" style="margin-bottom:14px">
+    <div class="card-title">📈 UF al último día de cada mes · remuneraciones</div>
+    <div id="uf-hist-box"></div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
     <div class="card-title">🏦 Topes imponibles y mínimos</div>
     <div class="fg">
       ${campo('topeAFP_UF','Tope imponible AFP / Salud',i.topeAFP_UF,'0.1','UF','Tope 2026: 90 UF')}
@@ -306,6 +311,7 @@ function renderIndicadores(){
   IUSC_WORK=getIUSCTabla();
   renderIUSCTabla();
   renderUTMHistoricoBox();
+  renderUFHistoricoBox();
   // La configuración previsional vive en la misma sección: dibujarla también.
   if(window.renderPrevisional)window.renderPrevisional();
 }

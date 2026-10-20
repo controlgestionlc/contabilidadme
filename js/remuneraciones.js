@@ -11,6 +11,7 @@ import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal, tasasAFC} f
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {numeroMostrar} from './correlativo-contable.js';
 import {asistenciaMes, libroRemCerrado, alertaMesCerrado} from './asistencia.js';
+import {ufDelPeriodo, fmtUF} from './uf-historico.js';
 import {numeroALetras} from './numletras.js';
 import {anticiposMes,aplicarAnticipos} from './anticipos.js';
 import './storage.js';
@@ -38,7 +39,9 @@ function calcularIUSC(baseTributable,utm){
   return calcularIUSCDetalle(baseTributable,utm,getIUSCTabla()).impuesto;
 }
 // UF/UTM del mes: guardadas en empresa (editables). Defaults referenciales.
-function getUF(){return +document.getElementById('rem-uf')?.value||IND('uf');}
+// V2.21.84: la UF de las remuneraciones es la del último día del mes liquidado (tabla en Indicadores)
+function ufMesRem(){return ufDelPeriodo(`${S.empresa.anio}-${String(mesRemSel()).padStart(2,'0')}`);}
+function getUF(){return ufMesRem()||+document.getElementById('rem-uf')?.value||IND('uf');}
 function getUTM(){return pn(document.getElementById('rem-utm')?.value)||IND('utm');}
 
 // Calcula la liquidación completa de un trabajador con UF/UTM dados
@@ -455,7 +458,12 @@ function renderRemuneraciones(){
     const hoyMes=new Date().getMonth()+1;selMes.value=(S.empresa.anio===new Date().getFullYear())?hoyMes:1;
   }
   const ufEl=document.getElementById('rem-uf'),utmEl=document.getElementById('rem-utm');
-  if(ufEl&&!ufEl.value)ufEl.value=IND('uf');
+  // UF del mes desde la tabla de Indicadores (último día del mes): se muestra fija
+  const ufTabla=ufMesRem();
+  if(ufEl){
+    if(ufTabla){ufEl.value=ufTabla;ufEl.readOnly=true;ufEl.title=`UF al último día del mes (Indicadores): ${fmtUF(ufTabla)}`;ufEl.style.opacity='.8';}
+    else{ufEl.readOnly=false;ufEl.title='Falta la UF de este mes en Indicadores: se usa este valor provisorio. Para cerrar el libro hay que ingresarla en Indicadores.';ufEl.style.opacity='';if(!ufEl.value)ufEl.value=IND('uf');}
+  }
   if(utmEl&&!utmEl.value)utmEl.value=IND('utm');
   // El Libro de Remuneraciones es la otra vista de esta sección (libroremuneraciones.js).
   // Se llama por window para no crear un ciclo de imports entre ambos módulos.

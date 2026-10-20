@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.20-0930';
+const APP_VERSION='v2026.10.20-1100';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.84',fecha:'20-10-2026',titulo:'UF del último día del mes para remuneraciones',items:[
+    {tipo:'nuevo',txt:'Indicadores tiene una tabla "UF al último día de cada mes" (meses por año) que se completa a mano, con el valor del último día de cada mes.'},
+    {tipo:'mejora',txt:'Las liquidaciones y el libro de remuneraciones de un mes usan esa UF. Mientras falte, se usa la casilla "Valor UF" de Remuneraciones como valor provisorio; cuando existe, la casilla la muestra fija.'},
+    {tipo:'mejora',txt:'Para cerrar el libro de remuneraciones de un mes es obligatorio tener su UF en la tabla; al cerrar, el libro se recalcula con ese valor. Un mes con libro cerrado no permite cambiar su UF hasta reabrirlo.'}]},
   {version:'V2.21.83',fecha:'20-10-2026',titulo:'Remuneraciones: un mes cerrado no admite cambios',items:[
     {tipo:'mejora',txt:'Cuando el libro de remuneraciones de un mes está cerrado, no se pueden agregar, editar ni eliminar eventos de asistencia (licencias, permisos, ausencias) que toquen ese mes, ni cambiar sus horas trabajadas. Al intentarlo aparece una alerta que indica el mes y cómo reabrirlo.'},
     {tipo:'mejora',txt:'La misma regla aplica a vacaciones con fechas en un mes cerrado, a anticipos descontados o eliminados en ese mes, al término de contrato que un finiquito lleva a la ficha y a los cambios de fecha de inicio o término en la ficha del trabajador.'},

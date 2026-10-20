@@ -141,6 +141,7 @@ import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarCon
         guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
         eliminarEventoAsistencia, setHorasMes, onAsisTipoChange} from './asistencia.js';
+import {cargarUFHistorico, setUFMes} from './uf-historico.js';
 import {cargarLibroRem, libroDelMes, renderLibroRem, setRemView, getRemView, tabsRemuneraciones,
         cerrarMesRem, reabrirMesRem, exportarLibroRemExcel} from './libroremuneraciones.js';
 import {ctGuardarEdicion, ctInsertarDato, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
@@ -455,7 +456,7 @@ async function initApp(){
   ys.value=S.empresa.anio;
   await loadYear(S.empresa.anio);
   await cargarDeclaracionesF29(true);
-  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();await cargarInventario();
+  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();await cargarUFHistorico(true);await cargarInventario();
   // Migración de folios de comprobante para datos preexistentes:
   // asigna folioComp a asientos manuales, compras, ventas y apertura que no
   // lo tengan, respetando el orden cronológico.
@@ -718,7 +719,7 @@ async function recargarEmpresaActiva(){
   await cargarPiloto();
   window.__entornoBypass=false;
   await cargarDeclaracionesF29(true);
-  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();await cargarInventario(true);
+  await cargarCentros();await cargarCierresCC();await cargarComprobantes();await cargarFichasAux();await cargarLibroRem();await cargarUFHistorico(true);await cargarInventario(true);
   fillEmpresaForm();updateHdr();renderSelectorEmpresa();renderInicio();
   try{aplicarPermisosUI();}catch(e){}
   rerender();
@@ -734,7 +735,7 @@ setOnAuthReady(initApp);
 // El HTML usa onclick="renderVentas()" etc. Los módulos ES tienen scope propio,
 // así que hay que publicar esas funciones en window.
 // Objetos de estado usados directamente en onclick del HTML
-Object.assign(window,{
+Object.assign(window,{setUFMes,
   lcvAtender,
   renderFoliosSII, agregarRangoFolios, activarRangoFolios, recalcularPreview, actualizarCfg, imprimirPruebaFolios, reservarEImprimir, reimprimirReserva, cerrarReserva, exportarControlFolios,AF, VF, CF, REMF, AFB, PF, APF, IMB, IM, IMV, US, BD, S, getCurSec, CD, IVAC, PAGOF29, DJ, ACC});
 

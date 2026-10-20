@@ -16,6 +16,7 @@ import {S} from './state.js';
 import {logAccion} from './firebase.js';
 import {liquidacionMes, getUF, getUTM} from './remuneraciones.js';
 import {getIndicadores} from './indicadores.js';
+import {ufDelPeriodo, cargarUFHistorico, fmtUF} from './uf-historico.js';
 import {SIS_A_SEGURO_SOCIAL_DESDE} from './previsional.js';
 import './storage.js';
 
@@ -127,7 +128,7 @@ export function libroDelMes(mes){
     if(guardado.totales&&guardado.totales.ssp===undefined)guardado.totales=totalizar(guardado.lineas);
     return {...guardado,cerrado:true,totales:guardado.totales||totalizar(guardado.lineas)};
   }
-  const uf=getUF(),utm=getUTM();
+  const uf=ufDelPeriodo(per)||getUF(),utm=getUTM();
   const lineas=(S.trabajadores||[]).map(t=>lineaLibro(t,uf,utm,mes));
   return {periodo:per,anio:S.empresa.anio,mes,uf,utm,lineas,totales:totalizar(lineas),cerrado:false};
 }
@@ -138,10 +139,19 @@ export async function cerrarMesRem(){
   const per=periodoDe(mes);
   if(!(S.trabajadores||[]).length){toast('⚠️ No hay trabajadores que registrar','e');return;}
   if(librosRem()[per]&&!confirm(`El libro de ${MESES[mes-1]} ${S.empresa.anio} ya está cerrado.\n¿Reemplazarlo con los datos actuales?`))return;
-  const uf=getUF(),utm=getUTM();
+  // V2.21.84: requisito — UF del último día del mes registrada en Indicadores.
+  // El libro se recalcula con ella al cerrar.
+  await cargarUFHistorico();
+  const uf=ufDelPeriodo(per),utm=getUTM();
+  const ultimo=new Date(S.empresa.anio,mes,0).getDate();
+  if(!uf){
+    try{alert(`⚠️ Falta la UF del ${ultimo} de ${MESES[mes-1].toLowerCase()} de ${S.empresa.anio}.\n\nIngrésala en Configuración → Indicadores → "UF al último día de cada mes" y vuelve a cerrar el libro. Las remuneraciones se recalcularán con ese valor.`);}catch(e){}
+    toast(`⚠️ Falta la UF al ${ultimo}-${String(mes).padStart(2,'0')}-${S.empresa.anio} en Indicadores`,'e');return;
+  }
   const lineas=(S.trabajadores||[]).map(t=>lineaLibro(t,uf,utm,mes));
   const totales=totalizar(lineas);
   if(!confirm(`Cerrar el libro de remuneraciones de ${MESES[mes-1]} ${S.empresa.anio}\n\n`+
+    `UF al ${ultimo}-${String(mes).padStart(2,'0')}-${S.empresa.anio}: ${fmtUF(uf)} (recalculado con este valor)\n`+
     `${lineas.length} trabajador(es)\nTotal haberes: ${fmtC(totales.totalHaberes)}\nLíquido a pagar: ${fmtC(totales.liquido)}\n\n`+
     `Se guarda una fotografía del mes: los montos quedan fijos aunque después edites un sueldo.\n¿Continuar?`))return;
   librosRem()[per]={
