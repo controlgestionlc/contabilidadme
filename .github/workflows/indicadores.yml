@@ -52,10 +52,9 @@ jobs:
             done
             echo "::warning::No se pudo descargar $1 (se conserva el archivo anterior)"; rm -f "$tmp"; return 0
           }
-          Y=$(date -u +%Y)
+          Y=$(date -u +%Y); P=$((Y-1))
           traer "https://mindicador.cl/api" "data/indicadores.json"
-          # Años completos desde 2023 (los cerrados casi nunca cambian; sólo se reescriben si difieren)
-          for a in $(seq 2023 $Y); do
+          for a in $P $Y; do
             traer "https://mindicador.cl/api/uf/$a"  "data/uf-$a.json"
             traer "https://mindicador.cl/api/utm/$a" "data/utm-$a.json"
           done
