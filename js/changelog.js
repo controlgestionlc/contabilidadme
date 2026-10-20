@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.20-1100';
+const APP_VERSION='v2026.10.20-1245';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.85',fecha:'20-10-2026',titulo:'Indicadores: la consulta al Banco Central ya no se queda pegada',items:[
+    {tipo:'arreglo',txt:'"Traer valores del Banco Central" quedaba en "Consultando…" porque mindicador.cl dejó de autorizar la lectura desde el navegador (CORS). Ahora cada consulta tiene un tiempo límite y, si la lectura directa se bloquea, se reintenta por pasarelas públicas. Si todo falla, el botón vuelve a quedar disponible y se indica dónde obtener los valores para ingresarlos a mano.'},
+    {tipo:'arreglo',txt:'Lo mismo aplica a "Buscar meses nuevos" del histórico UTM.'}]},
   {version:'V2.21.84',fecha:'20-10-2026',titulo:'UF del último día del mes para remuneraciones',items:[
     {tipo:'nuevo',txt:'Indicadores tiene una tabla "UF al último día de cada mes" (meses por año) que se completa a mano, con el valor del último día de cada mes.'},
     {tipo:'mejora',txt:'Las liquidaciones y el libro de remuneraciones de un mes usan esa UF. Mientras falte, se usa la casilla "Valor UF" de Remuneraciones como valor provisorio; cuando existe, la casilla la muestra fija.'},

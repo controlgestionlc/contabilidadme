@@ -17,6 +17,7 @@
 
 import {toast, fmtC, pn, MESES} from './core.js';
 import {rerender} from './ui.js';
+import {fetchIndicadorJSON} from './net-indicadores.js';
 import './storage.js';
 
 const ANIO_INICIO=2023;
@@ -93,9 +94,7 @@ async function actualizarUTMHistorico({anios,silencioso=false}={}){
   const nuevos=[], diferencias=[];
   try{
     for(const y of lista){
-      const r=await fetch(`https://mindicador.cl/api/utm/${y}`);
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      const j=await r.json();
+      const j=await fetchIndicadorJSON(`https://mindicador.cl/api/utm/${y}`,10000);
       (j?.serie||[]).forEach(x=>{
         const p=periodoDeFecha(x.fecha), v=Math.round(+x.valor||0);
         if(!esPeriodo(p)||v<=0||+p.slice(0,4)!==y)return;

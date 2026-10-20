@@ -5,6 +5,7 @@ import {logAccion} from './firebase.js';
 import './storage.js';
 import {renderUTMHistoricoBox} from './utm-historico.js';
 import {renderUFHistoricoBox} from './uf-historico.js';
+import {fetchIndicadorJSON} from './net-indicadores.js';
 
 // ═══ INDICADORES CONFIGURABLES ═══
 // Fuente única de valores económicos/previsionales. Se guardan en S.empresa.indicadores.
@@ -155,30 +156,45 @@ export function retencionHonorarios(anio){
 // ── Actualización automática desde mindicador.cl (datos del Banco Central) ──
 // API pública y gratuita, sin API key. Si falla (sin internet o CORS),
 // se avisa y los valores se pueden seguir editando a mano.
+// V2.21.85: consultas con tiempo límite y reintento por pasarelas (ver net-indicadores.js)
+const fetchJSONConLimite=(url,ms)=>fetchIndicadorJSON(url,ms);
+// Último valor de una serie de mindicador (/api/uf, /api/utm, …)
+async function ultimoValor(codigo){
+  const d=await fetchJSONConLimite(`https://mindicador.cl/api/${codigo}`,10000);
+  const x=(d&&Array.isArray(d.serie))?d.serie[0]:null;
+  return x&&x.valor?{valor:+x.valor,fecha:x.fecha}:null;
+}
 export async function actualizarDesdeBancoCentral(){
   const btn=document.getElementById('btn-bcch');
   if(btn){btn.disabled=true;btn.textContent='⏳ Consultando…';}
+  const info=document.getElementById('bcch-info');
+  const set=(id,v)=>{const e=document.getElementById('ind-'+id);if(e&&v!=null)e.value=v;};
   try{
-    const r=await fetch('https://mindicador.cl/api');
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    const set=(id,v)=>{const e=document.getElementById('ind-'+id);if(e&&v!=null)e.value=v;};
-    if(d.uf&&d.uf.valor)set('uf',d.uf.valor);
-    if(d.utm&&d.utm.valor){
-      set('utm',d.utm.valor);
-      set('uta',Math.round(d.utm.valor*12)); // UTA = 12 UTM
+    let d=null,errGeneral='';
+    // 1) Consulta general (todas las series en una llamada)
+    try{d=await fetchJSONConLimite('https://mindicador.cl/api',12000);}catch(e){errGeneral=e.message||String(e);}
+    // 2) Si falla, una serie por vez (son más livianas)
+    if(!d||!d.uf){
+      if(info)info.textContent='La consulta general no respondió; probando indicador por indicador…';
+      d={};
+      for(const k of ['uf','utm','dolar','euro']){
+        try{const v=await ultimoValor(k);if(v)d[k]=v;}catch(e){}
+      }
+      if(!Object.keys(d).length)throw new Error(errGeneral||'sin respuesta');
     }
-    if(d.dolar&&d.dolar.valor)set('dolar',d.dolar.valor);
-    if(d.euro&&d.euro.valor)set('euro',d.euro.valor);
+    const traidos=[];
+    if(d.uf&&d.uf.valor){set('uf',d.uf.valor);traidos.push('UF');}
+    if(d.utm&&d.utm.valor){set('utm',d.utm.valor);set('uta',Math.round(d.utm.valor*12));traidos.push('UTM','UTA');}
+    if(d.dolar&&d.dolar.valor){set('dolar',d.dolar.valor);traidos.push('dólar');}
+    if(d.euro&&d.euro.valor){set('euro',d.euro.valor);traidos.push('euro');}
     const fecha=d.uf&&d.uf.fecha?new Date(d.uf.fecha).toLocaleDateString('es-CL'):'';
-    toast('✅ Valores actualizados desde el Banco Central'+(fecha?' ('+fecha+')':''));
-    const info=document.getElementById('bcch-info');
-    if(info)info.textContent='Última consulta: '+new Date().toLocaleString('es-CL')+'. Recuerda guardar.';
+    toast(`✅ Valores actualizados (${traidos.join(', ')})${fecha?' al '+fecha:''}. Recuerda pulsar Guardar.`);
+    if(info)info.textContent='Última consulta: '+new Date().toLocaleString('es-CL')+' · '+traidos.join(', ')+'. Recuerda pulsar "💾 Guardar Indicadores".';
   }catch(e){
-    toast('⚠️ No se pudo consultar el servicio. Ingresa los valores a mano.','e');
-    const info=document.getElementById('bcch-info');
-    if(info)info.innerHTML='No se pudo conectar ('+e.message+'). El servicio puede estar caído; '+
-      'consulta <a href="https://www.bcentral.cl/" target="_blank" rel="noopener" style="color:var(--ac)">bcentral.cl</a> e ingresa los valores manualmente.';
+    toast('⚠️ El servicio de indicadores no respondió. Ingresa los valores a mano.','e');
+    if(info)info.innerHTML='No se pudo conectar con mindicador.cl ('+(e.message||e)+'). El servicio puede estar caído o lento; '+
+      'consulta <a href="https://www.sii.cl/valores_y_fechas/" target="_blank" rel="noopener" style="color:var(--ac)">sii.cl</a> o '+
+      '<a href="https://www.bcentral.cl/" target="_blank" rel="noopener" style="color:var(--ac)">bcentral.cl</a> e ingresa los valores manualmente.';
   }finally{
     if(btn){btn.disabled=false;btn.textContent='🔄 Traer valores del Banco Central';}
   }
