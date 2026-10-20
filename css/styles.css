@@ -1970,3 +1970,11 @@ tr.fila-act td{background:rgba(10,110,209,.10)}
 .imp-pend{background:rgba(233,115,12,.12);color:var(--warn);border-radius:10px;padding:2px 8px;font-weight:700;font-size:11px;font-family:var(--sans)}
 .imp-ok{color:var(--ok,#107e3e);font-weight:700;font-size:11px;font-family:var(--sans)}
 .imp-ir{color:var(--ac);font-weight:600;font-family:var(--sans);font-size:11px}
+
+/* V2.21.87 — Plan de cuentas: encabezado, formulario y títulos de la tabla fijos */
+#s-pdc .pdc-fijo{position:sticky;top:0;z-index:30;background:var(--bg);box-shadow:0 -24px 0 var(--bg);display:flow-root}
+#s-pdc .pdc-fijo .sec-hdr{margin-bottom:12px}
+#s-pdc .pdc-fijo .doc-form{margin-bottom:12px;max-height:62vh;overflow-y:auto}
+#s-pdc #pdc-content .card-np,#s-pdc #pdc-content .tw{overflow:visible}
+#s-pdc #pdc-content thead th{position:sticky;top:var(--pdc-top,0px);z-index:20;box-shadow:0 1px 0 var(--bd),0 -6px 0 var(--bg)}
+@media print{#s-pdc .pdc-fijo{position:static;box-shadow:none}#s-pdc #pdc-content thead th{position:static}}

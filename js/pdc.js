@@ -421,6 +421,17 @@ async function resetPDC(){
   renderPDC();
 }
 
+// V2.21.87 — El encabezado (con el formulario de nueva cuenta) y los títulos de
+// la tabla quedan fijos al desplazarse. Los títulos se ubican justo bajo el
+// encabezado, cuya altura cambia al abrir o cerrar el formulario.
+let _pdcObs=null;
+function fijarEncabezadoPDC(){
+  const fijo=document.getElementById('pdc-fijo'),sec=document.getElementById('s-pdc');
+  if(!fijo||!sec)return;
+  const aplicar=()=>sec.style.setProperty('--pdc-top',Math.floor(fijo.getBoundingClientRect().height)+'px');
+  aplicar();
+  if(!_pdcObs&&typeof ResizeObserver!=='undefined'){_pdcObs=new ResizeObserver(aplicar);_pdcObs.observe(fijo);}
+}
 function renderPDC(){
   // Ordenar por código
   PDC.sort((a,b)=>a.cd.localeCompare(b.cd));
@@ -451,6 +462,7 @@ function renderPDC(){
     </tr>`;
   });
   document.getElementById('pdc-content').innerHTML=h+'</tbody></table></div></div>';
+  fijarEncabezadoPDC();
 }
 
 
