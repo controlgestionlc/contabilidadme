@@ -70,7 +70,7 @@ function compararPeriodo(periodo){
 }
 async function guardarReferenciaPiloto(periodo,referencia){
   if(!periodoValido(periodo))throw new Error('Período inválido');
-  if(AUTH.user?.rol!=='admin'&&AUTH.user?.rol!=='contador')throw new Error('Sin permiso');
+  if(!['admin','senior','contador'].includes(AUTH.user?.rol))throw new Error('Sin permiso');
   const anterior=PILOTO.periodos[periodo]||{};
   PILOTO.periodos[periodo]={...anterior,referencia:{...referencia},certificado:false,certificadoEn:null,certificadoPor:null,actualizadoEn:new Date().toISOString(),actualizadoPor:AUTH.user?.email||''};
   await persistir();

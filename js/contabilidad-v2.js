@@ -78,7 +78,7 @@ function puedeOperarFecha(fecha){
 }
 function puedeGestionarCierresMensuales(){
   const u=AUTH.user;
-  if(!u?.activo||!['admin','contador'].includes(u.rol))return false;
+  if(!u?.activo||!['admin','senior','contador'].includes(u.rol))return false;
   const e=empresaActiva();
   return !!e&&puedeVerEmpresa(e)&&puedeEditar('cierresmensuales');
 }

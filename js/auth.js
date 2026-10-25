@@ -4,6 +4,7 @@ import {toast} from './core.js';
 import {nav} from './ui.js';
 import {FS, initFirestore} from './firebase.js';
 import {seccionAplica} from './regimenes.js';
+import {iniciarInactividad, INACTIVIDAD_MIN} from './inactividad.js';
 
 // Callback que app.js registra para arrancar la app tras login exitoso.
 let _onAuthReady=null;
@@ -12,7 +13,7 @@ export const setOnAuthReady=fn=>{_onAuthReady=fn;};
 // ═══ SISTEMA DE AUTENTICACIÓN Y USUARIOS ═══
 // Estructura de un usuario en Firestore (colección "usuarios", doc.id = email):
 // {
-//   email, nombre, foto, rol: 'admin'|'contador'|'consulta',
+//   email, nombre, foto, rol: 'admin'|'senior'|'contador'|'consulta',
 //   activo: true|false,          // false = acceso revocado
 //   pendiente: false|true,       // true = intentó entrar pero admin no lo aprobó
 //   creadoEn, ultimoLogin,
@@ -25,12 +26,26 @@ export const setOnAuthReady=fn=>{_onAuthReady=fn;};
 //   }
 // }
 
-// Roles y sus permisos por defecto
+// Roles (V2.21.88)
+//  admin    → acceso total a todas las empresas (propias o de otros), gestiona
+//             usuarios y edita los perfiles. Sus permisos no se limitan.
+//  senior   → crea sus propias empresas y autoriza a usuarios Contador a
+//             trabajar en ellas. Ve sólo sus empresas y las que le asignen.
+//  contador → trabaja sólo en las empresas que le asignen. No crea empresas.
+//  consulta → rol heredado (sólo lectura). Es también el rol con que queda una
+//             cuenta recién registrada mientras espera aprobación.
+// Los permisos por módulo de Senior y Contador los define el administrador en
+// "Perfiles" (documento global `_perfiles`).
 const ROLES={
-  admin:{icon:'👑',label:'Administrador',color:'var(--ach)',descripcion:'Acceso total + gestión de usuarios'},
-  contador:{icon:'📝',label:'Contador',color:'var(--info)',descripcion:'Edición de todos los datos contables'},
-  consulta:{icon:'👁',label:'Consulta',color:'var(--mt)',descripcion:'Solo lectura de reportes'}
+  admin:{icon:'👑',label:'Administrador',color:'var(--ach)',descripcion:'Acceso total a todas las empresas + usuarios y perfiles'},
+  senior:{icon:'🎖',label:'Senior',color:'var(--ok,#3fb950)',descripcion:'Crea sus empresas y autoriza contadores en ellas'},
+  contador:{icon:'📝',label:'Contador',color:'var(--info)',descripcion:'Trabaja en las empresas que le asignen'},
+  consulta:{icon:'👁',label:'Consulta',color:'var(--mt)',descripcion:'Solo lectura (rol heredado)'}
 };
+// Roles cuyo perfil edita el administrador
+const ROLES_PERFIL=['senior','contador'];
+// Secciones exclusivas del administrador: no entran en los perfiles
+const SOLO_ADMIN=['usuarios','perfiles','auditlog','integridad'];
 
 // Secciones a las que se aplican permisos
 const SECCIONES=[
@@ -73,21 +88,71 @@ const SECCIONES=[
   {id:'cierre',lbl:'Cierre del Ejercicio'}
 ];
 
-// Permisos por rol (por defecto)
-function permisosDeRol(rol){
+// Permisos de fábrica de cada rol (antes de que el admin edite los perfiles)
+function permisosBase(rol){
   const p={};
   SECCIONES.forEach(s=>{
-    if(rol==='admin'||rol==='contador')p[s.id]='write';
+    if(rol==='admin'||rol==='senior'||rol==='contador')p[s.id]='write';
     else if(rol==='consulta')p[s.id]='read';
     else p[s.id]='none';
   });
   // Diagnóstico, alertas técnicas y trazabilidad global son exclusivos del
-  // administrador. El contador conserva operación total en sus empresas.
+  // administrador.
   if(rol!=='admin'){
     p.integridad='none';
     p.auditlog='none';
   }
+  // El Contador no administra empresas: puede ver el listado para cambiar de
+  // empresa, pero no crear ni editar.
+  if(rol==='contador')p.empresas='read';
   return p;
+}
+
+// Perfiles editados por el administrador: {senior:{seccion:nivel}, contador:{...}}
+// Se cargan al iniciar sesión desde el documento global `_perfiles` y se
+// recuerdan en este equipo para el arranque rápido.
+const PERFILES={datos:{},actualizadoEn:'',actualizadoPor:''};
+const CLAVE_PERFILES_CACHE='cv:perfiles-cache';
+const NIVELES=['none','read','write'];
+
+function setPerfiles(d){
+  const limpio={};
+  ROLES_PERFIL.forEach(r=>{
+    const src=(d&&d[r])||{};
+    const o={};
+    SECCIONES.forEach(s=>{if(NIVELES.includes(src[s.id]))o[s.id]=src[s.id];});
+    limpio[r]=o;
+  });
+  PERFILES.datos=limpio;
+  PERFILES.actualizadoEn=(d&&d._actualizadoEn)||'';
+  PERFILES.actualizadoPor=(d&&d._actualizadoPor)||'';
+  try{localStorage.setItem(CLAVE_PERFILES_CACHE,JSON.stringify({...limpio,_actualizadoEn:PERFILES.actualizadoEn,_actualizadoPor:PERFILES.actualizadoPor}));}catch(e){}
+}
+function perfilesRecordados(){
+  try{const d=JSON.parse(localStorage.getItem(CLAVE_PERFILES_CACHE)||'null');if(d)setPerfiles(d);}catch(e){}
+}
+async function cargarPerfiles(){
+  try{
+    if(!window.storage||!window.storage.leerGlobalConEstado)return false;
+    const r=await window.storage.leerGlobalConEstado('_perfiles');
+    if(r.fuente==='error')return false;
+    setPerfiles(r.value?JSON.parse(r.value):{});
+    return true;
+  }catch(e){console.warn('No se pudieron cargar los perfiles:',e);return false;}
+}
+
+// Permisos efectivos de un rol: los de fábrica corregidos por su perfil
+function permisosDeRol(rol){
+  const p=permisosBase(rol);
+  if(ROLES_PERFIL.includes(rol))Object.assign(p,PERFILES.datos[rol]||{});
+  // Lo exclusivo del administrador no se abre por perfil
+  if(rol!=='admin'){p.integridad='none';p.auditlog='none';}
+  return p;
+}
+
+// Admin y Senior crean empresas; Contador y Consulta no.
+function puedeCrearEmpresas(){
+  return !!(AUTH.user&&AUTH.user.activo&&(AUTH.user.rol==='admin'||AUTH.user.rol==='senior'));
 }
 
 // Estado global del usuario actual
@@ -100,7 +165,10 @@ function permiso(seccion){
   // El Importador RCV opera sobre el Libro de Compras/Ventas: comparte el permiso de Compras.
   if(seccion==='importrcv')seccion='compras';
   if(!AUTH.user||!AUTH.user.activo)return 'none';
-  // Permisos custom sobrescriben rol
+  // El administrador tiene acceso total, sin excepciones
+  if(AUTH.user.rol==='admin')return 'write';
+  if(SOLO_ADMIN.includes(seccion))return 'none';
+  // Permisos custom del usuario sobrescriben su perfil
   if(AUTH.user.permisos&&AUTH.user.permisos[seccion])return AUTH.user.permisos[seccion];
   return permisosDeRol(AUTH.user.rol)[seccion]||'none';
 }
@@ -316,6 +384,7 @@ async function verificarUsuarioAutorizado(fbUser){
   // cierra sesión abajo.
   const recordado=perfilRecordado(fbUser.email);
   if(recordado&&!AUTH.user){
+    perfilesRecordados();
     entrarConPerfil(recordado);
   }
   const yaDentro=!!AUTH.user;
@@ -422,6 +491,9 @@ async function verificarUsuarioAutorizado(fbUser){
       }).catch(()=>{});
     }
 
+    // Perfiles de permisos (los define el admin). Si la nube no responde se
+    // usan los últimos conocidos en este equipo.
+    await cargarPerfiles();
     recordarPerfil(userData);
     entrarConPerfil(userData);
   }catch(e){
@@ -465,12 +537,32 @@ function entrarConPerfil(userData){
     // Mostrar item Usuarios si es admin
     if(esAdmin()){
       document.getElementById('nav-usuarios').style.display='';
+      const np=document.getElementById('nav-perfiles');if(np)np.style.display='';
       const na=document.getElementById('nav-auditlog');if(na)na.style.display='';
     }
     // Aplicar filtros de permisos a la UI
     aplicarPermisosUI();
+    // Cierre automático tras 30 minutos sin actividad (V2.21.89)
+    iniciarInactividad(cerrarPorInactividad);
     // Iniciar la app si aún no ha iniciado
     if(!window._appInited){window._appInited=true;(_onAuthReady||(()=>{}))();}
+}
+
+// Cierre de sesión por inactividad: sin preguntas (nadie está mirando). Antes
+// se intenta guardar lo pendiente; al volver, el login explica qué pasó.
+const CLAVE_MOTIVO='cv:motivo-cierre';
+async function cerrarPorInactividad(){
+  try{
+    const pendiente=!!(window.haySinGuardar&&window.haySinGuardar());
+    if(pendiente&&window.saveAll){
+      await Promise.race([window.saveAll({silencioso:true}),new Promise(r=>setTimeout(r,8000))]);
+    }
+  }catch(e){console.warn('No se pudo guardar antes del cierre por inactividad:',e);}
+  try{sessionStorage.setItem(CLAVE_MOTIVO,'inactividad');}catch(e){}
+  try{await AUTH.auth.signOut();}catch(e){}
+  olvidarPerfil();
+  try{window.olvidarNav&&window.olvidarNav();}catch(e){}
+  location.reload();
 }
 
 function mostrarLogin(){
@@ -482,6 +574,13 @@ function mostrarLogin(){
   if(btn){btn.disabled=false;btn.style.opacity='1';}
   document.getElementById('user-badge').style.display='none';
   AUTH.user=null;
+  try{
+    if(sessionStorage.getItem(CLAVE_MOTIVO)==='inactividad'){
+      sessionStorage.removeItem(CLAVE_MOTIVO);
+      const ok=document.getElementById('login-success');
+      if(ok){ok.style.display='';ok.textContent=`🔒 Tu sesión se cerró tras ${INACTIVIDAD_MIN} minutos sin actividad. Vuelve a ingresar.`;}
+    }
+  }catch(e){}
 }
 
 async function logout(){
@@ -513,7 +612,7 @@ const SECCION_POR_REGIMEN={correccion:'correccion', activofijo:'activofijo',
 function aplicarPermisosUI(){
   document.querySelectorAll('.nav-item[data-s]').forEach(item=>{
     const s=item.getAttribute('data-s');
-    if(['usuarios','auditlog','integridad'].includes(s)){
+    if(SOLO_ADMIN.includes(s)){
       item.style.display=esAdmin()?'':'none';return;
     }
     if(!puedeVer(s)){item.style.display='none';return;}
@@ -545,4 +644,5 @@ function ocultarGruposVacios(){
 
 
 export {sesionPersistente, setSesionPersistente,
-  ROLES, SECCIONES, permisosDeRol, permiso, puedeVer, puedeEditar, esAdmin, initAuth, LOGIN_MODE, toggleLoginMode, submitLogin, recuperarPassword, verificarUsuarioAutorizado, mostrarLogin, logout, aplicarPermisosUI};
+  ROLES, ROLES_PERFIL, SOLO_ADMIN, PERFILES, permisosBase, setPerfiles, cargarPerfiles, puedeCrearEmpresas,
+  SECCIONES, permisosDeRol, permiso, puedeVer, puedeEditar, esAdmin, initAuth, LOGIN_MODE, toggleLoginMode, submitLogin, recuperarPassword, verificarUsuarioAutorizado, mostrarLogin, logout, aplicarPermisosUI};

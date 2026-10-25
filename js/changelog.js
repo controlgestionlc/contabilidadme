@@ -8,13 +8,25 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.20-1630';
+const APP_VERSION='v2026.10.25-1145';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.89',fecha:'25-10-2026',titulo:'Inicio obligatorio y cierre por inactividad',items:[
+    {tipo:'cambio',txt:'Al iniciar sesión siempre se parte en Inicio, donde se elige la empresa. Al hacer clic en una empresa se abre directamente Comprobantes (si el usuario tiene acceso a ese módulo).'},
+    {tipo:'nuevo',txt:'La sesión se cierra sola tras 30 minutos sin actividad. Un minuto antes aparece un aviso con cuenta regresiva y el botón "Seguir trabajando". Antes de cerrar se intenta guardar lo pendiente, y al volver el login explica por qué se cerró.'},
+  ]},
+  {version:'V2.21.88',fecha:'25-10-2026',titulo:'Usuarios: Administrador, Senior y Contador, con perfiles',items:[
+    {tipo:'nuevo',txt:'Nuevo tipo de usuario Senior: crea sus propias empresas y autoriza a usuarios Contador a trabajar en ellas (Empresas → 👥). Ve sólo sus empresas y las que le asignen.'},
+    {tipo:'cambio',txt:'El Contador trabaja sólo en las empresas que le asignen y ya no puede crear empresas. Si entra sin empresas asignadas, se le indica que las pida.'},
+    {tipo:'nuevo',txt:'Nuevo módulo 🛡️ Perfiles (sólo administrador): define para Senior y Contador el acceso a cada módulo (Sin acceso, Lectura o Edición). Los permisos personalizados de un usuario siguen mandando sobre su perfil.'},
+    {tipo:'cambio',txt:'El administrador tiene acceso total a todas las empresas, propias o de otros usuarios, y desde 👥 asigna el dueño (Senior) y los usuarios de cada empresa. Las empresas sin dueño sólo las ve el administrador.'},
+    {tipo:'arreglo',txt:'Aprobar una cuenta pendiente ahora pide elegir su tipo de usuario; antes quedaba activa con el rol de sólo consulta con que se registró.'},
+    {tipo:'cambio',txt:'Reglas de Firestore actualizadas: sólo Administrador y Senior crean empresas, el Senior puede listar a los Contadores y sólo el administrador guarda los perfiles. Hay que publicar el nuevo firestore.rules.'},
+  ]},
   {version:'V2.21.87',fecha:'20-10-2026',titulo:'Plan de cuentas: encabezado fijo',items:[
     {tipo:'cambio',txt:'En el Plan de Cuentas, el encabezado, el formulario "Nueva Cuenta" y los títulos de la tabla quedan fijos al desplazarse, para crear cuentas mirando el listado sin perder el formulario.'},
   ]},

@@ -19,7 +19,14 @@ rules_version = '2';
 //  Modelo de datos
 //  ───────────────
 //  usuarios/<email>              { email, nombre, rol, activo, pendiente, ... }
-//      rol ∈ { 'admin', 'contador', 'consulta' }
+//      rol ∈ { 'admin', 'senior', 'contador', 'consulta' }
+//      admin    → todas las empresas, usuarios y perfiles
+//      senior   → crea sus empresas y autoriza contadores en ellas
+//      contador → trabaja sólo en las empresas que le asignen
+//      consulta → heredado / cuenta recién registrada (sólo lectura)
+//
+//  contabilidad_data/_perfiles   permisos por módulo de Senior y Contador
+//      (sólo lo escribe un admin; lo leen todos los usuarios activos)
 //
 //  empresas_acl/<empresaId>      { nombre, creadoPor, miembros:[emails], ts }
 //      Espejo legible por las reglas del catálogo de empresas. Existe porque
@@ -76,6 +83,13 @@ service cloud.firestore {
     function escribe() {
       return activo() && rol() != 'consulta';
     }
+    // V2.21.88 · Senior: crea sus empresas y autoriza contadores
+    function esSenior() {
+      return activo() && rol() == 'senior';
+    }
+    function creaEmpresas() {
+      return esAdmin() || esSenior();
+    }
 
     // ── Pertenencia a una empresa ──────────────────────────────────────────
     function rutaAcl(emp) {
@@ -112,10 +126,11 @@ service cloud.firestore {
     // (V2.21.20): lo escribe él mismo, o un administrador.
     function globalPropio(id) {
       return id == '_empresaActiva:' + correo()
-        || id == '_empresas_u:' + correo();
+        || (id == '_empresas_u:' + correo() && creaEmpresas());
     }
     function globalAdmin(id) {
       return id == '_empresas' || id == '_migrado_multiempresa'
+        || id == '_perfiles'
         || id.matches('^_empresas_u:.*');
     }
 
@@ -127,7 +142,10 @@ service cloud.firestore {
       // El arranque del sistema (auth.js) consulta `limit(2)` para saber si es
       // el primer usuario. Se permite esa consulta acotada a cualquier
       // autenticado; el listado completo queda sólo para administradores.
+      // Un Senior puede listar SÓLO las fichas de Contador (consulta con
+      // where('rol','==','contador')) para autorizarlos en sus empresas.
       allow list: if esAdmin()
+        || (esSenior() && resource.data.rol == 'contador')
         || (request.auth != null && request.query.limit <= 2);
 
       // Alta, por dos caminos:
@@ -173,26 +191,24 @@ service cloud.firestore {
       allow read: if activo()
         && (esAdmin() || (hayAcl(empresaId) && correo() in resource.data.miembros) || resource.data.creadoPor == correo());
 
-      // Crear el ACL de una empresa: debes quedar tú como dueño.
-      // (La migración de empresas heredadas la hace un administrador.)
-      allow create: if escribe()
+      // Crear el ACL de una empresa: sólo admin o Senior, y el Senior debe
+      // quedar como dueño. Un Contador no crea empresas.
+      allow create: if creaEmpresas()
         && request.resource.data.miembros is list
         && (esAdmin() || request.resource.data.creadoPor == correo());
 
-      // Modificar miembros: sólo el dueño o un admin. Una empresa heredada
-      // (sin dueño) la puede reclamar cualquier usuario que pueda escribir.
-      // El dueño debe seguir dentro de `miembros`: nadie se deja fuera solo.
-      allow update: if escribe()
-        && request.resource.data.miembros is list
-        && (
-             request.resource.data.creadoPor == ''
-             || request.resource.data.creadoPor in request.resource.data.miembros
-           )
+      // Modificar miembros: el administrador, o el Senior dueño (que no puede
+      // traspasarla ni dejarse fuera). Las empresas sin dueño las asigna el
+      // administrador.
+      allow update: if request.resource.data.miembros is list
         && (
              esAdmin()
-             || !('creadoPor' in resource.data)      // ACL a medio escribir
-             || resource.data.creadoPor == ''        // empresa heredada: reclamable
-             || resource.data.creadoPor == correo()  // eres el dueño
+             || (
+                  esSenior()
+                  && resource.data.creadoPor == correo()
+                  && request.resource.data.creadoPor == correo()
+                  && correo() in request.resource.data.miembros
+                )
            );
 
       allow delete: if esAdmin();

@@ -9,7 +9,7 @@ import {ejercicioCerrado,periodoCerrado,cerrarPeriodoContable,reabrirPeriodoCont
 
 function puedeGestionarCierresMensuales(){
   const u=AUTH.user;
-  if(!u?.activo||!['admin','contador'].includes(u.rol))return false;
+  if(!u?.activo||!['admin','senior','contador'].includes(u.rol))return false;
   const e=empresaActiva();
   if(!e||!puedeVerEmpresa(e))return false;
   return puedeEditar('cierresmensuales');

@@ -13,8 +13,9 @@ import {AUTH} from './state.js';
 import {EMPRESAS, empresaActiva, esDuenioDeEmpresa, empresaSinDuenio,
         activarEmpresa, empresasDeOtros, setVerOtras} from './empresas.js';
 import {regimenInfo} from './regimenes.js';
-import {marcoInfo} from './empresas.js';
+import {marcoInfo, puedeCrearEmpresasActual} from './empresas.js';
 import {toast} from './core.js';
+import {puedeVer} from './auth.js';
 
 const esc=s=>String(s==null?'':s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -43,9 +44,10 @@ export function renderInicio(){
           ${EMPRESAS.errorCarga
             ? `<span style="color:var(--err)">No se pudo leer el catálogo de empresas.</span><br>
                <span style="font-size:12px">Revisa <strong>Configuración → Empresas</strong> antes de cargar datos.</span>`
-            : 'Todavía no tienes empresas.'}
+            : puedeCrearEmpresasActual()?'Todavía no tienes empresas.'
+              :'Todavía no tienes empresas asignadas.<br><span style="font-size:12px">Pide a un usuario Senior o al administrador que te asigne una.</span>'}
         </div>
-        ${EMPRESAS.errorCarga?'':`
+        ${EMPRESAS.errorCarga||!puedeCrearEmpresasActual()?'':`
         <button class="btn btn-p" onclick="nav('empresas');setTimeout(abrirFormEmpresa,120)">+ Crear mi primera empresa</button>`}
       </div>`;
     return;
@@ -58,7 +60,7 @@ export function renderInicio(){
     const reg=regimenInfo(e.regimen);
     const marca=marcoInfo(e.marco);
     const dueno=huerfana
-      ? '<span class="badge" style="background:rgba(210,153,34,.15);color:var(--warn)">heredada</span>'
+      ? '<span class="badge" style="background:rgba(210,153,34,.15);color:var(--warn)">sin dueño</span>'
       : (mia?'<span class="badge bg">tuya</span>'
             :`<span class="badge bb" title="Creada por ${esc(e.creadoPor)}">de ${esc(String(e.creadoPor).split('@')[0])}</span>`);
     const compartida=(e.compartidaCon||[]).length;
@@ -117,11 +119,17 @@ export function alternarVerOtras(){
 export async function abrirEmpresaInicio(id){
   const e=(EMPRESAS.lista||[]).find(x=>x.id===id);
   if(!e){toast('⚠️ Esa empresa ya no está disponible','e');renderInicio();return;}
-  if(id===EMPRESAS.activa){ if(window.nav)window.nav('comprobantes'); return; }
+  // Al entrar a una empresa se abre Comprobantes (V2.21.89), si el usuario
+  // tiene acceso a ese módulo; si no, se queda en Inicio.
+  const irAComprobantes=()=>{
+    if(window.nav&&puedeVer('comprobantes'))window.nav('comprobantes');
+  };
+  if(id===EMPRESAS.activa){ irAComprobantes(); return; }
 
   const ok=await activarEmpresa(id);
   if(!ok)return;
   if(window.recargarEmpresaActiva)await window.recargarEmpresaActiva();
   toast('🏢 Empresa activa: '+e.nombre);
   renderInicio();
+  irAComprobantes();
 }

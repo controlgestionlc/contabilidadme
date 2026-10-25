@@ -23,15 +23,11 @@ export const marcoInfo=id=>MARCOS.find(m=>m.id===id)||MARCOS[0];
 
 // ── Visibilidad por usuario ──
 // Cada empresa guarda quién la creó (`creadoPor`, el email) y con quién está
-// compartida (`compartidaCon`, lista de emails). Un usuario ve sus empresas,
-// las que le compartieron y las heredadas (las que existían antes de este
-// cambio, que no tienen dueño y quedan visibles para todos hasta que alguien
-// las reclame). Los administradores ven todo el catálogo.
-//
-// IMPORTANTE: esto es visibilidad de interfaz, no aislamiento de datos. Los
-// documentos siguen en la misma colección de Firestore y las reglas actuales
-// permiten leerlos a cualquier usuario activo. Para aislamiento real hay que
-// endurecer las reglas (ver README).
+// compartida (`compartidaCon`, lista de emails). Un Senior o Contador ve sólo
+// sus empresas y las que le asignaron. Las heredadas (sin dueño) sólo las ve
+// el administrador, que ve todo el catálogo.
+// El acceso real a los datos lo deciden las reglas de Firestore a través de
+// `empresas_acl` (miembros = dueño + compartidos).
 export const EMPRESAS={
   lista:[],        // visibles para el usuario en sesión
   todas:[],        // catálogo completo (lo que se persiste)
@@ -43,12 +39,17 @@ export const EMPRESAS={
 
 const emailActual=()=>((AUTH.user&&AUTH.user.email)||'').toLowerCase();
 const esAdminActual=()=>!!(AUTH.user&&AUTH.user.activo&&AUTH.user.rol==='admin');
+// Admin y Senior crean empresas (V2.21.88); Contador y Consulta trabajan sólo
+// en las que les asignen.
+export const puedeCrearEmpresasActual=()=>!!(AUTH.user&&AUTH.user.activo&&['admin','senior'].includes(AUTH.user.rol));
 
 export const empresaSinDuenio=e=>!e.creadoPor;
 export function puedeVerEmpresa(e){
   if(!e)return false;
   if(esAdminActual())return true;              // el admin administra todo el catálogo
-  if(empresaSinDuenio(e))return true;          // heredada: visible hasta que se reclame
+  // Heredada (sin dueño): sólo el administrador la ve, y es quien le asigna
+  // dueño (V2.21.88). Antes la veía todo el mundo hasta que alguien la reclamara.
+  if(empresaSinDuenio(e))return false;
   const yo=emailActual();
   if(!yo)return true;                          // sin sesión identificada, no ocultamos nada
   if(String(e.creadoPor).toLowerCase()===yo)return true;
@@ -312,7 +313,9 @@ export async function cargarEmpresas(){
   }
   if(!EMPRESAS.activa||!EMPRESAS.lista.find(e=>e.id===EMPRESAS.activa)){
     if(!EMPRESAS.lista.length){
-      if(AUTH.user&&AUTH.user.rol==='consulta'){
+      // Contador (o Consulta) sin empresas asignadas: no se le crea ninguna;
+      // tiene que asignársela un Senior o el administrador.
+      if(!puedeCrearEmpresasActual()){
         EMPRESAS.sinEmpresas=true;EMPRESAS.activa=null;
         return EMPRESAS;
       }
@@ -375,6 +378,9 @@ export async function guardarCatalogo(){
     const json=JSON.stringify(lista);
     if(info&&info.ultimo===json)continue;           // sin cambios
     if(!info&&!lista.length)continue;               // nada que crear
+    // Un catálogo propio que nunca existió y sigue vacío (típico de un
+    // Contador, que no crea empresas) no se escribe: las reglas lo rechazan.
+    if(!admin&&!lista.length&&info&&info.ultimo===null)continue;
     const r=await window.storage.setGlobal(doc,json,{fusionar:true});
     if(r&&r.conflicto){ok=false;continue;}
     if(r&&r.ok===false){
@@ -415,6 +421,7 @@ export async function asegurarAccesoEmpresa(id){
 
 // ── Operaciones ──
 export async function crearEmpresa(nombre,rut,marco,regimen,plantillaPdc){
+  if(!puedeCrearEmpresasActual())throw new Error('Sólo un usuario Senior o el administrador pueden crear empresas');
   // El id debe ser único aunque se creen dos empresas en el mismo milisegundo
   // (pasaba al auto-crear la empresa de un usuario justo después de otra).
   let id='emp'+Date.now().toString(36);
@@ -444,10 +451,11 @@ export async function compartirEmpresa(id,emails){
   await guardarCatalogo();
   return true;
 }
-// Reclama una empresa heredada (sin dueño) o traspasa el dueño (solo admin)
+// Asigna dueño a una empresa heredada o traspasa el dueño (sólo admin)
 export async function asignarDuenio(id,email){
   const e=EMPRESAS.todas.find(x=>x.id===id);
   if(!e)return false;
+  if(!esAdminActual())throw new Error('Sólo el administrador puede asignar o traspasar el dueño de una empresa');
   e.creadoPor=String(email||'').trim().toLowerCase();
   e.compartidaCon=(e.compartidaCon||[]).filter(x=>String(x).toLowerCase()!==e.creadoPor);
   // Un traspaso hecho por un admin deja la empresa en el maestro: ya no

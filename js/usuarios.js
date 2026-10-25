@@ -4,6 +4,8 @@ import {S, AUTH} from './state.js';
 import {FS} from './firebase.js';
 import {ROLES, esAdmin, permisosDeRol, SECCIONES} from './auth.js';
 
+const ROLES_VALIDOS=['admin','senior','contador','consulta'];
+
 // ═══ GESTIÓN DE USUARIOS (solo admin) ═══
 let US={usuarios:[],editEmail:null,permCustom:false};
 
@@ -16,6 +18,20 @@ async function cargarUsuarios(){
   }catch(e){console.error(e);toast('Error cargando usuarios','e');}
 }
 
+// Un usuario Senior necesita la lista de Contadores para autorizarlos en sus
+// empresas. Las reglas sólo le dejan consultar las fichas con rol 'contador'.
+async function cargarContadores(){
+  if(!FS.enabled||!FS.db)return [];
+  if(esAdmin()){await cargarUsuarios();return US.usuarios;}
+  try{
+    const snap=await FS.db.collection('usuarios').where('rol','==','contador').get();
+    const lista=[];
+    snap.forEach(doc=>{const d=doc.data()||{};lista.push({email:doc.id,nombre:d.nombre||'',rol:d.rol,activo:!!d.activo});});
+    US.usuarios=lista.sort((a,b)=>a.email.localeCompare(b.email));
+    return US.usuarios;
+  }catch(e){console.warn('No se pudo leer la lista de contadores:',e);return [];}
+}
+
 async function renderUsuarios(){
   if(!esAdmin()){
     document.getElementById('us-content').innerHTML='<div class="empty"><div class="ei">🚫</div>Solo los administradores pueden gestionar usuarios.</div>';
@@ -25,7 +41,8 @@ async function renderUsuarios(){
   const pendientes=US.usuarios.filter(u=>u.pendiente&&!u.activo);
   const activos=US.usuarios.filter(u=>u.activo);
   const desactivados=US.usuarios.filter(u=>!u.activo&&!u.pendiente);
-  document.getElementById('us-sub').textContent=`${US.usuarios.length} usuarios · ${activos.length} activos · ${pendientes.length} pendientes · ${desactivados.length} desactivados`;
+  const porRol=r=>activos.filter(u=>u.rol===r).length;
+  document.getElementById('us-sub').textContent=`${US.usuarios.length} usuarios · ${activos.length} activos (${porRol('admin')} admin · ${porRol('senior')} senior · ${porRol('contador')} contador${porRol('consulta')?' · '+porRol('consulta')+' consulta':''}) · ${pendientes.length} pendientes · ${desactivados.length} desactivados`;
 
   let h='';
   if(pendientes.length){
@@ -49,7 +66,7 @@ function renderRowUsuario(u,esPendiente){
   const ultimo=u.ultimoLogin&&u.ultimoLogin.toDate?u.ultimoLogin.toDate().toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'}):'—';
   const acciones=[];
   if(esPendiente||!u.activo){
-    acciones.push(`<button class="btn btn-s" style="padding:3px 7px;font-size:10px" onclick="aprobarUsuario('${u.email}')">✅ Aprobar</button>`);
+    acciones.push(`<button class="btn btn-s" style="padding:3px 7px;font-size:10px" onclick="aprobarUsuario('${u.email}')" title="Elegir su tipo de usuario y activarlo">✅ Aprobar</button>`);
   }else{
     acciones.push(`<button class="btn btn-i" style="padding:3px 7px;font-size:10px" onclick="editarUsuario('${u.email}')">✏️ Editar</button>`);
     if(u.email!==AUTH.user.email){
@@ -60,7 +77,7 @@ function renderRowUsuario(u,esPendiente){
   return `<tr>
     <td class="tl">${avatar}${u.nombre||'(sin nombre)'}${u.email===AUTH.user.email?' <span style="font-size:9px;color:var(--info);margin-left:4px">(tú)</span>':''}</td>
     <td class="tl" style="font-family:var(--mono);font-size:11px">${u.email}</td>
-    <td><span style="color:${rol.color};font-weight:600">${rol.icon} ${rol.label}</span></td>
+    <td>${esPendiente?'<span style="color:var(--mt);font-size:11px">por asignar</span>':`<span style="color:${rol.color};font-weight:600">${rol.icon} ${rol.label}</span>`}</td>
     <td>${estado}</td>
     <td style="font-size:10px;color:var(--mt)">${ultimo}</td>
     <td style="text-align:center">${acciones.join(' ')}</td>
@@ -72,20 +89,30 @@ function abrirInvitarUsuario(){
   document.getElementById('us-form-title').textContent='Invitar nuevo usuario';
   document.getElementById('us-email').value='';document.getElementById('us-email').disabled=false;
   document.getElementById('us-nombre').value='';
+  mostrarOpcionConsulta(false);
   document.getElementById('us-rol').value='contador';
   renderPermisosForm();
   document.getElementById('us-form').style.display='block';
   document.getElementById('us-form').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-function editarUsuario(email){
+function mostrarOpcionConsulta(v){
+  const o=document.getElementById('us-rol-consulta');if(o)o.hidden=!v;
+}
+
+function editarUsuario(email,{aprobando=false}={}){
   const u=US.usuarios.find(x=>x.email===email);if(!u)return;
   US.editEmail=email;
   US.permCustom=!!u.permisos;
-  document.getElementById('us-form-title').textContent='Editar usuario — '+email;
+  document.getElementById('us-form-title').textContent=(aprobando?'Aprobar usuario — ':'Editar usuario — ')+email;
   document.getElementById('us-email').value=email;document.getElementById('us-email').disabled=true;
   document.getElementById('us-nombre').value=u.nombre||'';
-  document.getElementById('us-rol').value=u.rol||'consulta';
+  // Una cuenta pendiente llega con rol 'consulta' (así la crean las reglas):
+  // al aprobarla se propone Contador. El rol Consulta sólo se ofrece a quien
+  // ya lo tiene (rol heredado).
+  const rolInicial=aprobando?'contador':(u.rol||'contador');
+  mostrarOpcionConsulta(!aprobando&&u.rol==='consulta');
+  document.getElementById('us-rol').value=rolInicial;
   renderPermisosForm(u.permisos);
   document.getElementById('us-form').style.display='block';
   document.getElementById('us-form').scrollIntoView({behavior:'smooth',block:'start'});
@@ -99,12 +126,12 @@ function renderPermisosForm(permisosActuales){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <label style="font-size:11px;cursor:pointer">
         <input type="checkbox" id="us-perm-custom" ${US.permCustom?'checked':''} onchange="US.permCustom=this.checked;renderPermisosForm()">
-        Personalizar permisos (sobrescribe el rol)
+        Personalizar permisos de este usuario (sobrescribe su perfil)
       </label>
-      <span style="font-size:10px;color:var(--mt)">💡 Sin personalizar, se usan los permisos del rol seleccionado.</span>
+      <span style="font-size:10px;color:var(--mt)">${rol==='admin'?'👑 El administrador tiene acceso total: no se le aplican permisos.':'💡 Sin personalizar, se usa el perfil del rol (🛡️ Perfiles).'}</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 12px;${!US.permCustom?'opacity:.4;pointer-events:none':''}">
-      ${SECCIONES.map(s=>`
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 12px;${!US.permCustom||rol==='admin'?'opacity:.4;pointer-events:none':''}">
+      ${SECCIONES.filter(s=>!['integridad','auditlog'].includes(s.id)).map(s=>`
         <div style="display:flex;align-items:center;gap:8px">
           <span style="flex:1;font-size:11px">${s.lbl}</span>
           <select id="us-p-${s.id}" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);padding:3px 6px;border-radius:4px;font-size:10px">
@@ -134,12 +161,13 @@ async function guardarUsuario(){
   const nombre=document.getElementById('us-nombre').value.trim();
   const rol=document.getElementById('us-rol').value;
   if(!email||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast('⚠️ Email inválido','e');return;}
-  if(!['admin','contador','consulta'].includes(rol)){toast('⚠️ Rol inválido','e');return;}
+  if(!ROLES_VALIDOS.includes(rol)){toast('⚠️ Rol inválido','e');return;}
+  if(US.editEmail&&email===AUTH.user.email&&rol!=='admin'){toast('⚠️ No puedes quitarte el rol de administrador a ti mismo','e');return;}
 
   let permisos=null;
-  if(US.permCustom){
+  if(US.permCustom&&rol!=='admin'){
     permisos={};
-    SECCIONES.forEach(s=>{permisos[s.id]=document.getElementById('us-p-'+s.id).value;});
+    SECCIONES.forEach(s=>{const el=document.getElementById('us-p-'+s.id);if(el)permisos[s.id]=el.value;});
   }
 
   try{
@@ -169,12 +197,10 @@ async function guardarUsuario(){
   }
 }
 
-async function aprobarUsuario(email){
-  try{
-    await FS.db.collection('usuarios').doc(email).update({activo:true,pendiente:false});
-    toast('✅ Usuario aprobado');
-    await renderUsuarios();
-  }catch(e){toast('❌ '+e.message,'e');}
+// Aprobar abre el formulario para elegir el tipo de usuario: antes se activaba
+// tal cual y la cuenta quedaba con el rol 'consulta' con que se registró.
+function aprobarUsuario(email){
+  editarUsuario(email,{aprobando:true});
 }
 
 async function desactivarUsuario(email){
@@ -189,4 +215,4 @@ async function desactivarUsuario(email){
 }
 
 
-export {US, cargarUsuarios, renderUsuarios, renderRowUsuario, abrirInvitarUsuario, editarUsuario, renderPermisosForm, cerrarUsuarioForm, guardarUsuario, aprobarUsuario, desactivarUsuario};
+export {US, cargarUsuarios, cargarContadores, renderUsuarios, renderRowUsuario, abrirInvitarUsuario, editarUsuario, renderPermisosForm, cerrarUsuarioForm, guardarUsuario, aprobarUsuario, desactivarUsuario};

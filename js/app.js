@@ -27,6 +27,7 @@ import {initAuth, puedeVer, puedeEditar, esAdmin, ROLES, SECCIONES, permisosDeRo
 import {cargarUsuarios, renderUsuarios, abrirInvitarUsuario, editarUsuario,
         renderPermisosForm, cerrarUsuarioForm, guardarUsuario, aprobarUsuario,
         desactivarUsuario, US} from './usuarios.js';
+import {renderPerfiles, setNivelPerfil, setTodosPerfil, restablecerPerfil, descartarPerfiles, guardarPerfiles} from './perfiles.js';
 import {renderAuditLog} from './audit.js';
 import {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI} from './integridad.js';
 import {renderCierresMensuales,cerrarMesContableOperativo,reabrirMesContableOperativo} from './cierres-mensuales.js';
@@ -409,10 +410,10 @@ async function initApp(){
     nav('empresas');
     return;
   }
-  // Rol Consulta sin empresas compartidas: no hay nada que abrir
+  // Contador (o Consulta) sin empresas asignadas: no hay nada que abrir
   if(EMPRESAS.sinEmpresas){
-    toast('ℹ️ Aún no tienes empresas asignadas. Pide a un administrador o al dueño que te comparta una.','e');
-    nav('empresas');
+    toast('ℹ️ Aún no tienes empresas asignadas. Pide a un usuario Senior o al administrador que te asigne una.','e');
+    nav('inicio');
     return;
   }
   window.storage.setPrefijo(EMPRESAS.activa);
@@ -505,10 +506,13 @@ async function initApp(){
   // Aplicar permisos por si el usuario no puede ver la sección actual
   aplicarPermisosUI();
   initNavGroups();
-  retomarUltimaSeccion();
+  // V2.21.89 · Tras iniciar sesión siempre se parte en Inicio, donde se elige
+  // la empresa. (Antes se retomaba la última pantalla visitada.)
+  nav('inicio');
 }
 
-// Volver a la pantalla donde se estaba.
+// Volver a la pantalla donde se estaba. Sin uso desde V2.21.89 (siempre se
+// parte en Inicio); se conserva por si se quiere volver a activar.
 // Instalada en el teléfono, Android descarta el proceso de la app apenas pasas
 // un rato en otra aplicación. Al volver, la app arranca de cero: con la sesión
 // recordada ya no pide la contraseña, y con esto tampoco pierde la pantalla.
@@ -604,7 +608,7 @@ function nav(s){
 function renderSec(s){
   // Las pantallas de administración y sus alertas no se exponen aunque se
   // intente abrirlas mediante un enlace o un estado de navegación antiguo.
-  if(AUTH.user&&['usuarios','auditlog','integridad'].includes(s)&&AUTH.user.rol!=='admin'){
+  if(AUTH.user&&['usuarios','perfiles','auditlog','integridad'].includes(s)&&AUTH.user.rol!=='admin'){
     const sec=document.getElementById('s-'+s);
     if(sec)sec.innerHTML='<div class="empty"><div class="ei">🔒</div>Sección disponible sólo para administración.</div>';
     return;
@@ -612,7 +616,7 @@ function renderSec(s){
   // Verificar permiso de acceso a la sección.
   // 'empresa' y 'usuarios' se excluyen del bloqueo genérico: empresa es la landing,
   // y usuarios tiene su propio control de admin dentro de renderUsuarios().
-  if(AUTH.user&&s!=='inicio'&&s!=='empresa'&&s!=='usuarios'&&s!=='auditlog'&&!puedeVer(s)){
+  if(AUTH.user&&s!=='inicio'&&s!=='empresa'&&s!=='usuarios'&&s!=='perfiles'&&s!=='auditlog'&&!puedeVer(s)){
     const sec=document.getElementById('s-'+s);
     if(sec)sec.innerHTML='<div class="empty"><div class="ei">🚫</div>No tienes permiso para acceder a esta sección.<br><br>Contacta a un administrador para solicitar acceso.</div>';
     return;
@@ -626,6 +630,7 @@ function renderSec(s){
   else if(s==='indicadores')renderIndicadores();
   else if(s==='apertura')renderApertura();
   else if(s==='usuarios')renderUsuarios();
+  else if(s==='perfiles')renderPerfiles();
   else if(s==='auditlog')renderAuditLog();
   else if(s==='integridad')renderIntegridad();
   else if(s==='ventas')renderVentas();
@@ -748,7 +753,8 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   toggleLoginMode, submitLogin, recuperarPassword, mostrarLogin, logout,
   olvidarNav,
   renderUsuarios, abrirInvitarUsuario, editarUsuario, renderPermisosForm,
-  cerrarUsuarioForm, guardarUsuario, aprobarUsuario, desactivarUsuario, renderAuditLog, renderIntegridad, migrarAsientosV2,
+  cerrarUsuarioForm, guardarUsuario, aprobarUsuario, desactivarUsuario, renderAuditLog,
+  renderPerfiles, setNivelPerfil, setTodosPerfil, restablecerPerfil, descartarPerfiles, guardarPerfiles, renderIntegridad, migrarAsientosV2,
   // empresa / pdc / indicadores
   fillEmpresaForm, saveEmpresa, updateHdr,
   renderPDC, abrirPdcForm, editarCuenta, cerrarPdcForm, guardarCuenta, eliminarCuenta, resetPDC,
