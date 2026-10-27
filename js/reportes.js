@@ -10,6 +10,7 @@ import {S} from './state.js';
 import './storage.js';
 import {asientoVenta, asientoCompra} from './motor-contable.js';
 import {tasaIDPC} from './regimenes.js';
+import {actualizarNombresAntiguos} from './pdc-reglas.js';
 
 // ═══ LIBRO DIARIO (auto + manuales) ═══
 let DIARIO_Q='';   // texto de búsqueda del libro diario
@@ -87,6 +88,8 @@ function genDiario(){
       referenciaDoc:a.referenciaDoc||null,
       cuentaPago:a.cuentaPago||'',documentos:a.documentos||[],generadoAutomaticamente:!!a.generadoAutomaticamente});
   });
+  // Nombre vigente de la cuenta Clientes en asientos antiguos (V2.21.90)
+  entries.forEach(e=>actualizarNombresAntiguos(e.movs));
   return entries.sort((a,b)=>{
     if(a.origen==='apertura')return -1;if(b.origen==='apertura')return 1;
     return (a.fecha||'').localeCompare(b.fecha||'');

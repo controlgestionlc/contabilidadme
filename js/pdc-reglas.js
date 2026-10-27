@@ -59,8 +59,27 @@ function asegurarCuentasSistema(arr=PDC){
   for(const c of requeridas){
     if(!arr.some(x=>x.cd===c.cd)){arr.push(normalizarCuenta(c));cambios++;}
   }
+  // V2.21.90 · La cuenta 1104001 pasa a llamarse CLIENTES (antes FACTURAS POR
+  // COBRAR). Sólo se renombra si conserva el nombre antiguo: un nombre puesto a
+  // mano por el usuario no se toca.
+  const cli=arr.find(x=>x.cd==='1104001');
+  if(cli&&NOMBRE_ANTIGUO_1104001.test(String(cli.nm||''))){cli.nm='CLIENTES';cambios++;}
   if(cambios)arr.sort((a,b)=>String(a.cd).localeCompare(String(b.cd),'es',{numeric:true}));
   return cambios;
+}
+
+// Asientos guardados antes de V2.21.90 llevan copiado el nombre antiguo
+// ("FACTURAS POR COBRAR") en cada línea. Al mostrarlos se reemplaza por el
+// nombre vigente de la cuenta en el plan. Sólo cambia el texto, en memoria.
+const NOMBRE_ANTIGUO_1104001=/^\s*facturas?\s+por\s+cobrar(\s*\(?\s*clientes\s*\)?)?\s*$/i;
+function actualizarNombresAntiguos(movs){
+  if(!Array.isArray(movs))return 0;
+  let n=0;
+  const actual=(PDC.find(x=>x.cd==='1104001')||{}).nm||'CLIENTES';
+  for(const m of movs){
+    if(m&&m.cd==='1104001'&&m.nm&&NOMBRE_ANTIGUO_1104001.test(String(m.nm))&&m.nm!==actual){m.nm=actual;n++;}
+  }
+  return n;
 }
 
 function reglaCuenta(cd){
@@ -87,4 +106,4 @@ function validarMovimientosPDC(movs,opts={}){
   return {ok:errores.length===0,errores};
 }
 
-export {AUX_POR_DEFECTO,IVA_POR_DEFECTO,inferirReglasCuenta,normalizarCuenta,normalizarPDC,asegurarCuentasSistema,reglaCuenta,validarMovimientoPDC,validarMovimientosPDC};
+export {AUX_POR_DEFECTO,IVA_POR_DEFECTO,inferirReglasCuenta,normalizarCuenta,normalizarPDC,asegurarCuentasSistema,actualizarNombresAntiguos,reglaCuenta,validarMovimientoPDC,validarMovimientosPDC};

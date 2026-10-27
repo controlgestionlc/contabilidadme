@@ -108,7 +108,7 @@ let PDC=[
   {cd:'1101206',nm:'BANCO BCI',tp:'A',nat:'D'},
   {cd:'1103001',nm:'FONDOS MUTUOS',tp:'A',nat:'D'},
   {cd:'1103002',nm:'DEPOSITO A PLAZO',tp:'A',nat:'D'},
-  {cd:'1104001',nm:'FACTURAS POR COBRAR',tp:'A',nat:'D'},
+  {cd:'1104001',nm:'CLIENTES',tp:'A',nat:'D'},
   {cd:'1104002',nm:'CHEQUES EN CARTERA',tp:'A',nat:'D'},
   {cd:'1104003',nm:'LETRAS EN CARTERA',tp:'A',nat:'D'},
   {cd:'1104004',nm:'LETRAS EN COBRANZA',tp:'A',nat:'D'},

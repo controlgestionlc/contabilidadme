@@ -5,7 +5,7 @@ import {initActualizador, verificarActualizacion} from './actualizador.js';
 // y expone al scope global las funciones usadas por los onclick del HTML.
 
 import {toast, fmtC, MESES, PDC, recalcDerivadasPDC, pn} from './core.js';
-import {normalizarPDC,asegurarCuentasSistema} from './pdc-reglas.js';
+import {normalizarPDC,asegurarCuentasSistema,actualizarNombresAntiguos} from './pdc-reglas.js';
 import {construirPlanPlantilla, plantillaInfo} from './pdc-plantillas.js';
 import {S, AUTH, getCurSec, setCurSec} from './state.js';
 import {FS, initFirestore, logAccion} from './firebase.js';
@@ -367,6 +367,8 @@ async function loadYear(y){
     });
   }
   await leer('apertura-'+y,p=>{S.apertura=p;});
+  // Asientos antiguos con el nombre previo de la cuenta Clientes (V2.21.90)
+  try{(S.asientos||[]).forEach(a=>actualizarNombresAntiguos(a.movs));if(S.apertura)actualizarNombresAntiguos(S.apertura.movs);}catch(e){}
   await leer('cierresContables-'+y,p=>{if(Array.isArray(p))S.cierresContables=p;});
   await leer('hardening-certificacion-'+y,p=>{if(p&&typeof p==='object')S.hardeningCert=p;});
   // Activos fijos y trabajadores: claves GLOBALES de la empresa (persisten entre años)

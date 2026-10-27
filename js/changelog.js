@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.25-1145';
+const APP_VERSION='v2026.10.27-1100';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.90',fecha:'27-10-2026',titulo:'La cuenta 1104001 se llama Clientes',items:[
+    {tipo:'cambio',txt:'La cuenta 1104001 "Facturas por Cobrar" pasa a llamarse "CLIENTES" en el plan de cuentas, en las plantillas de empresas nuevas y en Auxiliares. Las empresas existentes se actualizan solas al abrirlas, salvo que el nombre se haya cambiado a mano.'},
+    {tipo:'cambio',txt:'Los asientos antiguos que tenían copiado el nombre anterior se muestran con el nombre nuevo en Comprobantes, Libro Diario, Mayor y Balance.'},
+  ]},
   {version:'V2.21.89',fecha:'25-10-2026',titulo:'Inicio obligatorio y cierre por inactividad',items:[
     {tipo:'cambio',txt:'Al iniciar sesión siempre se parte en Inicio, donde se elige la empresa. Al hacer clic en una empresa se abre directamente Comprobantes (si el usuario tiene acceso a ese módulo).'},
     {tipo:'nuevo',txt:'La sesión se cierra sola tras 30 minutos sin actividad. Un minuto antes aparece un aviso con cuenta regresiva y el botón "Seguir trabajando". Antes de cerrar se intenta guardar lo pendiente, y al volver el login explica por qué se cerró.'},
