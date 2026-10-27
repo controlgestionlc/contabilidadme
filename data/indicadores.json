@@ -9,10 +9,10 @@
   },
   "dolar": {
     "codigo": "dolar",
-    "fecha": "2026-10-23T03:00:00.000Z",
+    "fecha": "2026-10-27T03:00:00.000Z",
     "nombre": "Dólar observado",
     "unidad_medida": "Pesos",
-    "valor": 986.58
+    "valor": 994.29
   },
   "dolar_intercambio": {
     "codigo": "dolar_intercambio",
@@ -23,12 +23,12 @@
   },
   "euro": {
     "codigo": "euro",
-    "fecha": "2026-10-23T03:00:00.000Z",
+    "fecha": "2026-10-27T03:00:00.000Z",
     "nombre": "Euro",
     "unidad_medida": "Pesos",
-    "valor": 1107.27
+    "valor": 1112.8
   },
-  "fecha": "2026-10-25T18:00:00.000Z",
+  "fecha": "2026-10-27T21:00:00.000Z",
   "imacec": {
     "codigo": "imacec",
     "fecha": "2026-08-01T04:00:00.000Z",
@@ -45,14 +45,14 @@
   },
   "ivp": {
     "codigo": "ivp",
-    "fecha": "2026-10-25T03:00:00.000Z",
+    "fecha": "2026-10-27T03:00:00.000Z",
     "nombre": "Indice de valor promedio (IVP)",
     "unidad_medida": "Pesos",
-    "valor": 42741.52
+    "valor": 42753.34
   },
   "libra_cobre": {
     "codigo": "libra_cobre",
-    "fecha": "2026-10-23T03:00:00.000Z",
+    "fecha": "2026-10-27T03:00:00.000Z",
     "nombre": "Libra de Cobre",
     "unidad_medida": "Dólar",
     "valor": 6.56
@@ -66,17 +66,17 @@
   },
   "tpm": {
     "codigo": "tpm",
-    "fecha": "2026-10-23T03:00:00.000Z",
+    "fecha": "2026-10-27T03:00:00.000Z",
     "nombre": "Tasa Política Monetaria (TPM)",
     "unidad_medida": "Porcentaje",
     "valor": 4.5
   },
   "uf": {
     "codigo": "uf",
-    "fecha": "2026-10-25T03:00:00.000Z",
+    "fecha": "2026-10-27T03:00:00.000Z",
     "nombre": "Unidad de fomento (UF)",
     "unidad_medida": "Pesos",
-    "valor": 41215.77
+    "valor": 41226.39
   },
   "utm": {
     "codigo": "utm",
