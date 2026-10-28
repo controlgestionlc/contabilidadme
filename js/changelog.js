@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1715';
+const APP_VERSION='v2026.10.28-1830';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.2',fecha:'28-10-2026',titulo:'Menú lateral reordenado',items:[
+    {tipo:'cambio',txt:'Nuevo orden del menú: Registros (Importador RCV, Libro de Ventas, Libro de Compras, Honorarios, Pagos y Cobros, Comprobantes, Asignar Centros de Costo), Mantenedores (Proveedores, Clientes y Auxiliares), Inventario, Remuneraciones, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración.'},
+    {tipo:'cambio',txt:'Los asientos tipo siguen dentro de Comprobantes. Asignar Centros de Costo pasa de Configuración a Registros y Remuneraciones tiene su propio grupo.'},
+  ]},
   {version:'V2.22.1',fecha:'28-10-2026',titulo:'Inventario: crear productos desde Movimientos',items:[
     {tipo:'nuevo',txt:'En los movimientos de entrada y en la entrada desde compra hay un botón "🆕 Crear producto" que abre la ficha del producto en una ventana flotante, sin cerrar el movimiento. Al guardarlo queda elegido en la primera línea vacía (o en una línea nueva) y lo ya escrito se mantiene.'},
   ]},
