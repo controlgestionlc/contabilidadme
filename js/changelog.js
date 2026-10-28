@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1400';
+const APP_VERSION='v2026.10.28-1500';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.94',fecha:'28-10-2026',titulo:'F29: códigos editables a mano',items:[
+    {tipo:'nuevo',txt:'En el F29 del mes los códigos 110, 111 (boletas), 758, 759 (comprobantes de pago electrónico), 543 (total anticipo) y 573 (remanente de anticipo) se pueden escribir a mano. El débito, el IVA a pagar o remanente, el anticipo imputado y el total se recalculan con esos valores.'},
+    {tipo:'cambio',txt:'Los valores ingresados a mano se marcan con ✎ y se guardan con el F29 del mes. Al borrar el campo se vuelve al cálculo desde los documentos. El 573 ingresado a mano pasa como 557 al mes siguiente.'},
+  ]},
   {version:'V2.21.93',fecha:'28-10-2026',titulo:'F29: anticipo cambio de sujeto y códigos de totales',items:[
     {tipo:'nuevo',txt:'Anticipo cambio de sujeto calculado: 556 IVA anticipado del período (se ingresa), 557 remanente del mes anterior (se toma del 573 del mes anterior o se ingresa), 558 devolución, 543 total de anticipo, 598 anticipo a imputar (con tope del IVA a pagar) y 573 remanente para el mes siguiente.'},
     {tipo:'nuevo',txt:'Nuevos códigos 511 (crédito IVA por documentos electrónicos), 115 (tasa PPM), 595 (sub total impuesto determinado anverso) y 547 (total determinado).'},

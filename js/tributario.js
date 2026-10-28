@@ -167,6 +167,22 @@ async function setF29Anticipo(cod,val){
   if(!await guardarDeclaracionesF29()){toast('❌ No se pudo guardar el anticipo.','e');return;}
   renderF29();
 }
+// Códigos que se pueden ingresar a mano en el F29 del mes
+const F29_MANUALES=['110','111','758','759','543','573'];
+async function setF29Manual(cod,val){
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado.','e');return;}
+  cod=String(cod);if(!F29_MANUALES.includes(cod))return;
+  const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes);
+  const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador',declarado:{}});
+  if(esF29Presentado(d)){toast('🔒 Reabre el F29 antes de modificar sus valores.','e');renderF29();return;}
+  d.manual=d.manual||{};
+  const txt=String(val??'').trim();
+  if(txt==='')delete d.manual[cod];else d.manual[cod]=Math.max(0,Math.round(pn(txt)));
+  d.actualizadoEn=new Date().toISOString();
+  if(!await guardarDeclaracionesF29()){toast('❌ No se pudo guardar el valor.','e');return;}
+  toast(txt===''?`↺ Cód. ${cod} vuelve al valor calculado`:`✎ Cód. ${cod} ingresado a mano · F29 recalculado`);
+  renderF29();
+}
 function copiarCalculadoAF29(){
   const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes), calc=calcularF29Anual()[mes-1];
   const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador'});
@@ -320,6 +336,16 @@ function calcularF29Anual(){
     });
 
     const per=`${anio}-${String(m).padStart(2,'0')}`;
+    // ── Valores ingresados a mano en el F29 del mes (V2.21.94) ──
+    // Boletas (110/111) y comprobantes de pago electrónico (758/759) suelen
+    // venir de resúmenes del SII y no de documentos uno a uno: si se ingresan
+    // a mano reemplazan lo calculado y el débito y los totales se recalculan.
+    const man=(declaracionF29(per)?.manual)||{};
+    const hayMan=k=>man[k]!=null&&man[k]!=='';
+    if(hayMan('110'))vdet.boletas.n=Math.max(0,Math.round(+man['110']||0));
+    if(hayMan('111')){const v=Math.max(0,Math.round(+man['111']||0));debito+=v-vdet.boletas.iva;vdet.boletas.iva=v;}
+    if(hayMan('758'))vdet.comprobantes.n=Math.max(0,Math.round(+man['758']||0));
+    if(hayMan('759')){const v=Math.max(0,Math.round(+man['759']||0));debito+=v-vdet.comprobantes.iva;vdet.comprobantes.iva=v;}
     const cs=todosDocsCompras().filter(d=>!esDteHonorario(d.tipoDTE)&&periodoContableCompra(d)===per);
     const cdet=_f29CompraDetalle(cs);
     let comprasNetas=0,credito=0,creditoActivoFijo=0,ivaNoRecuperable=0,ivaRetenido=0;
@@ -362,9 +388,10 @@ function calcularF29Anual(){
     const c557=ant['557']!=null?Math.max(0,Math.round(+ant['557']||0)):Math.max(0,Math.round(remAnticipoAnt));
     const c557Fuente=ant['557']!=null?'manual':'arrastre';
     const c558=Math.max(0,Math.round(+ant['558']||0));
-    const c543=Math.max(0,c556+c557-c558);
+    const c543=hayMan('543')?Math.max(0,Math.round(+man['543']||0)):Math.max(0,c556+c557-c558);
     const c598=Math.min(c543,ivaAPagar);
-    const c573=c543-c598;
+    const c573=hayMan('573')?Math.max(0,Math.round(+man['573']||0)):c543-c598;
+    const manuales=F29_MANUALES.filter(hayMan);
     const subtotalAnverso=ivaAPagar+ppm+retencionHon+iusc;   // cód. 595
     const totalPagar=subtotalAnverso-c598;                   // cód. 547 → 91
     const codigos={
@@ -388,7 +415,7 @@ function calcularF29Anual(){
       39:ivaRetenido
     };
     const decl=declaracionF29(per);
-    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,remanenteReaj,reajusteRemanente,remanenteSinUTM,utmRemanenteAnt,utmPeriodo,utmImputacion,remanenteUTM,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,tasaPPM,tasaPPMFuente,c557Fuente,ppm,retencionHon,iusc,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
+    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,remanenteReaj,reajusteRemanente,remanenteSinUTM,utmRemanenteAnt,utmPeriodo,utmImputacion,remanenteUTM,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,tasaPPM,tasaPPMFuente,c557Fuente,manuales,ppm,retencionHon,iusc,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
     // Si el período fue presentado, el arrastre legal al mes siguiente es el
     // remanente DECLARADO, no el que hoy resulte de recalcular documentos viejos.
     remanenteAnt=esF29Presentado(decl)?codDecl(decl,77,remanente):remanente;
@@ -601,6 +628,14 @@ function renderF29(){
     <td class="tl f29-desc" style="font-size:12px;${opts.bold?'font-weight:700':''}">${lbl}</td>
     <td class="f29-monto money-cell" style="font-family:var(--mono);text-align:right;${opts.bold?'font-weight:700;':''}color:${opts.color||'var(--tx)'}">${val===''?'':fmtC(val)}</td>
   </tr>`;
+  // Línea editable: valor a mano (✎) o calculado; vacío vuelve al cálculo
+  const lineaE=(cod,lbl,val,{cantidad=false,color}={})=>{
+    const esMan=(d.manuales||[]).includes(String(cod));
+    return `<tr${esMan?' style="background:rgba(210,153,34,.08)"':''}>
+    <td class="f29-cod" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${cod}</td>
+    <td class="tl f29-desc" style="font-size:12px;${cantidad?'color:var(--mt)':''}">${lbl}${esMan?' <span title="Ingresado a mano. Bórralo para volver al valor calculado." style="color:var(--warn)">✎</span>':''}</td>
+    <td class="f29-monto" style="text-align:right;padding:2px 6px"><input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${cantidad?fmt(Math.round(+val||0)):fmtMontoF29(Math.round(+val||0))}" onchange="setF29Manual('${cod}',this.value)" ${presentado?'disabled':''} title="Puedes escribir el valor a mano; déjalo vacío para recalcular" style="text-align:right;font-family:var(--mono);max-width:130px;padding:2px 6px;border:1px solid var(--bd);border-radius:4px;background:var(--sf,#fff);${color?'color:'+color+';':''}${esMan?'border-color:var(--warn)':''}"></td>
+  </tr>`;};
   // Línea de cantidad (número de documentos, sin signo $)
   const lineaN=(cod,lbl,val)=>`<tr>
     <td class="f29-cod" style="font-family:var(--mono);font-size:11px;color:var(--mt)">${cod}</td>
@@ -617,10 +652,10 @@ function renderF29(){
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">DÉBITO FISCAL (Ventas)</td></tr>
       ${lineaN('503','Cantidad de facturas emitidas',d.codigos[503])}
       ${linea('502','IVA facturas emitidas',d.codigos[502])}
-      ${lineaN('110','Cantidad de boletas emitidas',d.codigos[110])}
-      ${linea('111','IVA boletas emitidas',d.codigos[111])}
-      ${lineaN('758','Cantidad de comprobantes / recibos de pago con medios electrónicos',d.codigos[758])}
-      ${linea('759','IVA comprobantes / recibos de pago con medios electrónicos',d.codigos[759])}
+      ${lineaE('110','Cantidad de boletas emitidas',d.codigos[110],{cantidad:true})}
+      ${lineaE('111','IVA boletas emitidas',d.codigos[111])}
+      ${lineaE('758','Cantidad de comprobantes / recibos de pago con medios electrónicos',d.codigos[758],{cantidad:true})}
+      ${lineaE('759','IVA comprobantes / recibos de pago con medios electrónicos',d.codigos[759])}
       ${d.codigos[513]?linea('513',`IVA Notas de Débito emitidas (${d.codigos[512]} docs)`,d.codigos[513],{color:'var(--warn)'}):''}
       ${d.codigos[510]?linea('510',`IVA Notas de Crédito emitidas (${d.codigos[509]} docs)`,d.codigos[510],{color:'var(--info)'}):''}
       ${d.codigos[142]?linea('142',`Ventas exentas/no gravadas (${d.codigos[586]} docs)`,d.codigos[142]):''}
@@ -654,9 +689,9 @@ function renderF29(){
       ${linea('556','IVA anticipado del período',d.codigos[556])}
       ${linea('557','Remanente del mes anterior',d.codigos[557])}
       ${d.codigos[558]?linea('558','Devolución del mes anterior',-d.codigos[558]):''}
-      ${linea('543','Total de anticipo',d.codigos[543],{bold:true})}
+      ${lineaE('543','Total de anticipo',d.codigos[543])}
       ${linea('598','Anticipo a imputar (tope cód. 89)',d.codigos[598]?-d.codigos[598]:0,{color:'var(--info)'})}
-      ${linea('573','Remanente de anticipos para el período siguiente',d.codigos[573],{color:'var(--info)'})}
+      ${lineaE('573','Remanente de anticipos para el período siguiente',d.codigos[573],{color:'var(--info)'})}
       ${linea('547','TOTAL DETERMINADO',d.codigos[547],{bold:true})}
       <tr style="background:${d.totalPagar>0?'rgba(248,81,73,.12)':'rgba(46,160,67,.12)'}">
         <td class="f29-cod" style="font-family:var(--mono);font-size:11px;color:var(--mt)">91</td>
@@ -677,6 +712,7 @@ function renderF29(){
         <div style="font-size:10px;color:var(--mt);margin-top:2px">${ini.fuente==='f29-dic'?'Desde el F29 de diciembre '+(S.empresa.anio-1)+' ('+ini.estado+')':ini.fuente==='manual'?'Ingresado a mano':'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingrésalo si hubo remanente'} · UTM origen ${d.utmRemanenteAnt?fmtC(d.utmRemanenteAnt):'—'}</div></div>`;})():''}</div>
     ${d.remanenteSinUTM?'<div class="info-tip" style="margin-top:10px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Falta la UTM del mes de origen o del período actual. El código 504 se muestra sin reajuste hasta completar ambas UTM.</div>':''}
     ${d.tasaPPM===0?'<div class="info-tip" style="margin-top:12px;font-size:11px">⚠️ La tasa de PPM de este mes está en 0%. Configúrala en Empresa → Configuración Tributaria o ajústala aquí para que se calcule el PPM.</div>':''}
+    ${(d.manuales||[]).length?`<div class="info-tip" style="margin-top:10px;font-size:11px;background:rgba(210,153,34,.10);border-color:var(--warn)">✎ Códigos ingresados a mano: <strong>${d.manuales.join(', ')}</strong>. El débito y los totales se recalcularon con esos valores. Borra el campo para volver al cálculo desde los documentos.</div>`:'<div style="margin-top:8px;font-size:10px;color:var(--mt)">Los códigos 110, 111, 758, 759, 543 y 573 se pueden escribir a mano (por ejemplo, desde el resumen del SII); el F29 se recalcula. Déjalos vacíos para volver al cálculo.</div>'}
     <div style="margin-top:12px;font-size:10px;color:var(--mt)">Los códigos corresponden al Formulario 29 del SII. Este es un cálculo referencial basado en tus registros; verifica antes de declarar.</div>
   </div>
   ${panelDeclaracion}
@@ -1312,7 +1348,7 @@ async function generarAsientoPagoF29(){
   renderF29();
 }
 
-export {setF29Anticipo, setF29TasaPPM, tasaPPMPeriodo, iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
+export {setF29Manual, setF29Anticipo, setF29TasaPPM, tasaPPMPeriodo, iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,
