@@ -8,6 +8,7 @@ import {logAccion} from './firebase.js';
 import {rerender} from './ui.js';
 import {savePDC} from './pdc.js';
 import {S} from './state.js';
+import {puedeEditar} from './auth.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {tributacionCompra,clasificacionIVACompra,periodoContableCompra} from './motor-contable.js';
 import {utmDelPeriodo,fuenteUTM,cargarUTMHistorico,asegurarUTMHistoricoAlDia} from './utm-historico.js';
@@ -26,6 +27,42 @@ const periodoF29=mes=>`${S.empresa.anio}-${String(mes).padStart(2,'0')}`;
 function declaracionF29(periodo){return F29DECL.items?.[periodo]||null;}
 function esF29Presentado(d){return !!(d&&['presentado','cerrado'].includes(d.estado));}
 function codDecl(d,cod,def=0){const v=d?.declarado?.[String(cod)];return v==null?def:+v||0;}
+
+// ── Tasa PPM por período (V2.21.91) ──
+// La tasa por defecto es la de la empresa (Empresa → Configuración tributaria).
+// Cada F29 mensual puede ajustarla a mano. Al GUARDAR (borrador o presentado)
+// un F29, la tasa con que se calculó queda grabada en ese mes: si después
+// cambia la tasa de la empresa, los PPM de los meses ya guardados no cambian.
+const tasaPPMEmpresa=()=>S.empresa.tasaPPM!=null&&S.empresa.tasaPPM!==''?+S.empresa.tasaPPM||0:0;
+const f29Guardado=d=>!!(d&&(esF29Presentado(d)||d.calculadoAlGuardar));
+function tasaPPMPeriodo(periodo){
+  const d=declaracionF29(periodo);
+  if(d&&d.tasaPPM!=null&&isFinite(+d.tasaPPM))
+    return {tasa:+d.tasaPPM,fuente:d.tasaPPMManual?'manual':'guardada'};
+  return {tasa:tasaPPMEmpresa(),fuente:'empresa'};
+}
+const fmtTasa=t=>(+t||0).toLocaleString('es-CL',{maximumFractionDigits:3});
+// Graba la tasa vigente en un F29 que se está guardando (si no la tenía)
+function congelarTasaPPM(d){
+  if(d&&d.tasaPPM==null)d.tasaPPM=tasaPPMEmpresa();
+}
+// F29 guardados antes de V2.21.91 no tenían la tasa grabada. Se deduce de lo
+// declarado (cód. 62 ÷ cód. 563) cuando cuadra exacto; si no, se graba la tasa
+// actual de la empresa. Así un cambio posterior de tasa no los altera.
+function migrarTasasPPM(items){
+  let n=0;
+  Object.values(items||{}).forEach(d=>{
+    if(!f29Guardado(d)||d.tasaPPM!=null)return;
+    const base=codDecl(d,563,0),ppm=codDecl(d,62,0);
+    let t=null;
+    if(base>0&&ppm>=0){
+      const c=Math.round(ppm/base*100*1000)/1000;
+      if(Math.round(base*c/100)===Math.round(ppm))t=c;
+    }
+    d.tasaPPM=t!=null?t:tasaPPMEmpresa();n++;
+  });
+  return n;
+}
 async function cargarDeclaracionesF29(force=false){
   const anio=+S.empresa.anio;
   if(!force&&F29DECL.loaded&&F29DECL.anio===anio)return F29DECL.items;
@@ -35,6 +72,10 @@ async function cargarDeclaracionesF29(force=false){
     const r=await window.storage.get(claveF29Decl(anio));
     F29DECL.items=r?JSON.parse(r.value||'{}'):{};
     if(!F29DECL.items||Array.isArray(F29DECL.items)||typeof F29DECL.items!=='object')F29DECL.items={};
+    // Tasa PPM grabada en los F29 ya guardados (una sola vez por año)
+    if(migrarTasasPPM(F29DECL.items)&&puedeEditar('f29')){
+      try{await window.storage.set(claveF29Decl(anio),JSON.stringify(F29DECL.items));}catch(e){console.warn('No se pudo grabar la tasa PPM de los F29 guardados:',e);}
+    }
     // V2.21.28 — Declaraciones del año anterior: el código 77 de diciembre es
     // el remanente que entra a enero. Sólo lectura.
     F29DECL.anterior={};
@@ -83,6 +124,31 @@ async function setF29UTM(val){
   if(!await guardarDeclaracionesF29()){toast('❌ No se pudo guardar la UTM del período.','e');return;}
   renderF29();
 }
+async function setF29TasaPPM(val){
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado.','e');return;}
+  const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes);
+  const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador',declarado:{}});
+  if(esF29Presentado(d)){toast('🔒 Reabre el F29 antes de modificar la tasa PPM.','e');renderF29();return;}
+  const txt=String(val??'').trim().replace(',','.');
+  const antes={tasa:d.tasaPPM,manual:d.tasaPPMManual};
+  if(txt===''){
+    // Vuelve a la tasa de la empresa (si el F29 ya se guardó, queda grabada esa)
+    delete d.tasaPPMManual;
+    if(f29Guardado(d))d.tasaPPM=tasaPPMEmpresa();else delete d.tasaPPM;
+  }else{
+    const v=+txt;
+    if(!isFinite(v)||v<0||v>100){toast('⚠️ Tasa PPM inválida','e');renderF29();return;}
+    d.tasaPPM=Math.round(v*1000)/1000;d.tasaPPMManual=true;
+  }
+  d.actualizadoEn=new Date().toISOString();
+  if(!await guardarDeclaracionesF29()){
+    if(antes.tasa==null)delete d.tasaPPM;else d.tasaPPM=antes.tasa;
+    if(antes.manual)d.tasaPPMManual=true;else delete d.tasaPPMManual;
+    toast('❌ No se pudo guardar la tasa PPM.','e');return;
+  }
+  toast(`✅ Tasa PPM de ${MESES[mes-1]}: ${fmtTasa(tasaPPMPeriodo(per).tasa)}%`);
+  renderF29();
+}
 function copiarCalculadoAF29(){
   const mes=+(document.getElementById('f29-mes')?.value||1), per=periodoF29(mes), calc=calcularF29Anual()[mes-1];
   const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador'});
@@ -95,6 +161,7 @@ async function guardarBorradorF29(){
   const d=F29DECL.items[per]||(F29DECL.items[per]={periodo:per,estado:'borrador',declarado:snapshotF29(calc)});
   if(esF29Presentado(d)){toast('🔒 El F29 ya está marcado como presentado. Reábrelo para modificarlo.','e');return;}
   d.estado='borrador';d.actualizadoEn=new Date().toISOString();d.calculadoAlGuardar=snapshotF29(calc);
+  congelarTasaPPM(d);
   if(!await guardarDeclaracionesF29()){toast('❌ No se pudo guardar el borrador F29.','e');return;}
   toast(`✅ Borrador F29 ${per} guardado`);renderF29();
 }
@@ -106,6 +173,7 @@ async function presentarF29(){
   if(!d.declarado||!Object.keys(d.declarado).length)d.declarado=snapshotF29(calc);
   if(!confirm(`¿Marcar el F29 ${per} como PRESENTADO AL SII?\n\nDesde ese momento sus valores declarados y su remanente quedarán congelados para el arrastre histórico.`))return;
   d.estado='presentado';d.presentadoEn=new Date().toISOString();d.calculadoAlPresentar=snapshotF29(calc);
+  congelarTasaPPM(d);
   if(!d.fechaPresentacion)d.fechaPresentacion=new Date().toISOString().slice(0,10);
   if(!await guardarDeclaracionesF29()){d.estado='borrador';toast('❌ No se pudo registrar la presentación del F29.','e');return;}
   logAccion('Marcó F29 como presentado',`${per} · total declarado ${fmtC(codDecl(d,91,0))}`);
@@ -215,7 +283,6 @@ function calcularF29Anual(){
   const ini=remanenteInicialF29();
   let remanenteAnt=ini.monto;
   let utmRemanenteAnt=ini.monto>0?_utmDeclaracion(ini.periodo):0;   // UTM del mes en que se declaró el período de origen
-  const tasaPPM=(S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0)/100;
   for(let m=1;m<=12;m++){
     const vs=todosDocsVentas().filter(d=>+d.fecha.slice(5,7)===m);
     const vdet=_f29VentaDetalle(vs);
@@ -257,7 +324,9 @@ function calcularF29Anual(){
     const ivaAPagar=ivaDeterminado>0?ivaDeterminado:0;
     const remanente=ivaDeterminado<0?-ivaDeterminado:0;
     const basePPM=ventasNetas+ventasExentas;
-    const ppm=Math.round(basePPM*tasaPPM);
+    const tp=tasaPPMPeriodo(per);
+    const tasaPPM=tp.tasa, tasaPPMFuente=tp.fuente;
+    const ppm=Math.round(basePPM*tasaPPM/100);
     const totalPagar=ivaAPagar+ppm+retencionHon+iusc;
     const codigos={
       503:vdet.facturas.n,502:vdet.facturas.iva,
@@ -277,7 +346,7 @@ function calcularF29Anual(){
       39:ivaRetenido
     };
     const decl=declaracionF29(per);
-    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,remanenteReaj,reajusteRemanente,remanenteSinUTM,utmRemanenteAnt,utmPeriodo,utmImputacion,remanenteUTM,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,ppm,retencionHon,iusc,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
+    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,remanenteReaj,reajusteRemanente,remanenteSinUTM,utmRemanenteAnt,utmPeriodo,utmImputacion,remanenteUTM,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,tasaPPM,tasaPPMFuente,ppm,retencionHon,iusc,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
     // Si el período fue presentado, el arrastre legal al mes siguiente es el
     // remanente DECLARADO, no el que hoy resulte de recalcular documentos viejos.
     remanenteAnt=esF29Presentado(decl)?codDecl(decl,77,remanente):remanente;
@@ -420,7 +489,7 @@ function verF29Mes(m){
   F29_VISTA='mes';renderF29();try{window.scrollTo(0,0);}catch(_){}
 }
 function renderF29Anual(data,el){
-  const tasa=S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0;
+  const tasa=tasaPPMEmpresa();
   const tot=k=>data.reduce((s,d)=>s+(+d[k]||0),0);
   const c=(v,color)=>`<td class="money-cell" style="font-family:var(--mono);text-align:right;white-space:nowrap${color?';color:'+color:''}">${v?fmtC(v):''}</td>`;
   const filas=data.map(d=>{
@@ -435,7 +504,7 @@ function renderF29Anual(data,el){
       <td class="money-cell" style="font-family:var(--mono);text-align:right;font-weight:700">${fmtC(d.totalPagar)}</td>
       <td class="tl" style="font-size:11px;white-space:nowrap">${estado}</td></tr>`;
   }).join('');
-  el.innerHTML=`<div style="font-size:12px;color:var(--mt);margin:-4px 0 12px">Ejercicio ${S.empresa.anio} · Tasa PPM ${String(tasa).replace('.',',')}%${tasa===0?` · <a href="#" onclick="nav('empresa');return false" style="color:var(--warn)">configúrala en Empresa</a>`:''} · Calculado desde los libros de compras, ventas, honorarios y remuneraciones.</div>
+  el.innerHTML=`<div style="font-size:12px;color:var(--mt);margin:-4px 0 12px">Ejercicio ${S.empresa.anio} · Tasa PPM de la empresa ${fmtTasa(tasa)}% (cada mes puede tener la suya en su F29)${tasa===0?` · <a href="#" onclick="nav('empresa');return false" style="color:var(--warn)">configúrala en Empresa</a>`:''} · Calculado desde los libros de compras, ventas, honorarios y remuneraciones.</div>
   <div class="card card-np"><div class="tw"><table style="min-width:1050px"><thead><tr>
     <th class="tl">MES</th><th>DÉBITO</th><th>CRÉDITO</th><th>REMANENTE ANT.</th><th>IVA A PAGAR</th><th>REMANENTE</th><th>PPM</th><th>RET. HON.</th><th>IMP. ÚNICO</th><th>TOTAL F29</th><th class="tl">ESTADO</th>
   </tr></thead><tbody>${filas}</tbody>
@@ -520,7 +589,7 @@ function renderF29(){
       ${d.ivaAPagar>0?linea('89','IVA a pagar',d.ivaAPagar,{bold:true,hl:true,color:'var(--err)'}):linea('77','Remanente crédito fiscal (mes siguiente)',d.remanente,{bold:true,hl:true,color:'var(--info)'})}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">PPM Y RETENCIONES</td></tr>
       ${linea('563','Base imponible PPM',d.basePPM)}
-      ${linea('62','PPM ('+((S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0))+'%)',d.ppm,{color:'var(--err)'})}
+      ${linea('62','PPM ('+fmtTasa(d.tasaPPM)+'%)',d.ppm,{color:'var(--err)'})}
       ${linea('151',`Retención honorarios (${(retencionHonorarios(S.empresa.anio)*100).toFixed(2)}%)`,d.retencionHon,{color:'var(--err)'})}
       ${linea('48','Impuesto Único de Segunda Categoría',d.iusc,{color:'var(--err)'})}
       <tr style="background:${d.totalPagar>0?'rgba(248,81,73,.12)':'rgba(46,160,67,.12)'}">
@@ -531,10 +600,12 @@ function renderF29(){
     </tbody></table>
     <div class="fg" style="margin-top:12px"><div class="grp"><label>UTM del período ${per}</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${fmtMontoF29(d.utmPeriodo)}" onchange="setF29UTM(this.value)" ${presentado?'disabled':''}>
       <div style="font-size:10px;color:var(--mt);margin-top:2px">${+declaracionF29(per)?.utm>0?'Ingresada en este F29':fuenteUTM(per)==='sii'?'Histórico oficial SII':fuenteUTM(per)==='mindicador'?'Histórico (mindicador.cl)':fuenteUTM(per)==='manual'?'Histórico corregido a mano':d.utmPeriodo?'Tomada de la liquidación de remuneraciones':'Sin UTM: complétala aquí o en Indicadores'}</div></div>
+      <div class="grp"><label>Tasa PPM de ${MESES[mSel-1].toLowerCase()} (%)</label><input type="text" inputmode="decimal" autocomplete="off" value="${d.tasaPPMFuente==='empresa'?'':fmtTasa(d.tasaPPM)}" placeholder="${fmtTasa(tasaPPMEmpresa())}" onchange="setF29TasaPPM(this.value)" ${presentado?'disabled':''} style="text-align:right;font-family:var(--mono)">
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">${d.tasaPPMFuente==='manual'?'Ajustada en este F29 · tasa de la empresa '+fmtTasa(tasaPPMEmpresa())+'%':d.tasaPPMFuente==='guardada'?'Grabada al guardar este F29 · no cambia si cambias la tasa de la empresa':'Tasa de la empresa · se graba en este mes al guardar el F29'}${presentado?'':' · deja vacío para volver a la de la empresa'}</div></div>
       ${mSel===1?(()=>{const ini=remanenteInicialF29(),bloq=ini.fuente==='f29-dic'||presentado;return `<div class="grp"><label>Remanente inicial (cód. 77 de diciembre ${S.empresa.anio-1})</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${ini.fuente==='ninguna'?'':fmtMontoF29(ini.monto)}" placeholder="0" onchange="setRemanenteInicialF29(this.value)" ${bloq?'disabled':''}>
         <div style="font-size:10px;color:var(--mt);margin-top:2px">${ini.fuente==='f29-dic'?'Desde el F29 de diciembre '+(S.empresa.anio-1)+' ('+ini.estado+')':ini.fuente==='manual'?'Ingresado a mano':'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingrésalo si hubo remanente'} · UTM origen ${d.utmRemanenteAnt?fmtC(d.utmRemanenteAnt):'—'}</div></div>`;})():''}</div>
     ${d.remanenteSinUTM?'<div class="info-tip" style="margin-top:10px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Falta la UTM del mes de origen o del período actual. El código 504 se muestra sin reajuste hasta completar ambas UTM.</div>':''}
-    ${d.tasaPPM===0&&(S.empresa.tasaPPM==null||+S.empresa.tasaPPM===0)?'<div class="info-tip" style="margin-top:12px;font-size:11px">⚠️ La tasa de PPM está en 0%. Configúrala en Empresa → Configuración Tributaria para que se calcule el PPM.</div>':''}
+    ${d.tasaPPM===0?'<div class="info-tip" style="margin-top:12px;font-size:11px">⚠️ La tasa de PPM de este mes está en 0%. Configúrala en Empresa → Configuración Tributaria o ajústala aquí para que se calcule el PPM.</div>':''}
     <div style="margin-top:12px;font-size:10px;color:var(--mt)">Los códigos corresponden al Formulario 29 del SII. Este es un cálculo referencial basado en tus registros; verifica antes de declarar.</div>
   </div>
   ${panelDeclaracion}
@@ -869,20 +940,21 @@ async function generarAsientoIVA(){
 // Resumen anual PPM
 function renderPPM(){
   const data=calcularF29Anual();
-  const tasaPPM=(S.empresa.tasaPPM!=null?+S.empresa.tasaPPM:0);
+  const tasaPPM=tasaPPMEmpresa();
   const el=document.getElementById('ppm-content');
   const totBase=data.reduce((s,d)=>s+d.basePPM,0);
   const totPPM=data.reduce((s,d)=>s+d.ppm,0);
   const rows=data.map(d=>`<tr${d.basePPM>0?'':' style="opacity:.4"'}>
     <td class="tl ppm-mes" style="font-size:12px">${MESES[d.m-1]}</td>
     <td class="ppm-base money-cell" style="font-family:var(--mono);text-align:right">${fmtC(d.basePPM)}</td>
+    <td style="font-family:var(--mono);text-align:right;font-size:12px" title="${d.tasaPPMFuente==='manual'?'Ajustada en el F29 del mes':d.tasaPPMFuente==='guardada'?'Grabada al guardar el F29':'Tasa de la empresa'}">${fmtTasa(d.tasaPPM)}%${d.tasaPPMFuente==='manual'?' ✎':d.tasaPPMFuente==='guardada'?' 🔒':''}</td>
     <td class="ppm-monto money-cell" style="font-family:var(--mono);text-align:right;color:var(--err)">${fmtC(d.ppm)}</td>
   </tr>`).join('');
   el.innerHTML=`<div class="card" style="max-width:560px">
-    <div class="info-tip" style="margin-bottom:14px">💰 PPM del ejercicio ${S.empresa.anio} — tasa <strong>${tasaPPM}%</strong> sobre ingresos brutos mensuales.${tasaPPM===0?' <span style="color:var(--warn)">Configura la tasa en Empresa.</span>':''}</div>
-    <table class="ppm-table"><thead><tr><th class="tl ppm-mes">MES</th><th class="ppm-base" style="text-align:right">BASE (Ingresos brutos)</th><th class="ppm-monto" style="text-align:right">PPM</th></tr></thead>
+    <div class="info-tip" style="margin-bottom:14px">💰 PPM del ejercicio ${S.empresa.anio} sobre ingresos brutos mensuales. Tasa de la empresa <strong>${fmtTasa(tasaPPM)}%</strong>; cada mes puede ajustarla en su F29 (✎) y queda grabada al guardarlo (🔒).${tasaPPM===0?' <span style="color:var(--warn)">Configura la tasa en Empresa.</span>':''}</div>
+    <table class="ppm-table"><thead><tr><th class="tl ppm-mes">MES</th><th class="ppm-base" style="text-align:right">BASE (Ingresos brutos)</th><th style="text-align:right">TASA</th><th class="ppm-monto" style="text-align:right">PPM</th></tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr style="background:rgba(88,166,255,.08)"><td class="tl ppm-mes" style="font-weight:700">TOTAL AÑO</td><td class="ppm-base money-cell" style="font-family:var(--mono);text-align:right;font-weight:700">${fmtC(totBase)}</td><td class="ppm-monto money-cell" style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--err)">${fmtC(totPPM)}</td></tr></tfoot>
+    <tfoot><tr style="background:rgba(88,166,255,.08)"><td class="tl ppm-mes" style="font-weight:700">TOTAL AÑO</td><td class="ppm-base money-cell" style="font-family:var(--mono);text-align:right;font-weight:700">${fmtC(totBase)}</td><td></td><td class="ppm-monto money-cell" style="font-family:var(--mono);text-align:right;font-weight:700;color:var(--err)">${fmtC(totPPM)}</td></tr></tfoot>
     </table>
   </div>`;
 }
@@ -1168,7 +1240,7 @@ async function generarAsientoPagoF29(){
   renderF29();
 }
 
-export {iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
+export {setF29TasaPPM, tasaPPMPeriodo, iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,

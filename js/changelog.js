@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.27-1100';
+const APP_VERSION='v2026.10.28-1100';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.91',fecha:'28-10-2026',titulo:'Tasa PPM por empresa y por mes',items:[
+    {tipo:'nuevo',txt:'La tasa PPM de Empresa → Configuración tributaria es la que usan por defecto los F29 de cada mes, y ahora se puede ajustar a mano en el F29 de un mes puntual (campo "Tasa PPM" junto a la UTM).'},
+    {tipo:'cambio',txt:'Al guardar un F29 (borrador o presentado) la tasa PPM queda grabada en ese mes: si después cambias la tasa de la empresa, los PPM de los meses ya guardados no cambian. Los F29 guardados antes de esta versión quedan con la tasa que se deduce de lo declarado (cód. 62 ÷ cód. 563) o, si no se puede, con la tasa actual de la empresa.'},
+    {tipo:'cambio',txt:'El resumen PPM muestra la tasa de cada mes, marcando las ajustadas a mano (✎) y las grabadas (🔒).'},
+  ]},
   {version:'V2.21.90',fecha:'27-10-2026',titulo:'La cuenta 1104001 se llama Clientes',items:[
     {tipo:'cambio',txt:'La cuenta 1104001 "Facturas por Cobrar" pasa a llamarse "CLIENTES" en el plan de cuentas, en las plantillas de empresas nuevas y en Auxiliares. Las empresas existentes se actualizan solas al abrirlas, salvo que el nombre se haya cambiado a mano.'},
     {tipo:'cambio',txt:'Los asientos antiguos que tenían copiado el nombre anterior se muestran con el nombre nuevo en Comprobantes, Libro Diario, Mayor y Balance.'},
