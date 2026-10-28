@@ -20,6 +20,7 @@ const UI={tab:'stock',q:'',bodega:'',estado:'',cargando:false,errorCarga:'',toma
 let movDraft=null;
 let productosImportDraft=null;
 let ocDraft=null,recDraft=null;
+let ecDraft=null; // V2.22.0 · entrada desde documento de compra
 const uid=()=>globalThis.crypto?.randomUUID?.()||('inv-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number.isFinite(+v)?+v:0;
@@ -81,7 +82,7 @@ function renderInventario(){
   const alertas=calc.stock.filter(s=>{const p=prod(s.productoId);return p&&num(p.stockMinimo)>0&&s.cantidad<p.stockMinimo;}).length;
   c.innerHTML=`
     <div class="sec-hdr"><div><div class="sec-title">Inventario</div><div class="sec-sub">Auxiliar permanente por empresa · multibodega · lotes · costo promedio ponderado</div></div>
-      <div class="inv-actions">${writable()?'<button class="btn btn-p" onclick="invNuevoMovimiento()">＋ Movimiento</button>':''}</div></div>
+      <div class="inv-actions">${writable()?'<button class="btn btn-g" onclick="invEntradaCompra()" title="Ingresar productos desde una factura de compra ya contabilizada">📄 Entrada desde compra</button><button class="btn btn-p" onclick="invNuevoMovimiento()">＋ Movimiento</button>':''}</div></div>
     <div class="inv-kpis">
       <div><small>Productos activos</small><strong>${inv().productos.filter(p=>p.activo!==false).length}</strong></div>
       <div><small>Bodegas activas</small><strong>${inv().bodegas.filter(b=>b.activo!==false).length}</strong></div>
@@ -147,7 +148,7 @@ function renderMovimientos(c,calc){
   if(UI.estado)rows=rows.filter(m=>m.estado===UI.estado);
   if(UI.q){const q=UI.q.toLowerCase();rows=rows.filter(m=>(`${m.folio} ${m.motivo||''} ${m.documento||''} ${m.tercero||''}`).toLowerCase().includes(q));}
   c.innerHTML=`<div class="card inv-toolbar"><input value="${esc(UI.q)}" oninput="invSetFiltro('q',this.value)" placeholder="Folio, documento, motivo o tercero…"><select onchange="invSetFiltro('estado',this.value)"><option value="">Todos los estados</option><option value="VIGENTE" ${UI.estado==='VIGENTE'?'selected':''}>Vigentes</option><option value="ANULADO" ${UI.estado==='ANULADO'?'selected':''}>Anulados</option></select>${writable()?'<button class="btn btn-p" onclick="invNuevoMovimiento()">＋ Movimiento</button>':''}</div>
-  <div class="card-np"><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Folio</th><th>Fecha</th><th>Tipo</th><th>Motivo</th><th>Origen</th><th>Destino</th><th>Documento</th><th class="num">Valor</th><th>Estado</th><th></th></tr></thead><tbody>${rows.length?rows.map(m=>{const vals=calc.valorizaciones.get(String(m.id))||[],v=vals.reduce((s,l)=>s+num(l.valorAplicado),0);return `<tr class="${m.estado==='ANULADO'?'inv-anulado':''}"><td class="mono"><strong>${esc(m.folio)}</strong></td><td>${fechaCorta(m.fecha)}</td><td><span class="badge inv-type-${m.tipo.toLowerCase()}">${esc(m.tipo.replace('_',' '))}</span></td><td>${esc(m.motivo||'—')}</td><td>${esc(nombreBodega(m.bodegaOrigenId))}</td><td>${esc(nombreBodega(m.bodegaDestinoId))}</td><td>${esc(m.documento||'—')}</td><td class="num">${mon(v)}</td><td>${m.estado==='ANULADO'?'<span class="badge inv-bad">ANULADO</span>':'<span class="badge inv-ok">VIGENTE</span>'}</td><td><button class="btn btn-g" onclick="invVerMovimiento('${m.id}')">Ver</button>${writable()&&m.estado!=='ANULADO'&&!m.recepcionId&&!m.tomaId?` <button class="btn btn-i" onclick="invEditarMovimiento('${m.id}')" title="Editar">✏️</button>`:''}</td></tr>`;}).join(''):'<tr><td colspan="10" class="empty">Aún no hay movimientos.</td></tr>'}</tbody></table></div></div>`;
+  <div class="card-np"><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Folio</th><th>Fecha</th><th>Tipo</th><th>Motivo</th><th>Origen</th><th>Destino</th><th>Documento</th><th class="num">Valor</th><th>Estado</th><th></th></tr></thead><tbody>${rows.length?rows.map(m=>{const vals=calc.valorizaciones.get(String(m.id))||[],v=vals.reduce((s,l)=>s+num(l.valorAplicado),0);return `<tr class="${m.estado==='ANULADO'?'inv-anulado':''}"><td class="mono"><strong>${esc(m.folio)}</strong></td><td>${fechaCorta(m.fecha)}</td><td><span class="badge inv-type-${m.tipo.toLowerCase()}">${esc(m.tipo.replace('_',' '))}</span></td><td>${esc(m.motivo||'—')}</td><td>${esc(nombreBodega(m.bodegaOrigenId))}</td><td>${esc(nombreBodega(m.bodegaDestinoId))}</td><td>${esc(m.documento||'—')}</td><td class="num">${mon(v)}</td><td>${m.estado==='ANULADO'?'<span class="badge inv-bad">ANULADO</span>':'<span class="badge inv-ok">VIGENTE</span>'}</td><td><button class="btn btn-g" onclick="invVerMovimiento('${m.id}')">Ver</button>${writable()&&m.estado!=='ANULADO'&&!m.recepcionId&&!m.tomaId&&!m.compraId?` <button class="btn btn-i" onclick="invEditarMovimiento('${m.id}')" title="Editar">✏️</button>`:''}</td></tr>`;}).join(''):'<tr><td colspan="10" class="empty">Aún no hay movimientos.</td></tr>'}</tbody></table></div></div>`;
 }
 
 const TOMA_ESTADOS={EN_PROCESO:'En proceso',DEVUELTA:'Devuelta',PENDIENTE_AUTORIZACION:'Pendiente de autorización',RECHAZADA:'Rechazada',APLICADA:'Aplicada'};
@@ -418,7 +419,7 @@ function modal(html){
   let e=document.getElementById('inv-modal');if(!e){e=document.createElement('div');e.id='inv-modal';e.className='modal-bkd';document.body.appendChild(e);}
   e.innerHTML=`<div class="modal-box inv-modal-box">${html}</div>`;e.classList.add('open');
 }
-function invCerrarModal(){const e=document.getElementById('inv-modal');if(e)e.classList.remove('open');movDraft=null;productosImportDraft=null;ocDraft=null;recDraft=null;}
+function invCerrarModal(){const e=document.getElementById('inv-modal');if(e)e.classList.remove('open');movDraft=null;productosImportDraft=null;ocDraft=null;recDraft=null;ecDraft=null;}
 function modalHdr(t,s=''){return `<div class="modal-hdr"><div><div class="modal-title">${t}</div>${s?`<div class="modal-sub">${s}</div>`:''}</div><button class="modal-close" onclick="invCerrarModal()">×</button></div>`;}
 
 function invAbrirGrupo(id=''){
@@ -593,6 +594,7 @@ function invEditarMovimiento(id){
   const m=inv().movimientos.find(x=>x.id===id);
   if(!m||m.estado==='ANULADO')return;
   if(m.recepcionId){toast('Esta entrada proviene de una recepción de compra. Edítala desde la orden de compra.','e');return;}
+  if(m.compraId){toast('Esta entrada se cargó desde una factura de compra y está cuadrada con ella. Para corregirla, anúlala y vuelve a cargar la factura.','e');return;}
   if(m.tomaId){toast('Este ajuste proviene de una toma física. No se edita directamente.','e');return;}
   movDraft={editId:m.id,tipo:m.tipo,folio:m.folio,fecha:m.fecha,motivo:m.motivo,bodegaOrigenId:m.bodegaOrigenId||'',bodegaDestinoId:m.bodegaDestinoId||'',tercero:m.tercero||'',documentoTipo:m.documentoTipo||(m.documento?'OTRO':'SIN DOCUMENTO'),documentoNumero:m.documentoNumero||m.documento||'',proveedorRut:m.proveedorRut||'',proveedorNombre:m.proveedorNombre||'',ordenCompraId:m.ordenCompraId||'',centroCosto:m.centroCosto||'',observaciones:m.observaciones||'',lineas:(m.lineas||[]).map(l=>({...l}))};
   invRenderMovModal();
@@ -689,7 +691,7 @@ async function invGuardarMovimiento(){
 
 function invVerMovimiento(id){
   const m=inv().movimientos.find(x=>x.id===id);if(!m)return;const vals=calculo().valorizaciones.get(String(m.id))||[];
-  modal(`${modalHdr('Movimiento '+esc(m.folio),`${fechaCorta(m.fecha)} · ${esc(m.tipo)} · ${esc(m.estado)}`)}${m.estado==='ANULADO'?`<div class="inv-alert error"><strong>ANULADO:</strong> ${esc(m.motivoAnulacion||'Sin detalle')}</div>`:''}${m.estado!=='ANULADO'&&(m.recepcionId||m.tomaId)?`<div class="inv-alert"><strong>Movimiento protegido:</strong> ${m.recepcionId?'se administra desde la recepción de su orden de compra.':'se administra desde su toma física de inventario.'}</div>`:''}${m.editadoEn?`<div class="inv-nota" style="margin-bottom:10px">✏️ Editado el ${fechaCorta(m.editadoEn)} por ${esc(m.editadoPor||'—')}</div>`:''}<div class="inv-doc-grid"><div><small>Motivo</small><strong>${esc(m.motivo||'—')}</strong></div><div><small>Documento</small><strong>${esc(m.documento||'—')}</strong></div>${m.proveedorRut?`<div><small>Proveedor</small><strong>${esc(m.proveedorNombre||m.proveedorRut)}</strong></div>`:''}${m.ordenCompraId?`<div><small>Orden de compra</small><strong>${esc(inv().ordenesCompra.find(o=>o.id===m.ordenCompraId)?.folio||m.ordenCompraId)}</strong></div>`:''}<div><small>Origen</small><strong>${esc(nombreBodega(m.bodegaOrigenId))}</strong></div><div><small>Destino</small><strong>${esc(nombreBodega(m.bodegaDestinoId))}</strong></div><div><small>Tercero</small><strong>${esc(m.tercero||'—')}</strong></div><div><small>Centro de costo</small><strong>${esc(m.centroCosto||'—')}</strong></div></div><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Producto</th><th class="num">Cantidad</th><th>Lote</th><th>Vencimiento</th><th class="num">Costo aplicado</th><th class="num">Valor</th></tr></thead><tbody>${(m.lineas||[]).map((l,i)=>{const v=vals[i]||{};return `<tr><td>${esc(nombreProducto(l.productoId))}</td><td class="num">${fmt(l.cantidad)}</td><td class="mono">${esc(l.lote||'—')}</td><td>${fechaCorta(l.fechaVencimiento)}</td><td class="num">${mon(v.costoAplicado??l.costoUnitario)}</td><td class="num">${mon(v.valorAplicado??num(l.cantidad)*num(l.costoUnitario))}</td></tr>`;}).join('')}</tbody></table></div>${m.observaciones?`<div class="inv-nota">${esc(m.observaciones)}</div>`:''}<div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cerrar</button>${writable()&&m.estado!=='ANULADO'&&!m.recepcionId&&!m.tomaId?`<button class="btn btn-i" onclick="invEditarMovimiento('${m.id}')">✏️ Editar</button>`:''}${writable()&&m.estado!=='ANULADO'&&!m.recepcionId?`<button class="btn btn-r" onclick="invAnularMovimiento('${m.id}')">Anular movimiento</button>`:''}</div>`);
+  modal(`${modalHdr('Movimiento '+esc(m.folio),`${fechaCorta(m.fecha)} · ${esc(m.tipo)} · ${esc(m.estado)}`)}${m.estado==='ANULADO'?`<div class="inv-alert error"><strong>ANULADO:</strong> ${esc(m.motivoAnulacion||'Sin detalle')}</div>`:''}${m.estado!=='ANULADO'&&(m.recepcionId||m.tomaId)?`<div class="inv-alert"><strong>Movimiento protegido:</strong> ${m.recepcionId?'se administra desde la recepción de su orden de compra.':'se administra desde su toma física de inventario.'}</div>`:''}${m.editadoEn?`<div class="inv-nota" style="margin-bottom:10px">✏️ Editado el ${fechaCorta(m.editadoEn)} por ${esc(m.editadoPor||'—')}</div>`:''}<div class="inv-doc-grid"><div><small>Motivo</small><strong>${esc(m.motivo||'—')}</strong></div><div><small>Documento</small><strong>${esc(m.documento||'—')}</strong></div>${m.proveedorRut?`<div><small>Proveedor</small><strong>${esc(m.proveedorNombre||m.proveedorRut)}</strong></div>`:''}${m.ordenCompraId?`<div><small>Orden de compra</small><strong>${esc(inv().ordenesCompra.find(o=>o.id===m.ordenCompraId)?.folio||m.ordenCompraId)}</strong></div>`:''}<div><small>Origen</small><strong>${esc(nombreBodega(m.bodegaOrigenId))}</strong></div><div><small>Destino</small><strong>${esc(nombreBodega(m.bodegaDestinoId))}</strong></div><div><small>Tercero</small><strong>${esc(m.tercero||'—')}</strong></div><div><small>Centro de costo</small><strong>${esc(m.centroCosto||'—')}</strong></div></div><div class="inv-table-wrap"><table class="inv-table"><thead><tr><th>Producto</th><th class="num">Cantidad</th><th>Lote</th><th>Vencimiento</th><th class="num">Costo aplicado</th><th class="num">Valor</th></tr></thead><tbody>${(m.lineas||[]).map((l,i)=>{const v=vals[i]||{};return `<tr><td>${esc(nombreProducto(l.productoId))}</td><td class="num">${fmt(l.cantidad)}</td><td class="mono">${esc(l.lote||'—')}</td><td>${fechaCorta(l.fechaVencimiento)}</td><td class="num">${mon(v.costoAplicado??l.costoUnitario)}</td><td class="num">${mon(v.valorAplicado??num(l.cantidad)*num(l.costoUnitario))}</td></tr>`;}).join('')}</tbody></table></div>${m.observaciones?`<div class="inv-nota">${esc(m.observaciones)}</div>`:''}<div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cerrar</button>${writable()&&m.estado!=='ANULADO'&&!m.recepcionId&&!m.tomaId&&!m.compraId?`<button class="btn btn-i" onclick="invEditarMovimiento('${m.id}')">✏️ Editar</button>`:''}${writable()&&m.estado!=='ANULADO'&&!m.recepcionId?`<button class="btn btn-r" onclick="invAnularMovimiento('${m.id}')">Anular movimiento</button>`:''}</div>`);
 }
 async function invAnularMovimiento(id){
   if(!writable())return;const m=inv().movimientos.find(x=>x.id===id);if(!m||m.estado==='ANULADO')return;if(m.recepcionId){toast('Esta entrada proviene de una recepción. Anúlala desde la orden de compra para conservar la trazabilidad.','e');return;}const motivo=prompt('Motivo obligatorio de la anulación:');if(motivo===null)return;if(!motivo.trim()){toast('Debes indicar el motivo','e');return;}
@@ -709,5 +711,130 @@ export {
   invDevolverToma,invRechazarToma,invAutorizarToma
   ,invNuevaOC,invEditarOC,invOCCampo,invOCLineaCampo,invOCAgregarLinea,invOCQuitarLinea,invGuardarOC,
   invVerOC,invVolverOC,invEmitirOC,invAnularOC,invCerrarSaldoOC,invAbrirRecepcion,invRecCampo,invRecLineaCampo,invRecAgregarLote,invRecQuitarLinea,
-  invGuardarRecepcion,invAnularRecepcion,invAbrirVincularFactura,invVincularFactura
+  invGuardarRecepcion,invAnularRecepcion,invAbrirVincularFactura,invVincularFactura,
+  invEntradaCompra,invECBuscar,invECElegir,invECCampo,invECLineaCampo,invECAgregarLinea,invECQuitarLinea,invECCuadrarUltima,invECGuardar
 };
+
+
+// ═══ V2.22.0 · Entrada de inventario desde un documento de compra ═══
+//
+// Toma una factura de compra ya registrada (RCV, libro de compras) y trae sus
+// datos principales: proveedor, tipo y N° de documento, fecha y montos. Los
+// productos se agregan línea por línea con cantidad y valor unitario neto; el
+// neto de cada línea, el IVA y el total se calculan solos. Para guardar, la
+// suma de los netos debe cuadrar exacto con el neto total del documento
+// (neto + exento). Se carga de una sola vez: una factura con entrada vigente
+// no vuelve a aparecer en la lista. La entrada queda ligada a la factura
+// (compraId) y no se edita; si hay que corregirla, se anula y se carga de nuevo.
+const EC_TIPOS_DTE=[30,32,33,34,45,46];
+const ecNetoDoc=c=>Math.round(num(c.neto)+num(c.exento));
+const ecNetoLinea=l=>Math.round(num(l.cantidad)*num(l.precioUnitario)*(1-num(l.descuentoPct)/100));
+function ecCompraCargada(c){
+  if((c.recepcionesVinculadas||[]).length)return 'recepción';
+  if(inv().movimientos.some(m=>m.estado!=='ANULADO'&&m.compraId===c.id))return 'entrada';
+  return '';
+}
+function ecComprasDisponibles(){
+  return (S.compras||[]).filter(c=>c&&c.estado!=='anulado'&&EC_TIPOS_DTE.includes(+c.tipoDTE)&&ecNetoDoc(c)>0&&!ecCompraCargada(c))
+    .sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||'')));
+}
+const ecDocTipo=t=>[32,34].includes(+t)?'FACTURA EXENTA':'FACTURA AFECTA';
+const ecRut=c=>c.rutCodigo?`${c.rutCodigo}-${c.rutDV||''}`:'';
+const ecLineaVacia=()=>({id:uid(),productoId:'',cantidad:'',precioUnitario:'',descuentoPct:0,lote:'',fechaVencimiento:''});
+
+function invEntradaCompra(){
+  if(!writable())return;
+  if(!inv().bodegas.some(b=>b.activo!==false)){toast('Primero crea una bodega activa','e');UI.tab='bodegas';renderInventario();return;}
+  if(!inv().productos.some(p=>p.activo!==false&&p.inventariable!==false)){toast('Primero crea un producto inventariable','e');UI.tab='productos';renderInventario();return;}
+  ecDraft={paso:'elegir',q:''};invRenderEC();
+}
+function invECBuscar(q){if(!ecDraft)return;ecDraft.q=q;invRenderEC(true);}
+function invECElegir(id){
+  const c=(S.compras||[]).find(x=>x.id===id);if(!c||!ecDraft)return;
+  if(ecCompraCargada(c)){toast('Esa factura ya está cargada en el inventario','e');return;}
+  ecDraft={paso:'lineas',compraId:c.id,fecha:c.fechaContabilizacion||c.fecha||hoy(),bodegaDestinoId:inv().bodegas.find(b=>b.activo!==false)?.id||'',
+    centroCosto:(c.dist||[]).find(x=>x.cc)?.cc||'',observaciones:'',lineas:[ecLineaVacia()]};
+  invRenderEC();
+}
+function invECCampo(campo,valor,r=false){if(!ecDraft)return;ecDraft[campo]=valor;if(r)invRenderEC();}
+function invECLineaCampo(i,campo,valor,r=false){const l=ecDraft?.lineas[i];if(!l)return;l[campo]=valor;if(campo==='productoId'){l.lote='';l.fechaVencimiento='';}if(r)invRenderEC();}
+function invECAgregarLinea(){if(!ecDraft)return;ecDraft.lineas.push(ecLineaVacia());invRenderEC();}
+function invECQuitarLinea(i){if(!ecDraft)return;if(ecDraft.lineas.length===1)ecDraft.lineas[0]=ecLineaVacia();else ecDraft.lineas.splice(i,1);invRenderEC();}
+function ecTotales(){
+  const c=(S.compras||[]).find(x=>x.id===ecDraft?.compraId);if(!c)return null;
+  const lineas=ecDraft.lineas.map(l=>({...l,neto:ecNetoLinea(l),afecto:prod(l.productoId)?.aplicaIVA!==false}));
+  const neto=lineas.reduce((s,l)=>s+l.neto,0);
+  const exentoDoc=[32,34].includes(+c.tipoDTE);
+  const iva=exentoDoc?0:Math.round(lineas.filter(l=>l.afecto).reduce((s,l)=>s+l.neto,0)*0.19);
+  const objetivo=ecNetoDoc(c);
+  return {c,lineas,neto,iva,total:neto+iva,objetivo,dif:objetivo-neto};
+}
+// Ajusta el valor unitario de la última línea con cantidad para que la suma
+// cuadre con el neto del documento (útil cuando hay redondeos o una sola línea).
+function invECCuadrarUltima(){
+  const t=ecTotales();if(!t)return;
+  const i=[...ecDraft.lineas.keys()].reverse().find(k=>num(ecDraft.lineas[k].cantidad)>0);
+  if(i==null){toast('Ingresa la cantidad de al menos una línea','e');return;}
+  const l=ecDraft.lineas[i],otros=t.neto-ecNetoLinea(l),falta=t.objetivo-otros,f=1-num(l.descuentoPct)/100;
+  if(falta<=0||f<=0){toast('Las demás líneas ya suman el neto del documento o más','e');return;}
+  const exacto=falta/f/num(l.cantidad);
+  // El valor más corto (en decimales) que reproduce exacto el neto que falta
+  l.precioUnitario=[0,2,4,6].map(dc=>Math.round(exacto*10**dc)/10**dc).find(v=>ecNetoLinea({...l,precioUnitario:v})===falta)??exacto;
+  invRenderEC();
+}
+
+function invRenderEC(soloLista=false){
+  const d=ecDraft;if(!d)return;
+  if(d.paso==='elegir'){
+    const q=String(d.q||'').toLowerCase().trim();
+    const lista=ecComprasDisponibles().filter(c=>!q||`${c.numero} ${c.razonSocial||''} ${c.rutCodigo||''}`.toLowerCase().includes(q));
+    const filas=lista.slice(0,80).map(c=>`<tr style="cursor:pointer" onclick="invECElegir('${c.id}')"><td>${fechaCorta(c.fecha)}</td><td class="mono">${c.tipoDTE} · N° ${esc(c.numero)}</td><td>${esc(c.razonSocial||'')}<small>${esc(ecRut(c))}</small></td><td class="num">${mon(ecNetoDoc(c))}</td><td class="num">${mon(c.iva)}</td><td class="num"><strong>${mon(c.total)}</strong></td><td><button class="btn btn-p" style="padding:3px 9px;font-size:11px">Elegir</button></td></tr>`).join('');
+    const tabla=`<div class="inv-table-wrap" id="ec-lista"><table class="inv-table"><thead><tr><th>Fecha</th><th>Documento</th><th>Proveedor</th><th class="num">Neto + exento</th><th class="num">IVA</th><th class="num">Total</th><th></th></tr></thead><tbody>${filas||`<tr><td colspan="7" class="empty">${q?'Ningún documento coincide con la búsqueda.':'No hay facturas de compra pendientes de cargar al inventario en el ejercicio '+S.empresa.anio+'.'}</td></tr>`}</tbody></table></div>${lista.length>80?`<div class="inv-nota">Se muestran 80 de ${lista.length}. Afina la búsqueda.</div>`:''}`;
+    if(soloLista){const el=document.getElementById('ec-lista');if(el){el.outerHTML=tabla;return;}}
+    modal(`${modalHdr('Entrada desde documento de compra','Elige una factura del libro de compras '+S.empresa.anio+'. Sólo aparecen las que aún no se cargaron al inventario.')}
+      <div class="inv-toolbar" style="margin-bottom:10px"><input value="${esc(d.q)}" oninput="invECBuscar(this.value)" placeholder="N° de documento, proveedor o RUT…" autofocus></div>${tabla}
+      <div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button></div>`);
+    return;
+  }
+  const t=ecTotales();if(!t){toast('El documento ya no está disponible','e');invCerrarModal();return;}
+  const c=t.c,ok=t.dif===0&&t.neto>0;
+  modal(`${modalHdr('Entrada desde '+esc(ecDocTipo(c.tipoDTE).toLowerCase())+' N° '+esc(c.numero),'Agrega los productos línea por línea. El neto de las líneas debe cuadrar con el neto del documento para guardar.')}
+  <div class="inv-doc-grid"><div><small>Proveedor</small><strong>${esc(c.razonSocial||'—')}</strong><small>${esc(ecRut(c))}</small></div><div><small>Documento</small><strong>DTE ${c.tipoDTE} · N° ${esc(c.numero)}</strong><small>Emitido el ${fechaCorta(c.fecha)}</small></div><div><small>Montos del documento</small><strong>Neto ${mon(c.neto)}${num(c.exento)?` · Exento ${mon(c.exento)}`:''}</strong><small>IVA ${mon(c.iva)} · Total ${mon(c.total)}</small></div></div>
+  <div class="inv-form-grid"><label>Fecha de ingreso<input type="date" value="${esc(d.fecha)}" onchange="invECCampo('fecha',this.value)"></label><label>Bodega destino<select onchange="invECCampo('bodegaDestinoId',this.value)">${opcionesBodega(d.bodegaDestinoId)}</select></label>
+  <label>Centro de costo<select onchange="invECCampo('centroCosto',this.value)"><option value="">Sin centro</option>${(S.centros||[]).filter(x=>x.estado!=='inactivo').map(x=>`<option value="${esc(x.codigo||x.id)}" ${d.centroCosto===(x.codigo||x.id)?'selected':''}>${esc(x.codigo||'')} · ${esc(x.nombre||'')}</option>`).join('')}</select></label><label>Observaciones<input value="${esc(d.observaciones)}" onchange="invECCampo('observaciones',this.value)"></label></div>
+  <div class="inv-lines"><div class="inv-card-title">Productos</div>${t.lineas.map((l,i)=>{const p=prod(l.productoId);return `<div class="inv-oc-line"><label>Producto${inputProductoInv({id:`ec-prod-${i}`,value:l.productoId,onPick:`invECLineaCampo(${i},'productoId','%PID%',true)`})}${p?`<small>${esc(p.unidad||'')}${p.aplicaIVA===false?' · exento':''}</small>`:''}</label><label>Cantidad<input type="number" min="0" step="any" value="${esc(l.cantidad)}" onchange="invECLineaCampo(${i},'cantidad',this.value,true)"></label><label>Valor unitario neto<input type="number" min="0" step="any" value="${esc(l.precioUnitario)}" onchange="invECLineaCampo(${i},'precioUnitario',this.value,true)"></label><label>Descuento %<input type="number" min="0" max="100" step="any" value="${esc(l.descuentoPct)}" onchange="invECLineaCampo(${i},'descuentoPct',this.value,true)"></label><div class="inv-line-total"><small>Neto línea</small><strong>${mon(l.neto)}</strong></div><button class="inv-line-del" onclick="invECQuitarLinea(${i})" title="Quitar">×</button>${p?.manejaLotes?`<label>Lote<input value="${esc(l.lote)}" onchange="invECLineaCampo(${i},'lote',this.value.toUpperCase())"></label><label>Vencimiento<input type="date" value="${esc(l.fechaVencimiento)}" onchange="invECLineaCampo(${i},'fechaVencimiento',this.value)"></label>`:''}</div>`;}).join('')}
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="invECAgregarLinea()">＋ Agregar producto</button>${t.dif&&t.lineas.some(l=>num(l.cantidad)>0)?`<button class="btn btn-g" onclick="invECCuadrarUltima()" title="Calcula el valor unitario de la última línea para que el total cuadre">⚖️ Cuadrar con la última línea</button>`:''}</div></div>
+  <div class="inv-oc-totales"><span>Neto líneas <b>${mon(t.neto)}</b></span><span>IVA <b>${mon(t.iva)}</b></span><span>Total <b>${mon(t.total)}</b></span></div>
+  <div class="inv-alert ${ok?'':'error'}" style="margin-top:10px;${ok?'border-color:rgba(46,160,67,.4);background:rgba(46,160,67,.08);color:var(--ok,#107e3e)':''}">${ok?`✅ Cuadrado: las líneas suman ${mon(t.neto)}, igual al neto del documento.`:`⚖️ Cuadratura: neto del documento ${mon(t.objetivo)} · líneas ${mon(t.neto)} · <strong>diferencia ${mon(t.dif)}</strong>. Debe quedar en $ 0 para guardar.`}${!ok||[32,34].includes(+c.tipoDTE)||t.iva===Math.round(num(c.iva))?'':` <span style="color:var(--mt)">El IVA calculado (${mon(t.iva)}) difiere del IVA del documento (${mon(c.iva)}): revisa si algún producto es exento.</span>`}</div>
+  <div class="modal-footer"><button class="btn btn-g" onclick="ecDraftVolver()">← Otro documento</button><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invECGuardar()" ${ok?'':'disabled style="opacity:.45;cursor:not-allowed"'} title="${ok?'':'La suma de las líneas debe cuadrar con el neto del documento'}">Guardar entrada</button></div>`);
+}
+window.ecDraftVolver=()=>{ecDraft={paso:'elegir',q:''};invRenderEC();};
+
+async function invECGuardar(){
+  if(!writable()||!ecDraft||ecDraft.paso!=='lineas')return;
+  const t=ecTotales();if(!t)return;
+  if(t.lineas.some(l=>!l.productoId&&(num(l.cantidad)||num(l.precioUnitario)))){toast('Hay líneas con montos pero sin producto','e');return;}
+  const lineas=t.lineas.filter(l=>l.productoId);
+  if(!lineas.length){toast('Agrega al menos un producto','e');return;}
+  if(lineas.some(l=>!(num(l.cantidad)>0))){toast('Todas las líneas deben tener cantidad mayor a cero','e');return;}
+  if(t.dif!==0){toast(`La suma de las líneas no cuadra con el neto del documento (diferencia ${mon(t.dif)})`,'e');return;}
+  if(!ecDraft.bodegaDestinoId){toast('Elige la bodega destino','e');return;}
+  const c=t.c;
+  try{await leerListaActual('movimientos');}catch(e){}
+  if(ecCompraCargada(c)){toast('Esa factura ya se cargó al inventario desde otro equipo','e');invCerrarModal();renderInventario();return;}
+  const rut=ecRut(c),conOC=productosConOCAbierta(String(c.rutCodigo||''));
+  const conflicto=lineas.filter(l=>conOC.has(String(l.productoId)));
+  if(conflicto.length&&!confirm(`${conflicto.map(l=>nombreProducto(l.productoId)).join(', ')} tiene una orden de compra abierta con este proveedor.\n\nSi esta factura corresponde a esa orden, conviene recibirla desde Órdenes de compra.\n\n¿Cargarla igual desde la factura?`))return;
+  const now=new Date().toISOString(),docTipo=ecDocTipo(c.tipoDTE),numero=String(c.numero||'').trim().toUpperCase();
+  const m={id:uid(),tipo:'ENTRADA',folio:nuevoFolio('ENTRADA'),fecha:ecDraft.fecha,motivo:'COMPRA',bodegaOrigenId:'',bodegaDestinoId:ecDraft.bodegaDestinoId,
+    tercero:c.razonSocial||'',documentoTipo:docTipo,documentoNumero:numero,documento:`${docTipo} ${numero}`,proveedorRut:String(c.rutCodigo||''),proveedorNombre:c.razonSocial||'',ordenCompraId:'',
+    centroCosto:ecDraft.centroCosto,observaciones:ecDraft.observaciones||`Cargada desde DTE ${c.tipoDTE} N° ${numero}`,
+    compraId:c.id,compraTipoDTE:+c.tipoDTE,compraNumero:numero,compraRut:rut,compraNeto:t.objetivo,compraAnio:+S.empresa.anio,
+    estado:'VIGENTE',creado:now,creadoPor:AUTH.user?.email||'',
+    lineas:lineas.map(l=>({id:uid(),productoId:l.productoId,cantidad:num(l.cantidad),costoUnitario:l.neto/num(l.cantidad),precioUnitario:num(l.precioUnitario),descuentoPct:num(l.descuentoPct),netoLinea:l.neto,lote:String(l.lote||'').trim().toUpperCase(),fechaVencimiento:l.fechaVencimiento||''}))};
+  const v=validarMovimiento(m,{productos:inv().productos,bodegas:inv().bodegas,movimientos:inv().movimientos});
+  if(!v.ok){toast('❌ '+v.errores[0],'e');return;}
+  m.lineas=v.lineas;inv().movimientos.push(m);
+  try{await guardarLista('movimientos');logCambio('Cargó factura de compra al inventario',{entidad:'inventario-movimiento',id:m.id,despues:m,meta:{detalle:`${m.folio} · DTE ${c.tipoDTE} N° ${numero}`}});invCerrarModal();UI.tab='movimientos';renderInventario();toast(`✅ ${m.folio}: ${lineas.length} producto(s) ingresados desde la factura N° ${numero}`);}
+  catch(e){inv().movimientos=inv().movimientos.filter(x=>x.id!==m.id);toast('❌ '+e.message,'e');}
+}

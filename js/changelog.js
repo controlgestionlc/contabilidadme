@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1700';
+const APP_VERSION='v2026.10.28-1800';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.0',fecha:'28-10-2026',titulo:'Inventario: entrada desde documento de compra',items:[
+    {tipo:'nuevo',txt:'En Inventario → Movimientos, el botón "📄 Entrada desde compra" lista las facturas del libro de compras que aún no se cargaron al inventario y trae sus datos: proveedor, RUT, tipo y N° de documento, fecha, neto, exento, IVA y total.'},
+    {tipo:'nuevo',txt:'Los productos se agregan línea por línea con cantidad, valor unitario neto y descuento; el neto de cada línea, el IVA y el total se calculan solos. El botón "⚖️ Cuadrar con la última línea" calcula el unitario que falta.'},
+    {tipo:'nuevo',txt:'Cuadratura antes de guardar: la suma de los netos de las líneas debe ser igual al neto total del documento (neto + exento). La factura se carga de una vez y queda ligada a la entrada, así que no vuelve a aparecer en la lista; para corregirla se anula la entrada y se carga de nuevo.'},
+  ]},
   {version:'V2.21.99',fecha:'28-10-2026',titulo:'Resumen de la empresa',items:[
     {tipo:'nuevo',txt:'Nuevo "Resumen de la empresa" que se abre al elegir una empresa en Inicio: ingresos, gastos, margen, disponible en caja y bancos, impuestos del F29 y resultado del ejercicio del mes elegido, con la variación contra el mes anterior.'},
     {tipo:'nuevo',txt:'Gráficos de línea de ventas y compras mensuales y de ingresos, gastos y resultado acumulado; documentos del mes por tipo; consulta de saldo mensual de cualquier cuenta (neto o acumulado); gastos por cuenta y observaciones a revisar (asientos descuadrados, saldos contrarios en caja, bancos, clientes o proveedores, gastos sin centro de costo y F29 sin guardar).'},

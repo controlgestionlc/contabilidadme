@@ -88,7 +88,8 @@ import {cargarInventario,renderInventario,invSetTab,invSetFiltro,invCerrarModal,
         invDevolverToma,invRechazarToma,invAutorizarToma,
         invNuevaOC,invEditarOC,invOCCampo,invOCLineaCampo,invOCAgregarLinea,invOCQuitarLinea,invGuardarOC,
         invVerOC,invVolverOC,invEmitirOC,invAnularOC,invCerrarSaldoOC,invAbrirRecepcion,invRecCampo,invRecLineaCampo,invRecAgregarLote,invRecQuitarLinea,
-        invGuardarRecepcion,invAnularRecepcion,invAbrirVincularFactura,invVincularFactura} from './inventario.js';
+        invGuardarRecepcion,invAnularRecepcion,invAbrirVincularFactura,invVincularFactura,
+        invEntradaCompra,invECBuscar,invECElegir,invECCampo,invECLineaCampo,invECAgregarLinea,invECQuitarLinea,invECCuadrarUltima,invECGuardar} from './inventario.js';
 
 // Negocio
 import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, apLRut,
@@ -779,6 +780,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   invNuevaOC, invEditarOC, invOCCampo, invOCLineaCampo, invOCAgregarLinea, invOCQuitarLinea, invGuardarOC,
   invVerOC, invVolverOC, invEmitirOC, invAnularOC, invCerrarSaldoOC, invAbrirRecepcion, invRecCampo, invRecLineaCampo, invRecAgregarLote, invRecQuitarLinea,
   invGuardarRecepcion, invAnularRecepcion, invAbrirVincularFactura, invVincularFactura,
+  invEntradaCompra, invECBuscar, invECElegir, invECCampo, invECLineaCampo, invECAgregarLinea, invECQuitarLinea, invECCuadrarUltima, invECGuardar,
   verDetalleCC, abrirCapitalizar, confirmarCapitalizar, ccOpts, ccNombre,
   onCurvaChange, setPct, addPctAnio, delPctAnio, onTipoCentroChange,
   ejecutarCierreMensual, revertirCierreMensual, onCierreMesChange, resetCierreMes,
