@@ -323,7 +323,19 @@ function calcularF29Anual(){
   let utmRemanenteAnt=ini.monto>0?_utmDeclaracion(ini.periodo):0;   // UTM del mes en que se declaró el período de origen
   // Anticipo cambio de sujeto: el remanente (cód. 573) de diciembre del año
   // anterior entra como cód. 557 de enero.
-  let remAnticipoAnt=(()=>{const dic=F29DECL.anterior?.[`${anio-1}-12`];return dic?codDecl(dic,573,+(dic.anticipo?.c573)||0):0;})();
+  // Si el F29 de diciembre no trae el 573 declarado, se usa el ingresado a
+  // mano o se reconstruye con sus datos de anticipo (556 + 557 − 558 − 598).
+  let remAnticipoAnt=(()=>{
+    const dic=F29DECL.anterior?.[`${anio-1}-12`];if(!dic)return 0;
+    if(dic.declarado?.['573']!=null)return codDecl(dic,573,0);
+    if(dic.manual?.['573']!=null)return Math.max(0,+dic.manual['573']||0);
+    const a=dic.anticipo||{};
+    const t543=dic.manual?.['543']!=null?+dic.manual['543']:Math.max(0,(+a['556']||0)+(+a['557']||0)-(+a['558']||0));
+    return Math.max(0,t543-Math.min(t543,codDecl(dic,89,0)));
+  })();
+  // V2.21.96 · El remanente de anticipo se reajusta por UTM igual que el
+  // remanente de IVA (cotejado con F29 reales dic-2025 → ene-2026).
+  let utmAnticipoAnt=remAnticipoAnt>0?_utmDeclaracion(`${anio-1}-12`):0;
   for(let m=1;m<=12;m++){
     const vs=todosDocsVentas().filter(d=>+d.fecha.slice(5,7)===m);
     const vdet=_f29VentaDetalle(vs);
@@ -385,7 +397,8 @@ function calcularF29Anual(){
     // tope del cód. 89) y lo que sobra pasa al mes siguiente (573).
     const declM=declaracionF29(per), ant=(declM&&declM.anticipo)||{};
     const c556=Math.max(0,Math.round(+ant['556']||0));
-    const c557=ant['557']!=null?Math.max(0,Math.round(+ant['557']||0)):Math.max(0,Math.round(remAnticipoAnt));
+    const rrAnt=reajustarRemanente(Math.max(0,Math.round(remAnticipoAnt)),utmAnticipoAnt,utmImputacion);
+    const c557=ant['557']!=null?Math.max(0,Math.round(+ant['557']||0)):Math.max(0,rrAnt.monto);
     const c557Fuente=ant['557']!=null?'manual':'arrastre';
     const c558=Math.max(0,Math.round(+ant['558']||0));
     const c543=hayMan('543')?Math.max(0,Math.round(+man['543']||0)):Math.max(0,c556+c557-c558);
@@ -421,6 +434,7 @@ function calcularF29Anual(){
     remanenteAnt=esF29Presentado(decl)?codDecl(decl,77,remanente):remanente;
     utmRemanenteAnt=utmImputacion;
     remAnticipoAnt=esF29Presentado(decl)?codDecl(decl,573,c573):c573;
+    utmAnticipoAnt=utmImputacion;
   }
   return meses;
 }
@@ -706,7 +720,7 @@ function renderF29(){
       <div class="grp"><label>Cód. 556 · IVA anticipado del período</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${d.codigos[556]?fmtMontoF29(d.codigos[556]):''}" placeholder="0" onchange="setF29Anticipo('556',this.value)" ${presentado?'disabled':''}>
         <div style="font-size:10px;color:var(--mt);margin-top:2px">Cambio de sujeto: IVA que te retuvieron en el período</div></div>
       <div class="grp"><label>Cód. 557 · Remanente anticipo mes anterior</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${d.c557Fuente==='manual'?fmtMontoF29(d.codigos[557]):''}" placeholder="${fmtMontoF29(d.codigos[557])}" onchange="setF29Anticipo('557',this.value)" ${presentado?'disabled':''}>
-        <div style="font-size:10px;color:var(--mt);margin-top:2px">${d.c557Fuente==='manual'?'Ingresado a mano · déjalo vacío para tomar el cód. 573 del mes anterior':'Tomado del cód. 573 del mes anterior'}</div></div>
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">${d.c557Fuente==='manual'?'Ingresado a mano · déjalo vacío para tomar el cód. 573 del mes anterior':mSel===1?(F29DECL.anterior?.[(S.empresa.anio-1)+'-12']?'Tomado del cód. 573 del F29 de diciembre '+(S.empresa.anio-1):'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingresa aquí su cód. 573'):'Tomado del cód. 573 del mes anterior'}, reajustado por UTM como lo hace el SII. Si el SII propone otro valor (por una devolución, cód. 558), corrígelo aquí.</div></div>
       <div class="grp"><label>Cód. 558 · Devolución mes anterior</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${d.codigos[558]?fmtMontoF29(d.codigos[558]):''}" placeholder="0" onchange="setF29Anticipo('558',this.value)" ${presentado?'disabled':''}></div>
       ${mSel===1?(()=>{const ini=remanenteInicialF29(),bloq=ini.fuente==='f29-dic'||presentado;return `<div class="grp"><label>Remanente inicial (cód. 77 de diciembre ${S.empresa.anio-1})</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${ini.fuente==='ninguna'?'':fmtMontoF29(ini.monto)}" placeholder="0" onchange="setRemanenteInicialF29(this.value)" ${bloq?'disabled':''}>
         <div style="font-size:10px;color:var(--mt);margin-top:2px">${ini.fuente==='f29-dic'?'Desde el F29 de diciembre '+(S.empresa.anio-1)+' ('+ini.estado+')':ini.fuente==='manual'?'Ingresado a mano':'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingrésalo si hubo remanente'} · UTM origen ${d.utmRemanenteAnt?fmtC(d.utmRemanenteAnt):'—'}</div></div>`;})():''}</div>

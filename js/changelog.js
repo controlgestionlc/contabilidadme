@@ -8,13 +8,20 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1500';
+const APP_VERSION='v2026.10.28-1620';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.96',fecha:'28-10-2026',titulo:'F29: reajuste UTM del anticipo cambio de sujeto',items:[
+    {tipo:'arreglo',txt:'El remanente de anticipo cambio de sujeto (cód. 573) pasa al mes siguiente como cód. 557 reajustado por UTM, igual que el remanente de IVA y como lo calcula el SII (monto ÷ UTM del mes de origen, redondeado a 2 decimales, × UTM del mes de imputación). Cotejado con dic-2025 → ene-2026: 3.703 → 3.481.'},
+  ]},
+  {version:'V2.21.95',fecha:'28-10-2026',titulo:'F29: arrastre de diciembre a enero',items:[
+    {tipo:'arreglo',txt:'El remanente de anticipo cambio de sujeto (cód. 573) del F29 de diciembre del año anterior se toma como cód. 557 de enero aunque ese F29 esté en borrador: se usa el valor a mano o se reconstruye con sus datos de anticipo.'},
+    {tipo:'cambio',txt:'En enero, el campo del cód. 557 indica si viene del F29 de diciembre o si hay que ingresarlo. Cotejado con los F29 reales de diciembre 2025 y enero 2026: el reajuste del remanente (504) calza exacto.'},
+  ]},
   {version:'V2.21.94',fecha:'28-10-2026',titulo:'F29: códigos editables a mano',items:[
     {tipo:'nuevo',txt:'En el F29 del mes los códigos 110, 111 (boletas), 758, 759 (comprobantes de pago electrónico), 543 (total anticipo) y 573 (remanente de anticipo) se pueden escribir a mano. El débito, el IVA a pagar o remanente, el anticipo imputado y el total se recalculan con esos valores.'},
     {tipo:'cambio',txt:'Los valores ingresados a mano se marcan con ✎ y se guardan con el F29 del mes. Al borrar el campo se vuelve al cálculo desde los documentos. El 573 ingresado a mano pasa como 557 al mes siguiente.'},
