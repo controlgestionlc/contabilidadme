@@ -119,10 +119,12 @@ export function alternarVerOtras(){
 export async function abrirEmpresaInicio(id){
   const e=(EMPRESAS.lista||[]).find(x=>x.id===id);
   if(!e){toast('⚠️ Esa empresa ya no está disponible','e');renderInicio();return;}
-  // Al entrar a una empresa se abre Comprobantes (V2.21.89), si el usuario
-  // tiene acceso a ese módulo; si no, se queda en Inicio.
+  // Al entrar a una empresa se abre su Resumen (V2.21.99); si el usuario no
+  // tiene acceso, Comprobantes; si tampoco, se queda en Inicio.
   const irAComprobantes=()=>{
-    if(window.nav&&puedeVer('comprobantes'))window.nav('comprobantes');
+    if(!window.nav)return;
+    if(puedeVer('dashboard'))window.nav('dashboard');
+    else if(puedeVer('comprobantes'))window.nav('comprobantes');
   };
   if(id===EMPRESAS.activa){ irAComprobantes(); return; }
 

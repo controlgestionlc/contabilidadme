@@ -27,6 +27,7 @@ import {initAuth, puedeVer, puedeEditar, esAdmin, ROLES, SECCIONES, permisosDeRo
 import {cargarUsuarios, renderUsuarios, abrirInvitarUsuario, editarUsuario,
         renderPermisosForm, cerrarUsuarioForm, guardarUsuario, aprobarUsuario,
         desactivarUsuario, US} from './usuarios.js';
+import {renderDashboard, setDashMes, setDashCuenta, setDashAcumulado} from './dashboard.js';
 import {renderPerfiles, setNivelPerfil, setTodosPerfil, restablecerPerfil, descartarPerfiles, guardarPerfiles} from './perfiles.js';
 import {renderAuditLog} from './audit.js';
 import {renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI} from './integridad.js';
@@ -633,6 +634,7 @@ function renderSec(s){
   else if(s==='apertura')renderApertura();
   else if(s==='usuarios')renderUsuarios();
   else if(s==='perfiles')renderPerfiles();
+  else if(s==='dashboard')renderDashboard();
   else if(s==='auditlog')renderAuditLog();
   else if(s==='integridad')renderIntegridad();
   else if(s==='ventas')renderVentas();
@@ -756,6 +758,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   olvidarNav,
   renderUsuarios, abrirInvitarUsuario, editarUsuario, renderPermisosForm,
   cerrarUsuarioForm, guardarUsuario, aprobarUsuario, desactivarUsuario, renderAuditLog,
+  renderDashboard, setDashMes, setDashCuenta, setDashAcumulado,
   renderPerfiles, setNivelPerfil, setTodosPerfil, restablecerPerfil, descartarPerfiles, guardarPerfiles, renderIntegridad, migrarAsientosV2,
   // empresa / pdc / indicadores
   fillEmpresaForm, saveEmpresa, updateHdr,

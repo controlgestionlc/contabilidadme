@@ -50,6 +50,7 @@ const SOLO_ADMIN=['usuarios','perfiles','auditlog','integridad'];
 // Secciones a las que se aplican permisos
 const SECCIONES=[
   {id:'inicio',lbl:'Inicio'},
+  {id:'dashboard',lbl:'Resumen de la empresa'},
   {id:'empresa',lbl:'Empresa'},
   {id:'empresas',lbl:'Empresas'},
   {id:'centroscosto',lbl:'Centros de Costo'},

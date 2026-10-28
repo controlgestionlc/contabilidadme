@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1545';
+const APP_VERSION='v2026.10.28-1700';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.99',fecha:'28-10-2026',titulo:'Resumen de la empresa',items:[
+    {tipo:'nuevo',txt:'Nuevo "Resumen de la empresa" que se abre al elegir una empresa en Inicio: ingresos, gastos, margen, disponible en caja y bancos, impuestos del F29 y resultado del ejercicio del mes elegido, con la variación contra el mes anterior.'},
+    {tipo:'nuevo',txt:'Gráficos de línea de ventas y compras mensuales y de ingresos, gastos y resultado acumulado; documentos del mes por tipo; consulta de saldo mensual de cualquier cuenta (neto o acumulado); gastos por cuenta y observaciones a revisar (asientos descuadrados, saldos contrarios en caja, bancos, clientes o proveedores, gastos sin centro de costo y F29 sin guardar).'},
+    {tipo:'cambio',txt:'El selector de empresas de Inicio se mantiene igual. El resumen también queda en el menú bajo Inicio y es un permiso más en Perfiles.'},
+  ]},
   {version:'V2.21.98',fecha:'28-10-2026',titulo:'Se retira el XML IECV',items:[
     {tipo:'cambio',txt:'Se elimina el generador del XML de compras y ventas (IECV), que ya no se usa. Los Libros mensuales de Compra y Venta siguen igual.'},
   ]},
