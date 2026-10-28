@@ -345,6 +345,9 @@ const DTE_VENTAS=[
   {cod:34,nm:'Factura Exenta Electrónica',afecto:false,cuenta:'4101002',signo:1},
   {cod:39,nm:'Boleta Electrónica',afecto:true,cuenta:'4101003',signo:1},
   {cod:41,nm:'Boleta Exenta Electrónica',afecto:false,cuenta:'4101003',signo:1},
+  // V2.21.92 · Comprobante o recibo de pago con medios electrónicos (voucher
+  // Transbank y similares). F29 códigos 758 (cantidad) y 759 (débito).
+  {cod:48,nm:'Comprobante de Pago Electrónico',afecto:true,cuenta:'4101003',signo:1},
   {cod:56,nm:'Nota de Débito',afecto:true,cuenta:'4101002',signo:1},
   {cod:61,nm:'Nota de Crédito',afecto:true,cuenta:'4101002',signo:-1},
 ];

@@ -8,13 +8,24 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1100';
+const APP_VERSION='v2026.10.28-1400';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.93',fecha:'28-10-2026',titulo:'F29: anticipo cambio de sujeto y códigos de totales',items:[
+    {tipo:'nuevo',txt:'Anticipo cambio de sujeto calculado: 556 IVA anticipado del período (se ingresa), 557 remanente del mes anterior (se toma del 573 del mes anterior o se ingresa), 558 devolución, 543 total de anticipo, 598 anticipo a imputar (con tope del IVA a pagar) y 573 remanente para el mes siguiente.'},
+    {tipo:'nuevo',txt:'Nuevos códigos 511 (crédito IVA por documentos electrónicos), 115 (tasa PPM), 595 (sub total impuesto determinado anverso) y 547 (total determinado).'},
+    {tipo:'cambio',txt:'El total a pagar (91) descuenta el anticipo imputado (598), y el pago del F29 propone el IVA neto de ese anticipo. Cotejado con un F29 real de enero 2026.'},
+  ]},
+  {version:'V2.21.92',fecha:'28-10-2026',titulo:'F29: nuevos códigos',items:[
+    {tipo:'nuevo',txt:'El F29 muestra siempre los códigos 503/502 (facturas emitidas), 110/111 (cantidad y débito de boletas), 758/759 (comprobantes o recibos de pago con medios electrónicos), 519/520 (facturas recibidas del giro) y 584/562 (compras exentas o no gravadas), aunque estén en cero.'},
+    {tipo:'nuevo',txt:'Nuevo tipo de documento de venta 48 "Comprobante de Pago Electrónico" para registrar los vouchers; alimenta los códigos 758 y 759.'},
+    {tipo:'nuevo',txt:'Sección "Anticipo cambio de sujeto" con los códigos 543 (total de anticipo) y 573 (remanente para el período siguiente), que se ingresan en la declaración.'},
+    {tipo:'cambio',txt:'La tabla Calculado/Declarado incluye todos esos códigos. Los F29 presentados antes de esta versión no muestran diferencias por los códigos nuevos.'},
+  ]},
   {version:'V2.21.91',fecha:'28-10-2026',titulo:'Tasa PPM por empresa y por mes',items:[
     {tipo:'nuevo',txt:'La tasa PPM de Empresa → Configuración tributaria es la que usan por defecto los F29 de cada mes, y ahora se puede ajustar a mano en el F29 de un mes puntual (campo "Tasa PPM" junto a la UTM).'},
     {tipo:'cambio',txt:'Al guardar un F29 (borrador o presentado) la tasa PPM queda grabada en ese mes: si después cambias la tasa de la empresa, los PPM de los meses ya guardados no cambian. Los F29 guardados antes de esta versión quedan con la tasa que se deduce de lo declarado (cód. 62 ÷ cód. 563) o, si no se puede, con la tasa actual de la empresa.'},
