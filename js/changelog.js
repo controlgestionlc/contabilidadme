@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1800';
+const APP_VERSION='v2026.10.28-1715';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.1',fecha:'28-10-2026',titulo:'Inventario: crear productos desde Movimientos',items:[
+    {tipo:'nuevo',txt:'En los movimientos de entrada y en la entrada desde compra hay un botón "🆕 Crear producto" que abre la ficha del producto en una ventana flotante, sin cerrar el movimiento. Al guardarlo queda elegido en la primera línea vacía (o en una línea nueva) y lo ya escrito se mantiene.'},
+  ]},
   {version:'V2.22.0',fecha:'28-10-2026',titulo:'Inventario: entrada desde documento de compra',items:[
     {tipo:'nuevo',txt:'En Inventario → Movimientos, el botón "📄 Entrada desde compra" lista las facturas del libro de compras que aún no se cargaron al inventario y trae sus datos: proveedor, RUT, tipo y N° de documento, fecha, neto, exento, IVA y total.'},
     {tipo:'nuevo',txt:'Los productos se agregan línea por línea con cantidad, valor unitario neto y descuento; el neto de cada línea, el IVA y el total se calculan solos. El botón "⚖️ Cuadrar con la última línea" calcula el unitario que falta.'},

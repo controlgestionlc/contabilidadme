@@ -419,7 +419,7 @@ function modal(html){
   let e=document.getElementById('inv-modal');if(!e){e=document.createElement('div');e.id='inv-modal';e.className='modal-bkd';document.body.appendChild(e);}
   e.innerHTML=`<div class="modal-box inv-modal-box">${html}</div>`;e.classList.add('open');
 }
-function invCerrarModal(){const e=document.getElementById('inv-modal');if(e)e.classList.remove('open');movDraft=null;productosImportDraft=null;ocDraft=null;recDraft=null;ecDraft=null;}
+function invCerrarModal(){invCerrarFlotante();const e=document.getElementById('inv-modal');if(e)e.classList.remove('open');movDraft=null;productosImportDraft=null;ocDraft=null;recDraft=null;ecDraft=null;}
 function modalHdr(t,s=''){return `<div class="modal-hdr"><div><div class="modal-title">${t}</div>${s?`<div class="modal-sub">${s}</div>`:''}</div><button class="modal-close" onclick="invCerrarModal()">×</button></div>`;}
 
 function invAbrirGrupo(id=''){
@@ -454,9 +454,28 @@ async function invGuardarBodega(id=''){
 }
 
 function siguienteCodigo(){let max=0;for(const p of inv().productos){const m=String(p.codigo||'').match(/^P(\d+)$/i);if(m)max=Math.max(max,+m[1]);}return 'P'+String(max+1).padStart(6,'0');}
-function invAbrirProducto(id=''){
+// V2.22.1 · Producto nuevo desde Movimientos: se abre en una ventana flotante
+// sobre el movimiento (o la entrada desde compra) y, al guardarlo, queda
+// elegido en la línea, sin perder lo que ya se había escrito.
+let FLOTANTE=null;   // {destino:'mov'|'ec', linea:i} mientras la ventana está abierta
+function modalFlotante(html){
+  let e=document.getElementById('inv-modal2');if(!e){e=document.createElement('div');e.id='inv-modal2';e.className='modal-bkd';e.style.zIndex='1100';document.body.appendChild(e);}
+  e.innerHTML=`<div class="modal-box inv-modal-box" style="max-width:760px">${html}</div>`;e.classList.add('open');
+}
+function invCerrarFlotante(){const e=document.getElementById('inv-modal2');if(e){e.classList.remove('open');e.innerHTML='';}FLOTANTE=null;}
+function invNuevoProductoFlotante(destino,linea=null){
+  if(!writable())return;
+  const d=destino==='ec'?ecDraft:movDraft;if(!d)return;
+  // Línea a llenar: la indicada, la primera vacía, o una nueva al final
+  let i=linea!=null?+linea:d.lineas.findIndex(l=>!l.productoId);
+  if(i<0||!d.lineas[i]){d.lineas.push(destino==='ec'?ecLineaVacia():{id:uid(),productoId:'',cantidad:'',costoUnitario:'',lote:'',fechaVencimiento:''});i=d.lineas.length-1;}
+  FLOTANTE={destino,linea:i};
+  invAbrirProducto('',{flotante:true});
+}
+function invAbrirProducto(id='',{flotante=false}={}){
   const p=id?prod(id):null,grupos=inv().grupos.filter(g=>g.activo!==false);
-  modal(`${modalHdr(p?'Editar producto':'Nuevo producto','Los productos y su clasificación pertenecen exclusivamente a la empresa activa')}
+  const cerrar=flotante?'invCerrarFlotante()':'invCerrarModal()';
+  (flotante?modalFlotante:modal)(`${flotante?`<div class="modal-hdr"><div><div class="modal-title">Nuevo producto</div><div class="modal-sub">Al guardarlo queda elegido en la línea del movimiento</div></div><button class="modal-close" onclick="invCerrarFlotante()">×</button></div>`:modalHdr(p?'Editar producto':'Nuevo producto','Los productos y su clasificación pertenecen exclusivamente a la empresa activa')}
   <div class="inv-form-grid">
     <label>Código interno<input id="ip-codigo" value="${esc(p?.codigo||siguienteCodigo())}" ${p?'readonly':''} maxlength="30"></label><label>Código EAN<input id="ip-ean" value="${esc(p?.ean||'')}" maxlength="20"></label>
     <label class="span2">Descripción<input id="ip-desc" value="${esc(p?.descripcion||'')}" maxlength="180"></label>
@@ -468,7 +487,7 @@ function invAbrirProducto(id=''){
     <label>Cuenta de gasto/consumo<select id="ip-ccosto"><option value="">Selecciona una cuenta de gasto…</option>${CUENTAS_GASTO.map(c=>`<option value="${c.cd}" ${(p?.cuentaCosto||'')===c.cd?'selected':''}>${c.cd} — ${esc(c.nm)}</option>`).join('')}</select></label><label class="inv-check"><input type="checkbox" id="ip-iva" ${p?.aplicaIVA===false?'':'checked'}> Afecto a IVA</label>
     <label class="inv-check"><input type="checkbox" id="ip-lotes" ${p?.manejaLotes?'checked':''} ${p&&inv().movimientos.some(m=>(m.lineas||[]).some(l=>l.productoId===p.id))?'disabled':''}> Maneja lote y vencimiento</label>
     <label class="inv-check"><input type="checkbox" id="ip-inv" ${p?.inventariable===false?'':'checked'}> Inventariable</label><label class="inv-check"><input type="checkbox" id="ip-activo" ${p?.activo===false?'':'checked'}> Producto activo</label>
-  </div><div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invGuardarProducto('${esc(id)}')">Guardar</button></div>`);
+  </div><div class="modal-footer"><button class="btn btn-g" onclick="${cerrar}">Cancelar</button><button class="btn btn-p" onclick="invGuardarProducto('${esc(id)}')">${flotante?'Crear y usar en la línea':'Guardar'}</button></div>`);
   invActualizarSubgrupos();
 }
 function invActualizarSubgrupos(){const gs=document.getElementById('ip-grupo'),ss=document.getElementById('ip-sub');if(!gs||!ss)return;const sel=ss.dataset.value||ss.value||'',g=grupo(gs.value);ss.innerHTML='<option value="">Sin subgrupo</option>'+((g?.subgrupos||[]).map(x=>`<option value="${esc(x)}" ${sel===x?'selected':''}>${esc(x)}</option>`).join(''));delete ss.dataset.value;}
@@ -484,7 +503,18 @@ async function invGuardarProducto(id=''){
   const respaldo=JSON.stringify(inv().productos);
   const viejo=id?prod(id):null,reg={...(viejo||{}),id:id||uid(),codigo,ean,descripcion,tipo:document.getElementById('ip-tipo').value,unidad:document.getElementById('ip-unidad').value,grupoId:document.getElementById('ip-grupo').value,subgrupo:document.getElementById('ip-sub').value,stockMinimo:num(document.getElementById('ip-min').value),cuentaInventario:CUENTA_INVENTARIO_FIJA,cuentaCosto:cc,aplicaIVA:document.getElementById('ip-iva').checked,manejaLotes:document.getElementById('ip-lotes').checked,inventariable:document.getElementById('ip-inv').checked,activo:document.getElementById('ip-activo').checked,actualizado:new Date().toISOString()};
   if(viejo)Object.assign(viejo,reg);else inv().productos.push(reg);
-  try{await guardarLista('productos');invCerrarModal();renderInventario();toast('✅ Producto guardado');}catch(e){inv().productos=JSON.parse(respaldo);toast('❌ '+e.message,'e');}
+  try{
+    await guardarLista('productos');
+    if(FLOTANTE&&!viejo){
+      const {destino,linea}=FLOTANTE,d=destino==='ec'?ecDraft:movDraft;
+      invCerrarFlotante();
+      if(d&&d.lineas[linea]){d.lineas[linea].productoId=reg.id;d.lineas[linea].lote='';d.lineas[linea].fechaVencimiento='';}
+      if(destino==='ec')invRenderEC();else invRenderMovModal();
+      toast(`✅ Producto ${reg.codigo} creado y agregado a la línea`);
+      return;
+    }
+    invCerrarModal();renderInventario();toast('✅ Producto guardado');
+  }catch(e){inv().productos=JSON.parse(respaldo);toast('❌ '+e.message,'e');}
 }
 
 function invDescargarPlantillaProductos(){
@@ -617,7 +647,7 @@ function invRenderMovModal(){
   <label>Orden de compra<select onchange="invMovCampo('ordenCompraId',this.value,true)" ${!d.proveedorRut?'disabled':''}><option value="">Sin orden de compra</option>${ocsAbiertasProveedor(d.proveedorRut).map(o=>{const r=resumenRecepcionOC(o,inv().recepciones);return `<option value="${o.id}" ${d.ordenCompraId===o.id?'selected':''}>${esc(o.folio)} · ${fechaCorta(o.fecha)} · pendiente ${fmt(r.pendiente)}</option>`;}).join('')}</select>${!d.proveedorRut?'<small>Selecciona primero el proveedor</small>':''}</label>
   ${d.ordenCompraId?renderPendienteOC(d.ordenCompraId):''}`:''}
   <label class="span2">Observaciones<input value="${esc(d.observaciones)}" onchange="invMovCampo('observaciones',this.value)"></label></div>
-  <div class="inv-lines"><div class="inv-card-title">Detalle</div>${d.lineas.map((l,i)=>renderMovLinea(l,i,d)).join('')}<button class="btn btn-g" onclick="invMovAgregarLinea()">＋ Agregar línea</button></div>
+  <div class="inv-lines"><div class="inv-card-title">Detalle</div>${d.lineas.map((l,i)=>renderMovLinea(l,i,d)).join('')}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="invMovAgregarLinea()">＋ Agregar línea</button>${d.tipo==='ENTRADA'&&writable()?`<button class="btn btn-g" onclick="invNuevoProductoFlotante('mov')" title="Crea un producto sin salir del movimiento">🆕 Crear producto</button>`:''}</div></div>
   <div class="modal-footer"><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invGuardarMovimiento()">${d.editId?'Guardar cambios':'Guardar movimiento'}</button></div>`);
 }
 function renderMovLinea(l,i,d){
@@ -712,6 +742,7 @@ export {
   ,invNuevaOC,invEditarOC,invOCCampo,invOCLineaCampo,invOCAgregarLinea,invOCQuitarLinea,invGuardarOC,
   invVerOC,invVolverOC,invEmitirOC,invAnularOC,invCerrarSaldoOC,invAbrirRecepcion,invRecCampo,invRecLineaCampo,invRecAgregarLote,invRecQuitarLinea,
   invGuardarRecepcion,invAnularRecepcion,invAbrirVincularFactura,invVincularFactura,
+  invNuevoProductoFlotante,invCerrarFlotante,
   invEntradaCompra,invECBuscar,invECElegir,invECCampo,invECLineaCampo,invECAgregarLinea,invECQuitarLinea,invECCuadrarUltima,invECGuardar
 };
 
@@ -803,7 +834,7 @@ function invRenderEC(soloLista=false){
   <div class="inv-form-grid"><label>Fecha de ingreso<input type="date" value="${esc(d.fecha)}" onchange="invECCampo('fecha',this.value)"></label><label>Bodega destino<select onchange="invECCampo('bodegaDestinoId',this.value)">${opcionesBodega(d.bodegaDestinoId)}</select></label>
   <label>Centro de costo<select onchange="invECCampo('centroCosto',this.value)"><option value="">Sin centro</option>${(S.centros||[]).filter(x=>x.estado!=='inactivo').map(x=>`<option value="${esc(x.codigo||x.id)}" ${d.centroCosto===(x.codigo||x.id)?'selected':''}>${esc(x.codigo||'')} · ${esc(x.nombre||'')}</option>`).join('')}</select></label><label>Observaciones<input value="${esc(d.observaciones)}" onchange="invECCampo('observaciones',this.value)"></label></div>
   <div class="inv-lines"><div class="inv-card-title">Productos</div>${t.lineas.map((l,i)=>{const p=prod(l.productoId);return `<div class="inv-oc-line"><label>Producto${inputProductoInv({id:`ec-prod-${i}`,value:l.productoId,onPick:`invECLineaCampo(${i},'productoId','%PID%',true)`})}${p?`<small>${esc(p.unidad||'')}${p.aplicaIVA===false?' · exento':''}</small>`:''}</label><label>Cantidad<input type="number" min="0" step="any" value="${esc(l.cantidad)}" onchange="invECLineaCampo(${i},'cantidad',this.value,true)"></label><label>Valor unitario neto<input type="number" min="0" step="any" value="${esc(l.precioUnitario)}" onchange="invECLineaCampo(${i},'precioUnitario',this.value,true)"></label><label>Descuento %<input type="number" min="0" max="100" step="any" value="${esc(l.descuentoPct)}" onchange="invECLineaCampo(${i},'descuentoPct',this.value,true)"></label><div class="inv-line-total"><small>Neto línea</small><strong>${mon(l.neto)}</strong></div><button class="inv-line-del" onclick="invECQuitarLinea(${i})" title="Quitar">×</button>${p?.manejaLotes?`<label>Lote<input value="${esc(l.lote)}" onchange="invECLineaCampo(${i},'lote',this.value.toUpperCase())"></label><label>Vencimiento<input type="date" value="${esc(l.fechaVencimiento)}" onchange="invECLineaCampo(${i},'fechaVencimiento',this.value)"></label>`:''}</div>`;}).join('')}
-  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="invECAgregarLinea()">＋ Agregar producto</button>${t.dif&&t.lineas.some(l=>num(l.cantidad)>0)?`<button class="btn btn-g" onclick="invECCuadrarUltima()" title="Calcula el valor unitario de la última línea para que el total cuadre">⚖️ Cuadrar con la última línea</button>`:''}</div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="invECAgregarLinea()">＋ Agregar producto</button><button class="btn btn-g" onclick="invNuevoProductoFlotante('ec')" title="Crea un producto sin salir de la entrada">🆕 Crear producto</button>${t.dif&&t.lineas.some(l=>num(l.cantidad)>0)?`<button class="btn btn-g" onclick="invECCuadrarUltima()" title="Calcula el valor unitario de la última línea para que el total cuadre">⚖️ Cuadrar con la última línea</button>`:''}</div></div>
   <div class="inv-oc-totales"><span>Neto líneas <b>${mon(t.neto)}</b></span><span>IVA <b>${mon(t.iva)}</b></span><span>Total <b>${mon(t.total)}</b></span></div>
   <div class="inv-alert ${ok?'':'error'}" style="margin-top:10px;${ok?'border-color:rgba(46,160,67,.4);background:rgba(46,160,67,.08);color:var(--ok,#107e3e)':''}">${ok?`✅ Cuadrado: las líneas suman ${mon(t.neto)}, igual al neto del documento.`:`⚖️ Cuadratura: neto del documento ${mon(t.objetivo)} · líneas ${mon(t.neto)} · <strong>diferencia ${mon(t.dif)}</strong>. Debe quedar en $ 0 para guardar.`}${!ok||[32,34].includes(+c.tipoDTE)||t.iva===Math.round(num(c.iva))?'':` <span style="color:var(--mt)">El IVA calculado (${mon(t.iva)}) difiere del IVA del documento (${mon(c.iva)}): revisa si algún producto es exento.</span>`}</div>
   <div class="modal-footer"><button class="btn btn-g" onclick="ecDraftVolver()">← Otro documento</button><button class="btn btn-g" onclick="invCerrarModal()">Cancelar</button><button class="btn btn-p" onclick="invECGuardar()" ${ok?'':'disabled style="opacity:.45;cursor:not-allowed"'} title="${ok?'':'La suma de las líneas debe cuadrar con el neto del documento'}">Guardar entrada</button></div>`);
