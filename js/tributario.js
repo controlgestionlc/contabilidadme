@@ -168,7 +168,7 @@ async function setF29Anticipo(cod,val){
   renderF29();
 }
 // Códigos que se pueden ingresar a mano en el F29 del mes
-const F29_MANUALES=['110','111','758','759','543','573'];
+const F29_MANUALES=['110','111','758','759','563','543','573'];
 async function setF29Manual(cod,val){
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado.','e');return;}
   cod=String(cod);if(!F29_MANUALES.includes(cod))return;
@@ -315,6 +315,18 @@ async function setRemanenteInicialF29(val){
   renderF29();
 }
 
+async function setRemanenteAnticipoInicialF29(val){
+  const anio=+S.empresa.anio, perEne=`${anio}-01`;
+  if(F29DECL.anterior?.[`${anio-1}-12`]){toast('🔒 El remanente de anticipo viene del F29 de diciembre '+(anio-1)+'.','e');return;}
+  const d=F29DECL.items[perEne]||(F29DECL.items[perEne]={periodo:perEne,estado:'borrador',declarado:{}});
+  if(esF29Presentado(d)){toast('🔒 Reabre el F29 de enero antes de modificarlo.','e');return;}
+  const txt=String(val??'').trim();
+  if(txt==='')delete d.remanenteAnticipoInicial;else d.remanenteAnticipoInicial=Math.max(0,Math.round(pn(txt)));
+  d.actualizadoEn=new Date().toISOString();
+  if(!await guardarDeclaracionesF29()){toast('❌ No se pudo guardar.','e');return;}
+  toast('✅ Remanente de anticipo de diciembre actualizado');
+  renderF29();
+}
 function calcularF29Anual(){
   const anio=S.empresa.anio;
   const meses=[];
@@ -326,7 +338,10 @@ function calcularF29Anual(){
   // Si el F29 de diciembre no trae el 573 declarado, se usa el ingresado a
   // mano o se reconstruye con sus datos de anticipo (556 + 557 − 558 − 598).
   let remAnticipoAnt=(()=>{
-    const dic=F29DECL.anterior?.[`${anio-1}-12`];if(!dic)return 0;
+    const dic=F29DECL.anterior?.[`${anio-1}-12`];
+    // Sin F29 de diciembre en el sistema: el 573 de diciembre que se ingresó
+    // a mano en enero (V2.21.97)
+    if(!dic){const ene=F29DECL.items?.[`${anio}-01`];return Math.max(0,+(ene?.remanenteAnticipoInicial)||0);}
     if(dic.declarado?.['573']!=null)return codDecl(dic,573,0);
     if(dic.manual?.['573']!=null)return Math.max(0,+dic.manual['573']||0);
     const a=dic.anticipo||{};
@@ -355,9 +370,11 @@ function calcularF29Anual(){
     const man=(declaracionF29(per)?.manual)||{};
     const hayMan=k=>man[k]!=null&&man[k]!=='';
     if(hayMan('110'))vdet.boletas.n=Math.max(0,Math.round(+man['110']||0));
-    if(hayMan('111')){const v=Math.max(0,Math.round(+man['111']||0));debito+=v-vdet.boletas.iva;vdet.boletas.iva=v;}
+    // El neto de boletas y comprobantes ingresados a mano también suma a la
+    // base del PPM (ingresos brutos): neto = IVA ÷ 19 %.
+    if(hayMan('111')){const v=Math.max(0,Math.round(+man['111']||0));debito+=v-vdet.boletas.iva;ventasNetas+=Math.round((v-vdet.boletas.iva)/IVA);vdet.boletas.iva=v;}
     if(hayMan('758'))vdet.comprobantes.n=Math.max(0,Math.round(+man['758']||0));
-    if(hayMan('759')){const v=Math.max(0,Math.round(+man['759']||0));debito+=v-vdet.comprobantes.iva;vdet.comprobantes.iva=v;}
+    if(hayMan('759')){const v=Math.max(0,Math.round(+man['759']||0));debito+=v-vdet.comprobantes.iva;ventasNetas+=Math.round((v-vdet.comprobantes.iva)/IVA);vdet.comprobantes.iva=v;}
     const cs=todosDocsCompras().filter(d=>!esDteHonorario(d.tipoDTE)&&periodoContableCompra(d)===per);
     const cdet=_f29CompraDetalle(cs);
     let comprasNetas=0,credito=0,creditoActivoFijo=0,ivaNoRecuperable=0,ivaRetenido=0;
@@ -386,7 +403,7 @@ function calcularF29Anual(){
     const ivaDeterminado=debitoTotal-creditoTotal;
     const ivaAPagar=ivaDeterminado>0?ivaDeterminado:0;
     const remanente=ivaDeterminado<0?-ivaDeterminado:0;
-    const basePPM=ventasNetas+ventasExentas;
+    const basePPM=hayMan('563')?Math.max(0,Math.round(+man['563']||0)):ventasNetas+ventasExentas;
     const tp=tasaPPMPeriodo(per);
     const tasaPPM=tp.tasa, tasaPPMFuente=tp.fuente;
     const ppm=Math.round(basePPM*tasaPPM/100);
@@ -688,12 +705,12 @@ function renderF29(){
       ${d.ivaNoRecuperable?linea('','IVA no recuperable incorporado al costo',d.ivaNoRecuperable,{color:'var(--warn)'}):''}
       ${d.remanenteAnt>0?linea('504','Remanente anterior reajustado por UTM',d.remanenteReaj,{color:'var(--info)'}):''}
       ${d.reajusteRemanente?linea('','Reajuste del remanente',d.reajusteRemanente,{color:'var(--info)'}):''}
-      ${d.remanenteAnt>0&&d.remanenteUTM?`<div style="font-size:10.5px;color:var(--mt);padding:2px 0 6px 0">Cálculo SII: ${fmtC(d.remanenteAnt)} ÷ UTM ${MESES[d.m-1]} ${fmtC(d.utmRemanenteAnt)} = ${d.remanenteUTM.toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})} UTM × UTM ${MESES[d.m%12]} ${fmtC(d.utmImputacion)} = ${fmtC(d.remanenteReaj)}</div>`:''}
+      ${d.remanenteAnt>0&&d.remanenteUTM?`<tr><td></td><td colspan="2" style="font-size:10.5px;color:var(--mt);padding:2px 10px 6px;text-align:left;font-family:inherit">Cálculo SII: ${fmtC(d.remanenteAnt)} ÷ UTM ${MESES[d.m-1]} ${fmtC(d.utmRemanenteAnt)} = ${d.remanenteUTM.toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})} UTM × UTM ${MESES[d.m%12]} ${fmtC(d.utmImputacion)} = ${fmtC(d.remanenteReaj)}</td></tr>`:''}
       ${linea('537','TOTAL CRÉDITOS',d.creditoTotal,{bold:true})}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">DETERMINACIÓN IVA</td></tr>
       ${d.ivaAPagar>0?linea('89','IVA a pagar',d.ivaAPagar,{bold:true,hl:true,color:'var(--err)'}):linea('77','Remanente crédito fiscal (mes siguiente)',d.remanente,{bold:true,hl:true,color:'var(--info)'})}
       <tr class="rth"><td colspan="3" class="tl" style="padding:7px 10px">PPM Y RETENCIONES</td></tr>
-      ${linea('563','Base imponible PPM',d.basePPM)}
+      ${lineaE('563','Base imponible PPM',d.basePPM)}
       <tr><td class="f29-cod" style="font-family:var(--mono);font-size:11px;color:var(--mt)">115</td><td class="tl f29-desc" style="font-size:12px;color:var(--mt)">Tasa PPM 1ra. categoría</td><td class="f29-monto" style="font-family:var(--mono);text-align:right;color:var(--mt)">${fmtTasa(d.tasaPPM)}%</td></tr>
       ${linea('62','PPM neto determinado',d.ppm,{color:'var(--err)'})}
       ${linea('151',`Retención honorarios (${(retencionHonorarios(S.empresa.anio)*100).toFixed(2)}%)`,d.retencionHon,{color:'var(--err)'})}
@@ -723,10 +740,12 @@ function renderF29(){
         <div style="font-size:10px;color:var(--mt);margin-top:2px">${d.c557Fuente==='manual'?'Ingresado a mano · déjalo vacío para tomar el cód. 573 del mes anterior':mSel===1?(F29DECL.anterior?.[(S.empresa.anio-1)+'-12']?'Tomado del cód. 573 del F29 de diciembre '+(S.empresa.anio-1):'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingresa aquí su cód. 573'):'Tomado del cód. 573 del mes anterior'}, reajustado por UTM como lo hace el SII. Si el SII propone otro valor (por una devolución, cód. 558), corrígelo aquí.</div></div>
       <div class="grp"><label>Cód. 558 · Devolución mes anterior</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${d.codigos[558]?fmtMontoF29(d.codigos[558]):''}" placeholder="0" onchange="setF29Anticipo('558',this.value)" ${presentado?'disabled':''}></div>
       ${mSel===1?(()=>{const ini=remanenteInicialF29(),bloq=ini.fuente==='f29-dic'||presentado;return `<div class="grp"><label>Remanente inicial (cód. 77 de diciembre ${S.empresa.anio-1})</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${ini.fuente==='ninguna'?'':fmtMontoF29(ini.monto)}" placeholder="0" onchange="setRemanenteInicialF29(this.value)" ${bloq?'disabled':''}>
-        <div style="font-size:10px;color:var(--mt);margin-top:2px">${ini.fuente==='f29-dic'?'Desde el F29 de diciembre '+(S.empresa.anio-1)+' ('+ini.estado+')':ini.fuente==='manual'?'Ingresado a mano':'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingrésalo si hubo remanente'} · UTM origen ${d.utmRemanenteAnt?fmtC(d.utmRemanenteAnt):'—'}</div></div>`;})():''}</div>
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">${ini.fuente==='f29-dic'?'Desde el F29 de diciembre '+(S.empresa.anio-1)+' ('+ini.estado+')':ini.fuente==='manual'?'Ingresado a mano':'Sin F29 de diciembre '+(S.empresa.anio-1)+': ingrésalo si hubo remanente'} · UTM origen ${d.utmRemanenteAnt?fmtC(d.utmRemanenteAnt):'—'}</div></div>`;})():''}
+      ${mSel===1?(()=>{const anio=+S.empresa.anio,hayDic=!!F29DECL.anterior?.[(anio-1)+'-12'],ene=F29DECL.items?.[anio+'-01'],v=ene?.remanenteAnticipoInicial;return `<div class="grp"><label>Remanente anticipo cambio de sujeto (cód. 573 de diciembre ${anio-1})</label><input type="text" inputmode="numeric" autocomplete="off" class="money-input" value="${hayDic||v==null?'':fmtMontoF29(v)}" placeholder="${hayDic?'Desde el F29 de diciembre':'0'}" onchange="setRemanenteAnticipoInicialF29(this.value)" ${hayDic||presentado?'disabled':''}>
+        <div style="font-size:10px;color:var(--mt);margin-top:2px">${hayDic?'Se toma del F29 de diciembre '+(anio-1):'Ingresa el cód. 573 de tu F29 de diciembre: se reajusta por UTM y pasa como cód. 557 de enero'}</div></div>`;})():''}</div>
     ${d.remanenteSinUTM?'<div class="info-tip" style="margin-top:10px;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ Falta la UTM del mes de origen o del período actual. El código 504 se muestra sin reajuste hasta completar ambas UTM.</div>':''}
     ${d.tasaPPM===0?'<div class="info-tip" style="margin-top:12px;font-size:11px">⚠️ La tasa de PPM de este mes está en 0%. Configúrala en Empresa → Configuración Tributaria o ajústala aquí para que se calcule el PPM.</div>':''}
-    ${(d.manuales||[]).length?`<div class="info-tip" style="margin-top:10px;font-size:11px;background:rgba(210,153,34,.10);border-color:var(--warn)">✎ Códigos ingresados a mano: <strong>${d.manuales.join(', ')}</strong>. El débito y los totales se recalcularon con esos valores. Borra el campo para volver al cálculo desde los documentos.</div>`:'<div style="margin-top:8px;font-size:10px;color:var(--mt)">Los códigos 110, 111, 758, 759, 543 y 573 se pueden escribir a mano (por ejemplo, desde el resumen del SII); el F29 se recalcula. Déjalos vacíos para volver al cálculo.</div>'}
+    ${(d.manuales||[]).length?`<div class="info-tip" style="margin-top:10px;font-size:11px;background:rgba(210,153,34,.10);border-color:var(--warn)">✎ Códigos ingresados a mano: <strong>${d.manuales.join(', ')}</strong>. El débito y los totales se recalcularon con esos valores. Borra el campo para volver al cálculo desde los documentos.</div>`:'<div style="margin-top:8px;font-size:10px;color:var(--mt)">Los códigos 110, 111, 758, 759, 563, 543 y 573 se pueden escribir a mano (por ejemplo, desde el resumen del SII); el F29 se recalcula. Déjalos vacíos para volver al cálculo.</div>'}
     <div style="margin-top:12px;font-size:10px;color:var(--mt)">Los códigos corresponden al Formulario 29 del SII. Este es un cálculo referencial basado en tus registros; verifica antes de declarar.</div>
   </div>
   ${panelDeclaracion}
@@ -1362,7 +1381,7 @@ async function generarAsientoPagoF29(){
   renderF29();
 }
 
-export {setF29Manual, setF29Anticipo, setF29TasaPPM, tasaPPMPeriodo, iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
+export {setRemanenteAnticipoInicialF29, setF29Manual, setF29Anticipo, setF29TasaPPM, tasaPPMPeriodo, iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,

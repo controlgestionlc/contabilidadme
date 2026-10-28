@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1620';
+const APP_VERSION='v2026.10.28-1640';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.21.97',fecha:'28-10-2026',titulo:'F29 de enero: remanentes iniciales separados',items:[
+    {tipo:'nuevo',txt:'En el F29 de enero, si no está el F29 de diciembre en el sistema, hay un campo propio para el remanente de anticipo cambio de sujeto (cód. 573 de diciembre), separado del remanente de crédito fiscal (cód. 77). Se reajusta por UTM y pasa como cód. 557.'},
+    {tipo:'arreglo',txt:'El IVA de boletas (111) y de comprobantes de pago electrónico (759) ingresado a mano ahora suma su neto a la base del PPM (563). La base del PPM también se puede ingresar a mano.'},
+    {tipo:'arreglo',txt:'La línea "Cálculo SII" del reajuste del remanente se muestra en su lugar, bajo el código 504.'},
+  ]},
   {version:'V2.21.96',fecha:'28-10-2026',titulo:'F29: reajuste UTM del anticipo cambio de sujeto',items:[
     {tipo:'arreglo',txt:'El remanente de anticipo cambio de sujeto (cód. 573) pasa al mes siguiente como cód. 557 reajustado por UTM, igual que el remanente de IVA y como lo calcula el SII (monto ÷ UTM del mes de origen, redondeado a 2 decimales, × UTM del mes de imputación). Cotejado con dic-2025 → ene-2026: 3.703 → 3.481.'},
   ]},
