@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.29-1200';
+const APP_VERSION='v2026.10.29-1215';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.5',fecha:'29-10-2026',titulo:'Nuevo honorario en el módulo Honorarios',items:[
+    {tipo:'cambio',txt:'El botón "📝 Nuevo honorario" pasa al encabezado del módulo Honorarios y ya no aparece en Comprobantes.'},
+  ]},
   {version:'V2.22.4',fecha:'29-10-2026',titulo:'Comprobantes: un solo buscador, arriba',items:[
     {tipo:'cambio',txt:'Se quitó el buscador del encabezado de Comprobantes. Queda un único buscador (N°, monto o texto, con rango de fechas y origen) en la parte superior, sobre el formulario de asiento; sus resultados aparecen ahí mismo.'},
     {tipo:'cambio',txt:'Sin búsqueda no se muestra ningún panel: el formulario queda justo debajo del buscador. El botón "Nuevo honorario" pasa a la misma fila del buscador.'},

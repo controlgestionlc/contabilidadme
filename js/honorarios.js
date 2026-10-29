@@ -62,7 +62,7 @@ function renderHon(){
   if(sub)sub.textContent=`Libro auxiliar · boletas con o sin retención · tasa vigente ${(tasa*100).toFixed(2).replace('.',',')}% · ${S.empresa.anio}`;
   const tbody=document.getElementById('h-tbody');
   const lista=(S.honorarios||[]).map(normalizarHon).filter(h=>h.estado!=='anulado');
-  if(!lista.length){tbody.innerHTML=`<tr><td colspan="10" class="empty"><div class="ei">📝</div>No hay boletas. Regístralas desde Comprobantes.</td></tr>`;document.getElementById('h-tfoot').innerHTML='';return;}
+  if(!lista.length){tbody.innerHTML=`<tr><td colspan="10" class="empty"><div class="ei">📝</div>No hay boletas. Regístralas con el botón «📝 Nuevo honorario».</td></tr>`;document.getElementById('h-tfoot').innerHTML='';return;}
   let tB=0,tR=0,h='';
   lista.forEach(hn=>{
     const i=S.honorarios.indexOf(hn),sinRet=hn.tipoRetencion==='sin_retencion',tasaH=sinRet?0:(hn.tasaRetencion!=null?+hn.tasaRetencion:tasa),ret=sinRet?0:(hn.retencion!=null?+hn.retencion:Math.round((hn.bruto||0)*tasaH)),net=(hn.bruto||0)-ret;

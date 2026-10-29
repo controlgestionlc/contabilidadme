@@ -98,7 +98,6 @@ function asegurarBarraCmp(cont){
         <option value="descuadrados">⚠️ Solo descuadrados</option>
       </select></div>
     <button class="btn btn-g" onclick="limpiarCmpFiltro()">Limpiar</button>
-    <button class="btn btn-p" onclick="abrirNuevoHonorario()" title="Registrar una boleta de honorarios como documento del prestador (proveedor)">📝 Nuevo honorario</button>
     <span class="doc-count" id="cmp-count"></span>
   </div>
   <div id="cmp-res"></div>`;
