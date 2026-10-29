@@ -2,17 +2,17 @@
   "autor": "mindicador.cl",
   "bitcoin": {
     "codigo": "bitcoin",
-    "fecha": "2026-10-24T03:00:00.000Z",
+    "fecha": "2026-10-28T03:00:00.000Z",
     "nombre": "Bitcoin",
     "unidad_medida": "Dólar",
-    "valor": 80771.9
+    "valor": 81275.48
   },
   "dolar": {
     "codigo": "dolar",
-    "fecha": "2026-10-28T03:00:00.000Z",
+    "fecha": "2026-10-29T03:00:00.000Z",
     "nombre": "Dólar observado",
     "unidad_medida": "Pesos",
-    "valor": 985.14
+    "valor": 981.08
   },
   "dolar_intercambio": {
     "codigo": "dolar_intercambio",
@@ -23,12 +23,12 @@
   },
   "euro": {
     "codigo": "euro",
-    "fecha": "2026-10-28T03:00:00.000Z",
+    "fecha": "2026-10-29T03:00:00.000Z",
     "nombre": "Euro",
     "unidad_medida": "Pesos",
-    "valor": 1097.16
+    "valor": 1093.25
   },
-  "fecha": "2026-10-28T20:00:00.000Z",
+  "fecha": "2026-10-29T16:00:00.000Z",
   "imacec": {
     "codigo": "imacec",
     "fecha": "2026-08-01T04:00:00.000Z",
@@ -45,38 +45,38 @@
   },
   "ivp": {
     "codigo": "ivp",
-    "fecha": "2026-10-28T03:00:00.000Z",
+    "fecha": "2026-10-29T03:00:00.000Z",
     "nombre": "Indice de valor promedio (IVP)",
     "unidad_medida": "Pesos",
-    "valor": 42759.26
+    "valor": 42765.18
   },
   "libra_cobre": {
     "codigo": "libra_cobre",
-    "fecha": "2026-10-28T03:00:00.000Z",
+    "fecha": "2026-10-29T03:00:00.000Z",
     "nombre": "Libra de Cobre",
     "unidad_medida": "Dólar",
-    "valor": 6.58
+    "valor": 6.65
   },
   "tasa_desempleo": {
     "codigo": "tasa_desempleo",
-    "fecha": "2026-08-01T04:00:00.000Z",
+    "fecha": "2026-09-01T04:00:00.000Z",
     "nombre": "Tasa de desempleo",
     "unidad_medida": "Porcentaje",
-    "valor": 9.64
+    "valor": 9.8
   },
   "tpm": {
     "codigo": "tpm",
-    "fecha": "2026-10-28T03:00:00.000Z",
+    "fecha": "2026-10-29T03:00:00.000Z",
     "nombre": "Tasa Política Monetaria (TPM)",
     "unidad_medida": "Porcentaje",
     "valor": 4.5
   },
   "uf": {
     "codigo": "uf",
-    "fecha": "2026-10-28T03:00:00.000Z",
+    "fecha": "2026-10-29T03:00:00.000Z",
     "nombre": "Unidad de fomento (UF)",
     "unidad_medida": "Pesos",
-    "valor": 41231.7
+    "valor": 41237.01
   },
   "utm": {
     "codigo": "utm",
