@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.29-1030';
+const APP_VERSION='v2026.10.29-1200';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.4',fecha:'29-10-2026',titulo:'Comprobantes: un solo buscador, arriba',items:[
+    {tipo:'cambio',txt:'Se quitó el buscador del encabezado de Comprobantes. Queda un único buscador (N°, monto o texto, con rango de fechas y origen) en la parte superior, sobre el formulario de asiento; sus resultados aparecen ahí mismo.'},
+    {tipo:'cambio',txt:'Sin búsqueda no se muestra ningún panel: el formulario queda justo debajo del buscador. El botón "Nuevo honorario" pasa a la misma fila del buscador.'},
+  ]},
   {version:'V2.22.3',fecha:'29-10-2026',titulo:'Comprobantes: buscador dinámico y rango de fechas',items:[
     {tipo:'nuevo',txt:'Comprobantes tiene un buscador único por N° de comprobante, monto o texto (glosa, cuenta, descripción o razón social). Filtra mientras se escribe, admite varias palabras ("pago 128500") y no distingue tildes ni mayúsculas.'},
     {tipo:'nuevo',txt:'Filtro por rango de fechas (Desde / Hasta), combinable con el buscador y el origen.'},

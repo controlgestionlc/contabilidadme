@@ -76,9 +76,6 @@ export function renderComprobantes(){
 function asegurarBarraCmp(cont){
   if(cont.querySelector('#cmp-q'))return;
   cont.innerHTML=`<div id="cmp-alerta"></div>
-  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <button class="btn btn-p" onclick="abrirNuevoHonorario()" title="Registrar una boleta de honorarios como documento del prestador (proveedor)">📝 Nuevo honorario</button>
-  </div>
   <div class="filter-row cmp-buscador" style="margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
     <div class="grp" style="flex:1 1 240px;min-width:0;margin:0">
       <label for="cmp-q" style="font-size:10px;color:var(--mt)">Buscar</label>
@@ -101,6 +98,7 @@ function asegurarBarraCmp(cont){
         <option value="descuadrados">⚠️ Solo descuadrados</option>
       </select></div>
     <button class="btn btn-g" onclick="limpiarCmpFiltro()">Limpiar</button>
+    <button class="btn btn-p" onclick="abrirNuevoHonorario()" title="Registrar una boleta de honorarios como documento del prestador (proveedor)">📝 Nuevo honorario</button>
     <span class="doc-count" id="cmp-count"></span>
   </div>
   <div id="cmp-res"></div>`;
@@ -180,11 +178,9 @@ function renderCmpResultados(){
   const cnt=document.getElementById('cmp-count');
   if(!hayFiltro){
     CMP_ENTRIES=[];
-    if(cnt)cnt.textContent=`${entriesGlobal.length} comprobantes en ${S.empresa?.anio||'el ejercicio'}`;
-    res.innerHTML=`<div style="text-align:center;padding:32px 16px;color:var(--mt)">
-      <div style="font-size:32px;margin-bottom:8px">🔎</div>
-      Escribe un N° de comprobante, un monto o un texto, o elige un rango de fechas, para ver los comprobantes.
-    </div>`;
+    if(cnt)cnt.textContent=`${entriesGlobal.length} comprobantes en ${S.empresa?.anio||'el ejercicio'} · usa el buscador para verlos`;
+    // Sin búsqueda no se lista nada: el formulario de asiento queda justo debajo
+    res.innerHTML='';
     return;
   }
 
