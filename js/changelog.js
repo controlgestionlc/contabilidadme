@@ -8,13 +8,19 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.28-1830';
+const APP_VERSION='v2026.10.29-1030';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.3',fecha:'29-10-2026',titulo:'Comprobantes: buscador dinámico y rango de fechas',items:[
+    {tipo:'nuevo',txt:'Comprobantes tiene un buscador único por N° de comprobante, monto o texto (glosa, cuenta, descripción o razón social). Filtra mientras se escribe, admite varias palabras ("pago 128500") y no distingue tildes ni mayúsculas.'},
+    {tipo:'nuevo',txt:'Filtro por rango de fechas (Desde / Hasta), combinable con el buscador y el origen.'},
+    {tipo:'cambio',txt:'La lista de comprobantes queda vacía hasta que se ingresa algún valor en el buscador o en las fechas; ya no se muestran los últimos comprobantes por defecto.'},
+    {tipo:'correccion',txt:'Importador RCV paso 2: el buscador de documentos ya no pierde el foco al escribir; se puede tipear seguido sin volver a hacer clic.'},
+  ]},
   {version:'V2.22.2',fecha:'28-10-2026',titulo:'Menú lateral reordenado',items:[
     {tipo:'cambio',txt:'Nuevo orden del menú: Registros (Importador RCV, Libro de Ventas, Libro de Compras, Honorarios, Pagos y Cobros, Comprobantes, Asignar Centros de Costo), Mantenedores (Proveedores, Clientes y Auxiliares), Inventario, Remuneraciones, Reportes, Tributario SII, Activo Fijo, Cierre de Ejercicio y Configuración.'},
     {tipo:'cambio',txt:'Los asientos tipo siguen dentro de Comprobantes. Asignar Centros de Costo pasa de Configuración a Registros y Remuneraciones tiene su propio grupo.'},

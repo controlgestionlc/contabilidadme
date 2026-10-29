@@ -2010,3 +2010,12 @@ tr.fila-act td{background:rgba(10,110,209,.10)}
 .db-saldo{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start}
 @media (max-width:760px){.db-saldo{grid-template-columns:1fr}}
 .db-hdr select{width:auto}
+
+/* V2.22.3 · Buscador de Comprobantes: etiqueta arriba y campos de alto normal */
+.cmp-buscador .grp{display:flex;flex-direction:column;gap:2px}
+.cmp-buscador .grp>input,.cmp-buscador .grp>select{flex:0 0 auto!important;width:100%!important;min-width:0!important;max-width:none!important}
+.cmp-buscador .grp>label{text-transform:uppercase;font-weight:700;letter-spacing:.05em;margin:0}
+@media (max-width:900px){
+  #comprobantes-content>.cmp-buscador>.grp:first-child{grid-column:1/-1}
+  #comprobantes-content>.cmp-buscador>button{align-self:end}
+}

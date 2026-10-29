@@ -21,13 +21,7 @@ import {abrirEditorPago} from './pagoeditor.js';
 import {infoReversa, eliminarAsientoAuto} from './reversas.js';
 
 // Filtros
-let CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
-
-function mesOptsCmp(){
-  let h='<option value="">Todos los meses</option>';
-  for(let i=0;i<12;i++)h+=`<option value="${i+1}" ${CMP_FILTRO.mes===String(i+1)?'selected':''}>${MESES[i]}</option>`;
-  return h;
-}
+let CMP_FILTRO={texto:'',desde:'',hasta:'',origen:''};
 
 function origenLbl(e){
   if(e.origen==='apertura')return {ic:'🔰',nm:'Apertura',c:'#c9a227'};
@@ -56,11 +50,12 @@ function mismaEntradaCmp(a,b){
 function entradaActualCmp(ref){return genDiario().find(e=>mismaEntradaCmp(e,ref))||null;}
 function abrirEntradaCmp(ref){
   const actual=entradaActualCmp(ref)||ref;if(!actual)return;
-  CMP_FILTRO.numero=String(actual.n??'');
-  CMP_FILTRO.mes='';CMP_FILTRO.origen='';CMP_FILTRO.texto='';
-  renderCmpNumeroList([]);renderComprobantes();
-  const idx=(CMP_ENTRIES||[]).findIndex(e=>mismaEntradaCmp(e,actual));
-  if(idx>=0)setTimeout(()=>abrirCmpModal(idx),100);
+  // Deja buscado su N° para que quede a la vista detrás del modal
+  CMP_FILTRO={texto:String(actual.n??''),desde:'',hasta:'',origen:''};
+  renderComprobantes();
+  let idx=(CMP_ENTRIES||[]).findIndex(e=>mismaEntradaCmp(e,actual));
+  if(idx<0){CMP_ENTRIES=[...(CMP_ENTRIES||[]),actual];idx=CMP_ENTRIES.length-1;}
+  setTimeout(()=>abrirCmpModal(idx),100);
 }
 
 export function renderComprobantes(){
@@ -70,41 +65,85 @@ export function renderComprobantes(){
   // Solo si la sección está a la vista (cerrarForm también llama aquí).
   const secActual=getCurSec();
   if(secActual==='comprobantes'||secActual==='asientos')asegurarFormNuevo();
+  asegurarBarraCmp(cont);
+  sincronizarBarraCmp();
+  renderCmpResultados();
+}
 
+// La barra de búsqueda se dibuja una sola vez y no se vuelve a crear al
+// filtrar: así el input nunca pierde el foco (ni se cierra el teclado en el
+// móvil) mientras se escribe. Solo se refrescan la alerta, el contador y la lista.
+function asegurarBarraCmp(cont){
+  if(cont.querySelector('#cmp-q'))return;
+  cont.innerHTML=`<div id="cmp-alerta"></div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-p" onclick="abrirNuevoHonorario()" title="Registrar una boleta de honorarios como documento del prestador (proveedor)">📝 Nuevo honorario</button>
+  </div>
+  <div class="filter-row cmp-buscador" style="margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+    <div class="grp" style="flex:1 1 240px;min-width:0;margin:0">
+      <label for="cmp-q" style="font-size:10px;color:var(--mt)">Buscar</label>
+      <input type="search" id="cmp-q" placeholder="🔎 N° de comprobante, monto o texto…" autocomplete="off" enterkeyhint="search"
+        oninput="setCmpFiltro('texto',this.value)" style="width:100%">
+    </div>
+    <div class="grp" style="margin:0"><label for="cmp-desde" style="font-size:10px;color:var(--mt)">Desde</label>
+      <input type="date" id="cmp-desde" onchange="setCmpFiltro('desde',this.value)"></div>
+    <div class="grp" style="margin:0"><label for="cmp-hasta" style="font-size:10px;color:var(--mt)">Hasta</label>
+      <input type="date" id="cmp-hasta" onchange="setCmpFiltro('hasta',this.value)"></div>
+    <div class="grp" style="margin:0"><label for="cmp-origen" style="font-size:10px;color:var(--mt)">Origen</label>
+      <select id="cmp-origen" onchange="setCmpFiltro('origen',this.value)">
+        <option value="">Todos los orígenes</option>
+        <option value="apertura">🔰 Apertura</option>
+        <option value="manual">✏️ Manuales</option>
+        <option value="auto">⚙️ Todos automáticos</option>
+        <option value="ventas">🛒 Auto ventas</option>
+        <option value="compras">🧾 Auto compras</option>
+        <option value="honorarios">📝 Auto honorarios</option>
+        <option value="descuadrados">⚠️ Solo descuadrados</option>
+      </select></div>
+    <button class="btn btn-g" onclick="limpiarCmpFiltro()">Limpiar</button>
+    <span class="doc-count" id="cmp-count"></span>
+  </div>
+  <div id="cmp-res"></div>`;
+}
+
+// Copia el filtro a los controles sin tocar el que se está usando
+function sincronizarBarraCmp(){
+  const set=(id,v)=>{const el=document.getElementById(id);if(el&&el!==document.activeElement&&el.value!==v)el.value=v;};
+  set('cmp-q',CMP_FILTRO.texto);set('cmp-desde',CMP_FILTRO.desde);set('cmp-hasta',CMP_FILTRO.hasta);set('cmp-origen',CMP_FILTRO.origen);
+}
+
+// ── Coincidencia del buscador ──
+// Cada palabra debe aparecer (Y lógico). Una palabra numérica ("1.250.000",
+// "$ 35000", "128") busca por N° de comprobante, monto total o de una línea y
+// código de cuenta (todos "empieza con"), o dentro de la glosa y las
+// descripciones (p. ej. un folio). Una palabra de texto busca en glosa,
+// cuentas, descripciones y razón social, sin importar tildes ni mayúsculas.
+const normCmp=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function textoCmp(e){
+  return normCmp([e.glosa,...e.movs.flatMap(m=>[m.cd,m.nm||pdcNm(m.cd),m.desc,m.razonSocial])].filter(Boolean).join(' '));
+}
+const glosasCmp=e=>normCmp([e.glosa,...e.movs.flatMap(m=>[m.desc,m.razonSocial])].filter(Boolean).join(' '));
+export function cmpCoincide(e,q){
+  const palabras=String(q||'').trim().split(/\s+/).filter(Boolean);
+  if(!palabras.length)return true;
+  let hay=null,glo=null;
+  return palabras.every(p=>{
+    const dig=p.replace(/[^0-9]/g,'');
+    if(/^[$.,0-9-]+$/.test(p)&&dig){
+      if(String(e.n??'').startsWith(dig))return true;
+      if(String(totalAsiento(e)).startsWith(dig))return true;
+      if(e.movs.some(m=>String(Math.round(+m.debe||+m.haber||0)).startsWith(dig)||String(m.cd||'').startsWith(dig)))return true;
+      return (glo??=glosasCmp(e)).includes(dig)||glo.includes(normCmp(p));
+    }
+    return (hay??=textoCmp(e)).includes(normCmp(p));
+  });
+}
+
+function renderCmpResultados(){
+  const res=document.getElementById('cmp-res');
+  if(!res)return;
   let entries=genDiario();
   const entriesGlobal=[...entries];
-
-  // Filtros
-  if(CMP_FILTRO.mes){
-    const m=+CMP_FILTRO.mes;
-    entries=entries.filter(e=>{
-      const em=+String(e.fecha).slice(5,7);
-      return em===m;
-    });
-  }
-  if(CMP_FILTRO.origen){
-    entries=entries.filter(e=>{
-      if(CMP_FILTRO.origen==='apertura')return e.origen==='apertura';
-      if(CMP_FILTRO.origen==='manual')return e.origen==='manual';
-      if(CMP_FILTRO.origen==='auto')return e.origen==='auto';
-      // filtros por fuente
-      return e.fuente===CMP_FILTRO.origen;
-    });
-  }
-  if(CMP_FILTRO.texto){
-    const t=CMP_FILTRO.texto.toLowerCase().trim();
-    // Buscar también por N° de comprobante (folio) — coincidencia exacta o parcial
-    entries=entries.filter(e=>{
-      if(String(e.n||'').includes(t))return true;
-      if((e.glosa||'').toLowerCase().includes(t))return true;
-      return e.movs.some(m=>String(m.cd).includes(t)||(m.nm||'').toLowerCase().includes(t));
-    });
-  }
-  if(CMP_FILTRO.numero){
-    // Búsqueda EXACTA o "empieza con" del N° de comprobante
-    const q=String(CMP_FILTRO.numero).trim();
-    entries=entries.filter(e=>String(e.n||'').startsWith(q));
-  }
 
   // Detectar comprobantes descuadrados (útil para el filtro y para la alerta)
   const cuadraE=e=>{
@@ -113,23 +152,11 @@ export function renderComprobantes(){
     return Math.abs(d-h)<0.000001;
   };
   const descuadresGlobal=entriesGlobal.filter(e=>!cuadraE(e));
-  if(CMP_FILTRO.origen==='descuadrados'){
-    entries=entries.filter(e=>!cuadraE(e));
-  }
   // La alerta es global, no depende del filtro visual activo. Así no puede
-  // desaparecer sólo porque el usuario filtró otro mes/origen; se elimina
-  // únicamente cuando el asiento realmente vuelve a cuadrar.
+  // desaparecer sólo porque el usuario filtró; se elimina únicamente cuando el
+  // asiento realmente vuelve a cuadrar.
   const descuadres=descuadresGlobal;
   CMP_ALERT_ENTRIES=[...descuadres];
-
-  // Resumen
-  const totD=entries.reduce((s,e)=>s+e.movs.reduce((ss,m)=>ss+(m.debe||0),0),0);
-  const totH=entries.reduce((s,e)=>s+e.movs.reduce((ss,m)=>ss+(m.haber||0),0),0);
-  const cntAuto=entries.filter(e=>e.origen==='auto').length;
-  const cntMan=entries.filter(e=>e.origen==='manual').length;
-  const cntAp=entries.filter(e=>e.origen==='apertura').length;
-  const totalFiltrado=entries.length;
-
   // Panel de alerta cuando hay descuadres (y no estamos ya filtrando solo por ellos)
   let alerta='';
   if(descuadres.length&&CMP_FILTRO.origen!=='descuadrados'){
@@ -146,61 +173,60 @@ export function renderComprobantes(){
     </div>`;
   }
 
-  let h=alerta+`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <button class="btn btn-p" onclick="abrirNuevoHonorario()" title="Registrar una boleta de honorarios como documento del prestador (proveedor)">📝 Nuevo honorario</button>
-  </div>
-  <div class="filter-row" style="margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
-    <span class="f-lbl">Filtrar:</span>
-    <select onchange="setCmpFiltro('mes',this.value)">${mesOptsCmp()}</select>
-    <select onchange="setCmpFiltro('origen',this.value)">
-      <option value="">Todos los orígenes</option>
-      <option value="apertura" ${CMP_FILTRO.origen==='apertura'?'selected':''}>🔰 Apertura</option>
-      <option value="manual" ${CMP_FILTRO.origen==='manual'?'selected':''}>✏️ Manuales</option>
-      <option value="auto" ${CMP_FILTRO.origen==='auto'?'selected':''}>⚙️ Todos automáticos</option>
-      <option value="ventas" ${CMP_FILTRO.origen==='ventas'?'selected':''}>🛒 Auto ventas</option>
-      <option value="compras" ${CMP_FILTRO.origen==='compras'?'selected':''}>🧾 Auto compras</option>
-      <option value="honorarios" ${CMP_FILTRO.origen==='honorarios'?'selected':''}>📝 Auto honorarios</option>
-      <option value="descuadrados" ${CMP_FILTRO.origen==='descuadrados'?'selected':''}>⚠️ Solo descuadrados</option>
-    </select>
-    <div style="position:relative;min-width:150px">
-      <input type="text" id="cmp-num-input" inputmode="numeric" placeholder="N° comprobante…" autocomplete="off"
-        value="${CMP_FILTRO.numero.replace(/"/g,'&quot;')}"
-        oninput="cmpNumeroBuscar(this.value)"
-        onfocus="cmpNumeroBuscar(this.value)"
-        onblur="setTimeout(()=>renderCmpNumeroList([]),160)"
-        style="width:100%">
-      <div id="cmp-num-list" class="ac-lista" style="display:none;min-width:280px"></div>
-    </div>
-    <input type="search" id="cmp-texto-input" placeholder="Buscar por glosa o cuenta…" autocomplete="off" enterkeyhint="search"
-      value="${CMP_FILTRO.texto.replace(/"/g,'&quot;')}"
-      oninput="setCmpFiltro('texto',this.value)" style="min-width:180px">
-    <button class="btn btn-g" onclick="limpiarCmpFiltro()">Limpiar</button>
-    <span class="doc-count">${entries.length} comprobantes${cntAp?' · '+cntAp+' apertura':''}${cntAuto?' · '+cntAuto+' automáticos':''}${cntMan?' · '+cntMan+' manuales':''}</span>
-  </div>`;
+  document.getElementById('cmp-alerta').innerHTML=alerta;
 
-  if(!entries.length){
-    h+=`<div style="text-align:center;padding:40px;color:var(--mt)">
-      <div style="font-size:36px;margin-bottom:8px">📖</div>
-      No hay comprobantes que coincidan con los filtros
+  // Sin ningún valor en el buscador no se lista nada: solo se busca.
+  const hayFiltro=!!(CMP_FILTRO.texto.trim()||CMP_FILTRO.desde||CMP_FILTRO.hasta||CMP_FILTRO.origen);
+  const cnt=document.getElementById('cmp-count');
+  if(!hayFiltro){
+    CMP_ENTRIES=[];
+    if(cnt)cnt.textContent=`${entriesGlobal.length} comprobantes en ${S.empresa?.anio||'el ejercicio'}`;
+    res.innerHTML=`<div style="text-align:center;padding:32px 16px;color:var(--mt)">
+      <div style="font-size:32px;margin-bottom:8px">🔎</div>
+      Escribe un N° de comprobante, un monto o un texto, o elige un rango de fechas, para ver los comprobantes.
     </div>`;
-    cont.innerHTML=h;
     return;
   }
 
-  // Sin filtro activo: mostrar solo los últimos 5 (los más recientes) para no
-  // cargar cientos de filas. Al buscar/filtrar se muestran todos los que
-  // coincidan. genDiario viene ordenado ascendente, así que "últimos" = final.
-  const hayFiltro=!!(CMP_FILTRO.mes||CMP_FILTRO.origen||CMP_FILTRO.texto||CMP_FILTRO.numero);
-  const LIMITE_CMP=5;
-  let ocultosCmp=0;
-  if(!hayFiltro&&entries.length>LIMITE_CMP){
-    ocultosCmp=entries.length-LIMITE_CMP;
-    entries=entries.slice(-LIMITE_CMP);
+  if(CMP_FILTRO.desde)entries=entries.filter(e=>String(e.fecha||'')>=CMP_FILTRO.desde);
+  if(CMP_FILTRO.hasta)entries=entries.filter(e=>String(e.fecha||'')<=CMP_FILTRO.hasta);
+  if(CMP_FILTRO.origen){
+    entries=entries.filter(e=>{
+      if(CMP_FILTRO.origen==='descuadrados')return !cuadraE(e);
+      if(CMP_FILTRO.origen==='apertura')return e.origen==='apertura';
+      if(CMP_FILTRO.origen==='manual')return e.origen==='manual';
+      if(CMP_FILTRO.origen==='auto')return e.origen==='auto';
+      return e.fuente===CMP_FILTRO.origen;
+    });
   }
-  if(ocultosCmp){
-    h+=`<div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);color:var(--info);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px">
-      📄 Mostrando los <strong>${LIMITE_CMP} más recientes</strong> de ${totalFiltrado}. Usa el buscador o los filtros para ver el resto.
+  if(CMP_FILTRO.texto.trim())entries=entries.filter(e=>cmpCoincide(e,CMP_FILTRO.texto));
+
+  const totD=entries.reduce((s,e)=>s+e.movs.reduce((ss,m)=>ss+(m.debe||0),0),0);
+  const totH=entries.reduce((s,e)=>s+e.movs.reduce((ss,m)=>ss+(m.haber||0),0),0);
+  const cntAuto=entries.filter(e=>e.origen==='auto').length;
+  const cntMan=entries.filter(e=>e.origen==='manual').length;
+  const cntAp=entries.filter(e=>e.origen==='apertura').length;
+  const totalFiltrado=entries.length;
+  if(cnt)cnt.textContent=`${totalFiltrado} comprobante${totalFiltrado===1?'':'s'}${cntAp?' · '+cntAp+' apertura':''}${cntAuto?' · '+cntAuto+' automáticos':''}${cntMan?' · '+cntMan+' manuales':''}`;
+
+  if(!entries.length){
+    CMP_ENTRIES=[];
+    res.innerHTML=`<div style="text-align:center;padding:32px 16px;color:var(--mt)">
+      <div style="font-size:32px;margin-bottom:8px">📖</div>
+      No hay comprobantes que coincidan con la búsqueda
     </div>`;
+    return;
+  }
+
+  // Una búsqueda muy amplia (p. ej. un solo dígito) puede traer miles de
+  // filas: se muestran las primeras para que la pantalla siga ágil.
+  const LIMITE_CMP=300;
+  let h='';
+  if(entries.length>LIMITE_CMP){
+    h+=`<div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);color:var(--info);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px">
+      📄 Mostrando los primeros <strong>${LIMITE_CMP}</strong> de ${totalFiltrado}. Afina la búsqueda o el rango de fechas para ver el resto. Los totales consideran todos.
+    </div>`;
+    entries=entries.slice(0,LIMITE_CMP);
   }
 
   // En móvil los comprobantes se presentan como fichas: una tabla de siete
@@ -285,7 +311,7 @@ export function renderComprobantes(){
   </tr></tfoot>`;
   h+='</table></div></div>';
 
-  cont.innerHTML=h;
+  res.innerHTML=h;
   CMP_ENTRIES=entries;
 }
 
@@ -319,70 +345,23 @@ function corregirDescuadreCmp(indice){
 }
 
 let _cmpTextoTimer=0;
-let _cmpTextoSel={ini:0,fin:0};
-
-function _restaurarFocoCmpTexto(){
-  const el=document.getElementById('cmp-texto-input');
-  if(!el)return;
-  // Volver a enfocar el input recién recreado evita que Android cierre el
-  // teclado al filtrar. preventScroll mantiene estable la lista mientras se
-  // escribe y el cursor vuelve a la misma posición.
-  try{el.focus({preventScroll:true});}catch(_){el.focus();}
-  try{
-    const max=String(el.value||'').length;
-    const ini=Math.min(_cmpTextoSel.ini??max,max);
-    const fin=Math.min(_cmpTextoSel.fin??ini,max);
-    el.setSelectionRange(ini,fin);
-  }catch(_){/* algunos WebView no exponen selectionRange en search */}
-}
 
 function setCmpFiltro(campo,valor){
-  CMP_FILTRO[campo]=valor;
+  CMP_FILTRO[campo]=String(valor??'');
+  clearTimeout(_cmpTextoTimer);
   if(campo==='texto'){
-    const activo=document.activeElement;
-    if(activo&&activo.id==='cmp-texto-input'){
-      _cmpTextoSel={
-        ini:Number.isFinite(activo.selectionStart)?activo.selectionStart:String(valor||'').length,
-        fin:Number.isFinite(activo.selectionEnd)?activo.selectionEnd:String(valor||'').length
-      };
-    }else{
-      const n=String(valor||'').length;
-      _cmpTextoSel={ini:n,fin:n};
-    }
-    clearTimeout(_cmpTextoTimer);
-    // Esperar brevemente permite escribir palabras completas sin reconstruir
-    // el DOM en cada pulsación. Al filtrar se restaura inmediatamente el foco.
-    _cmpTextoTimer=setTimeout(()=>{
-      renderComprobantes();
-      requestAnimationFrame(()=>requestAnimationFrame(_restaurarFocoCmpTexto));
-    },220);
+    // Pausa breve para no recalcular en cada pulsación; el input no se
+    // reconstruye, así que el foco y el cursor se mantienen solos.
+    _cmpTextoTimer=setTimeout(renderCmpResultados,160);
     return;
   }
-  clearTimeout(_cmpTextoTimer);
-  renderComprobantes();
+  // Llamadas externas (p. ej. "Ver solo descuadrados") actualizan los controles
+  sincronizarBarraCmp();
+  renderCmpResultados();
 }
 
-// Búsqueda dinámica por N° de comprobante: filtra los entries del año actual
-// que empiecen con el número tipeado y muestra una lista dropdown.
-function cmpNumeroBuscar(q){
-  const box=document.getElementById('cmp-num-list');
-  if(!box)return;
-  const qs=String(q||'').trim();
-  if(!qs){
-    // sin query: limpiar filtro y ocultar lista
-    if(CMP_FILTRO.numero){
-      CMP_FILTRO.numero='';
-      renderComprobantes();
-    }else{
-      renderCmpNumeroList([]);
-    }
-    return;
-  }
-  // Obtener el universo actual de comprobantes del año
-  const todos=genDiario();
-  const filtrados=todos.filter(e=>String(e.n||'').startsWith(qs)).slice(0,15);
-  renderCmpNumeroList(filtrados);
-}
+// Compatibilidad: el buscador por N° quedó integrado en el buscador general.
+function cmpNumeroBuscar(q){setCmpFiltro('texto',q);}
 
 function renderCmpNumeroList(items){
   const box=document.getElementById('cmp-num-list');
@@ -534,9 +513,10 @@ function cmpHdrElegir(i){
 
 function limpiarCmpFiltro(){
   clearTimeout(_cmpTextoTimer);
-  CMP_FILTRO={mes:'',origen:'',texto:'',numero:''};
-  renderCmpNumeroList([]);
-  renderComprobantes();
+  CMP_FILTRO={texto:'',desde:'',hasta:'',origen:''};
+  ['cmp-q','cmp-desde','cmp-hasta','cmp-origen'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderCmpResultados();
+  document.getElementById('cmp-q')?.focus();
 }
 
 function toggleCmpDet(id){

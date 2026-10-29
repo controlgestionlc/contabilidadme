@@ -130,18 +130,23 @@ function renderLista(){
     return String(d.razonSocial||'').toLowerCase().includes(q)||String(d.numero).includes(q)||String(d.rutCodigo).includes(q.replace(/[.\-]/g,''));
   }).sort((a,b)=>String(a.d.fecha||'').localeCompare(String(b.d.fecha||''))||String(a.d.razonSocial||'').localeCompare(String(b.d.razonSocial||'')));
   const est=d=>{const e=estadoDoc(d);return e==='libro'?'<span class="cap-est ok" title="Ya está en el libro">✓</span>':e==='cambio'?'<span class="cap-est cambio" title="El SII trae datos distintos a los registrados">≠</span>':'';};
-  box.innerHTML=`<div class="cap-filtros">
-      <input type="text" class="linea-inp" placeholder="Buscar nombre, folio o RUT…" value="${esc(CAP.q)}" oninput="setCapQ(this.value)">
-      <div class="cap-tabs">
-        ${[['pendientes','Por contabilizar'],['libro','En el libro'],['todos','Todos']].map(([k,l])=>`<button class="${CAP.filtro===k?'act':''}" onclick="setCapFiltro('${k}')">${l} <b>${cuenta[k]}</b></button>`).join('')}
+  // El buscador se dibuja una sola vez: si se reconstruyera en cada tecla, el
+  // input se reemplaza por uno nuevo y pierde el foco (había que volver a
+  // hacer clic para escribir cada carácter). Solo se refrescan pestañas y filas.
+  if(!box.querySelector('#cap-q')){
+    box.innerHTML=`<div class="cap-filtros">
+        <input type="text" id="cap-q" enterkeyhint="search" class="linea-inp" placeholder="Buscar nombre, folio o RUT…" autocomplete="off" value="${esc(CAP.q)}" oninput="setCapQ(this.value)">
+        <div class="cap-tabs" id="cap-tabs"></div>
       </div>
-    </div>
-    <div class="cap-filas">
-      ${filas.length?filas.map(({d,i})=>`<div class="cap-fila${i===CAP.sel?' sel':''}${i===CAP.abierto?' abierta':''}${importable(d)?'':' hecha'}" onclick="capSel(${i})" ondblclick="capSel(${i});capImportar()">
+      <div class="cap-filas" id="cap-filas"></div>`;
+  }
+  const inp=box.querySelector('#cap-q');
+  if(inp&&inp.value!==CAP.q&&document.activeElement!==inp)inp.value=CAP.q;
+  box.querySelector('#cap-tabs').innerHTML=[['pendientes','Por contabilizar'],['libro','En el libro'],['todos','Todos']].map(([k,l])=>`<button class="${CAP.filtro===k?'act':''}" onclick="setCapFiltro('${k}')">${l} <b>${cuenta[k]}</b></button>`).join('');
+  box.querySelector('#cap-filas').innerHTML=filas.length?filas.map(({d,i})=>`<div class="cap-fila${i===CAP.sel?' sel':''}${i===CAP.abierto?' abierta':''}${importable(d)?'':' hecha'}" onclick="capSel(${i})" ondblclick="capSel(${i});capImportar()">
           <div class="cap-f1"><span class="cap-nom" title="${esc(d.razonSocial||'')}">${esc(d.razonSocial||rutFmt(d.rutCodigo,d.rutDV))}</span>${est(d)}</div>
           <div class="cap-f2"><span>${d.tipoDTE}-${esc(d.numero)}</span><span>${esc(String(d.fechaOriginal||d.fecha||'').split('-').reverse().join('-'))}</span><span class="cap-monto">${fmtC(d.total)}</span></div>
-        </div>`).join(''):'<div class="cap-vacio">Sin documentos en este filtro.</div>'}
-    </div>`;
+        </div>`).join(''):'<div class="cap-vacio">Sin documentos en este filtro.</div>';
 }
 
 function renderDerecha(){
