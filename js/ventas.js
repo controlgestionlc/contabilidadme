@@ -271,7 +271,7 @@ function renderVentas(){
         <td class="tl" style="font-family:var(--mono);font-size:11px">${d.fecha}${origenBadge}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px;color:${d.fechaVencimiento?'var(--tx)':'var(--mt)'}">${d.fechaVencimiento||'—'}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px">${d.tipoDTE}${esNC?' <span style="font-family:var(--sans);font-size:8px;font-weight:700;color:var(--err);border:1px solid var(--err);border-radius:3px;padding:0 3px;vertical-align:middle">NC</span>':''}${dte?`<div style="font-size:9px;color:var(--mt);font-family:var(--sans);line-height:1.1;margin-top:1px">${dte.nm.slice(0,18)}</div>`:''}</td>
-        <td class="tl" style="font-family:var(--mono);font-size:11px">${d.numero||''}</td>
+        <td class="tl" style="font-family:var(--mono);font-size:11px">${d.numero||''}${d.cantidad?`<div style="font-size:9px;color:var(--info)" title="Resumen: cantidad de documentos">× ${fmt(d.cantidad)} docs</div>`:''}</td>
         <td class="tl" style="font-family:var(--mono);font-size:11px">${rutFmt(d.rutCodigo,d.rutDV)}</td>
         <td class="tnm">${d.razonSocial||''}</td>
         <td${cNC}>${sg(d.neto)}</td>
@@ -314,10 +314,55 @@ function renderVResumen(){
 
 // — Form Ventas —
 // V2.11 — referencias tributarias de Notas de Crédito/Débito
+// V2.22.7 · Ventas con boleta (39/35/41) y con comprobante de pago electrónico
+// (48): se registran como resumen del día o del mes, con la cantidad de
+// documentos. Esa cantidad y su IVA alimentan el F29 (110/111, 758/759, 586/142).
+const TIPOS_RESUMEN_V=new Set([35,39,41,48]);
+const esResumenV=t=>TIPOS_RESUMEN_V.has(+t);
+const RUT_PUBLICO={codigo:'66666666',dv:'6'};
 function vfDteChanged(){
   const t=+document.getElementById('vf-dte')?.value||0;
   const row=document.getElementById('vf-ref-row');if(row)row.style.display=(t===56||t===61)?'grid':'none';
   if(t===56||t===61)vfRefrescarDocs();
+  const res=esResumenV(t);
+  const cr=document.getElementById('vf-cant-row');if(cr)cr.style.display=res?'grid':'none';
+  const lbl=document.getElementById('vf-num-lbl');if(lbl)lbl.textContent=res?'Folios (desde-hasta) o referencia':'N° Documento';
+  const num=document.getElementById('vf-num');if(num)num.placeholder=res?'Ej: 1501-1850 (opcional)':'Ej: 1234';
+  const ay=document.getElementById('vf-cant-ayuda');
+  if(ay)ay.textContent=t===48?'Total de los comprobantes de pago electrónico (vouchers) del día o del mes. Alimenta los códigos 758 y 759 del F29.'
+    :t===41?'Total de las boletas exentas del período. Alimenta los códigos 586 y 142 del F29.'
+    :'Total de las boletas del día o del mes (con IVA). Ingresa el total y el neto e IVA se calculan solos. Alimenta los códigos 110 y 111 del F29.';
+  if(res){
+    // Venta al público: RUT genérico si no se indicó cliente
+    const rut=document.getElementById('vf-rut'),rs=document.getElementById('vf-rs');
+    if(rut&&!rut.value.trim()){rut.value=RUT_PUBLICO.codigo+RUT_PUBLICO.dv;vfRutInput(rut.value);}
+    if(rs&&(!rs.value.trim()||/^Ventas con (boleta|comprobante)/.test(rs.value)))rs.value=t===48?'Ventas con comprobante de pago electrónico':'Ventas con boleta';
+  }
+}
+// Cuenta de ingreso de las demás ventas de la empresa (la más usada en facturas
+// y otros documentos que no son resumen); si no hay, la de la factura (33).
+function cuentaIngresoVentasHabitual(){
+  const cuenta={};
+  (S.ventas||[]).forEach(d=>{
+    if(d.estado==='anulado'||esResumenV(d.tipoDTE))return;
+    const cd=d.cuentaIngreso||d.dist?.[0]?.cuenta||'';
+    if(cd)cuenta[cd]=(cuenta[cd]||0)+1;
+  });
+  const top=Object.entries(cuenta).sort((a,b)=>b[1]-a[1])[0];
+  return top?top[0]:(dteV(33)?.cuenta||'4101002');
+}
+function abrirVFResumen(tipo){
+  abrirVF();
+  // V2.22.8 · Boletas y vouchers usan por defecto la misma cuenta de ingreso que las demás ventas
+  _vfCuentaSel=cuentaIngresoVentasHabitual();
+  const wrapC=document.getElementById('vf-cuenta-wrap');
+  if(wrapC)wrapC.innerHTML=inputCuenta({id:'vf-cuenta',value:_vfCuentaSel,onPick:"setVfCuenta('%CD%')",placeholder:'Cuenta de ingreso (opcional)…',filtro:'ingreso'});
+  document.getElementById('vf-dte').innerHTML=dteVentasOpts(String(tipo));
+  document.getElementById('vf-title').textContent=tipo===48?'Ventas con medios de pago electrónico (resumen)':'Ventas con boleta (resumen)';
+  document.getElementById('vf-fp').value=tipo===48?'tarjetas':'banco';
+  vfDteChanged();
+  document.getElementById('vf-cant').value='';
+  setTimeout(()=>document.getElementById('vf-cant')?.focus(),50);
 }
 
 let _vfRefs=[];
@@ -361,7 +406,7 @@ function abrirVF(){
   document.getElementById('vf-fecha').value=today();
   document.getElementById('vf-vence').value='';
   document.getElementById('vf-dte').innerHTML=dteVentasOpts('');
-  ['vf-num','vf-rut','vf-rs','vf-neto','vf-exento','vf-iva','vf-otros','vf-total','vf-ref-folio','vf-ref-fecha','vf-ref-razon'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['vf-num','vf-rut','vf-rs','vf-neto','vf-exento','vf-iva','vf-otros','vf-total','vf-ref-folio','vf-ref-fecha','vf-ref-razon','vf-cant'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   vfDteChanged();
   document.getElementById('vf-fp').value='banco';
   document.getElementById('vf-dv').textContent='';
@@ -385,6 +430,7 @@ function editarVenta(id){
   if(document.getElementById('vf-ref-fecha'))document.getElementById('vf-ref-fecha').value=d.referencia?.fecha||'';
   if(document.getElementById('vf-ref-razon'))document.getElementById('vf-ref-razon').value=d.referencia?.razon||'';
   document.getElementById('vf-num').value=d.numero||'';
+  document.getElementById('vf-cant').value=d.cantidad||'';
   document.getElementById('vf-rut').value=(d.rutCodigo||'')+(d.rutDV||'');
   document.getElementById('vf-rs').value=d.razonSocial||'';
   document.getElementById('vf-neto').value=d.neto||'';
@@ -462,7 +508,10 @@ async function guardarVenta(){
   const fecha=document.getElementById('vf-fecha').value;
   const fechaVencimiento=document.getElementById('vf-vence').value||'';
   const tipoDTE=+document.getElementById('vf-dte').value;
-  const numero=document.getElementById('vf-num').value.trim();
+  let numero=document.getElementById('vf-num').value.trim();
+  const resumen=esResumenV(tipoDTE);
+  const cantidad=resumen?Math.round(pn(document.getElementById('vf-cant')?.value)):0;
+  if(resumen&&!numero&&fecha)numero='R'+fecha.replace(/-/g,'');   // referencia por día si no se indican folios
   const rutInput=document.getElementById('vf-rut').value;
   const razonSocial=document.getElementById('vf-rs').value.trim();
   const neto=pn(document.getElementById('vf-neto').value);
@@ -476,6 +525,7 @@ async function guardarVenta(){
   if(fechaVencimiento&&fechaVencimiento<fecha){toast('⚠️ La fecha de vencimiento no puede ser anterior a la emisión','e');return;}
   if(!tipoDTE){toast('⚠️ Selecciona el tipo de documento','e');return;}
   if(!numero){toast('⚠️ Ingresa el N° de documento','e');return;}
+  if(resumen&&!(cantidad>=1)){toast('⚠️ Ingresa la cantidad de documentos del resumen','e');return;}
   const r=rutParse(rutInput);
   if(!r.codigo){toast('⚠️ Ingresa el RUT del cliente','e');return;}
   if(!r.valido){toast('⚠️ RUT inválido — dígito verificador no coincide','e');return;}
@@ -506,7 +556,7 @@ async function guardarVenta(){
   // V2.21.57: una venta distribuida en varias líneas conserva su distribución
   // mientras neto + exento no cambien; si cambian, vuelve a una sola cuenta.
   const distPrev=prevEdit&&Array.isArray(prevEdit.dist)&&prevEdit.dist.length&&Math.abs(prevEdit.dist.reduce((s,l)=>s+(+l.monto||0),0)-(neto+exento))<=1?prevEdit.dist:null;
-  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(distPrev?{dist:distPrev}:{}),...(referencia?{referencia}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||''}:{})};
+  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(resumen?{cantidad}:{}),...(distPrev?{dist:distPrev}:{}),...(referencia?{referencia}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||''}:{})};
   const editando=!!VF.editId;
   const rSave=await guardarDocumentoContabilizado('ventas',doc,S.ventas,editando);
   if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
@@ -923,5 +973,5 @@ async function confirmarImportacionV(){
 export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV, enfocarPendienteImportV,
-        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
+        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, abrirVFResumen, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, recalcularEstadoImportVentas, abrirImportModalVentas, verMesV, mostrarVentasImportadas, VF};

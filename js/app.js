@@ -100,7 +100,7 @@ import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, ap
 import {abrirAperturaAux, cerrarAperturaAux, renderAperturaAux, apxAddDoc, apxDelDoc,
         apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
         descargarPlantillaAperturaAux, initAperturaAuxListener, APX} from './aperturaaux.js';
-import {onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, editarVenta, cerrarVF,
+import {onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, abrirVFResumen, editarVenta, cerrarVF,
         vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
         eliminarVenta, VF, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV,
@@ -817,7 +817,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
   descargarPlantillaAperturaAux, APX,
   // ventas
-  onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, editarVenta, cerrarVF,
+  onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, abrirVFResumen, editarVenta, cerrarVF,
   vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
   // compras
   onMesChangeC, limpiarFiltrosC, verMesC, verCuentaC, quitarCuentaC, renderCompras, abrirCF, editarCompra, cerrarCF,

@@ -8,13 +8,21 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.30-1100';
+const APP_VERSION='v2026.10.30-1215';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.8',fecha:'30-10-2026',titulo:'Boletas y vouchers con la cuenta de ingreso de las demás ventas',items:[
+    {tipo:'cambio',txt:'Los resúmenes de ventas con boleta y con medios de pago electrónico proponen por defecto la misma cuenta de ingreso que usan las demás ventas de la empresa (la más usada; si no hay ventas, la de la factura). Se puede cambiar en el formulario.'},
+  ]},
+  {version:'V2.22.7',fecha:'30-10-2026',titulo:'Ventas con boleta y con medios de pago electrónico',items:[
+    {tipo:'nuevo',txt:'Libro de Ventas: botones "🧾 Ventas con boleta" y "💳 Ventas medios electrónicos" para registrar el resumen del día o del mes con la cantidad de documentos, el total (neto e IVA se calculan solos), los folios desde-hasta (opcional) y la forma de pago. Usa el RUT genérico 66.666.666-6 si no hay cliente; los vouchers proponen la forma de pago Tarjetas.'},
+    {tipo:'nuevo',txt:'F29: los códigos 110 y 111 (boletas), 758 y 759 (comprobantes de pago electrónico) y 586 (boletas exentas) se calculan solos desde esos resúmenes, contando la cantidad de documentos. Ingresarlos a mano sigue disponible y manda sobre lo calculado.'},
+    {tipo:'cambio',txt:'En el Libro de Ventas, los resúmenes muestran bajo el N° la cantidad de documentos que agrupan.'},
+  ]},
   {version:'V2.22.6',fecha:'30-10-2026',titulo:'Ventas: forma de pago Tarjetas débito o crédito',items:[
     {tipo:'nuevo',txt:'Nueva forma de pago "💳 Tarjetas" en las ventas (vista tabla del RCV, paso 2, formulario manual y cambio masivo del Libro de Ventas). El asiento carga la cuenta nueva 1107004 TARJETAS POR COBRAR (DÉBITO Y CRÉDITO), que queda con saldo hasta que el operador (Transbank, Getnet, etc.) abona.'},
     {tipo:'nuevo',txt:'El paso 2 del RCV de ventas muestra un selector de forma de pago en la cabecera del documento; el asiento se actualiza al cambiarlo.'},
