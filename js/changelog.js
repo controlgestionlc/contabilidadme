@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.30-1630';
+const APP_VERSION='v2026.10.30-1700';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.12',fecha:'30-10-2026',titulo:'Pagos y Cobros: abono de tarjetas',items:[
+    {tipo:'nuevo',txt:'Nueva pestaña "💳 Abono tarjetas": genera el asiento que traspasa al banco las ventas con tarjeta (1107004 TARJETAS POR COBRAR). Se ingresa lo depositado y la comisión cobrada; la comisión se rebaja contra el proveedor del servicio (su factura se registra en Compras y el abono la deja saldada) o directo a una cuenta de gasto. Muestra el saldo por cobrar y el asiento antes de guardarlo.'},
+    {tipo:'cambio',txt:'Los abonos de tarjetas aparecen en el Historial de Pagos y Cobros y se editan en el formulario de Comprobantes.'},
+  ]},
   {version:'V2.22.11',fecha:'30-10-2026',titulo:'Pagos y Cobros: historial',items:[
     {tipo:'nuevo',txt:'Nueva pestaña "📜 Historial" en Pagos y Cobros: lista todos los pagos a proveedores, cobros a clientes y pagos de honorarios del ejercicio, con filtros por tipo y mes y búsqueda por N°, RUT, razón social, folio, glosa o monto.'},
     {tipo:'nuevo',txt:'Cada fila se puede clicar: abre el comprobante con su asiento contable (cuentas, debe y haber) y permite corregir fecha, banco o caja, glosa, documentos y montos; el asiento se actualiza en pantalla con cada cambio. Los pagos de honorarios se corrigen desde su boleta.'},

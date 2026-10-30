@@ -10,9 +10,10 @@
 // con una línea por documento (proveedor DEBE) y una única línea de banco/caja
 // (HABER). Esto refleja la realidad de una transferencia consolidada.
 
-import {toast, fmtC, MESES, pdcNm, PDC, today, dteV, dteC, esDteHonorario, rutFmt, pn} from './core.js';
+import {toast, fmtC, MESES, pdcNm, PDC, today, dteV, dteC, esDteHonorario, rutFmt, pn, rutParse} from './core.js';
+import {genDiario} from './reportes.js';
 import {S} from './state.js';
-import {proxFolioAsiento, CUENTAS_AUX} from './asientos.js';
+import {proxFolioAsiento, CUENTAS_AUX, editarAsiento} from './asientos.js';
 import {logAccion,logCambio} from './firebase.js';
 import {rerender, nav} from './ui.js';
 import {abrirEditorPago} from './pagoeditor.js';
@@ -33,6 +34,8 @@ let PAG={
   filtro:{texto:'',mes:''},
   vista:'pendientes',    // 'pendientes' | 'historial' (V2.22.11)
   hist:{tipo:'',mes:'',texto:''},
+  // V2.22.12 · Abono del operador de tarjetas (1107004 → banco, con o sin comisión)
+  tj:{fecha:today(),banco:'',depositado:0,comision:0,trato:'proveedor',rut:'',razon:'',cuentaGasto:'',glosa:''},
 };
 
 // ═══ HELPERS ═══
@@ -235,6 +238,7 @@ function renderPagos(){
   const cont=document.getElementById('pagos-content');
   if(!cont)return;
   if(PAG.vista==='historial'){renderHistorialPagos(cont);return;}
+  if(PAG.vista==='tarjetas'){renderTarjetasPagos(cont);return;}
 
   const filtrados=docsFiltrados(PAG.tipo);
 
@@ -254,6 +258,7 @@ function renderPagos(){
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <button class="btn ${PAG.tipo==='proveedor'?'btn-p':'btn-g'}" onclick="setPagTipo('proveedor')">🏭 Pagar Proveedores</button>
       <button class="btn ${PAG.tipo==='cliente'?'btn-p':'btn-g'}" onclick="setPagTipo('cliente')">📇 Cobrar Clientes</button>
+      <button class="btn btn-g" onclick="verTarjetasPagos()">💳 Abono tarjetas</button>
       <button class="btn btn-g" onclick="verHistorialPagos()">📜 Historial</button>
     </div>
     ${avisoSobrepagos()}
@@ -721,6 +726,7 @@ async function quitarReferencia(notaId,tipo){
 // permite corregir fecha, banco, glosa, documentos y montos.
 function verHistorialPagos(){PAG.vista='historial';renderPagos();}
 function claseHistorial(a){
+  if(a.subtipo==='abono-tarjetas')return {k:'tarjetas',lbl:'Abono tarjetas',ic:'💳',c:'#3fb950'};
   if(a.subtipo==='honorario'||a.fuente==='honorarios')return {k:'honorario',lbl:'Pago honorarios',ic:'📝',c:'#c377dc'};
   const t=(a.documentos&&a.documentos[0]&&a.documentos[0].tipo)||((a.movs||[]).some(m=>m.cd==='1104001')?'cliente':'proveedor');
   return t==='cliente'?{k:'cliente',lbl:'Cobro cliente',ic:'📇',c:'#58a6ff'}:{k:'proveedor',lbl:'Pago proveedor',ic:'🏭',c:'#f0883e'};
@@ -728,7 +734,7 @@ function claseHistorial(a){
 function filasHistorial(){
   const docsPorId={};
   [...(S.ventas||[]),...(S.compras||[]),...(S.honorarios||[])].forEach(d=>{if(d&&d.id)docsPorId[d.id]=d;});
-  return (S.asientos||[]).filter(a=>a&&a.tipo==='pago').map(a=>{
+  return (S.asientos||[]).filter(a=>a&&(a.tipo==='pago'||a.subtipo==='abono-tarjetas')).map(a=>{
     const cl=claseHistorial(a);
     const banco=(a.movs||[]).filter(m=>String(m.cd||'').startsWith('1101'));
     const monto=banco.length?banco.reduce((s,m)=>s+(+m.debe||0)+(+m.haber||0),0):(a.movs||[]).reduce((s,m)=>s+(+m.debe||0),0);
@@ -745,6 +751,7 @@ function renderHistorialPagos(cont){
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <button class="btn btn-g" onclick="setPagTipo('proveedor')">🏭 Pagar Proveedores</button>
       <button class="btn btn-g" onclick="setPagTipo('cliente')">📇 Cobrar Clientes</button>
+      <button class="btn btn-g" onclick="verTarjetasPagos()">💳 Abono tarjetas</button>
       <button class="btn btn-p" onclick="verHistorialPagos()">📜 Historial</button>
     </div>
     <div class="filter-row">
@@ -754,6 +761,7 @@ function renderHistorialPagos(cont){
         <option value="proveedor" ${H.tipo==='proveedor'?'selected':''}>🏭 Pagos a proveedores</option>
         <option value="cliente" ${H.tipo==='cliente'?'selected':''}>📇 Cobros a clientes</option>
         <option value="honorario" ${H.tipo==='honorario'?'selected':''}>📝 Pagos de honorarios</option>
+        <option value="tarjetas" ${H.tipo==='tarjetas'?'selected':''}>💳 Abonos de tarjetas</option>
       </select>
       <select onchange="setHistPag('mes',this.value)">
         <option value="">Todos los meses</option>
@@ -811,6 +819,10 @@ function limpiarHistPag(){PAG.hist={tipo:'',mes:'',texto:''};renderPagos();}
 function abrirHistorialPago(id){
   const a=(S.asientos||[]).find(x=>x.id===id);if(!a)return;
   if(a.anulado){toast('ℹ️ Este comprobante está anulado','e');return;}
+  if(claseHistorial(a).k==='tarjetas'){
+    // Asiento manual: se edita en el formulario de Comprobantes
+    nav('comprobantes');setTimeout(()=>editarAsiento(a.id),80);return;
+  }
   if(claseHistorial(a).k==='honorario'){
     toast('📝 Los pagos de honorarios se corrigen desde la boleta, en el módulo Honorarios');
     nav('honorarios');return;
@@ -818,7 +830,137 @@ function abrirHistorialPago(id){
   abrirEditorPago(id);
 }
 
-export {verHistorialPagos, setHistPag, limpiarHistPag, abrirHistorialPago};
+// ═══ ABONO DE TARJETAS (V2.22.12) ═══
+// Traspasa a banco las ventas con tarjeta que quedaron en 1107004 TARJETAS POR
+// COBRAR. El operador (Transbank, Getnet, etc.) deposita la venta menos su
+// comisión. La comisión se puede rebajar:
+//   · contra el proveedor (su factura de comisión se registra en Compras y el
+//     abono la deja saldada), o
+//   · directo a una cuenta de gasto (sin factura).
+// Asiento: Debe Banco (depositado) + Debe Proveedor/Gasto (comisión)
+//          / Haber 1107004 (depositado + comisión).
+const CTA_TARJETAS='1107004';
+function verTarjetasPagos(){
+  PAG.vista='tarjetas';
+  const T=PAG.tj;
+  if(!T.banco)T.banco=PAG.cuentaPago||(PDC.find(c=>c.cd==='1101201')?'1101201':'');
+  if(!T.cuentaGasto)T.cuentaGasto=PDC.find(c=>c.cd==='3201005')?'3201005':'';
+  renderPagos();
+}
+function saldoTarjetas(){
+  return Math.round(genDiario().reduce((s,e)=>s+(e.movs||[]).reduce((x,m)=>x+(m.cd===CTA_TARJETAS?(+m.debe||0)-(+m.haber||0):0),0),0));
+}
+function proveedoresConocidos(){
+  const m={};
+  (S.compras||[]).forEach(d=>{if(d&&d.rutCodigo&&d.estado!=='anulado')m[d.rutCodigo]={rutCodigo:d.rutCodigo,rutDV:d.rutDV,razon:d.razonSocial||''};});
+  return Object.values(m).sort((a,b)=>a.razon.localeCompare(b.razon));
+}
+function renderTarjetasPagos(cont){
+  const T=PAG.tj,saldo=saldoTarjetas();
+  const gastos=PDC.filter(c=>c.tp==='C'&&c.cd&&String(c.cd).length>=7&&c.activa!==false);
+  const esc=t=>String(t??'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  cont.innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-g" onclick="setPagTipo('proveedor')">🏭 Pagar Proveedores</button>
+      <button class="btn btn-g" onclick="setPagTipo('cliente')">📇 Cobrar Clientes</button>
+      <button class="btn btn-p" onclick="verTarjetasPagos()">💳 Abono tarjetas</button>
+      <button class="btn btn-g" onclick="verHistorialPagos()">📜 Historial</button>
+    </div>
+    <div class="info-tip" style="margin-bottom:12px">💳 Traspasa al banco lo que el operador de tarjetas (Transbank, Getnet, etc.) depositó por las ventas con tarjeta. Saldo actual de <b>${CTA_TARJETAS} ${pdcNm(CTA_TARJETAS)}</b>: <b style="font-family:var(--mono)">${fmtC(saldo)}</b>.</div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title">💳 Datos del abono</div>
+      <div class="fg">
+        <div class="grp"><label>Fecha del abono</label><input type="date" value="${T.fecha}" oninput="setTjCampo('fecha',this.value)"></div>
+        <div class="grp"><label>Banco donde se depositó</label><select onchange="setTjCampo('banco',this.value)">${PDC.filter(c=>c.cd&&String(c.cd).startsWith('1101')&&c.tp==='A').map(c=>`<option value="${c.cd}" ${T.banco===c.cd?'selected':''}>${c.cd} — ${c.nm}</option>`).join('')}</select></div>
+        <div class="grp"><label>Monto depositado en el banco</label><input type="text" inputmode="numeric" value="${T.depositado?fmtC(T.depositado).replace('$',''):''}" placeholder="0" oninput="setTjCampo('depositado',this.value)"></div>
+        <div class="grp"><label>Comisión cobrada (con IVA, 0 si no hay)</label><input type="text" inputmode="numeric" value="${T.comision?fmtC(T.comision).replace('$',''):''}" placeholder="0" oninput="setTjCampo('comision',this.value)"></div>
+        <div class="grp full"><label>¿Cómo se registra la comisión?</label>
+          <select onchange="setTjCampo('trato',this.value)">
+            <option value="proveedor" ${T.trato==='proveedor'?'selected':''}>Contra el proveedor del servicio (su factura de comisión se registra en Compras)</option>
+            <option value="gasto" ${T.trato==='gasto'?'selected':''}>Directo a una cuenta de gasto (sin factura)</option>
+          </select></div>
+        <div class="grp" id="tj-prov" style="${T.trato==='proveedor'?'':'display:none'}"><label>Proveedor (operador) RUT</label>
+          <input type="text" list="tj-provs" value="${esc(T.rut)}" placeholder="Ej: 96689310-9" oninput="setTjCampo('rut',this.value)">
+          <datalist id="tj-provs">${proveedoresConocidos().map(p=>`<option value="${p.rutCodigo}-${p.rutDV}">${esc(p.razon)}</option>`).join('')}</datalist></div>
+        <div class="grp" id="tj-prov2" style="${T.trato==='proveedor'?'':'display:none'}"><label>Razón social</label><input type="text" id="tj-razon" value="${esc(T.razon)}" placeholder="Ej: Transbank S.A." oninput="setTjCampo('razon',this.value)"></div>
+        <div class="grp full" id="tj-gasto" style="${T.trato==='gasto'?'':'display:none'}"><label>Cuenta de gasto</label>
+          <select onchange="setTjCampo('cuentaGasto',this.value)"><option value="">— seleccionar cuenta —</option>${gastos.map(c=>`<option value="${c.cd}" ${T.cuentaGasto===c.cd?'selected':''}>${c.cd} — ${esc(c.nm)}</option>`).join('')}</select></div>
+        <div class="grp full"><label>Glosa (opcional)</label><input type="text" value="${esc(T.glosa)}" placeholder="Ej: Abono Transbank semana 42" oninput="setTjCampo('glosa',this.value)"></div>
+      </div>
+      <div style="margin-top:12px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Asiento contable</div><div id="tj-asiento"></div></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-p" id="tj-btn" onclick="generarAbonoTarjetas()">💾 Generar asiento</button></div>
+    </div>`;
+  renderTjAsiento();
+}
+function movsAbonoTarjetas(){
+  const T=PAG.tj,dep=Math.round(+T.depositado||0),com=Math.round(+T.comision||0),bruto=dep+com;
+  const r=rutParse(T.rut||'');
+  const movs=[];
+  if(dep>0)movs.push({cd:T.banco,nm:pdcNm(T.banco),desc:'Abono ventas con tarjeta',debe:dep,haber:0});
+  if(com>0){
+    if(T.trato==='gasto')movs.push({cd:T.cuentaGasto,nm:pdcNm(T.cuentaGasto),desc:'Comisión ventas con tarjeta',debe:com,haber:0});
+    else movs.push({cd:'2102001',nm:pdcNm('2102001'),desc:`Comisión ${T.razon||'operador de tarjetas'}`.trim(),debe:com,haber:0,rutCodigo:r.codigo||'',rutDV:r.dv||''});
+  }
+  if(bruto>0)movs.push({cd:CTA_TARJETAS,nm:pdcNm(CTA_TARJETAS),desc:'Ventas con tarjeta abonadas',debe:0,haber:bruto});
+  return {movs,dep,com,bruto,rut:r};
+}
+function renderTjAsiento(){
+  const box=document.getElementById('tj-asiento');if(!box)return;
+  const {movs,bruto}=movsAbonoTarjetas();
+  if(!movs.length){box.innerHTML='<div style="color:var(--mt);font-size:11px">Ingresa el monto depositado.</div>';return;}
+  const saldo=saldoTarjetas();
+  const esc=t=>String(t||'').replace(/</g,'&lt;');
+  const tD=movs.reduce((s,m)=>s+m.debe,0),tH=movs.reduce((s,m)=>s+m.haber,0);
+  box.innerHTML=`<div class="tw"><table style="font-size:11px;width:100%">
+    <thead><tr><th class="tl">CUENTA</th><th class="tl">DETALLE</th><th style="text-align:right;width:110px">DEBE</th><th style="text-align:right;width:110px">HABER</th></tr></thead>
+    <tbody>${movs.map(m=>`<tr><td class="tl"><span style="font-family:var(--mono);color:var(--mt)">${esc(m.cd||'(elige la cuenta)')}</span> ${esc(m.cd?pdcNm(m.cd):'')}</td>
+      <td class="tl" style="color:var(--mt)">${esc(m.desc)}${m.rutCodigo?` · ${rutFmt(m.rutCodigo,m.rutDV)}`:''}</td>
+      <td style="text-align:right;font-family:var(--mono)">${m.debe?fmtC(m.debe):'–'}</td><td style="text-align:right;font-family:var(--mono)">${m.haber?fmtC(m.haber):'–'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td class="tl" colspan="2" style="font-weight:700">Totales</td><td style="text-align:right;font-family:var(--mono);font-weight:700">${fmtC(tD)}</td><td style="text-align:right;font-family:var(--mono);font-weight:700">${fmtC(tH)}</td></tr></tfoot>
+  </table></div>${bruto>saldo+1?`<div style="font-size:11px;color:var(--warn);margin-top:6px">⚠️ El abono (${fmtC(bruto)}) supera el saldo de ventas con tarjeta por cobrar (${fmtC(saldo)}).</div>`:''}`;
+}
+function setTjCampo(campo,valor){
+  const T=PAG.tj;
+  if(campo==='depositado'||campo==='comision')T[campo]=Math.max(0,Math.round(pn(String(valor).replace(/\./g,''))));
+  else T[campo]=String(valor??'');
+  if(campo==='rut'){
+    const r=rutParse(T.rut);const p=r.codigo&&proveedoresConocidos().find(x=>x.rutCodigo===r.codigo);
+    const inp=document.getElementById('tj-razon');if(p&&inp&&!inp.value.trim()){inp.value=p.razon;T.razon=p.razon;}
+  }
+  if(campo==='trato'){
+    ['tj-prov','tj-prov2'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=T.trato==='proveedor'?'':'none';});
+    const g=document.getElementById('tj-gasto');if(g)g.style.display=T.trato==='gasto'?'':'none';
+  }
+  renderTjAsiento();
+}
+async function generarAbonoTarjetas(){
+  const T=PAG.tj;
+  if(!T.fecha){toast('⚠️ Ingresa la fecha del abono','e');return;}
+  if(!puedeOperarFecha(T.fecha)){toast('🔒 El período de esa fecha está cerrado.','e');return;}
+  if(!T.banco){toast('⚠️ Elige el banco','e');return;}
+  const {movs,dep,com,bruto,rut}=movsAbonoTarjetas();
+  if(!(dep>0)){toast('⚠️ Ingresa el monto depositado','e');return;}
+  if(com>0&&T.trato==='proveedor'&&!(rut.codigo&&rut.valido)){toast('⚠️ Ingresa un RUT válido del proveedor del servicio','e');return;}
+  if(com>0&&T.trato==='gasto'&&!T.cuentaGasto){toast('⚠️ Elige la cuenta de gasto de la comisión','e');return;}
+  if(!PDC.some(c=>c.cd===CTA_TARJETAS)){toast(`⚠️ Falta la cuenta ${CTA_TARJETAS} en el plan de cuentas`,'e');return;}
+  const saldo=saldoTarjetas();
+  if(bruto>saldo+1&&!confirm(`El abono (${fmtC(bruto)}) supera el saldo de ventas con tarjeta por cobrar (${fmtC(saldo)}).\n¿Registrarlo igual?`))return;
+  const vp=validarMovimientosPDC(movs);
+  if(!vp.ok){toast('❌ '+vp.errores[0],'e');return;}
+  const id='a_tj_'+Date.now();
+  const glosa=T.glosa.trim()||`Abono ventas con tarjeta${com>0?` (comisión ${fmtC(com)})`:''}`;
+  if(!S.asientos)S.asientos=[];
+  const r=await persistirAsientosCritico(()=>{S.asientos.push({id,fecha:T.fecha,glosa,movs,tipo:'manual',subtipo:'abono-tarjetas',creadoEn:new Date().toISOString()});});
+  if(!r.ok){toast('❌ No se pudo guardar el asiento. No se contabilizó. ('+(r.motivo||'error')+')','e');return;}
+  const a=S.asientos.find(x=>x.id===id),n=a?.numeroContable||a?.n||'?';
+  logAccion('Registró abono de tarjetas',`${fmtC(bruto)} · depositado ${fmtC(dep)} · comisión ${fmtC(com)} · Asiento N°${n}`);
+  logCambio('Registró abono de tarjetas',{entidad:'asiento',id,antes:null,despues:a,meta:{numeroContable:a?.numeroContable,total:bruto}});
+  toast(`✅ Abono de tarjetas registrado · Asiento N°${n}`);
+  PAG.tj={...T,depositado:0,comision:0,glosa:''};
+  rerender();
+}
+
+export {verHistorialPagos, setHistPag, limpiarHistPag, abrirHistorialPago, verTarjetasPagos, setTjCampo, generarAbonoTarjetas};
 export {PAG, renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro,
         togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago,
         abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia};

@@ -170,7 +170,7 @@ import {cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, renderComprobante
         eliminarComprobante, anularComprobante,
         setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
         abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte} from './comprobantes.js';
-import {verHistorialPagos, setHistPag, limpiarHistPag, abrirHistorialPago} from './pagos.js';
+import {verHistorialPagos, setHistPag, limpiarHistPag, abrirHistorialPago, verTarjetasPagos, setTjCampo, generarAbonoTarjetas} from './pagos.js';
 import {renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago, abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia} from './pagos.js';
 import {abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo, hdProvBuscar, hdProvElegir, hdProvCerrar, hdProvTecla, hdNuevoAuxiliar} from './honorariodoc.js';
 import {abrirEditorPago, cerrarEditorPago, guardarEditorPago, peCampo, peLineaCampo, peDelLinea, pePickBuscar, pePickAdd, pePickCerrar} from './pagoeditor.js';
@@ -798,7 +798,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   eliminarComprobante, anularComprobante,
   setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
   abrirCmpEdDte, cerrarCmpEdDte, setCmpDteCampo, setCmpDteTipo, setCmpDteRut, cmpDteAutoTotal, guardarCmpEdDte,
-  verHistorialPagos, setHistPag, limpiarHistPag, abrirHistorialPago, renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago,
+  verHistorialPagos, setHistPag, limpiarHistPag, abrirHistorialPago, verTarjetasPagos, setTjCampo, generarAbonoTarjetas, renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro, togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago,
   abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia,
   abrirNuevoHonorario, cerrarNuevoHonorario, guardarNuevoHonorario, hdRutInput, hdProvSel, hdRecalc, hdAddDist, hdDelDist, hdDistCampo, hdProvBuscar, hdProvElegir, hdProvCerrar, hdProvTecla, hdNuevoAuxiliar,
   abrirEditorPago, cerrarEditorPago, guardarEditorPago, peCampo, peLineaCampo, peDelLinea, pePickBuscar, pePickAdd, pePickCerrar,
