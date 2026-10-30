@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.30-1500';
+const APP_VERSION='v2026.10.30-1630';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.11',fecha:'30-10-2026',titulo:'Pagos y Cobros: historial',items:[
+    {tipo:'nuevo',txt:'Nueva pestaña "📜 Historial" en Pagos y Cobros: lista todos los pagos a proveedores, cobros a clientes y pagos de honorarios del ejercicio, con filtros por tipo y mes y búsqueda por N°, RUT, razón social, folio, glosa o monto.'},
+    {tipo:'nuevo',txt:'Cada fila se puede clicar: abre el comprobante con su asiento contable (cuentas, debe y haber) y permite corregir fecha, banco o caja, glosa, documentos y montos; el asiento se actualiza en pantalla con cada cambio. Los pagos de honorarios se corrigen desde su boleta.'},
+  ]},
   {version:'V2.22.10',fecha:'30-10-2026',titulo:'Pagos y Cobros cuadra con Auxiliares',items:[
     {tipo:'correccion',txt:'Pagos y Cobros mostraba como pendientes las copias anuladas de un documento (las que deja cada edición o reimportación) y las ventas al contado, con tarjeta o a deudores varios. Ahora usa los mismos documentos que Auxiliares: sólo vigentes y, en ventas, sólo las que van a clientes.'},
   ]},

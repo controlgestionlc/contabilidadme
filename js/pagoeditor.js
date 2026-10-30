@@ -96,7 +96,9 @@ function asegurarModal(){
 // ── Render ──
 function render(){
   const sub=document.getElementById('pe-sub');
-  if(sub)sub.textContent=PE.tipo==='proveedor'?'Pago a proveedores':'Cobro a clientes';
+  const aOrig=(S.asientos||[]).find(x=>x.id===PE.asientoId);
+  const nAs=aOrig?(aOrig.numeroContable||aOrig.n||''):'';
+  if(sub)sub.textContent=(PE.tipo==='proveedor'?'Pago a proveedores':'Cobro a clientes')+(nAs?` · Comprobante N° ${nAs}`:'');
   const body=document.getElementById('pe-body');if(!body)return;
   const esProv=PE.tipo==='proveedor';
   body.innerHTML=`
@@ -130,6 +132,11 @@ function render(){
       </div>
 
       <div id="pe-tot" style="margin-top:12px;background:var(--sf2);border-radius:6px;padding:10px 14px;font-size:12px"></div>
+
+      <div style="margin-top:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px">Asiento contable <span style="font-weight:400;color:var(--mt);font-size:10px">· se actualiza con cada cambio</span></div>
+        <div id="pe-asiento"></div>
+      </div>
 
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
         <button class="btn btn-g" onclick="cerrarEditorPago()">Cancelar</button>
@@ -167,6 +174,26 @@ function peTotales(){
   box.innerHTML=`<div style="display:flex;justify-content:space-between">
     <span style="color:var(--mt)">Neto de banco/caja (se recalcula solo)</span>
     <b style="color:${esSalida?'var(--err)':'var(--ach)'}">${fmtC(Math.abs(neto))} · ${lbl}</b></div>`;
+  peAsiento();
+}
+
+// V2.22.11 · Vista del asiento que se guardará (cuentas, debe y haber)
+function peAsiento(){
+  const box=document.getElementById('pe-asiento');if(!box)return;
+  const {movs}=construirMovs();
+  if(!movs.length){box.innerHTML='<div style="color:var(--mt);font-size:11px">Sin líneas.</div>';return;}
+  const tD=movs.reduce((s,m)=>s+(m.debe||0),0),tH=movs.reduce((s,m)=>s+(m.haber||0),0);
+  const esc=t=>String(t||'').replace(/</g,'&lt;');
+  box.innerHTML=`<div class="tw"><table style="font-size:11px;width:100%">
+    <thead><tr><th class="tl">CUENTA</th><th class="tl">DETALLE</th><th style="text-align:right;width:110px">DEBE</th><th style="text-align:right;width:110px">HABER</th></tr></thead>
+    <tbody>${movs.map(m=>`<tr>
+      <td class="tl"><span style="font-family:var(--mono);color:var(--mt)">${esc(m.cd||'(falta banco/caja)')}</span> ${esc(m.cd?pdcNm(m.cd):'')}</td>
+      <td class="tl" style="color:var(--mt)">${esc(m.desc)}${m.rutCodigo?` · ${rutFmt(m.rutCodigo,m.rutDV)}`:''}</td>
+      <td style="text-align:right;font-family:var(--mono)">${m.debe?fmtC(m.debe):'–'}</td>
+      <td style="text-align:right;font-family:var(--mono)">${m.haber?fmtC(m.haber):'–'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td class="tl" colspan="2" style="font-weight:700">Totales ${Math.round(tD-tH)===0?'<span style="color:var(--ach);font-weight:400">✓ cuadra</span>':''}</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:700">${fmtC(tD)}</td><td style="text-align:right;font-family:var(--mono);font-weight:700">${fmtC(tH)}</td></tr></tfoot>
+  </table></div>`;
 }
 
 // Neto que cerrará el asiento: suma con signo del efecto de las líneas sobre la
@@ -185,7 +212,7 @@ function netoCaja(){
 }
 
 // ── Acciones de edición ──
-export function peCampo(campo,val){PE[campo]=val;if(campo==='cuentaPago')return;}
+export function peCampo(campo,val){PE[campo]=val;if(campo==='cuentaPago')peAsiento();}
 export function peLineaCampo(i,campo,val){
   if(!PE.lineas[i])return;
   PE.lineas[i][campo]=campo==='monto'?pn(val):val;
@@ -238,7 +265,7 @@ function construirMovs(){
   });
   const sumD=movs.reduce((s,m)=>s+m.debe,0),sumH=movs.reduce((s,m)=>s+m.haber,0);
   const dif=Math.round(sumD-sumH);
-  const cd=PE.cuentaPago,desc=`${PE.lineas.length} ${PE.tipo==='proveedor'?'pagos a proveedores':'cobros a clientes'}`;
+  const n=PE.lineas.length,cd=PE.cuentaPago,desc=`${n} ${PE.tipo==='proveedor'?(n===1?'pago a proveedor':'pagos a proveedores'):(n===1?'cobro a cliente':'cobros a clientes')}`;
   if(dif>0)movs.push({cd,nm:pdcNm(cd),desc,debe:0,haber:dif});
   else if(dif<0)movs.push({cd,nm:pdcNm(cd),desc,debe:-dif,haber:0});
   return {movs,documentos};

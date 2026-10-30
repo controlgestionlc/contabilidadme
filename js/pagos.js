@@ -14,7 +14,8 @@ import {toast, fmtC, MESES, pdcNm, PDC, today, dteV, dteC, esDteHonorario, rutFm
 import {S} from './state.js';
 import {proxFolioAsiento, CUENTAS_AUX} from './asientos.js';
 import {logAccion,logCambio} from './firebase.js';
-import {rerender} from './ui.js';
+import {rerender, nav} from './ui.js';
+import {abrirEditorPago} from './pagoeditor.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {pagosDocumento} from './motor-contable.js';
 import {refFolioDoc} from './auxdocs.js';
@@ -30,6 +31,8 @@ let PAG={
   seleccionados:new Set(),   // set de docId
   montoParcial:{},       // docId → monto (para pagos parciales)
   filtro:{texto:'',mes:''},
+  vista:'pendientes',    // 'pendientes' | 'historial' (V2.22.11)
+  hist:{tipo:'',mes:'',texto:''},
 };
 
 // ═══ HELPERS ═══
@@ -231,6 +234,7 @@ function cuentasPagoOpts(){
 function renderPagos(){
   const cont=document.getElementById('pagos-content');
   if(!cont)return;
+  if(PAG.vista==='historial'){renderHistorialPagos(cont);return;}
 
   const filtrados=docsFiltrados(PAG.tipo);
 
@@ -250,6 +254,7 @@ function renderPagos(){
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <button class="btn ${PAG.tipo==='proveedor'?'btn-p':'btn-g'}" onclick="setPagTipo('proveedor')">🏭 Pagar Proveedores</button>
       <button class="btn ${PAG.tipo==='cliente'?'btn-p':'btn-g'}" onclick="setPagTipo('cliente')">📇 Cobrar Clientes</button>
+      <button class="btn btn-g" onclick="verHistorialPagos()">📜 Historial</button>
     </div>
     ${avisoSobrepagos()}
 
@@ -431,6 +436,7 @@ function renderPagosTabla(){
 // ═══ ACCIONES ═══
 
 function setPagTipo(t){
+  PAG.vista='pendientes';
   PAG.tipo=t;
   PAG.seleccionados=new Set();
   PAG.montoParcial={};
@@ -709,6 +715,110 @@ async function quitarReferencia(notaId,tipo){
   else renderPagos();
 }
 
+// ═══ HISTORIAL DE PAGOS Y COBROS (V2.22.11) ═══
+// Lista los comprobantes de pago/cobro (asientos tipo 'pago') del ejercicio.
+// Cada fila abre el editor del comprobante, que muestra el asiento contable y
+// permite corregir fecha, banco, glosa, documentos y montos.
+function verHistorialPagos(){PAG.vista='historial';renderPagos();}
+function claseHistorial(a){
+  if(a.subtipo==='honorario'||a.fuente==='honorarios')return {k:'honorario',lbl:'Pago honorarios',ic:'📝',c:'#c377dc'};
+  const t=(a.documentos&&a.documentos[0]&&a.documentos[0].tipo)||((a.movs||[]).some(m=>m.cd==='1104001')?'cliente':'proveedor');
+  return t==='cliente'?{k:'cliente',lbl:'Cobro cliente',ic:'📇',c:'#58a6ff'}:{k:'proveedor',lbl:'Pago proveedor',ic:'🏭',c:'#f0883e'};
+}
+function filasHistorial(){
+  const docsPorId={};
+  [...(S.ventas||[]),...(S.compras||[]),...(S.honorarios||[])].forEach(d=>{if(d&&d.id)docsPorId[d.id]=d;});
+  return (S.asientos||[]).filter(a=>a&&a.tipo==='pago').map(a=>{
+    const cl=claseHistorial(a);
+    const banco=(a.movs||[]).filter(m=>String(m.cd||'').startsWith('1101'));
+    const monto=banco.length?banco.reduce((s,m)=>s+(+m.debe||0)+(+m.haber||0),0):(a.movs||[]).reduce((s,m)=>s+(+m.debe||0),0);
+    const refs=(a.documentos||[]).map(r=>docsPorId[r.docId]).filter(Boolean);
+    const lineasAux=(a.movs||[]).filter(m=>m.docId||m.rutCodigo);
+    const nombres=[...new Set([...refs.map(d=>d.razonSocial||d.nombre||''),...lineasAux.map(m=>(docsPorId[m.docId]||{}).razonSocial||'')].filter(Boolean))];
+    const folios=[...new Set([...refs.map(d=>d.numero),...lineasAux.map(m=>m.folio)].filter(x=>x!=null&&x!==''))];
+    return {a,cl,monto,nombres,folios,nDocs:Math.max(refs.length,lineasAux.length),cuenta:a.cuentaPago||banco[0]?.cd||''};
+  }).sort((x,y)=>String(y.a.fecha||'').localeCompare(String(x.a.fecha||''))||(+(y.a.numeroContable||y.a.n||0))-(+(x.a.numeroContable||x.a.n||0)));
+}
+function renderHistorialPagos(cont){
+  const H=PAG.hist;
+  cont.innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-g" onclick="setPagTipo('proveedor')">🏭 Pagar Proveedores</button>
+      <button class="btn btn-g" onclick="setPagTipo('cliente')">📇 Cobrar Clientes</button>
+      <button class="btn btn-p" onclick="verHistorialPagos()">📜 Historial</button>
+    </div>
+    <div class="filter-row">
+      <span class="f-lbl">Filtrar:</span>
+      <select onchange="setHistPag('tipo',this.value)">
+        <option value="">Pagos y cobros</option>
+        <option value="proveedor" ${H.tipo==='proveedor'?'selected':''}>🏭 Pagos a proveedores</option>
+        <option value="cliente" ${H.tipo==='cliente'?'selected':''}>📇 Cobros a clientes</option>
+        <option value="honorario" ${H.tipo==='honorario'?'selected':''}>📝 Pagos de honorarios</option>
+      </select>
+      <select onchange="setHistPag('mes',this.value)">
+        <option value="">Todos los meses</option>
+        ${MESES.map((m,i)=>`<option value="${i+1}" ${+H.mes===i+1?'selected':''}>${m}</option>`).join('')}
+      </select>
+      <input type="search" id="hist-pag-q" placeholder="Buscar por N°, RUT, razón social, folio, glosa o monto…" value="${String(H.texto).replace(/"/g,'&quot;')}"
+        oninput="setHistPag('texto',this.value)" style="min-width:240px">
+      <button class="btn btn-g" onclick="limpiarHistPag()">Limpiar</button>
+      <span class="doc-count" id="hist-pag-count"></span>
+    </div>
+    <div id="hist-pag-tabla"></div>`;
+  renderHistorialTabla();
+}
+function renderHistorialTabla(){
+  const box=document.getElementById('hist-pag-tabla');if(!box)return;
+  const H=PAG.hist,q=String(H.texto||'').trim().toLowerCase(),qd=q.replace(/[^0-9]/g,'');
+  const filas=filasHistorial().filter(f=>{
+    if(H.tipo&&f.cl.k!==H.tipo)return false;
+    if(H.mes&&+String(f.a.fecha||'').slice(5,7)!==+H.mes)return false;
+    if(!q)return true;
+    const hay=[f.a.glosa,...f.nombres,...f.folios,...(f.a.movs||[]).map(m=>m.rutCodigo)].join(' ').toLowerCase();
+    if(hay.includes(q))return true;
+    return !!qd&&(String(f.a.numeroContable||f.a.n||'')===qd||String(Math.round(f.monto)).startsWith(qd));
+  });
+  const cnt=document.getElementById('hist-pag-count');
+  if(cnt)cnt.textContent=`${filas.length} comprobante${filas.length===1?'':'s'} · ${fmtC(filas.filter(f=>!f.a.anulado).reduce((s,f)=>s+f.monto,0))}`;
+  if(!filas.length){box.innerHTML=`<div class="empty"><div class="ei">📜</div>No hay pagos ni cobros que coincidan.</div>`;return;}
+  box.innerHTML=`<div class="card-np"><div class="tw"><table style="font-size:12px">
+    <thead><tr><th class="tl" style="width:60px">N°</th><th class="tl" style="width:90px">FECHA</th><th class="tl" style="width:130px">TIPO</th>
+      <th class="tl">PROVEEDOR / CLIENTE</th><th class="tl">DOCUMENTOS</th><th class="tl">CUENTA</th><th style="text-align:right;width:120px">MONTO</th><th style="width:70px"></th></tr></thead>
+    <tbody>${filas.map(f=>{
+      const an=!!f.a.anulado;
+      const nom=f.nombres.length?`${f.nombres[0].replace(/</g,'&lt;')}${f.nombres.length>1?` <span style="color:var(--mt)">+${f.nombres.length-1}</span>`:''}`:`<span style="color:var(--mt)">${(f.a.glosa||'').replace(/</g,'&lt;')}</span>`;
+      const docs=f.folios.length?`N° ${f.folios.slice(0,4).join(', ')}${f.folios.length>4?' …':''}`:`${f.nDocs} doc.`;
+      return `<tr style="cursor:pointer;${an?'opacity:.5;text-decoration:line-through':''}" onclick="abrirHistorialPago('${f.a.id}')" title="${an?'Comprobante anulado':'Ver y editar el asiento'}">
+        <td class="tl" style="font-family:var(--mono);font-weight:600">${f.a.numeroContable||f.a.n||''}</td>
+        <td class="tl" style="font-family:var(--mono);font-size:11px">${f.a.fecha||''}</td>
+        <td class="tl"><span style="background:${f.cl.c}22;color:${f.cl.c};padding:2px 8px;border-radius:100px;font-size:10px;font-weight:600;white-space:nowrap">${f.cl.ic} ${f.cl.lbl}</span></td>
+        <td class="tl">${nom}</td>
+        <td class="tl" style="font-family:var(--mono);font-size:11px">${docs}</td>
+        <td class="tl" style="font-size:11px">${f.cuenta?`${f.cuenta} · ${pdcNm(f.cuenta)}`:''}</td>
+        <td style="text-align:right;font-family:var(--mono);font-weight:600">${fmtC(f.monto)}</td>
+        <td style="text-align:right">${an?'<span class="badge br">ANULADO</span>':'<button class="btn btn-i" style="font-size:10px;padding:3px 7px" onclick="event.stopPropagation();abrirHistorialPago(\''+f.a.id+'\')">✏️ Editar</button>'}</td>
+      </tr>`;}).join('')}</tbody></table></div></div>`;
+}
+let _histTimer=0;
+function setHistPag(campo,valor){
+  PAG.hist[campo]=String(valor??'');
+  clearTimeout(_histTimer);
+  // Sólo se redibuja la tabla: el buscador no pierde el foco al escribir
+  if(campo==='texto'){_histTimer=setTimeout(renderHistorialTabla,150);return;}
+  renderHistorialTabla();
+}
+function limpiarHistPag(){PAG.hist={tipo:'',mes:'',texto:''};renderPagos();}
+function abrirHistorialPago(id){
+  const a=(S.asientos||[]).find(x=>x.id===id);if(!a)return;
+  if(a.anulado){toast('ℹ️ Este comprobante está anulado','e');return;}
+  if(claseHistorial(a).k==='honorario'){
+    toast('📝 Los pagos de honorarios se corrigen desde la boleta, en el módulo Honorarios');
+    nav('honorarios');return;
+  }
+  abrirEditorPago(id);
+}
+
+export {verHistorialPagos, setHistPag, limpiarHistPag, abrirHistorialPago};
 export {PAG, renderPagos, setPagTipo, setPagCampo, setPagFiltro, limpiarPagFiltro,
         togglePagSel, togglePagAll, setPagMontoParcial, ejecutarPago,
         abrirAsociarNota, cerrarAsociarNota, confirmarAsociar, quitarReferencia};
