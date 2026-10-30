@@ -133,6 +133,19 @@ Proyecto nuevo e independiente: `contabilidadme-next`. Está en GitHub y se publ
 ### 0023 (10u)
 - guardar_indicador acepta solo la UTM (UF nula) y conserva la UF existente; exige al menos una de las dos.
 
+### 0033 (10z26)
+- editar_documento(id, doc, asiento, motivo): edita una venta (o compra) registrada. Revisa permisos, que no esté anulada y que tenga asiento; si cambia RUT, tipo o folio, que no choque con otro documento vigente (misma clave normalizada y candado). Rehace el asiento con editar_asiento (mismo número, mismo año, meses abiertos, versión anterior en auditoría) y actualiza el documento; datos se combina con lo guardado (se conservan registro SII, detalle y origen). Auditoría editar_documento con antes y después.
+
+### 0032 (ventas con tarjeta)
+- Cuenta 1107004 TARJETAS POR COBRAR (DÉBITO Y CRÉDITO) en la plantilla y en las empresas; la forma de pago de la ficha del cliente admite 'tarjetas'.
+
+### 0029 (10z17)
+- La cuenta 1104001 pasa a llamarse CLIENTES (era FACTURAS POR COBRAR) en la plantilla del plan y en las empresas que conservan el nombre original. La importación del respaldo no la revierte (no pisa nombres de cuentas existentes).
+
+### 0028 (10z15)
+- confirmar_cuenta(usuario): deja confirmada una cuenta recién creada (última hora) por el administrador o por el dueño de una empresa del usuario.
+- restablecer_clave(usuario, clave): el administrador pone una contraseña (bcrypt con extensions.crypt) y confirma el correo si faltaba.
+
 ### 0027 (10z11)
 - invitaciones (correo, perfil o empresa + rol): usuarios agregados que aún no tienen cuenta. invitar_usuario(email, perfil) sólo el administrador (si ya tiene cuenta, le asigna el perfil de inmediato). agregar_miembro ya no falla si el correo no tiene cuenta: deja la invitación a la empresa. quitar_invitacion(id). Al crearse la cuenta (tg_nuevo_usuario) recibe el perfil invitado (o el de usuarios nuevos) y las empresas invitadas, y la invitación se borra.
 
@@ -433,6 +446,78 @@ Proyecto nuevo e independiente: `contabilidadme-next`. Está en GitHub y se publ
 - Después de iniciar sesión siempre se llega a Empresas (ya no se vuelve a la página anterior). Al elegir una empresa se entra a Comprobantes → Nuevo asiento; si el perfil no edita comprobantes, al Inicio de la empresa.
 - Cierre de sesión tras 30 minutos sin actividad: la última actividad va en la cookie cme_actividad (la renueva el proxy en cada request y el navegador al mover el mouse, teclear, tocar o desplazarse, cada 5 s como máximo; compartida entre pestañas). El navegador (src/app/(app)/inactividad.tsx, en el layout nuevo de (app)) avisa un minuto antes y cierra con salirPorInactividad; el proxy cierra la sesión si llega un request con la cookie vencida (p. ej. al volver al computador después de horas). El login muestra "Tu sesión se cerró por 30 minutos sin actividad".
 
+## Contraseñas en el celular (10z13)
+- Caso 25/10: la cuenta creada desde la app quedó bien (confirmada y con perfil), pero el login decía "Correo o contraseña incorrectos": la contraseña temporal tenía mayúsculas y guiones y el teclado del celular la altera. Ahora la contraseña temporal es sólo minúsculas y números (p. ej. kmpq4827xe), y los campos de correo y contraseña (login, registro, cambiar clave) no ponen mayúscula ni autocorrigen. El login tiene "Mostrar" para ver lo escrito.
+
+## Enlaces de correo y registro repetido (10z14)
+- Caso 25/10 (auth logs): registrarse con un correo que ya tenía cuenta mostraba "Cuenta creada" y no llegaba nada (Supabase no envía correo ni avisa). Ahora dice "Ese correo ya tiene una cuenta".
+- Los enlaces de recuperación llegaban "expirados" ("One-time token not found"): el antivirus de Outlook/Live abre los enlaces antes que la persona y los gasta. /auth/confirm pasó de ruta automática a página con botón ("Confirmar y entrar" / "Continuar"): el enlace se verifica recién al apretar (acción confirmarEnlace, acepta token_hash + type o code).
+- Requiere en Supabase → Authentication → Emails → Templates, que los enlaces apunten a la app con token_hash:
+  - Confirm signup: {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/empresas
+  - Reset password: {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery
+  - y en URL Configuration: Site URL = https://contabilidad-me-app.vercel.app.
+
+## Contraseñas sin depender del correo (10z15)
+- En el plan gratis Supabase no deja editar las plantillas sin SMTP propio. Caso 25/10: el enlace de recuperación verificaba en Supabase pero llegaba a la Site URL (o a otra dirección de Vercel) sin el verificador PKCE y terminaba en el login.
+- Cuentas creadas desde la app (administrador o dueño) quedan confirmadas al crearlas: se entra de inmediato con la contraseña temporal.
+- 🛡️ Perfiles → "🔑 Restablecer contraseña" por usuario: genera una contraseña temporal y la muestra.
+- El proxy lleva cualquier ?code= que llegue fuera de /auth a /auth/confirm; ahí, si la recuperación se pidió hace menos de una hora, se pasa a "Nueva contraseña". Mensajes claros si el enlace se abre en otro navegador o dirección.
+- Recomendado en Supabase → URL Configuration: Site URL https://contabilidad-me-app.vercel.app y en Redirect URLs https://contabilidad-me-app*.vercel.app/**.
+
+## Inicio en el celular, empresas propias y versión (10z18)
+- Barra superior compacta en el celular (sólo el ícono, "🛡️" sin texto); tarjetas de empresa más bajas, con el nombre completo y el giro en una línea. Sin desborde a lo ancho.
+- Empresas: se listan sólo las propias (donde el usuario es miembro). El administrador del sistema ve abajo "🛡️ Empresas de otros usuarios (n)" → /empresas?otras=1, con el dueño de cada una (miembros con rol admin; si no hay, quien la creó). Sin migración: el administrador ya lee miembros y perfiles.
+- Versión: "version" de package.json (hoy 1.18.0) se muestra al pie del login con la fecha de compilación. next.config.ts publica NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_ID (commit de Vercel) y NEXT_PUBLIC_BUILD_FECHA.
+- Aviso de actualización: /api/version (fuera del proxy, no renueva la sesión ni la actividad) entrega versión, build y novedades. El componente AvisoVersion (layout raíz) lo consulta cada 5 minutos y al volver a la pestaña; si el build cambió muestra "Hay una nueva versión" con las novedades y "Actualizar ahora" / "Más tarde".
+- En cada entrega: subir "version" en package.json y anotar las novedades en src/lib/version.ts.
+
+## Montos con separador de miles (10z19, versión 1.19.0)
+- Todos los campos de monto se formatean mientras se digita: pesos con milesInput (sin decimales, un número se redondea) y valores con decimales (UF, cantidades, costos unitarios, parámetros) con decimalInput (miles con punto, coma decimal; un punto escrito al final se toma como coma). Ambos se leen de vuelta con decimalCL/montoCL.
+- Aplicado en F29 (UTM y remanente), conciliación, honorarios, documentos, anticipos, finiquitos (montos y UF), pagos, apertura, comprobantes tipo, cierre, activo fijo, inventario (productos, movimientos, órdenes, tomas), parámetros, tabla UF/UTM y ficha del trabajador. Porcentajes, horas y días quedan como estaban.
+- Test: src/lib/__tests__/formato-input.test.ts.
+
+## RCV: manda el SII (10z20, versión 1.20.0)
+- Caso 29/10: factura con neto $1.100.264 e IVA RCV $209.048 (19% = $209.050) no se dejaba contabilizar.
+- validarDetalleRCV: el IVA calculado distinto del IVA del RCV pasa de error a aviso ("se contabiliza el IVA del RCV"), y el total se controla con el IVA del RCV. Si las líneas cuadran y el propio RCV no suma su total, también es aviso: el motor (contable.ts) ya armaba el asiento con el IVA y el total informados y lleva la diferencia a la última línea de costo.
+- Siguen bloqueando: líneas afectas/exentas/otros impuestos que no suman lo del RCV (son el reparto que hace el usuario), y en facturas de compra con retención una diferencia de total mayor a $1.
+- La tabla de control muestra en IVA el valor del RCV. Fixture detalle-oro.json actualizado; tests nuevos en rcv.test.ts y documento.test.ts.
+
+## RCV paso 2: columnas legibles (10z21, versión 1.20.1)
+- Tabla de líneas en letra chica (text-xs) y con menos relleno interno; Centro de costo w-48, Tipo w-36, Debe y Haber w-32 (caben 13 caracteres, "9.999.999.999"); Cuenta 220 px. El selector de centro muestra el nombre completo al pasar el mouse.
+
+## Buscar comprobantes (10z22, versión 1.21.0)
+- Nueva página /e/[id]/asientos ("🔎 Buscar comprobantes"), con pestañas compartidas con Nuevo asiento (asientos/pestanas.tsx) y entrada propia en el menú Registros (visible también para perfiles de consulta).
+- Rango de fechas en la URL (?desde=&hasta=, por defecto el año contable): el servidor trae los asientos del rango con sus líneas. La búsqueda es en el navegador mientras se escribe (src/lib/buscar-asientos.ts): cada palabra debe aparecer; una palabra numérica busca el N° (exacto primero), montos de las líneas y el total (con o sin puntos; desde 3 dígitos también parcial), RUT, folios y códigos; el texto ignora tildes y mayúsculas y mira glosa, glosas de línea, cuenta, nombre de cuenta y centro de costo.
+- Resultados: N°, fecha, tipo, glosa (con la línea que calza), total y Editar si corresponde; máximo 300 filas a la vista.
+- 10z23 (1.21.1): sin texto en el buscador no se lista nada (sólo el conteo del rango). La marca ANULADO pasó a la columna glosa (se encimaba con el tipo).
+
+## Nombre e imagen: asent_IA (10z24, versión 1.22.0)
+- La app pasa a llamarse **asent_IA** (de "asiento" y "asentar", con IA). Se revisó que no hubiera software contable con ese nombre en Chile; falta confirmar la marca en INAPI (clases 9, 35 y 42) y el dominio.
+- Paleta: azul marino #14284b (fondo del ícono, theme_color del manifest), turquesa #2ec4b6 (barra más alta e "IA"), verde #22c55e (tic y guion bajo).
+- Ícono: barras al alza sobre dos líneas de libro y un tic verde en la esquina. src/app/icon.svg, favicon.ico (16, 32, 48), apple-icon.png (180, fondo completo) y public/icons (192, 512 y maskable 512 con el dibujo en la zona segura).
+- src/components/marca.tsx: NOMBRE_APP, Logotipo ("asent" en el color del texto, "_" verde, "IA" turquesa) y Marca (ícono + logotipo). Se usa en la barra superior (en el celular, sólo el ícono) y en las pantallas de acceso. Título del navegador, manifest, documentos Word y textos pasaron de "Contabilidad ME" a asent_IA.
+- Marca de agua (src/components/marca-agua.tsx, en el layout de (app)): public/marca-agua.svg (texto en trazos con Sora 800) usado como máscara y pintado con el color del texto del tema al 4,5%, fijo al centro, detrás del contenido, sin clics y oculto al imprimir.
+- Los colores de la interfaz (botones y enlaces verdes) no cambiaron.
+
+## RCV de otra empresa (10z25, versión 1.22.1)
+- Caso 29/10: en Pipa Gourmet SpA (78.238.896-7) se subió RCV_COMPRA_REGISTRO_77684700-3_202607.csv, el RCV de La Cabaña. El contenido del RCV sólo trae los RUT de proveedores o clientes, no el de la empresa; el SII sí lo pone en el nombre del archivo.
+- src/rcv/archivo.ts: datosDelNombre (RUT con DV válido, tipo RCV_COMPRA/RCV_VENTA y período AAAAMM) y errorArchivoRCV (RUT distinto al de la empresa activa, o compras en ventas y al revés). Se valida en el navegador antes de leer y en guardarCarga (servidor, con el RUT de la empresa desde la base). Si el nombre no trae RUT (archivo renombrado), se acepta como antes.
+- Un RCV ya guardado con el RUT de otra empresa muestra "⛔ Este RCV guardado no corresponde a la empresa" y deshabilita el paso 2; se saca con "Quitar este RCV".
+- Tests: src/rcv/__tests__/archivo.test.ts.
+
+## Ventas con boleta y con medios de pago electrónico (versión 1.24.0)
+- Libro de ventas: botones "🧾 Ventas con boleta" y "💳 Medios electrónicos" → documentos/nuevo?tipo=venta&resumen=39|48. Tipos 35/39/41/48 se registran como resumen (día o mes): cantidad de documentos, total con IVA (neto = total ÷ 1,19), folios desde-hasta opcionales (sin folio: referencia R+fecha), RUT genérico 66.666.666-6; los vouchers proponen forma de pago Tarjetas. La cuenta de ingreso propuesta es la que usan las demás ventas de la empresa (la más frecuente en las últimas 300, sin boletas ni vouchers; si no hay, la de la factura 33), tanto para resúmenes como para documentos nuevos.
+- La cantidad se guarda en documentos.datos.cantidad (DocRCV.cantidad → armarDocumento). Sin migración.
+- F29 (tributario/f29.ts): detalleVentas cuenta la cantidad del resumen en 110 (39/35), 758 (48) y 586 (41); lo digitado a mano en ajustes.manual sigue mandando. lib/datos/f29.ts lee datos->>cantidad.
+- El libro muestra "× N docs" bajo el folio de los resúmenes.
+
+## Editar ventas desde el libro (10z26, versión 1.23.0)
+- Libro de ventas: columna "Forma de pago" (Crédito (cliente), Contado (banco), Tarjetas, Deudores varios) y "✏️ Editar" en cada venta vigente con asiento vigente (admin y contador), como en el sistema anterior.
+- Ventana de edición (libro/editar-venta.tsx): fecha de emisión y vencimiento, tipo DTE de ventas, N°, RUT y razón social, neto, exento, IVA (sigue al 19% del neto mientras no se escriba a mano), otros impuestos, total calculado, forma de pago/destino, cuenta de ingreso (grupo 4) y motivo opcional.
+- src/rcv/editar-venta.ts (con pruebas): valida, rehace el documento contable conservando lo demás y recalcula el asiento con asientoVenta. Si el ingreso estaba repartido en varias líneas (centros de costo), un cambio de monto se prorratea y el cambio de cuenta se aplica a esas líneas.
+- La acción del servidor (libro/acciones.ts) recalcula con el plan de la base y llama a editar_documento (migración 0033). Prueba en PGlite: db/__tests__/editar-documento.test.ts.
+- Pendiente: lo mismo para compras (tienen el reparto del paso 2 y otros impuestos).
+
 ## Notas técnicas
 - PostgREST devuelve como máximo 1.000 filas por consulta; se usa `traerTodo` (src/lib/paginar.ts) para leer por páginas.
 - Usuarios registrados antes de la migración 0001 no tienen fila en `perfiles` y `crear_empresa` falla con `miembros_perfil_fk`. Se corrige una vez con:
@@ -454,4 +539,6 @@ Proyecto nuevo e independiente: `contabilidadme-next`. Está en GitHub y se publ
 - Reimportar La Cabaña 2026 con 10d y repetir el cuadre (script de comparación: respaldo vs PDF del Balance General).
 - Importar el resto de empresas y años, y comparar cifras con el sistema actual hasta validarlas.
 - Opcional: traer al F29 nuevo los F29 declarados del sistema actual (f29Detalle.declarado de los asientos ivaf29) como presentados, para que el remanente arrastre igual.
+- Pendiente de seguridad: validar «Sólo ve» de los perfiles también en cada función de la base (hoy se aplica en la app).
+- **Idea a futuro (25/10/2026): conexión con el SII para servicios contables a terceros.** Un solo certificado digital a nombre de Rodrigo (.pfx), y cada empresa cliente lo autoriza con su RUT (mandato digital o usuario autorizado; confirmar la vía con el SII). Orden propuesto: 1) piloto con una empresa: certificado cifrado por empresa, autenticación semilla/token y descarga automática del RCV ("Descargar RCV de todas mis empresas" al paso 2); 2) recepción de facturas de proveedores (acuse/reclamo) y boletas de honorarios; 3) emisión de facturación electrónica: desarrollo propio (CAF, XML con timbre y firma, PDF417, envío y seguimiento, intercambio; cada empresa debe certificarse en el SII) o integración con un proveedor certificado (LibreDTE u otro). Antes de ofrecerlo: contrato de servicios con cada cliente y revisar la Ley 21.719 de datos personales (vigente desde dic-2026). Desde el entorno de desarrollo no hay salida al SII: las pruebas son en la app publicada.
 - Pendientes menores: usar las fichas en las órdenes de compra (hoy salen de las compras), rechazo de gastos desde el documento de compra y asientos contables del inventario (hoy es auxiliar, igual que el sistema actual).
