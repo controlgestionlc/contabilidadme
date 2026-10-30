@@ -44,8 +44,18 @@ let PAG={
 //     doc separado; su monto se aplica al saldo de la factura referenciada.
 //   - NC/ND SIN referencia ("huérfanas"): aparecen aparte con badge amarillo
 //     pidiendo que se asocien a una factura del mismo proveedor/cliente.
-function docsPendientes(tipo){
+// V2.22.10 · Documentos que pueden tener saldo en el auxiliar: los mismos que
+// usa Auxiliares. Se excluyen los anulados (cada edición o reimportación que
+// anula y vuelve a registrar deja una copia anulada) y, en ventas, las que no
+// van a clientes (contado/banco, tarjetas, deudores varios). Antes Pagos y
+// Cobros los leía todos y una misma factura aparecía repetida como pendiente.
+function docsAuxiliarPago(tipo){
   const arr=tipo==='proveedor'?S.compras:S.ventas;
+  return (arr||[]).filter(d=>d&&d.estado!=='anulado'&&(tipo==='proveedor'||d.formaPago==='clientes'));
+}
+
+function docsPendientes(tipo){
+  const arr=docsAuxiliarPago(tipo);
   // Separar facturas de NC/ND
   const facturas=[];
   const notasReferenciadas={};   // key = rut|folioRef -> [notas]
@@ -147,7 +157,7 @@ function docsFiltrados(tipo){
 // Es la huella que deja un documento pagado dos veces o un pago sobre una
 // factura que ya estaba anulada por una nota de crédito.
 function auxiliaresSobrepagados(tipo){
-  const arr=tipo==='proveedor'?S.compras:S.ventas;
+  const arr=docsAuxiliarPago(tipo);
   const porRut={};
   arr.forEach(d=>{
     const k=d.rutCodigo;if(!k)return;
@@ -197,7 +207,7 @@ function avisoSobrepagos(){
 
 // Facturas del mismo proveedor/cliente (para el selector "asociar a factura")
 function facturasDelAuxiliar(tipo,rutCodigo){
-  const arr=tipo==='proveedor'?S.compras:S.ventas;
+  const arr=docsAuxiliarPago(tipo);
   return arr.filter(d=>{
     if(d.rutCodigo!==rutCodigo)return false;
     const dteInfo=tipo==='proveedor'?dteC(d.tipoDTE):dteV(d.tipoDTE);

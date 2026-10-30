@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.30-1330';
+const APP_VERSION='v2026.10.30-1500';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.10',fecha:'30-10-2026',titulo:'Pagos y Cobros cuadra con Auxiliares',items:[
+    {tipo:'correccion',txt:'Pagos y Cobros mostraba como pendientes las copias anuladas de un documento (las que deja cada edición o reimportación) y las ventas al contado, con tarjeta o a deudores varios. Ahora usa los mismos documentos que Auxiliares: sólo vigentes y, en ventas, sólo las que van a clientes.'},
+  ]},
   {version:'V2.22.9',fecha:'30-10-2026',titulo:'Editar y eliminar resúmenes de boletas y vouchers',items:[
     {tipo:'cambio',txt:'En el Libro de Ventas, los resúmenes de boletas y de medios de pago electrónico se editan con ✏️ (cantidad, total, fecha, folios, forma de pago y cuenta) y se eliminan con 🗑, que anula el documento y su asiento. El F29 se recalcula solo.'},
   ]},
