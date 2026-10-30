@@ -259,7 +259,7 @@ function renderVentas(){
       const cNCb=esNC?' style="color:var(--err);font-weight:600"':' style="font-weight:600"';
       const acciones=esManual
         ?`<button class="btn btn-i" style="padding:3px 7px;font-size:10px" onclick="abrirAsientoDesde('${d.asientoId}')">📝 Abrir</button>`
-        :`<button class="btn btn-i" style="padding:3px 7px;font-size:10px" onclick="editarVenta('${d.id}')">✏️</button> <button class="btn btn-d" style="padding:3px 7px;font-size:10px" onclick="eliminarVenta('${d.id}')">🗑</button>`;
+        :`<button class="btn btn-i" style="padding:3px 7px;font-size:10px" onclick="editarVenta('${d.id}')" title="${esResumenV(d.tipoDTE)?'Editar el resumen (cantidad, total, fecha, forma de pago)':'Editar'}">✏️</button> <button class="btn btn-d" style="padding:3px 7px;font-size:10px" onclick="eliminarVenta('${d.id}')" title="Eliminar (anula el documento y su asiento)">🗑</button>`;
       // Los documentos originados por asientos no se pueden marcar
       // (habría que borrar el asiento, no el reflejo en el libro)
       const chk=esManual
@@ -420,7 +420,9 @@ function editarVenta(id){
   const d=S.ventas.find(x=>x.id===id);if(!d)return;
   fijarVF(id);
   const f=document.getElementById('vf-form');f.style.display='block';f.classList.add('editing');
-  document.getElementById('vf-title').textContent='Editando Documento — '+rutFmt(d.rutCodigo,d.rutDV);
+  document.getElementById('vf-title').textContent=esResumenV(d.tipoDTE)
+    ?`Editando resumen — ${+d.tipoDTE===48?'medios de pago electrónico':'boletas'} del ${d.fecha}${d.cantidad?` (${fmt(d.cantidad)} docs)`:''}`
+    :'Editando Documento — '+rutFmt(d.rutCodigo,d.rutDV);
   document.getElementById('vf-fecha').value=d.fecha;
   document.getElementById('vf-vence').value=d.fechaVencimiento||'';
   document.getElementById('vf-dte').innerHTML=dteVentasOpts(d.tipoDTE);
@@ -567,7 +569,8 @@ async function guardarVenta(){
 
 async function eliminarVenta(id){
   const d=S.ventas.find(x=>x.id===id);if(!d)return;
-  if(!confirm(`¿Eliminar documento ${d.tipoDTE} N°${d.numero} de ${d.razonSocial}?\nTotal: ${fmtC(d.total)}`))return;
+  const txtDoc=esResumenV(d.tipoDTE)?`el resumen de ${+d.tipoDTE===48?'medios de pago electrónico':'boletas'} del ${d.fecha}${d.cantidad?` (${fmt(d.cantidad)} docs)`:''}`:`documento ${d.tipoDTE} N°${d.numero} de ${d.razonSocial}`;
+  if(!confirm(`¿Eliminar ${txtDoc}?\nTotal: ${fmtC(d.total)}`))return;
   const r=await anularDocumentoContabilizado('ventas',d,S.ventas);
   if(!r.ok){toast(r.motivo==='ejercicio-cerrado'?'🔒 El ejercicio está cerrado':'❌ No se pudo guardar la anulación','e');return;}
   rerender();toast('🚫 Documento y asiento anulados (se conserva la trazabilidad)');

@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.30-1215';
+const APP_VERSION='v2026.10.30-1330';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.9',fecha:'30-10-2026',titulo:'Editar y eliminar resúmenes de boletas y vouchers',items:[
+    {tipo:'cambio',txt:'En el Libro de Ventas, los resúmenes de boletas y de medios de pago electrónico se editan con ✏️ (cantidad, total, fecha, folios, forma de pago y cuenta) y se eliminan con 🗑, que anula el documento y su asiento. El F29 se recalcula solo.'},
+  ]},
   {version:'V2.22.8',fecha:'30-10-2026',titulo:'Boletas y vouchers con la cuenta de ingreso de las demás ventas',items:[
     {tipo:'cambio',txt:'Los resúmenes de ventas con boleta y con medios de pago electrónico proponen por defecto la misma cuenta de ingreso que usan las demás ventas de la empresa (la más usada; si no hay ventas, la de la factura). Se puede cambiar en el formulario.'},
   ]},
