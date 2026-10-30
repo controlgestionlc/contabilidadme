@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.29-1215';
+const APP_VERSION='v2026.10.30-1100';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.6',fecha:'30-10-2026',titulo:'Ventas: forma de pago Tarjetas débito o crédito',items:[
+    {tipo:'nuevo',txt:'Nueva forma de pago "💳 Tarjetas" en las ventas (vista tabla del RCV, paso 2, formulario manual y cambio masivo del Libro de Ventas). El asiento carga la cuenta nueva 1107004 TARJETAS POR COBRAR (DÉBITO Y CRÉDITO), que queda con saldo hasta que el operador (Transbank, Getnet, etc.) abona.'},
+    {tipo:'nuevo',txt:'El paso 2 del RCV de ventas muestra un selector de forma de pago en la cabecera del documento; el asiento se actualiza al cambiarlo.'},
+    {tipo:'cambio',txt:'La forma de pago elegida en la importación manda sobre la que tenía el documento ya registrado, así se puede corregir al reimportar.'},
+  ]},
   {version:'V2.22.5',fecha:'29-10-2026',titulo:'Nuevo honorario en el módulo Honorarios',items:[
     {tipo:'cambio',txt:'El botón "📝 Nuevo honorario" pasa al encabezado del módulo Honorarios y ya no aparece en Comprobantes.'},
   ]},

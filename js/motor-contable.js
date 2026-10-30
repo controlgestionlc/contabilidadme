@@ -67,7 +67,9 @@ function asientoVenta(d){
   // sin reescribir ninguno de los campos del documento.
   const ingresoInformado=neto+exento+otros;
   const ingreso=total?(total-iva):ingresoInformado;
-  const cuentaDeb=d.formaPago==='banco'?'1101201':d.formaPago==='deudores'?'1107003':'1104001';
+  // V2.22.6 · 'tarjetas': venta pagada con tarjeta de débito o crédito; queda por
+  // cobrar al operador (Transbank, Getnet, etc.) en 1107004 hasta su abono.
+  const cuentaDeb=d.formaPago==='banco'?'1101201':d.formaPago==='deudores'?'1107003':d.formaPago==='tarjetas'?'1107004':'1104001';
   const aux={desc:`${d.razonSocial||''} · ${nombreDoc} N°${d.numero}`.trim(),rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE,docId:d.id};
   if(total){
     if(total>0)movs.push(mov(cuentaDeb,total,0,cuentaDeb==='1104001'?aux:{docId:d.id}));

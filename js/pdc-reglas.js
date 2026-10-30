@@ -55,6 +55,8 @@ function asegurarCuentasSistema(arr=PDC){
     {cd:'1108008',nm:'IVA CRÉDITO FISCAL ACTIVO FIJO',tp:'A',nat:'D',tipoIVA:'iva_credito_activo_fijo',esCuentaTributaria:true},
     {cd:'1108006',nm:'OTROS IMPUESTOS POR RECUPERAR',tp:'A',nat:'D',tipoIVA:'impuesto_adicional_recuperable',esCuentaTributaria:true},
     {cd:'2103005',nm:'IVA RETENIDO FACTURAS DE COMPRA',tp:'P',nat:'C',tipoIVA:'iva_retenido',esCuentaTributaria:true},
+    // V2.22.6 · Ventas pagadas con tarjeta, por cobrar al operador de pagos
+    {cd:'1107004',nm:'TARJETAS POR COBRAR (DÉBITO Y CRÉDITO)',tp:'A',nat:'D'},
   ];
   for(const c of requeridas){
     if(!arr.some(x=>x.cd===c.cd)){arr.push(normalizarCuenta(c));cambios++;}

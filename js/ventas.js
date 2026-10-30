@@ -38,7 +38,7 @@ function validarCuadraturaImportVentas(){
       if(!vd.ok){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:'Detalle del paso 2: '+vd.errores[0],tipo:'detalle'});return;}
     }
     const doc={...d,id:d.dup?.id||`preview-v-${i}`,fecha:d.fechaOriginal||d.fecha,
-      formaPago:d.dup?.formaPago||d.fp||'clientes',cuentaIngreso:rev?(d.detalleRCV.lineas[0].cuenta):(d.dup?.cuentaIngreso||d.cuenta||''),
+      formaPago:d.fp||d.dup?.formaPago||'clientes',cuentaIngreso:rev?(d.detalleRCV.lineas[0].cuenta):(d.dup?.cuentaIngreso||d.cuenta||''),
       ...(rev?{dist:distDesdeDetalleV(d)}:(d.dup?.dist?{dist:d.dup.dist}:{}))};
     try{
       const a=asientoVenta(doc);
@@ -127,7 +127,7 @@ async function cambiarFPVSel(nuevaFP){
   if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de modificar ventas.','e');return;}
   const cerrados=(S.ventas||[]).filter(d=>VF_SEL.has(d.id)&&!puedeOperarFecha(d.fecha));
   if(cerrados.length){toast(`🔒 ${cerrados.length} venta(s) pertenecen a períodos cerrados.`, 'e');return;}
-  const fpLbl=nuevaFP==='clientes'?'a crédito (Cliente)':nuevaFP==='banco'?'al contado (Banco)':nuevaFP;
+  const fpLbl=nuevaFP==='clientes'?'a crédito (Cliente)':nuevaFP==='banco'?'al contado (Banco)':nuevaFP==='tarjetas'?'con tarjeta (débito o crédito)':nuevaFP;
   const snapV=JSON.stringify(S.ventas||[]),snapA=JSON.stringify(S.asientos||[]);
   let cambiados=0, omitidos=0;
   try{
@@ -227,6 +227,7 @@ function renderVentas(){
       barraSel.innerHTML=`<span style="font-weight:600;color:var(--ac)">${VF_SEL.size} seleccionado${VF_SEL.size===1?'':'s'}</span>
         <button class="btn btn-i" style="font-size:11px" onclick="cambiarFPVSel('clientes')" title="Marcar como venta a crédito (genera cuenta por cobrar en el auxiliar del cliente)">📇 A crédito (Cliente)</button>
         <button class="btn btn-i" style="font-size:11px" onclick="cambiarFPVSel('banco')" title="Marcar como venta al contado (cobrada, sin saldo en el auxiliar)">💵 A contado (Banco)</button>
+        <button class="btn btn-i" style="font-size:11px" onclick="cambiarFPVSel('tarjetas')" title="Pagada con tarjeta de débito o crédito: queda por cobrar al operador (1107004) hasta su abono">💳 Tarjetas</button>
         <button class="btn btn-d" style="font-size:11px" onclick="eliminarVSel()">🗑 Eliminar seleccionados</button>
         <button class="btn btn-g" style="font-size:11px" onclick="limpiarVSel()">✕ Limpiar selección</button>`;
     }else{
@@ -244,7 +245,7 @@ function renderVentas(){
       const signo=(dteV(d.tipoDTE)?.signo)||1;
       tN+=(d.neto||0)*signo;tE+=(d.exento||0)*signo;tI+=(d.iva||0)*signo;tO+=(d.otrosImpuestos||0)*signo;tT+=(d.total||0)*signo;
       const dte=dteV(d.tipoDTE);
-      const fpMap={banco:'💵 Banco',clientes:'📇 Cliente',deudores:'📋 Deudor'};
+      const fpMap={banco:'💵 Banco',clientes:'📇 Cliente',deudores:'📋 Deudor',tarjetas:'💳 Tarjetas'};
       const mesSl=(d.fecha||'').slice(5,7);
       const folioNum=folios[d.id]||'';
       const esManual=d.origen==='asiento';
@@ -673,6 +674,7 @@ function renderImportModalVentas(){
     const fpSel=`<select onchange="IMV.docs[${i}].fp=this.value;delete IMV.docs[${i}].errorImport;renderImportModalVentas()" style="width:100%;font-size:11px;padding:3px">
       <option value="banco" ${d.fp==='banco'?'selected':''}>💵 Banco</option>
       <option value="clientes" ${d.fp==='clientes'?'selected':''}>📇 Cliente</option>
+      <option value="tarjetas" ${d.fp==='tarjetas'?'selected':''}>💳 Tarjetas</option>
       <option value="deudores" ${d.fp==='deudores'?'selected':''}>📋 Deudor</option>
     </select>`;
     return `<div id="impv-row-${i}" class="imp-row${pendiente?' imp-pending-row':''}" style="display:grid;grid-template-columns:96px 26px 90px 60px 80px 120px 1fr 90px 80px 80px 100px 180px 110px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--bd);font-size:11px;align-items:center">
@@ -807,7 +809,7 @@ async function confirmarImportacionV(){
       rutCodigo:d.rutCodigo, rutDV:d.rutDV, razonSocial:d.razonSocial,
       neto:d.neto, exento:d.exento, iva:d.iva,
       otrosImpuestos:d.otrosImpuestos||0, total:d.total,
-      formaPago:prev?.formaPago||d.fp||'clientes',
+      formaPago:d.fp||prev?.formaPago||'clientes',
       cuentaIngreso:d.detalleRCV?.revisado?d.detalleRCV.lineas[0].cuenta:(prev?.cuentaIngreso||d.cuenta||''),
       ...(d.detalleRCV?.revisado?{dist:distDesdeDetalleV(d)}:(prev?.dist&&Math.abs(prev.dist.reduce((s,l)=>s+(+l.monto||0),0)-((+d.neto||0)+(+d.exento||0)))<=1?{dist:prev.dist}:{})),
       ...((d.glosa||d.detalleRCV?.glosa||prev?.glosa)?{glosa:d.glosa||d.detalleRCV?.glosa||prev.glosa}:{}),

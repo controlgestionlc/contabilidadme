@@ -191,6 +191,13 @@ function cerrarDetalleRCV(){
   const m=document.getElementById('rd-modal');if(m)m.classList.remove('open');
   const c=ctx();if(typeof c.render==='function')c.render();
 }
+// Forma de pago de la venta (vista tabla o paso 2): define la cuenta del cargo
+const FORMAS_PAGO_V=[['clientes','📇 Cliente (crédito)'],['banco','💵 Contado (Banco)'],['tarjetas','💳 Tarjetas débito o crédito'],['deudores','📋 Deudores varios']];
+function rdFormaPago(v){
+  const d=docActual();if(!d||!FORMAS_PAGO_V.some(([k])=>k===v))return;
+  leerCampos();d.fp=v;delete d.errorImport;
+  renderDetalleRCV();
+}
 function leerCampos(){
   const g=document.getElementById('rd-glosa');if(g)RD.glosa=g.value;
   const v=document.getElementById('rd-vence');if(v)RD.vence=v.value;
@@ -341,7 +348,7 @@ function docVirtual(d){
   }else{
     v.dist=RD.lineas.map(l=>({cuenta:l.cuenta,monto:n(l.monto),cc:l.cc||'',desc:l.desc||'',afecto:l.afecto!==false}));
     v.cuentaIngreso=RD.lineas[0]?.cuenta||v.cuentaIngreso;
-    v.formaPago=d.dup?.formaPago||d.fp||d.formaPago||'clientes';
+    v.formaPago=d.fp||d.dup?.formaPago||d.formaPago||'clientes';
   }
   return v;
 }
@@ -349,7 +356,7 @@ const esCuentaIva=cd=>['1108002','1108008','2103003'].includes(String(cd));
 // Nombre visible del centro de costo (el valor guardado es un id interno)
 const nombreCC=cc=>cc?(ccNombre(cc)||cc):'—';
 const ROL={'1108002':'IVA crédito','1108008':'IVA activo fijo','1108006':'Otros imp. recuperables','2103005':'IVA retenido','2103003':'IVA débito','2103002':'Retención honorarios',
-  '2102001':'Proveedor','2102006':'Honorarios por pagar','1104001':'Cliente','1101201':'Banco','1107003':'Deudores varios'};
+  '2102001':'Proveedor','2102006':'Honorarios por pagar','1104001':'Cliente','1101201':'Banco','1107003':'Deudores varios','1107004':'Tarjetas por cobrar'};
 // Las líneas que arma el motor y no se editan: impuestos, retenciones y proveedor/cliente.
 // Las de gasto/activo/ingreso y las de otros impuestos ya están arriba (líneas del detalle).
 function esAutomatica(m){
@@ -444,6 +451,7 @@ function renderDetalleRCV(){
       ${dato('Fecha emisión',esc(d.fechaOriginal||d.fecha||''))}
       <div class="rd-dato"><span>Fecha vencimiento</span><input type="date" id="rd-vence" value="${esc(RD.vence)}"></div>
       ${dato(RD.tipo==='compra'?'RUT proveedor':'RUT cliente',esc(rutFmt(d.rutCodigo,d.rutDV)))}
+      ${RD.tipo==='venta'?`<div class="rd-dato"><span>Forma de pago</span><select id="rd-fp" onchange="rdFormaPago(this.value)">${FORMAS_PAGO_V.map(([k,l])=>`<option value="${k}" ${(d.fp||d.dup?.formaPago||'clientes')===k?'selected':''}>${l}</option>`).join('')}</select></div>`:''}
       ${dato('Auxiliar',esc(d.razonSocial||''),'rd-ancho')}
       ${dato('Exento',fmtC(d.exento),'rd-num')}
       ${dato('Neto',fmtC(d.neto),'rd-num')}
@@ -479,5 +487,5 @@ function renderDetalleRCV(){
   rdValidar();
 }
 
-export {rdOtroTrat, rdOtroCC, validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
+export {rdFormaPago, rdOtroTrat, rdOtroCC, validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
   rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD};
