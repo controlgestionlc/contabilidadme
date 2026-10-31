@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.10.30-1700';
+const APP_VERSION='v2026.10.30-2100';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.13',fecha:'30-10-2026',titulo:'Respaldo Excel con todos los datos (incluido el F29)',items:[
+    {tipo:'correccion',txt:'El respaldo Excel no guardaba las declaraciones F29 (lo declarado, presentado, códigos ingresados a mano, anticipo y tasa PPM de cada mes), la configuración de la empresa ni el plan de cuentas completo. Al restaurarlo o importarlo en el sistema nuevo esos datos se perdían.'},
+    {tipo:'nuevo',txt:'Nueva hoja "Datos" en el respaldo: guarda clave por clave todo lo que no va en las otras hojas: F29 del año y del anterior, empresa (tasa PPM, régimen, previsión…), plan de cuentas, honorarios y trabajadores con todos sus campos (contratos, anticipos), libro de remuneraciones, finiquitos, contratos, fichas de clientes y proveedores, comprobantes tipo, centros de costo, renta, DJ y folios.'},
+    {tipo:'cambio',txt:'"📤 Importar" restaura también la hoja Datos (y recarga para aplicar el plan de cuentas y la configuración). Los respaldos anteriores se siguen pudiendo importar; avisan que no traen el F29.'},
+  ]},
   {version:'V2.22.12',fecha:'30-10-2026',titulo:'Pagos y Cobros: abono de tarjetas',items:[
     {tipo:'nuevo',txt:'Nueva pestaña "💳 Abono tarjetas": genera el asiento que traspasa al banco las ventas con tarjeta (1107004 TARJETAS POR COBRAR). Se ingresa lo depositado y la comisión cobrada; la comisión se rebaja contra el proveedor del servicio (su factura se registra en Compras y el abono la deja saldada) o directo a una cuenta de gasto. Muestra el saldo por cobrar y el asiento antes de guardarlo.'},
     {tipo:'cambio',txt:'Los abonos de tarjetas aparecen en el Historial de Pagos y Cobros y se editan en el formulario de Comprobantes.'},

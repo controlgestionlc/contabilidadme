@@ -93,6 +93,41 @@ function unirTrozosBD(rows){
 }
 function leerHojaBD(ws,opts){return unirTrozosBD(XLSX.utils.sheet_to_json(ws,opts));}
 
+// ═══ V2.22.13 · HOJA "Datos": todo lo demás que guarda el sistema ═══
+// Las hojas de siempre (Ventas, Compras, Asientos...) llevan los libros. Todo lo
+// demás (declaraciones F29 con sus códigos ingresados a mano, anticipo y tasa
+// PPM; configuración de la empresa; plan de cuentas completo; honorarios y
+// trabajadores con todos sus campos; contratos, finiquitos, libro de
+// remuneraciones, fichas de auxiliares, comprobantes tipo, renta, DJ, folios...)
+// se guarda tal cual, clave por clave, en la hoja "Datos". Antes esos datos no
+// iban en el respaldo y se perdían al restaurar o al importar en el sistema nuevo.
+const EXCLUIR_DATOS=/^(ventas-|compras-|asientos-|apertura-|cierresContables-|inv-|rcv-|hardening|preproduccion|piloto|recovery|snap|_)/;
+let DATOS_RESP={anio:null,empresa:null,filas:[]};
+function clavesDatosRespaldo(anio){
+  const base=['empresa','pdc','pdc_v','activos','trabajadores','centros','cierresCC','comprobantesTipo','fichasAux','indicadores',
+    'previsional','libroRem','utm-historico','asistencia','finiquitos','contratosTrab','dj_catalogo',
+    `honorarios-${anio}`,`f29-declaraciones-${anio}`,`f29-declaraciones-${anio-1}`,`folios-sii-${anio}`,
+    `renta-${anio}`,`renta-${anio+1}`,`dj_estado-${anio+1}`,`dj_estado-${anio}`];
+  let locales=[];
+  try{locales=window.storage.clavesDeLaEmpresa?window.storage.clavesDeLaEmpresa(anio):[];}catch(e){}
+  return [...new Set([...base,...locales])].filter(k=>k&&(base.includes(k)||!EXCLUIR_DATOS.test(k)));
+}
+// Lee (de la nube si hay conexión) cada clave antes de armar el respaldo
+// (el autoguardado usa la caché local para no leer la nube cada vez)
+async function precargarDatosRespaldo({soloLocal=false}={}){
+  const anio=+S.empresa.anio,filas=[];
+  for(const clave of clavesDatosRespaldo(anio)){
+    try{
+      let v=null;
+      if(soloLocal&&window.storage.leerLocal)v=window.storage.leerLocal(clave);
+      if(v==null){const r=await window.storage.get(clave);v=r?r.value:null;}
+      if(v!=null&&v!=='')filas.push([clave,String(v)]);
+    }catch(e){console.warn('[Respaldo] No se pudo leer',clave,e);}
+  }
+  DATOS_RESP={anio,empresa:window.storage.getPrefijo?.()||null,filas};
+  return filas.length;
+}
+
 // Genera el workbook Excel con TODOS los datos del año actual
 function construirWorkbookBD(){
   if(typeof XLSX==='undefined'){throw new Error('Biblioteca Excel (SheetJS) no cargada');}
@@ -210,13 +245,19 @@ function construirWorkbookBD(){
   ];
   XLSX.utils.book_append_sheet(wb,hojaBD([auxHdr,...auxRows]),'Auxiliares');
 
+  // DATOS: el resto del sistema, clave por clave (ver precargarDatosRespaldo)
+  const mismaEmpresa=DATOS_RESP.anio===+S.empresa.anio&&(!DATOS_RESP.empresa||DATOS_RESP.empresa===window.storage.getPrefijo?.());
+  if(mismaEmpresa&&DATOS_RESP.filas.length)
+    XLSX.utils.book_append_sheet(wb,hojaBD([['clave','valorJSON'],...DATOS_RESP.filas]),'Datos');
+
   return wb;
 }
 
 // Descarga manual (opción A — funciona en todos los navegadores)
-function exportarExcelManual(){
+async function exportarExcelManual(){
   try{
     if(typeof XLSX==='undefined'){toast('⚠️ Biblioteca Excel no cargada (¿sin internet?)','e');return;}
+    await precargarDatosRespaldo();
     const wb=construirWorkbookBD();
     const nm=(S.empresa.nombre||'contavivero').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')||'contavivero';
     const filename=`${nm}_bd_${S.empresa.anio}_${new Date().toISOString().slice(0,10)}.xlsx`;
@@ -323,6 +364,7 @@ async function guardarBDAhora(){
   if(!BD.dirHandle&&!BD.fileHandle)return false;
   try{
     bdStatusSet('saving');
+    await precargarDatosRespaldo({soloLocal:true});
     const wb=construirWorkbookBD();
     const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
     const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -398,12 +440,18 @@ async function importarExcelBD(file){
     const cRows=leerHojaBD(wb.Sheets['Compras']);
     const aRows=hojas.includes('Asientos')?leerHojaBD(wb.Sheets['Asientos']):[];
     const hRows=hojas.includes('Honorarios')?leerHojaBD(wb.Sheets['Honorarios']):[];
+    // V2.22.13 · Hoja "Datos" (F29, configuración, plan de cuentas, remuneraciones...)
+    const anioR=+S.empresa.anio;
+    const datosRows=hojas.includes('Datos')?leerHojaBD(wb.Sheets['Datos']).filter(r=>r&&r.clave&&r.valorJSON!=null&&r.valorJSON!==''):[];
+    const datos=new Map(datosRows.map(r=>[String(r.clave),String(r.valorJSON)]));
+    const nF29=[...datos.keys()].filter(k=>k.startsWith('f29-declaraciones-')).reduce((s,k)=>{try{return s+Object.keys(JSON.parse(datos.get(k))||{}).length;}catch(e){return s;}},0);
 
     const msg=`Este archivo contiene:\n\n`+
       `  • ${vRows.length} documentos de ventas\n`+
       `  • ${cRows.length} documentos de compras\n`+
       `  • ${aRows.length} asientos manuales\n`+
-      `  • ${hRows.length} honorarios\n\n`+
+      `  • ${hRows.length} honorarios\n`+
+      (datos.size?`  • ${datos.size} datos adicionales (F29: ${nF29} declaraciones, configuración, plan de cuentas, remuneraciones…)\n`:`  • Sin hoja "Datos": respaldo anterior a V2.22.13 (no trae F29 ni configuración)\n`)+`\n`+
       `⚠️ Se REEMPLAZARÁN todos los datos actuales del año ${S.empresa.anio}.\n\n`+
       `¿Continuar?`;
     if(!confirm(msg))return;
@@ -471,6 +519,9 @@ async function importarExcelBD(file){
       return {id:r.id||'as_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),n:+r.n||0,folioComp:+r.n||0,fecha:r.fecha||'',glosa:r.glosa||'',movs,tipo:'manual'};
     });
     S.honorarios=hRows.map(r=>({...r,mes:+r.mes||0,bruto:+r.bruto||0,retencion:+r.retencion||0,liquido:+r.liquido||0}));
+    // Con la hoja Datos, honorarios y trabajadores vuelven con todos sus campos
+    const jsonDe=k=>{try{const v=JSON.parse(datos.get(k));return v;}catch(e){return null;}};
+    if(Array.isArray(jsonDe('honorarios-'+anioR)))S.honorarios=jsonDe('honorarios-'+anioR);
 
     // Restaurar apertura (Asiento N°0)
     S.apertura=null;
@@ -585,12 +636,27 @@ async function importarExcelBD(file){
       await window.storage.set('inv-ordenes-compra',JSON.stringify(S.inventario.ordenesCompra||[]));
       await window.storage.set('inv-recepciones',JSON.stringify(S.inventario.recepciones||[]));
     }
+    // Hoja Datos: cada clave vuelve tal cual. Trabajadores/activos/centros/
+    // honorarios ya escritos arriba se reemplazan por su versión completa.
+    if(datos.size){
+      const empD=jsonDe('empresa');
+      if(empD&&typeof empD==='object')S.empresa={...S.empresa,...empD,anio:S.empresa.anio};
+      const trD=jsonDe('trabajadores');if(Array.isArray(trD))S.trabajadores=trD;
+      const afD=jsonDe('activos');if(Array.isArray(afD))S.activos=afD;
+      const entradas=[...datos.entries()].filter(([k])=>k!=='empresa').map(([key,value])=>({key,value}));
+      if(window.storage.setMany)await window.storage.setMany(entradas);
+      else for(const e of entradas)await window.storage.set(e.key,e.value);
+      if(typeof window.cargarDeclaracionesF29==='function')try{await window.cargarDeclaracionesF29(true);}catch(e){}
+    }
+    const recargar=datos.has('pdc')||datos.has('empresa');
     await window.storage.set('empresa',JSON.stringify(S.empresa));
 
     const apMsg=S.apertura?' · Apertura':'';
-    toast(`✅ Datos restaurados: ${S.ventas.length} ventas · ${S.compras.length} compras · ${S.asientos.length} asientos${apMsg}`);
+    toast(`✅ Datos restaurados: ${S.ventas.length} ventas · ${S.compras.length} compras · ${S.asientos.length} asientos${apMsg}${datos.size?` · ${datos.size} datos (F29: ${nF29} declaraciones)`:''}`);
     rerender();
     if(BD.dirHandle||BD.fileHandle)bdScheduleSave();
+    // El plan de cuentas y la configuración se cargan al iniciar: se recarga para aplicarlos
+    if(recargar)setTimeout(()=>{toast('🔄 Recargando para aplicar el plan de cuentas y la configuración restaurados…');setTimeout(()=>location.reload(),1200);},1500);
   }catch(e){
     toast('❌ Error al importar: '+e.message,'e');
     console.error(e);
@@ -664,4 +730,4 @@ function initBDImportListener(){
 // init() se llama desde app.js (orquestador)
 
 
-export {BD, BD_FILENAME, bdStatusSet, construirWorkbookBD, simularRestauracionBackup, exportarExcelManual, conectarBD, bdOpenDB, bdSaveHandle, bdLoadHandle, fsBackupToCloud, fsRestoreFromCloud, guardarBDAhora, bdScheduleSave, bdRestaurarHandle, importarExcelBD, initBDImportListener};
+export {precargarDatosRespaldo, clavesDatosRespaldo, BD, BD_FILENAME, bdStatusSet, construirWorkbookBD, simularRestauracionBackup, exportarExcelManual, conectarBD, bdOpenDB, bdSaveHandle, bdLoadHandle, fsBackupToCloud, fsRestoreFromCloud, guardarBDAhora, bdScheduleSave, bdRestaurarHandle, importarExcelBD, initBDImportListener};

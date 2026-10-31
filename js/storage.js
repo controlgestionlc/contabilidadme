@@ -648,6 +648,8 @@ initDispositivo();
     // Estado del candado, para que la interfaz pueda explicarlo
     cruzarConLaNube(claves,onProgreso){return cruzarConLaNube(claves,onProgreso);},
     clavesDeLaEmpresa(anio){return clavesDeLaEmpresa(anio);},
+    // Lectura sólo de la caché local (sin ir a la nube): para el autoguardado del respaldo
+    leerLocal(key){const r=getLocal(K(key));return r?r.value:null;},
     lapidas(){const pref=empresaId+':';const o={};
       [...tumbas.entries()].forEach(([k,v])=>{if(k.startsWith(pref))o[k.slice(pref.length)]=Object.keys(v).length;});
       return o;},
