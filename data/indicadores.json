@@ -28,7 +28,7 @@
     "unidad_medida": "Pesos",
     "valor": 1109.37
   },
-  "fecha": "2026-10-30T20:00:00.000Z",
+  "fecha": "2026-10-31T15:00:00.000Z",
   "imacec": {
     "codigo": "imacec",
     "fecha": "2026-08-01T04:00:00.000Z",
@@ -45,10 +45,10 @@
   },
   "ivp": {
     "codigo": "ivp",
-    "fecha": "2026-10-30T03:00:00.000Z",
+    "fecha": "2026-10-31T03:00:00.000Z",
     "nombre": "Indice de valor promedio (IVP)",
     "unidad_medida": "Pesos",
-    "valor": 42771.09
+    "valor": 42777.01
   },
   "libra_cobre": {
     "codigo": "libra_cobre",
@@ -73,10 +73,10 @@
   },
   "uf": {
     "codigo": "uf",
-    "fecha": "2026-10-30T03:00:00.000Z",
+    "fecha": "2026-10-31T03:00:00.000Z",
     "nombre": "Unidad de fomento (UF)",
     "unidad_medida": "Pesos",
-    "valor": 41242.32
+    "valor": 41247.63
   },
   "utm": {
     "codigo": "utm",
