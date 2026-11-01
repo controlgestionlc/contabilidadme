@@ -2,17 +2,17 @@
   "autor": "mindicador.cl",
   "bitcoin": {
     "codigo": "bitcoin",
-    "fecha": "2026-10-28T03:00:00.000Z",
+    "fecha": "2026-08-01T04:00:00.000Z",
     "nombre": "Bitcoin",
     "unidad_medida": "Dólar",
-    "valor": 81275.48
+    "valor": 62760.11
   },
   "dolar": {
     "codigo": "dolar",
-    "fecha": "2026-10-30T03:00:00.000Z",
+    "fecha": "2026-10-01T03:00:00.000Z",
     "nombre": "Dólar observado",
     "unidad_medida": "Pesos",
-    "valor": 993.22
+    "valor": 972.6
   },
   "dolar_intercambio": {
     "codigo": "dolar_intercambio",
@@ -23,12 +23,12 @@
   },
   "euro": {
     "codigo": "euro",
-    "fecha": "2026-10-30T03:00:00.000Z",
+    "fecha": "2026-10-01T03:00:00.000Z",
     "nombre": "Euro",
     "unidad_medida": "Pesos",
-    "valor": 1109.37
+    "valor": 1102.72
   },
-  "fecha": "2026-10-31T19:00:00.000Z",
+  "fecha": "2026-11-01T16:00:00.000Z",
   "imacec": {
     "codigo": "imacec",
     "fecha": "2026-08-01T04:00:00.000Z",
@@ -45,17 +45,17 @@
   },
   "ivp": {
     "codigo": "ivp",
-    "fecha": "2026-10-31T03:00:00.000Z",
+    "fecha": "2026-11-01T03:00:00.000Z",
     "nombre": "Indice de valor promedio (IVP)",
     "unidad_medida": "Pesos",
-    "valor": 42777.01
+    "valor": 42782.93
   },
   "libra_cobre": {
     "codigo": "libra_cobre",
-    "fecha": "2026-10-30T03:00:00.000Z",
+    "fecha": "2026-10-01T03:00:00.000Z",
     "nombre": "Libra de Cobre",
     "unidad_medida": "Dólar",
-    "valor": 6.66
+    "valor": 6.57
   },
   "tasa_desempleo": {
     "codigo": "tasa_desempleo",
@@ -66,24 +66,24 @@
   },
   "tpm": {
     "codigo": "tpm",
-    "fecha": "2026-10-30T03:00:00.000Z",
+    "fecha": "2026-10-01T03:00:00.000Z",
     "nombre": "Tasa Política Monetaria (TPM)",
     "unidad_medida": "Porcentaje",
     "valor": 4.5
   },
   "uf": {
     "codigo": "uf",
-    "fecha": "2026-10-31T03:00:00.000Z",
+    "fecha": "2026-11-01T03:00:00.000Z",
     "nombre": "Unidad de fomento (UF)",
     "unidad_medida": "Pesos",
-    "valor": 41247.63
+    "valor": 41252.94
   },
   "utm": {
     "codigo": "utm",
-    "fecha": "2026-10-01T03:00:00.000Z",
+    "fecha": "2026-11-01T03:00:00.000Z",
     "nombre": "Unidad Tributaria Mensual (UTM)",
     "unidad_medida": "Pesos",
-    "valor": 72151
+    "valor": 72440
   },
   "version": "1.7.0"
 }
