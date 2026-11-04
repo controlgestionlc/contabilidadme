@@ -11,7 +11,7 @@ import {todosDocsVentas, abrirAsientoDesde, proxFolioComprobante} from './asient
 import './storage.js';
 import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
 import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
-import {asientoVenta,esCuentaCajaBanco,CUENTA_BANCO_DEFECTO} from './motor-contable.js';
+import {asientoVenta,esCuentaCajaBanco,CUENTA_BANCO_DEFECTO,pagosDocumento} from './motor-contable.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
 import {validarDetalleRCV} from './rcv-detalle.js';
 // V2.21.57 — Distribución revisada en el paso 2 del importador RCV
@@ -129,14 +129,16 @@ async function cambiarFPVSel(nuevaFP){
   if(cerrados.length){toast(`🔒 ${cerrados.length} venta(s) pertenecen a períodos cerrados.`, 'e');return;}
   const fpLbl=nuevaFP==='clientes'?'a crédito (Cliente)':nuevaFP==='banco'?'al contado (Banco)':nuevaFP==='tarjetas'?'con tarjeta (débito o crédito)':nuevaFP;
   const snapV=JSON.stringify(S.ventas||[]),snapA=JSON.stringify(S.asientos||[]);
-  let cambiados=0, omitidos=0, resumenes=0;
+  let cambiados=0, omitidos=0, resumenes=0, conCobro=0;
   try{
     S.ventas.forEach(d=>{
       if(!VF_SEL.has(d.id)||d.estado==='anulado')return;
       if(nuevaFP==='clientes'&&esResumenV(d.tipoDTE)){resumenes++;return;}   // V2.22.14
+      if(nuevaFP!=='clientes'&&cobradoCliente(d)){conCobro++;return;}           // V2.22.16
       if(d.formaPago!==nuevaFP){d.formaPago=nuevaFP;upsertAsientoDocumento('ventas',d);cambiados++;}
     });
     omitidos=VF_SEL.size-S.ventas.filter(d=>VF_SEL.has(d.id)).length;
+    if(!cambiados&&!omitidos&&conCobro&&!resumenes){toast(`⚠️ ${conCobro} venta${conCobro===1?'':'s'} con cobros a Clientes: quítalas primero del cobro en Pagos y Cobros`,'e');return;}
     if(!cambiados&&!omitidos){toast(resumenes?'⚠️ Las boletas y comprobantes electrónicos no van a Clientes':'Los documentos ya tenían esa forma de pago',resumenes?'e':undefined);return;}
     await persistirClavesCritico([
       {key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)},
@@ -147,7 +149,7 @@ async function cambiarFPVSel(nuevaFP){
     toast('❌ No se pudo guardar el cambio. No se aplicaron modificaciones.','e');return;
   }
   VF_SEL.clear();
-  toast(`✅ ${cambiados} documento${cambiados===1?'':'s'} marcado${cambiados===1?'':'s'} ${fpLbl}${omitidos?` · ${omitidos} omitido${omitidos===1?'':'s'} (vienen de asientos)`:''}${resumenes?` · ${resumenes} boleta${resumenes===1?'':'s'}/voucher${resumenes===1?'':'s'} sin cambio (no van a Clientes)`:''}`);
+  toast(`✅ ${cambiados} documento${cambiados===1?'':'s'} marcado${cambiados===1?'':'s'} ${fpLbl}${omitidos?` · ${omitidos} omitido${omitidos===1?'':'s'} (vienen de asientos)`:''}${resumenes?` · ${resumenes} boleta${resumenes===1?'':'s'}/voucher${resumenes===1?'':'s'} sin cambio (no van a Clientes)`:''}${conCobro?` · ${conCobro} con cobros a Clientes sin cambio (quítalas primero del cobro)`:''}`);
   logAccion('Cambió forma de pago masivamente',`${cambiados} ventas → ${nuevaFP}`);
   rerender();
 }
@@ -381,6 +383,13 @@ function vfFpChanged(sel){
   if(sel!==undefined||!cs.options.length)cs.innerHTML=cobroOpts(sel||cuentaCobroHabitual());
   wrap.style.display=fp==='banco'?'':'none';
 }
+// V2.22.16 · Una venta a Clientes con cobros registrados no puede cambiar de forma
+// de pago: el cobro seguiría rebajando 1104001 sin el cargo de la venta (saldo
+// contrario a la naturaleza). Primero se quita del cobro en Pagos y Cobros.
+function cobradoCliente(d){
+  if(!d||d.formaPago!=='clientes')return 0;
+  return pagosDocumento(d,'cliente',S.asientos||[]).reduce((s,p)=>s+(+p.monto||0),0);
+}
 function abrirVFResumen(tipo){
   abrirVF();
   // V2.22.8 · Boletas y vouchers usan por defecto la misma cuenta de ingreso que las demás ventas
@@ -563,6 +572,8 @@ async function guardarVenta(){
   if(!tipoDTE){toast('⚠️ Selecciona el tipo de documento','e');return;}
   if(!numero){toast('⚠️ Ingresa el N° de documento','e');return;}
   if(resumen&&!(cantidad>=1)){toast('⚠️ Ingresa la cantidad de documentos del resumen','e');return;}
+  {const pe=VF.editId?S.ventas.find(x=>x.id===VF.editId):null,cob=cobradoCliente(pe);
+   if(pe&&cob&&formaPago!=='clientes'){toast(`⚠️ Esta venta tiene cobros a Clientes por ${fmtC(cob)}. Quítala primero del cobro en Pagos y Cobros → Historial; si no, Clientes queda con saldo negativo.`,'e');return;}}
   if(cuentaCobro&&(!esCuentaCajaBanco(cuentaCobro)||!cajasVentas().some(c=>c.cd===cuentaCobro))){toast('⚠️ Elige una caja o banco (cuenta 1101xxx) que exista en el plan de cuentas','e');return;}
   if(resumen&&formaPago==='clientes'){toast('⚠️ Las boletas y comprobantes electrónicos no van a Clientes: elige Banco, Tarjetas o Deudores','e');return;}
   const r=rutParse(rutInput);

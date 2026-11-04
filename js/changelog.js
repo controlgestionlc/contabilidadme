@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.04-1600';
+const APP_VERSION='v2026.11.04-1630';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.16',fecha:'04-11-2026',titulo:'Venta cobrada no cambia de forma de pago',items:[
+    {tipo:'correccion',txt:'Si una venta a Clientes ya estaba incluida en un cobro y se cambiaba a Contado, Tarjetas o Deudores, el cobro seguía rebajando 1104001 Clientes sin el cargo de la venta y Clientes quedaba con saldo negativo. Ahora el sistema no permite ese cambio (al editar ni en el cambio masivo) hasta quitar la venta del cobro en Pagos y Cobros → Historial.'},
+  ]},
   {version:'V2.22.15',fecha:'04-11-2026',titulo:'Ventas al contado: elegir la caja o el banco',items:[
     {tipo:'nuevo',txt:'Al registrar una venta (también boletas) con forma de pago "Contado — Banco" aparece "Caja o banco" con todas las cuentas 1101xxx del plan: el asiento carga la cuenta elegida en vez de siempre 1101201. Por defecto propone la más usada en las ventas al contado.'},
     {tipo:'nuevo',txt:'También se elige en el importador del RCV (paso 1, bajo la forma de pago, cuando hay más de una cuenta de caja o banco) y en el paso 2 de contabilización.'},
