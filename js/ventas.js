@@ -129,14 +129,15 @@ async function cambiarFPVSel(nuevaFP){
   if(cerrados.length){toast(`🔒 ${cerrados.length} venta(s) pertenecen a períodos cerrados.`, 'e');return;}
   const fpLbl=nuevaFP==='clientes'?'a crédito (Cliente)':nuevaFP==='banco'?'al contado (Banco)':nuevaFP==='tarjetas'?'con tarjeta (débito o crédito)':nuevaFP;
   const snapV=JSON.stringify(S.ventas||[]),snapA=JSON.stringify(S.asientos||[]);
-  let cambiados=0, omitidos=0;
+  let cambiados=0, omitidos=0, resumenes=0;
   try{
     S.ventas.forEach(d=>{
       if(!VF_SEL.has(d.id)||d.estado==='anulado')return;
+      if(nuevaFP==='clientes'&&esResumenV(d.tipoDTE)){resumenes++;return;}   // V2.22.14
       if(d.formaPago!==nuevaFP){d.formaPago=nuevaFP;upsertAsientoDocumento('ventas',d);cambiados++;}
     });
     omitidos=VF_SEL.size-S.ventas.filter(d=>VF_SEL.has(d.id)).length;
-    if(!cambiados&&!omitidos){toast('Los documentos ya tenían esa forma de pago');return;}
+    if(!cambiados&&!omitidos){toast(resumenes?'⚠️ Las boletas y comprobantes electrónicos no van a Clientes':'Los documentos ya tenían esa forma de pago',resumenes?'e':undefined);return;}
     await persistirClavesCritico([
       {key:'ventas-'+S.empresa.anio,value:JSON.stringify(S.ventas)},
       {key:'asientos-'+S.empresa.anio,value:JSON.stringify(S.asientos||[])},
@@ -146,7 +147,7 @@ async function cambiarFPVSel(nuevaFP){
     toast('❌ No se pudo guardar el cambio. No se aplicaron modificaciones.','e');return;
   }
   VF_SEL.clear();
-  toast(`✅ ${cambiados} documento${cambiados===1?'':'s'} marcado${cambiados===1?'':'s'} ${fpLbl}${omitidos?` · ${omitidos} omitido${omitidos===1?'':'s'} (vienen de asientos)`:''}`);
+  toast(`✅ ${cambiados} documento${cambiados===1?'':'s'} marcado${cambiados===1?'':'s'} ${fpLbl}${omitidos?` · ${omitidos} omitido${omitidos===1?'':'s'} (vienen de asientos)`:''}${resumenes?` · ${resumenes} boleta${resumenes===1?'':'s'}/voucher${resumenes===1?'':'s'} sin cambio (no van a Clientes)`:''}`);
   logAccion('Cambió forma de pago masivamente',`${cambiados} ventas → ${nuevaFP}`);
   rerender();
 }
@@ -326,6 +327,13 @@ function vfDteChanged(){
   if(t===56||t===61)vfRefrescarDocs();
   const res=esResumenV(t);
   const cr=document.getElementById('vf-cant-row');if(cr)cr.style.display=res?'grid':'none';
+  // V2.22.14 · Un resumen de boletas o vouchers es venta al público: no genera auxiliar de clientes
+  const fp=document.getElementById('vf-fp');
+  if(fp){
+    const optC=fp.querySelector('option[value="clientes"]');
+    if(optC){optC.disabled=res;optC.hidden=res;}
+    if(res&&fp.value==='clientes')fp.value=t===48?'tarjetas':'banco';
+  }
   const lbl=document.getElementById('vf-num-lbl');if(lbl)lbl.textContent=res?'Folios (desde-hasta) o referencia':'N° Documento';
   const num=document.getElementById('vf-num');if(num)num.placeholder=res?'Ej: 1501-1850 (opcional)':'Ej: 1234';
   const ay=document.getElementById('vf-cant-ayuda');
@@ -441,6 +449,7 @@ function editarVenta(id){
   document.getElementById('vf-otros').value=d.otrosImpuestos||'';
   document.getElementById('vf-total').value=d.total||'';
   document.getElementById('vf-fp').value=d.formaPago||'banco';
+  if(esResumenV(d.tipoDTE)&&d.formaPago==='clientes')document.getElementById('vf-fp').value=+d.tipoDTE===48?'tarjetas':'banco';   // V2.22.14 · corrige al guardar
   document.getElementById('vf-dup-warn').style.display='none';
   _vfCuentaSel=d.cuentaIngreso||'';
   const wrap=document.getElementById('vf-cuenta-wrap');
@@ -528,6 +537,7 @@ async function guardarVenta(){
   if(!tipoDTE){toast('⚠️ Selecciona el tipo de documento','e');return;}
   if(!numero){toast('⚠️ Ingresa el N° de documento','e');return;}
   if(resumen&&!(cantidad>=1)){toast('⚠️ Ingresa la cantidad de documentos del resumen','e');return;}
+  if(resumen&&formaPago==='clientes'){toast('⚠️ Las boletas y comprobantes electrónicos no van a Clientes: elige Banco, Tarjetas o Deudores','e');return;}
   const r=rutParse(rutInput);
   if(!r.codigo){toast('⚠️ Ingresa el RUT del cliente','e');return;}
   if(!r.valido){toast('⚠️ RUT inválido — dígito verificador no coincide','e');return;}
@@ -631,7 +641,7 @@ function mostrarVentasImportadas(res,nombreArchivo){
     d.fechaOriginal=d.fecha;
     const ficha=fichaAux('cliente',d.rutCodigo);
     d.cuenta=dup?.cuentaIngreso||ficha?.cuentaDefault||'';
-    d.fp=dup?.formaPago||'clientes';
+    d.fp=dup?.formaPago||(esResumenV(d.tipoDTE)?(+d.tipoDTE===48?'tarjetas':'banco'):'clientes');
   });
 
   // Mutar IMV in-place (NO reasignar): window.IMV apunta a este mismo objeto y
