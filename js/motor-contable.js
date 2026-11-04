@@ -53,6 +53,10 @@ function cuadratura(movs){
   return {debe,haber,diferencia:Math.round((debe-haber)*100)/100,ok:Math.abs(debe-haber)<0.000001};
 }
 
+// Caja o banco de una venta al contado: la elegida (1101xxx) o Banco Estado 1101201.
+const CUENTA_BANCO_DEFECTO='1101201';
+const esCuentaCajaBanco=cd=>/^1101\d{3}$/.test(String(cd||''));
+function cuentaCobroVenta(d){return esCuentaCajaBanco(d?.cuentaCobro)?d.cuentaCobro:CUENTA_BANCO_DEFECTO;}
 function asientoVenta(d){
   const signo=(dteV(d.tipoDTE)?.signo)||1;
   const dteInfo=dteV(d.tipoDTE);
@@ -69,7 +73,8 @@ function asientoVenta(d){
   const ingreso=total?(total-iva):ingresoInformado;
   // V2.22.6 · 'tarjetas': venta pagada con tarjeta de débito o crédito; queda por
   // cobrar al operador (Transbank, Getnet, etc.) en 1107004 hasta su abono.
-  const cuentaDeb=d.formaPago==='banco'?'1101201':d.formaPago==='deudores'?'1107003':d.formaPago==='tarjetas'?'1107004':'1104001';
+  // V2.22.15 · contado: la caja o banco elegida (cuentaCobro 1101xxx); sin ella, 1101201
+  const cuentaDeb=d.formaPago==='banco'?cuentaCobroVenta(d):d.formaPago==='deudores'?'1107003':d.formaPago==='tarjetas'?'1107004':'1104001';
   const aux={desc:`${d.razonSocial||''} · ${nombreDoc} N°${d.numero}`.trim(),rutCodigo:d.rutCodigo,rutDV:d.rutDV,folio:d.numero,tipoDTE:d.tipoDTE,docId:d.id};
   if(total){
     if(total>0)movs.push(mov(cuentaDeb,total,0,cuentaDeb==='1104001'?aux:{docId:d.id}));
@@ -438,4 +443,4 @@ function pagosDocumento(doc,tipo,asientos){
   return actuales.length?actuales:(doc.pagos||[]); // compatibilidad histórica
 }
 
-export {asientoVenta,asientoCompra,asientoHonorario,asientoHonorarioDoc,asientoPagoHonorario,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,residualTotalCompra,periodoContableCompra,fechaContabilizacionCompra,cuadratura,pagosDesdeAsientos,pagosDocumento};
+export {cuentaCobroVenta,esCuentaCajaBanco,CUENTA_BANCO_DEFECTO,asientoVenta,asientoCompra,asientoHonorario,asientoHonorarioDoc,asientoPagoHonorario,tributacionCompra,clasificacionIVACompra,clasificacionOtrosImpuestosCompra,residualTotalCompra,periodoContableCompra,fechaContabilizacionCompra,cuadratura,pagosDesdeAsientos,pagosDocumento};

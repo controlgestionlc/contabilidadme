@@ -17,11 +17,11 @@
 //     más de una línea; centro de costo si la cuenta lo exige.
 // Una diferencia de $1 por redondeo del emisor sólo se acepta marcándola.
 
-import {fmtC, IVA, dteC, dteV, rutFmt, pdcNm, toast} from './core.js';
+import {fmtC, IVA, dteC, dteV, rutFmt, pdcNm, toast, PDC} from './core.js';
 import {reglaCuenta} from './pdc-reglas.js';
 import {ccOpts, ccNombre} from './centroscosto.js';
 import {inputCuenta} from './buscadorcuentas.js';
-import {tributacionCompra, asientoCompra, asientoVenta, asientoHonorarioDoc} from './motor-contable.js';
+import {tributacionCompra, asientoCompra, asientoVenta, asientoHonorarioDoc, esCuentaCajaBanco, CUENTA_BANCO_DEFECTO} from './motor-contable.js';
 
 const n=v=>Math.round(+v||0);
 // V2.21.62: tipo de línea. 'otro' = línea de otros impuestos del RCV (sólo compras)
@@ -193,6 +193,14 @@ function cerrarDetalleRCV(){
 }
 // Forma de pago de la venta (vista tabla o paso 2): define la cuenta del cargo
 const FORMAS_PAGO_V=[['clientes','📇 Cliente (crédito)'],['banco','💵 Contado (Banco)'],['tarjetas','💳 Tarjetas débito o crédito'],['deudores','📋 Deudores varios']];
+// V2.22.15 · Contado: caja o banco que recibe el pago (1101xxx)
+const cajasRD=()=>PDC.filter(c=>esCuentaCajaBanco(c.cd)&&c.tp==='A'&&c.activa!==false);
+const cobroRD=d=>d.cuentaCobro||d.dup?.cuentaCobro||CUENTA_BANCO_DEFECTO;
+function rdCuentaCobro(v){
+  const d=docActual();if(!d||!esCuentaCajaBanco(v))return;
+  leerCampos();d.cuentaCobro=v;delete d.errorImport;
+  renderDetalleRCV();
+}
 function rdFormaPago(v){
   const d=docActual();if(!d||!FORMAS_PAGO_V.some(([k])=>k===v))return;
   leerCampos();d.fp=v;delete d.errorImport;
@@ -349,6 +357,7 @@ function docVirtual(d){
     v.dist=RD.lineas.map(l=>({cuenta:l.cuenta,monto:n(l.monto),cc:l.cc||'',desc:l.desc||'',afecto:l.afecto!==false}));
     v.cuentaIngreso=RD.lineas[0]?.cuenta||v.cuentaIngreso;
     v.formaPago=d.fp||d.dup?.formaPago||d.formaPago||'clientes';
+    if(v.formaPago==='banco')v.cuentaCobro=cobroRD(d);
   }
   return v;
 }
@@ -452,6 +461,7 @@ function renderDetalleRCV(){
       <div class="rd-dato"><span>Fecha vencimiento</span><input type="date" id="rd-vence" value="${esc(RD.vence)}"></div>
       ${dato(RD.tipo==='compra'?'RUT proveedor':'RUT cliente',esc(rutFmt(d.rutCodigo,d.rutDV)))}
       ${RD.tipo==='venta'?`<div class="rd-dato"><span>Forma de pago</span><select id="rd-fp" onchange="rdFormaPago(this.value)">${FORMAS_PAGO_V.map(([k,l])=>`<option value="${k}" ${(d.fp||d.dup?.formaPago||'clientes')===k?'selected':''}>${l}</option>`).join('')}</select></div>`:''}
+      ${RD.tipo==='venta'&&(d.fp||d.dup?.formaPago||'clientes')==='banco'?`<div class="rd-dato"><span>Caja o banco</span><select id="rd-cobro" onchange="rdCuentaCobro(this.value)">${(cajasRD().some(c=>c.cd===cobroRD(d))?'':`<option value="${cobroRD(d)}" selected>${cobroRD(d)}</option>`)+cajasRD().map(c=>`<option value="${c.cd}" ${c.cd===cobroRD(d)?'selected':''}>${c.cd} — ${String(c.nm||'').replace(/[<>&"]/g,'')}</option>`).join('')}</select></div>`:''}
       ${dato('Auxiliar',esc(d.razonSocial||''),'rd-ancho')}
       ${dato('Exento',fmtC(d.exento),'rd-num')}
       ${dato('Neto',fmtC(d.neto),'rd-num')}
@@ -487,5 +497,5 @@ function renderDetalleRCV(){
   rdValidar();
 }
 
-export {rdFormaPago, rdOtroTrat, rdOtroCC, validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
+export {rdFormaPago, rdCuentaCobro, rdOtroTrat, rdOtroCC, validarDetalleRCV, lineasIniciales, abrirDetalleRCV, abrirEditorEmbebido, guardarDoc, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva,
   rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD};

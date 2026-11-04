@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.04-1530';
+const APP_VERSION='v2026.11.04-1600';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.15',fecha:'04-11-2026',titulo:'Ventas al contado: elegir la caja o el banco',items:[
+    {tipo:'nuevo',txt:'Al registrar una venta (también boletas) con forma de pago "Contado — Banco" aparece "Caja o banco" con todas las cuentas 1101xxx del plan: el asiento carga la cuenta elegida en vez de siempre 1101201. Por defecto propone la más usada en las ventas al contado.'},
+    {tipo:'nuevo',txt:'También se elige en el importador del RCV (paso 1, bajo la forma de pago, cuando hay más de una cuenta de caja o banco) y en el paso 2 de contabilización.'},
+    {tipo:'cambio',txt:'Las ventas ya registradas siguen en 1101201; para cambiarlas, edita la venta y elige la caja o banco: el asiento se rehace con la nueva cuenta.'},
+  ]},
   {version:'V2.22.14',fecha:'04-11-2026',titulo:'Boletas y vouchers no van a Clientes',items:[
     {tipo:'correccion',txt:'Un resumen de boletas o de comprobantes de pago electrónico podía quedar con forma de pago "Crédito — Cliente" (por ejemplo, al cambiar la forma de pago de varias ventas seleccionadas) y su asiento iba a 1104001 Clientes. Ahora la opción Cliente no aparece en esos documentos y el cambio masivo a Cliente los deja como estaban.'},
     {tipo:'cambio',txt:'Al editar un resumen que quedó a Clientes, el formulario propone Banco (o Tarjetas si es voucher): basta guardar para rehacer el asiento a la cuenta correcta. En la importación del RCV, las boletas y vouchers parten en Banco / Tarjetas.'},

@@ -100,7 +100,7 @@ import {renderApertura, abrirApertura, cerrarApertura, apRenderLineas, apLCd, ap
 import {abrirAperturaAux, cerrarAperturaAux, renderAperturaAux, apxAddDoc, apxDelDoc,
         apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
         descargarPlantillaAperturaAux, initAperturaAuxListener, APX} from './aperturaaux.js';
-import {onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, abrirVFResumen, editarVenta, cerrarVF,
+import {onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, abrirVFResumen, vfFpChanged, editarVenta, cerrarVF,
         vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta,
         eliminarVenta, VF, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV,
@@ -139,7 +139,7 @@ import {renderFiniquitos, nuevoFiniquito, editarFiniquito, volverFiniquitos, onF
         generarAsientoFiniquito} from './finiquitos.js';
 import {pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem} from './pdf-rem.js';
 import {guardarCargaRCV, abrirCargaRCV, renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar} from './rcv-captura.js';
-import {rdFormaPago, abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdOtroTrat, rdOtroCC, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD} from './rcv-detalle.js';
+import {rdFormaPago, rdCuentaCobro, abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdOtroTrat, rdOtroCC, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD} from './rcv-detalle.js';
 import {renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
         guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel} from './vacaciones.js';
 import {renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,
@@ -818,7 +818,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   apxCampo, apxRut, apxAuxElegido, apxActualizarCuadre, guardarAperturaAux,
   descargarPlantillaAperturaAux, APX,
   // ventas
-  onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, abrirVFResumen, editarVenta, cerrarVF,
+  onMesChangeV, limpiarFiltrosV, verMesV, renderVentas, abrirVF, abrirVFResumen, vfFpChanged, editarVenta, cerrarVF,
   vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
   // compras
   onMesChangeC, limpiarFiltrosC, verMesC, verCuentaC, quitarCuentaC, renderCompras, abrirCF, editarCompra, cerrarCF,
@@ -856,7 +856,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   pdfLiquidacionesMasivo, pdfLiquidacion, pdfLibroRem, imprimirRemuneraciones,
   moverComprasDia1,
   guardarCargaRCV, abrirCargaRCV, renderImportRCV, abrirCapturaRCV, cerrarCapturaRCV, verTablaRCV, setCapPeriodo, setCapFiltro, setCapQ, capSel, capImportar, capFicha, capCrearFicha, capCerrarEditor, capContabilizar,
-  rdFormaPago, abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdOtroTrat, rdOtroCC, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD,
+  rdFormaPago, rdCuentaCobro, abrirDetalleRCV, cerrarDetalleRCV, rdLinea, rdAgregar, rdQuitar, rdCompletar, rdIva, rdOtroTrat, rdOtroCC, rdValidar, rdGuardar, rdIr, rdIrA, rdLimpiar, rdContabilizar, RD,
   renderVacaciones, abrirFormVacaciones, abrirConfigVacaciones, guardarConfigVacaciones, guardarVacaciones,
   guardarFeriadosExtra, previewVacaciones, exportarVacacionesExcel,
   renderAsistencia, abrirFormAsistencia, editarEventoAsistencia, cerrarFormAsistencia, guardarEventoAsistencia,

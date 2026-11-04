@@ -1,5 +1,5 @@
 // ventas.js — Libro de ventas (documentos individuales)
-import {toast, pn, today, MESES, IVA, DTE_VENTAS, dteV, rutParse, rutFmt, rutDV, fmt, fmtC, CUENTAS_INGRESO} from './core.js';
+import {toast, pn, today, MESES, IVA, DTE_VENTAS, dteV, rutParse, rutFmt, rutDV, fmt, fmtC, CUENTAS_INGRESO, PDC} from './core.js';
 import {leerArchivo,resolverVencimientoImportado} from './importadorsii.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
@@ -11,7 +11,7 @@ import {todosDocsVentas, abrirAsientoDesde, proxFolioComprobante} from './asient
 import './storage.js';
 import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
 import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
-import {asientoVenta} from './motor-contable.js';
+import {asientoVenta,esCuentaCajaBanco,CUENTA_BANCO_DEFECTO} from './motor-contable.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
 import {validarDetalleRCV} from './rcv-detalle.js';
 // V2.21.57 — Distribución revisada en el paso 2 del importador RCV
@@ -38,7 +38,7 @@ function validarCuadraturaImportVentas(){
       if(!vd.ok){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:'Detalle del paso 2: '+vd.errores[0],tipo:'detalle'});return;}
     }
     const doc={...d,id:d.dup?.id||`preview-v-${i}`,fecha:d.fechaOriginal||d.fecha,
-      formaPago:d.fp||d.dup?.formaPago||'clientes',cuentaIngreso:rev?(d.detalleRCV.lineas[0].cuenta):(d.dup?.cuentaIngreso||d.cuenta||''),
+      formaPago:d.fp||d.dup?.formaPago||'clientes',...(d.cuentaCobro||d.dup?.cuentaCobro?{cuentaCobro:d.cuentaCobro||d.dup.cuentaCobro}:{}),cuentaIngreso:rev?(d.detalleRCV.lineas[0].cuenta):(d.dup?.cuentaIngreso||d.cuenta||''),
       ...(rev?{dist:distDesdeDetalleV(d)}:(d.dup?.dist?{dist:d.dup.dist}:{}))};
     try{
       const a=asientoVenta(doc);
@@ -333,6 +333,7 @@ function vfDteChanged(){
     const optC=fp.querySelector('option[value="clientes"]');
     if(optC){optC.disabled=res;optC.hidden=res;}
     if(res&&fp.value==='clientes')fp.value=t===48?'tarjetas':'banco';
+    vfFpChanged();
   }
   const lbl=document.getElementById('vf-num-lbl');if(lbl)lbl.textContent=res?'Folios (desde-hasta) o referencia':'N° Documento';
   const num=document.getElementById('vf-num');if(num)num.placeholder=res?'Ej: 1501-1850 (opcional)':'Ej: 1234';
@@ -359,6 +360,27 @@ function cuentaIngresoVentasHabitual(){
   const top=Object.entries(cuenta).sort((a,b)=>b[1]-a[1])[0];
   return top?top[0]:(dteV(33)?.cuenta||'4101002');
 }
+// V2.22.15 · Ventas al contado: caja o banco que recibe el pago (puede haber
+// más de una cuenta 1101xxx). Por defecto, la más usada en las ventas al contado.
+function cajasVentas(){return PDC.filter(c=>esCuentaCajaBanco(c.cd)&&c.tp==='A'&&c.activa!==false);}
+function cuentaCobroHabitual(){
+  const cajas=cajasVentas(),cuenta={};
+  (S.ventas||[]).forEach(d=>{if(d.estado!=='anulado'&&d.formaPago==='banco'&&d.cuentaCobro)cuenta[d.cuentaCobro]=(cuenta[d.cuentaCobro]||0)+1;});
+  const top=Object.entries(cuenta).sort((a,b)=>b[1]-a[1]).map(([k])=>k).find(k=>cajas.some(c=>c.cd===k));
+  return top||(cajas.some(c=>c.cd===CUENTA_BANCO_DEFECTO)?CUENTA_BANCO_DEFECTO:(cajas[0]?.cd||CUENTA_BANCO_DEFECTO));
+}
+function cobroOpts(sel){
+  const cajas=cajasVentas();
+  const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  return (cajas.some(c=>c.cd===sel)?'':`<option value="${esc(sel)}" selected>${esc(sel)}</option>`)
+    +cajas.map(c=>`<option value="${c.cd}" ${c.cd===sel?'selected':''}>${c.cd} — ${esc(c.nm)}</option>`).join('');
+}
+function vfFpChanged(sel){
+  const fp=document.getElementById('vf-fp')?.value,wrap=document.getElementById('vf-cobro-wrap'),cs=document.getElementById('vf-cobro');
+  if(!wrap||!cs)return;
+  if(sel!==undefined||!cs.options.length)cs.innerHTML=cobroOpts(sel||cuentaCobroHabitual());
+  wrap.style.display=fp==='banco'?'':'none';
+}
 function abrirVFResumen(tipo){
   abrirVF();
   // V2.22.8 · Boletas y vouchers usan por defecto la misma cuenta de ingreso que las demás ventas
@@ -369,6 +391,7 @@ function abrirVFResumen(tipo){
   document.getElementById('vf-title').textContent=tipo===48?'Ventas con medios de pago electrónico (resumen)':'Ventas con boleta (resumen)';
   document.getElementById('vf-fp').value=tipo===48?'tarjetas':'banco';
   vfDteChanged();
+  vfFpChanged(cuentaCobroHabitual());
   document.getElementById('vf-cant').value='';
   setTimeout(()=>document.getElementById('vf-cant')?.focus(),50);
 }
@@ -417,6 +440,7 @@ function abrirVF(){
   ['vf-num','vf-rut','vf-rs','vf-neto','vf-exento','vf-iva','vf-otros','vf-total','vf-ref-folio','vf-ref-fecha','vf-ref-razon','vf-cant'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   vfDteChanged();
   document.getElementById('vf-fp').value='banco';
+  vfFpChanged(cuentaCobroHabitual());
   document.getElementById('vf-dv').textContent='';
   document.getElementById('vf-dup-warn').style.display='none';
   _vfCuentaSel='';
@@ -450,6 +474,7 @@ function editarVenta(id){
   document.getElementById('vf-total').value=d.total||'';
   document.getElementById('vf-fp').value=d.formaPago||'banco';
   if(esResumenV(d.tipoDTE)&&d.formaPago==='clientes')document.getElementById('vf-fp').value=+d.tipoDTE===48?'tarjetas':'banco';   // V2.22.14 · corrige al guardar
+  vfFpChanged(esCuentaCajaBanco(d.cuentaCobro)?d.cuentaCobro:CUENTA_BANCO_DEFECTO);
   document.getElementById('vf-dup-warn').style.display='none';
   _vfCuentaSel=d.cuentaIngreso||'';
   const wrap=document.getElementById('vf-cuenta-wrap');
@@ -531,12 +556,14 @@ async function guardarVenta(){
   const otrosImpuestos=pn(document.getElementById('vf-otros').value);
   const total=pn(document.getElementById('vf-total').value);
   const formaPago=document.getElementById('vf-fp').value;
+  const cuentaCobro=formaPago==='banco'?(document.getElementById('vf-cobro')?.value||CUENTA_BANCO_DEFECTO):'';
 
   if(!fecha){toast('⚠️ Ingresa la fecha de emisión','e');return;}
   if(fechaVencimiento&&fechaVencimiento<fecha){toast('⚠️ La fecha de vencimiento no puede ser anterior a la emisión','e');return;}
   if(!tipoDTE){toast('⚠️ Selecciona el tipo de documento','e');return;}
   if(!numero){toast('⚠️ Ingresa el N° de documento','e');return;}
   if(resumen&&!(cantidad>=1)){toast('⚠️ Ingresa la cantidad de documentos del resumen','e');return;}
+  if(cuentaCobro&&(!esCuentaCajaBanco(cuentaCobro)||!cajasVentas().some(c=>c.cd===cuentaCobro))){toast('⚠️ Elige una caja o banco (cuenta 1101xxx) que exista en el plan de cuentas','e');return;}
   if(resumen&&formaPago==='clientes'){toast('⚠️ Las boletas y comprobantes electrónicos no van a Clientes: elige Banco, Tarjetas o Deudores','e');return;}
   const r=rutParse(rutInput);
   if(!r.codigo){toast('⚠️ Ingresa el RUT del cliente','e');return;}
@@ -568,7 +595,7 @@ async function guardarVenta(){
   // V2.21.57: una venta distribuida en varias líneas conserva su distribución
   // mientras neto + exento no cambien; si cambian, vuelve a una sola cuenta.
   const distPrev=prevEdit&&Array.isArray(prevEdit.dist)&&prevEdit.dist.length&&Math.abs(prevEdit.dist.reduce((s,l)=>s+(+l.monto||0),0)-(neto+exento))<=1?prevEdit.dist:null;
-  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,cuentaIngreso,...(resumen?{cantidad}:{}),...(distPrev?{dist:distPrev}:{}),...(referencia?{referencia}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||''}:{})};
+  const doc={id:VF.editId||'v_'+Date.now(),fecha,fechaVencimiento,fechaVencimientoOrigen,tipoDTE,numero,rutCodigo:r.codigo,rutDV:r.dv,razonSocial,neto,exento,iva,otrosImpuestos,total,formaPago,...(cuentaCobro?{cuentaCobro}:{}),cuentaIngreso,...(resumen?{cantidad}:{}),...(distPrev?{dist:distPrev}:{}),...(referencia?{referencia}:{}),...(prevEdit?{fechaRecepcionSII:prevEdit.fechaRecepcionSII||'',fechaAcuseSII:prevEdit.fechaAcuseSII||''}:{})};
   const editando=!!VF.editId;
   const rSave=await guardarDocumentoContabilizado('ventas',doc,S.ventas,editando);
   if(!rSave.ok){toast('❌ No se pudo contabilizar el documento. No se considera guardado. ('+(rSave.motivo||'error')+')','e');return;}
@@ -739,7 +766,7 @@ function renderImportModalVentas(){
       <option value="clientes" ${d.fp==='clientes'?'selected':''}>📇 Cliente</option>
       <option value="tarjetas" ${d.fp==='tarjetas'?'selected':''}>💳 Tarjetas</option>
       <option value="deudores" ${d.fp==='deudores'?'selected':''}>📋 Deudor</option>
-    </select>`;
+    </select>${d.fp==='banco'&&cajasVentas().length>1?`<select onchange="IMV.docs[${i}].cuentaCobro=this.value;delete IMV.docs[${i}].errorImport" title="Caja o banco" style="width:100%;font-size:11px;padding:3px;margin-top:3px">${cobroOpts(d.cuentaCobro||d.dup?.cuentaCobro||cuentaCobroHabitual())}</select>`:''}`;
     return `<div id="impv-row-${i}" class="imp-row${pendiente?' imp-pending-row':''}" style="display:grid;grid-template-columns:96px 26px 90px 60px 80px 120px 1fr 90px 80px 80px 100px 180px 110px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--bd);font-size:11px;align-items:center">
       <div style="text-align:center">${(d.estadoImport==='igual'||d.estadoImport==='manual')?'':`<input type="checkbox" ${d.incluir?'checked':''} onchange="IMV.docs[${i}].incluir=this.checked;renderImportModalVentas()">`}</div>
       <div>${fechaMostrar}</div>
@@ -873,6 +900,7 @@ async function confirmarImportacionV(){
       neto:d.neto, exento:d.exento, iva:d.iva,
       otrosImpuestos:d.otrosImpuestos||0, total:d.total,
       formaPago:d.fp||prev?.formaPago||'clientes',
+      ...((d.fp||prev?.formaPago)==='banco'&&(d.cuentaCobro||prev?.cuentaCobro)?{cuentaCobro:d.cuentaCobro||prev.cuentaCobro}:{}),
       cuentaIngreso:d.detalleRCV?.revisado?d.detalleRCV.lineas[0].cuenta:(prev?.cuentaIngreso||d.cuenta||''),
       ...(d.detalleRCV?.revisado?{dist:distDesdeDetalleV(d)}:(prev?.dist&&Math.abs(prev.dist.reduce((s,l)=>s+(+l.monto||0),0)-((+d.neto||0)+(+d.exento||0)))<=1?{dist:prev.dist}:{})),
       ...((d.glosa||d.detalleRCV?.glosa||prev?.glosa)?{glosa:d.glosa||d.detalleRCV?.glosa||prev.glosa}:{}),
@@ -986,5 +1014,5 @@ async function confirmarImportacionV(){
 export {onMesChangeV, abrirImportSIIVentas, handleFileImportVentas,
         cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV,
         renderImportModalVentas, confirmarImportacionV, cerrarImportModalVentas, initImportListenerV, enfocarPendienteImportV,
-        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, abrirVFResumen, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
+        IMV, limpiarFiltrosV, renderVentas, renderVResumen, abrirVF, abrirVFResumen, vfFpChanged, editarVenta, cerrarVF, vfRutInput, vfCheckDup, vfDteChanged, vfRefrescarDocs, vfSeleccionarReferencia, vfCalcTotals, vfAutoCalc, guardarVenta, setVfCuenta, eliminarVenta,
         toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel, validarCuadraturaImportVentas, recalcularEstadoImportVentas, abrirImportModalVentas, verMesV, mostrarVentasImportadas, VF};
