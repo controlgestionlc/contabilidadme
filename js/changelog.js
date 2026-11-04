@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.04-1700';
+const APP_VERSION='v2026.11.04-1730';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.18',fecha:'04-11-2026',titulo:'F29: pasos contables en orden',items:[
+    {tipo:'nuevo',txt:'El F29 del mes muestra los pasos contables, igual que el sistema nuevo: 1. Declaración presentada → 2. Compensación de IVA → 3. Pago del F29. Cada paso indica si está hecho (con su N° de asiento), si es el siguiente o si está bloqueado.'},
+    {tipo:'cambio',txt:'La compensación de IVA se habilita sólo después de marcar el F29 como presentado, y el pago sólo después de generar la compensación (o si el mes no tiene IVA que compensar). Los asientos que ya existen se siguen mostrando.'},
+  ]},
   {version:'V2.22.17',fecha:'04-11-2026',titulo:'F29: número de asiento igual al del Libro Diario',items:[
     {tipo:'correccion',txt:'El F29 mostraba "Ya generado — Asiento N°…" con el folio provisorio del momento de generarlo, no con el número contable definitivo que muestra el Libro Diario: podía apuntar a otro asiento (por ejemplo, a una factura de compra). Ahora la compensación de IVA y el pago del F29 muestran el mismo número del Libro Diario.'},
     {tipo:'correccion',txt:'Lo mismo en el aviso de ejercicio ya cerrado, el de posible asiento duplicado y la asignación de centros de costo.'},

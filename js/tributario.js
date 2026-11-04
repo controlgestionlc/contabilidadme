@@ -753,10 +753,49 @@ function renderF29(){
   </div>
   ${panelDeclaracion}
   ${renderConciliacionF29(mSel)}
+  <div id="f29-pasos" style="max-width:900px"></div>
   <div id="ivac-content" style="max-width:760px"></div>
   <div id="pagof29-content" style="max-width:900px"></div>`;
   renderCompensacionIVA();
   renderPagoF29();
+}
+
+// ═══ V2.22.18 · Pasos contables del F29, en orden (igual que el sistema nuevo) ═══
+// 1. Declaración presentada → 2. Compensación de IVA → 3. Pago del F29.
+// Cada paso se habilita al completar el anterior. Si ya existen asientos (por
+// ejemplo, importados o anteriores a esta versión) se muestran igual.
+function pasosF29(mes){
+  const anio=S.empresa.anio, periodo=`${anio}-${String(mes).padStart(2,'0')}`;
+  const presentado=esF29Presentado(declaracionF29(periodo));
+  const comp=asientoIVAExistente(periodo);
+  const pagos=asientosPagoF29(periodo);
+  const sinIVA=!comp&&!calcularCompensacionIVA(mes).movs.length;   // nada que compensar: el paso 2 no aplica
+  const paso2=presentado||!!comp;
+  const paso3=(paso2&&(!!comp||sinIVA))||pagos.length>0;
+  return {periodo,presentado,comp,pagos,sinIVA,paso2,paso3};
+}
+function renderPasosF29(){
+  const el=document.getElementById('f29-pasos');if(!el)return;
+  const mes=+(document.getElementById('f29-mes')?.value||1);
+  const p=pasosF29(mes);
+  const chip=(n,txt,hecho,activo,det)=>`<div style="flex:1;min-width:180px;padding:10px 12px;border-radius:8px;border:1px solid ${hecho?'var(--ach)':activo?'var(--acc)':'var(--bd)'};background:${hecho?'rgba(63,185,80,.08)':activo?'rgba(88,166,255,.08)':'transparent'};opacity:${hecho||activo?1:.6}">
+    <div style="font-size:11px;color:var(--mt)">Paso ${n}</div>
+    <div style="font-weight:700;font-size:13px">${hecho?'✅':activo?'👉':'🔒'} ${txt}</div>
+    <div style="font-size:11px;color:var(--mt);margin-top:2px">${det}</div></div>`;
+  const nComp=p.comp?numeroMostrar(p.comp):'';
+  const nPago=p.pagos.length?p.pagos.map(numeroMostrar).join(', '):'';
+  el.innerHTML=`<div class="card" style="margin-top:16px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:10px">🧭 Pasos contables del F29</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${chip(1,'Declaración presentada',p.presentado,!p.presentado,p.presentado?'Marcada como presentada al SII':'Revisa lo declarado y usa «Marcar presentado»')}
+      ${chip(2,'Compensación de IVA',!!p.comp||(p.presentado&&p.sinIVA),p.paso2&&!p.comp&&!p.sinIVA,p.comp?`Asiento N°${nComp}`:p.sinIVA&&p.presentado?'Sin IVA que compensar':p.paso2?'Genera el asiento de compensación':'Se habilita al presentar el F29')}
+      ${chip(3,'Pago del F29',p.pagos.length>0,p.paso3&&!p.pagos.length,p.pagos.length?`Asiento N°${nPago}`:p.paso3?'Registra el pago contra banco o caja':'Se habilita al generar la compensación')}
+    </div></div>`;
+}
+function bloqueoPasoF29(titulo,motivo){
+  return `<div class="card" style="margin-top:16px;opacity:.75">
+    <div style="font-size:15px;font-weight:700">🔒 ${titulo}</div>
+    <div style="font-size:12px;color:var(--mt);margin-top:6px">${motivo}</div></div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -899,6 +938,9 @@ function resetIvacCuentas(){IVAC.cuentas={...IVAC_DEFAULT};renderCompensacionIVA
 function renderCompensacionIVA(){
   const el=document.getElementById('ivac-content');if(!el)return;
   const mes=+(document.getElementById('f29-mes')?.value||1);
+  renderPasosF29();
+  const pasos=pasosF29(mes);
+  if(!pasos.paso2){el.innerHTML=bloqueoPasoF29('Paso 2 · Asiento de compensación de IVA','Primero revisa la columna «Declarado» y marca el F29 como presentado. Después se habilitan la compensación y el pago, en ese orden.');return;}
   const anio=S.empresa.anio;
   const periodo=`${anio}-${String(mes).padStart(2,'0')}`;
   // Al cambiar de mes se recalculan fecha y glosa (si no las editó el usuario a mano)
@@ -1044,6 +1086,7 @@ async function generarAsientoIVA(){
   const mes=+(document.getElementById('f29-mes')?.value||1);
   const anio=S.empresa.anio;
   const periodo=`${anio}-${String(mes).padStart(2,'0')}`;
+  if(!pasosF29(mes).paso2){toast('🔒 Paso 1 pendiente: marca el F29 como presentado antes de generar la compensación.','e');return;}
   const r=calcularCompensacionIVA(mes);
   if(!r.movs.length){toast('⚠️ No hay IVA que compensar en este período','e');return;}
   if(!r.cuadra){toast('⚠️ El asiento no cuadra — revisa las cuentas','e');return;}
@@ -1243,6 +1286,8 @@ function calcularPagoF29(mes){
 function renderPagoF29(){
   const el=document.getElementById('pagof29-content');if(!el)return;
   const mes=+(document.getElementById('f29-mes')?.value||1);
+  const pasos=pasosF29(mes);
+  if(!pasos.paso3){el.innerHTML=bloqueoPasoF29('Paso 3 · Asiento de pago del F29',pasos.paso2?'Genera primero la compensación de IVA: el pago salda el IVA por pagar que ella deja.':'Se habilita después de presentar el F29 y generar la compensación de IVA.');return;}
   const anio=S.empresa.anio;
   const periodo=`${anio}-${String(mes).padStart(2,'0')}`;
   if(!PAGOF29.incluir)PAGOF29.incluir=Object.fromEntries(CONCEPTOS_F29.map(c=>[c.k,c.on]));
@@ -1351,6 +1396,7 @@ async function generarAsientoPagoF29(){
   const mes=+(document.getElementById('f29-mes')?.value||1);
   const anio=S.empresa.anio;
   const periodo=`${anio}-${String(mes).padStart(2,'0')}`;
+  {const ps=pasosF29(mes);if(!ps.paso3){toast(ps.paso2?'🔒 Paso 2 pendiente: genera la compensación de IVA antes del pago.':'🔒 Paso 1 pendiente: marca el F29 como presentado.','e');return;}}
   const r=calcularPagoF29(mes);
   if(!r.movs.length){toast('⚠️ No hay montos que enterar','e');return;}
   if(!r.cuadra){toast('⚠️ El asiento no cuadra — revisa las cuentas','e');return;}
