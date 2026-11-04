@@ -1071,6 +1071,14 @@ async function guardarAsiento(){
     const anterior=JSON.parse(JSON.stringify(S.asientos[idx]));
     const r=await persistirAsientosCritico(()=>{
       S.asientos[idx]={...S.asientos[idx],fecha,glosa,movs:movsClean,actualizadoEn:new Date().toISOString()};
+      // V2.22.19 · Pago del F29 editado a mano: el total pagado y la cuenta de pago siguen al asiento
+      const ae=S.asientos[idx];
+      if(ae.origenAuto==='pagof29'&&ae.f29Detalle){
+        const caja=movsClean.filter(m=>/^1101\d{3}$/.test(String(m.cd))&&(+m.haber||0)>0);
+        ae.f29Detalle={...ae.f29Detalle,totalPagado:Math.round(caja.reduce((s,m)=>s+(+m.haber||0),0)),editadoEn:new Date().toISOString(),
+          cuentas:{...(ae.f29Detalle.cuentas||{}),...(caja.length===1?{banco:caja[0].cd}:{})}};
+        if(caja.length===1)ae.cuentaPago=caja[0].cd;
+      }
     });
     if(!r.ok){toast('❌ No se pudo guardar el asiento. La operación NO se considera contabilizada.','e');return;}
     const actualizado=S.asientos.find(x=>x.id===AF.editId);

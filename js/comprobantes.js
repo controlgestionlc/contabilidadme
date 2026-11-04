@@ -417,6 +417,7 @@ let CMP_HDR={items:[],sel:-1,universo:null};
 const soloDig=t=>String(t||'').replace(/[^0-9]/g,'');
 function totalAsiento(e){return Math.round(e.movs.reduce((s,m)=>s+(+m.debe||0),0));}
 function editableEnFormulario(e){
+  if(e.tipo==='tributario'&&e.asientoId)return true;   // V2.22.19 · compensación y pago F29
   if(e.origen!=='manual'||!e.asientoId)return false;
   const f=e.referenciaDoc?.fuente||'';
   return !(f==='ventas'||f==='compras');
@@ -567,7 +568,7 @@ function renderCmpModalView(box,e,o){
   const totD=e.movs.reduce((s,m)=>s+(m.debe||0),0);
   const totH=e.movs.reduce((s,m)=>s+(m.haber||0),0);
   const cuadra=Math.abs(totD-totH)<0.000001;
-  const editable=e.origen==='manual'||e.origen==='apertura'||e.fuente==='compras'||e.fuente==='ventas'||e.tipo==='pago';
+  const editable=e.origen==='manual'||e.origen==='apertura'||e.fuente==='compras'||e.fuente==='ventas'||e.tipo==='pago'||e.tipo==='tributario';
 
   box.innerHTML=`
     <div style="padding:16px 20px">
@@ -895,6 +896,7 @@ function cmpModalEditar(){
   // Los comprobantes de pago/cobro tienen su propio editor dedicado, que
   // mantiene la referencia documento↔pago y recalcula el banco.
   if(e.tipo==='pago'){cerrarCmpModal();abrirEditorPago(e.asientoId||e.ref);return;}
+  if(e.tipo==='tributario'&&e.asientoId){cerrarCmpModal();editarAsiento(e.asientoId);return;}   // V2.22.19
   // Los documentos se corrigen en su origen y regeneran EL MISMO asiento.
   // Nunca convertir la edición en un alta manual con otro número.
   const rd=e.referenciaDoc;

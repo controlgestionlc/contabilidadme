@@ -366,6 +366,9 @@ function destinoEdicion(e){
             fn:`corregirDesdeDiario('compras','${e.docId||e.referenciaDoc.docId}')`};
   if(e.origen==='manual'&&e.ref!=null)
     return {ic:'✏️',lbl:'Editar',hint:`Editar el asiento manual N°${e.ref}`,fn:`editarAsientoRef(${e.ref})`};
+  // V2.22.19 · Compensación de IVA y pago del F29: se editan como un asiento manual (mismo N°)
+  if(e.tipo==='tributario'&&e.asientoId)
+    return {ic:'✏️',lbl:'Editar',hint:`Editar el asiento N°${e.n} (compensación o pago del F29)`,fn:`editarAsientoRef('${e.asientoId}')`};
   if(e.origen==='apertura')
     return {ic:'🔰',lbl:'Abrir',hint:'Ir al Balance de Apertura',fn:`nav('apertura')`};
   if(e.fuente==='ventas')

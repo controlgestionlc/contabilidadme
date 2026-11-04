@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.04-1730';
+const APP_VERSION='v2026.11.04-1800';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.19',fecha:'04-11-2026',titulo:'F29: editar y regenerar sin duplicar',items:[
+    {tipo:'nuevo',txt:'La compensación de IVA y el pago del F29 ahora se pueden editar (✏️ Editar en Libro Diario y Comprobantes), como un asiento manual y con el mismo número. Al editar el pago, el total pagado y la cuenta de banco del F29 se actualizan.'},
+    {tipo:'correccion',txt:'«Generar de nuevo» la compensación de IVA creaba OTRO asiento y dejaba el anterior. Ahora «♻️ Regenerar» recalcula y reemplaza el mismo asiento (mismo número).'},
+    {tipo:'cambio',txt:'Pago del F29 con un pago ya registrado: por defecto «♻️ Reemplazar el pago N°…» (para cambiar medio de pago, fecha o montos sin duplicar). La opción «➕ Registrar otro pago» sigue disponible para pagos parciales.'},
+  ]},
   {version:'V2.22.18',fecha:'04-11-2026',titulo:'F29: pasos contables en orden',items:[
     {tipo:'nuevo',txt:'El F29 del mes muestra los pasos contables, igual que el sistema nuevo: 1. Declaración presentada → 2. Compensación de IVA → 3. Pago del F29. Cada paso indica si está hecho (con su N° de asiento), si es el siguiente o si está bloqueado.'},
     {tipo:'cambio',txt:'La compensación de IVA se habilita sólo después de marcar el F29 como presentado, y el pago sólo después de generar la compensación (o si el mes no tiene IVA que compensar). Los asientos que ya existen se siguen mostrando.'},

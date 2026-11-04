@@ -485,8 +485,8 @@ function _detallePago(a){
   const total=a?.f29Detalle?.totalPagado!=null?+a.f29Detalle.totalPagado:(a?.movs||[]).reduce((s,m)=>s+(+m.haber||0),0);
   return {iva,ppm,honorarios,iusc,total};
 }
-function _pagosAcumuladosF29(periodo){
-  const pagos=_asientosF29(periodo,'pagof29');
+function _pagosAcumuladosF29(periodo,excluirId=''){
+  const pagos=_asientosF29(periodo,'pagof29').filter(a=>!excluirId||a.id!==excluirId);
   const componentes={}; let totalPagado=0,totalTributos=0;
   pagos.forEach(a=>{
     const det=a?.f29Detalle?.componentes||{};
@@ -1072,11 +1072,11 @@ function renderCompensacionIVA(){
 
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-p" onclick="generarAsientoIVA()" ${(!r.movs.length||!r.cuadra||faltaRemanente)?'disabled style="opacity:.5;cursor:not-allowed"':''}>
-        📝 ${yaExiste?'Generar de nuevo':'Generar asiento'}
+        ${yaExiste?`♻️ Regenerar (reemplaza el N°${numeroMostrar(yaExiste)})`:'📝 Generar asiento'}
       </button>
     </div>
     <div style="margin-top:10px;font-size:10px;color:var(--mt)">
-      El asiento se crea como <strong>asiento manual</strong>: queda visible en Comprobantes y Libro Diario, y se puede editar o anular como cualquier otro.
+      El asiento queda visible en Comprobantes y Libro Diario, y se puede editar (✏️) o anular como cualquier otro. «Regenerar» lo recalcula y reemplaza con el mismo número.
     </div>
   </div>`;
 }
@@ -1097,7 +1097,7 @@ async function generarAsientoIVA(){
   const per=`${MESES[mes-1]} ${anio}`;
   const resumen=r.ivaAPagar>0?`IVA a pagar ${fmtC(r.ivaAPagar)}`:`Remanente ${fmtC(r.remanenteNuevo)}`;
   const msg=(yaExiste
-      ? `⚠️ Ya existe el asiento N°${numeroMostrar(yaExiste)} de compensación de ${per}.\nSe creará OTRO asiento (el anterior no se borra: anúlalo si corresponde).\n\n`
+      ? `♻️ Ya existe el asiento N°${numeroMostrar(yaExiste)} de compensación de ${per}.\nSe REEMPLAZA con este cálculo (conserva su número; no se crea otro asiento).\n\n`
       : '')
     +`Compensación de IVA — ${per}\n\n`
     +`Débito fiscal:   ${fmtC(r.d.debito)}\n`
@@ -1108,21 +1108,27 @@ async function generarAsientoIVA(){
     +`\nResultado:       ${resumen}\n\n¿Generar el asiento?`;
   if(!confirm(msg))return;
 
-  const folio=proxFolioComprobante();
   const fecha=IVAC.fecha||ultimoDiaMes(anio,mes);
   const glosa=IVAC.glosa||`Compensación IVA ${per} — F29`;
-  const idIVA='as_iva_'+Date.now();
-  const pr=await persistirAsientosCritico(()=>{S.asientos.push({
-    id:idIVA,n:folio,folioComp:folio,fecha,glosa,
-    movs:r.movs.map(m=>({...m})),
-    origenAuto:'ivaf29',periodoIVA:periodo,tipo:'tributario',
-    f29Detalle:{version:13,periodo,componentes:{ivaAPagar:Math.round(r.ivaAPagar||0),ppmProvisionado:IVAC.incluirPPM?Math.round(r.d.ppm||0):0,remanenteNuevo:Math.round(r.remanenteNuevo||0)},cuentas:{...IVAC.cuentas},calculado:snapshotF29(r.d),declarado:esF29Presentado(declaracionF29(periodo))?{...(declaracionF29(periodo).declarado||{})}:null},
-  });});
+  const f29Detalle={version:13,periodo,componentes:{ivaAPagar:Math.round(r.ivaAPagar||0),ppmProvisionado:IVAC.incluirPPM?Math.round(r.d.ppm||0):0,remanenteNuevo:Math.round(r.remanenteNuevo||0)},cuentas:{...IVAC.cuentas},calculado:snapshotF29(r.d),declarado:esF29Presentado(declaracionF29(periodo))?{...(declaracionF29(periodo).declarado||{})}:null};
+  // V2.22.19 · Regenerar reemplaza el asiento existente (mismo id y número), no lo duplica
+  const folio=yaExiste?null:proxFolioComprobante();
+  const idIVA=yaExiste?yaExiste.id:'as_iva_'+Date.now();
+  const pr=await persistirAsientosCritico(()=>{
+    if(yaExiste){
+      const i=S.asientos.findIndex(a=>a.id===idIVA);
+      S.asientos[i]={...S.asientos[i],fecha,glosa,movs:r.movs.map(m=>({...m})),f29Detalle,actualizadoEn:new Date().toISOString()};
+    }else S.asientos.push({
+      id:idIVA,n:folio,folioComp:folio,fecha,glosa,
+      movs:r.movs.map(m=>({...m})),
+      origenAuto:'ivaf29',periodoIVA:periodo,tipo:'tributario',f29Detalle,
+    });
+  });
   if(!pr.ok){toast('❌ No se pudo guardar la compensación de IVA. La operación NO se contabilizó.','e');return;}
   // V2.22.17 · el número es el contable definitivo (el del Libro Diario), no el folio provisorio
   const numIVA=numeroMostrar(S.asientos.find(a=>a.id===idIVA))||folio;
-  toast(`✅ Asiento N°${numIVA} — compensación IVA ${per} · ${resumen}`);
-  logAccion('Generó compensación de IVA',`${per} · asiento N°${numIVA} · ${resumen}`);
+  toast(`✅ Asiento N°${numIVA} ${yaExiste?'actualizado':'generado'} — compensación IVA ${per} · ${resumen}`);
+  logAccion(yaExiste?'Regeneró compensación de IVA':'Generó compensación de IVA',`${per} · asiento N°${numIVA} · ${resumen}`);
   rerender();
   renderF29();
 }
@@ -1180,7 +1186,15 @@ const PAGOF29_DEFAULT={
   multas:'3403001',       // OTROS GASTOS NO OPERACIONALES
   banco:'1101201',        // BANCO ESTADO
 };
-const PAGOF29={cuentas:{...PAGOF29_DEFAULT},montos:{},incluir:null,fecha:'',glosa:'',periodo:''};
+const PAGOF29={cuentas:{...PAGOF29_DEFAULT},montos:{},incluir:null,fecha:'',glosa:'',periodo:'',reemplazarId:''};
+// V2.22.19 · Reemplazar el último pago registrado (cambiar medio de pago, fecha o montos) o registrar otro (parcial)
+function setPagoF29Reemplazo(on){
+  const mes=+(document.getElementById('f29-mes')?.value||1);
+  const pagos=asientosPagoF29(periodoF29(mes));
+  PAGOF29.reemplazarId=on&&pagos.length?pagos[pagos.length-1].id:'';
+  PAGOF29.montos={};
+  renderPagoF29();
+}
 
 // Conceptos que se enteran con el F29. `on` es el estado inicial del checkbox.
 const CONCEPTOS_F29=[
@@ -1221,7 +1235,8 @@ function montosSugeridosF29(mes){
     honorarios:presentado?codDecl(decl,151,d.retencionHon):d.retencionHon,
     bte:0,iusc:presentado?codDecl(decl,48,d.iusc):d.iusc,multas:0,
   };
-  const ac=_pagosAcumuladosF29(periodo).componentes;
+  // V2.22.19 · Al reemplazar un pago, su monto vuelve a quedar disponible
+  const ac=_pagosAcumuladosF29(periodo,PAGOF29.periodo===periodo?PAGOF29.reemplazarId:'').componentes;
   // V2.14: un nuevo asiento propone sólo el saldo no pagado del período.
   const saldo={}; Object.keys(base).forEach(k=>saldo[k]=k==='multas'?base[k]:Math.max(0,Math.round((+base[k]||0)-(+ac[k]||0))));
   saldo._base=base; saldo._pagado=ac;
@@ -1291,7 +1306,13 @@ function renderPagoF29(){
   const anio=S.empresa.anio;
   const periodo=`${anio}-${String(mes).padStart(2,'0')}`;
   if(!PAGOF29.incluir)PAGOF29.incluir=Object.fromEntries(CONCEPTOS_F29.map(c=>[c.k,c.on]));
-  if(PAGOF29.periodo!==periodo){PAGOF29.periodo=periodo;PAGOF29.fecha='';PAGOF29.glosa='';PAGOF29.montos={};}
+  if(PAGOF29.periodo!==periodo){PAGOF29.periodo=periodo;PAGOF29.fecha='';PAGOF29.glosa='';PAGOF29.montos={};
+    // Con un pago ya registrado, por defecto se reemplaza (no se duplica)
+    const pp=asientosPagoF29(periodo);PAGOF29.reemplazarId=pp.length?pp[pp.length-1].id:'';
+    const ult=pp[pp.length-1];
+    if(ult){PAGOF29.fecha=ult.fecha||'';const cb=ult.f29Detalle?.cuentas?.banco||ult.cuentaPago;if(cb)PAGOF29.cuentas.banco=cb;}
+  }
+  if(PAGOF29.reemplazarId&&!asientosPagoF29(periodo).some(a=>a.id===PAGOF29.reemplazarId))PAGOF29.reemplazarId='';
 
   const compActiva=asientoIVAExistente(periodo);
   const compDet=compActiva?_detalleComp(compActiva):{ppm:0};
@@ -1383,9 +1404,12 @@ function renderPagoF29(){
     </div>`
     :`<div style="text-align:center;padding:24px;color:var(--mt);font-size:12px">No hay montos que enterar en ${MESES[mes-1]} ${anio}. Marca al menos un concepto con monto mayor a cero.</div>`}
 
+    ${pagosPrevios.length?(()=>{const rem=pagosPrevios.find(a=>a.id===PAGOF29.reemplazarId);return `<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-bottom:10px">
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="pf29-modo" ${rem?'checked':''} onchange="setPagoF29Reemplazo(true)"> ♻️ Reemplazar el pago N°${numeroMostrar(pagosPrevios[pagosPrevios.length-1])} (cambia medio de pago, fecha o montos; conserva el número)</label>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="pf29-modo" ${rem?'':'checked'} onchange="setPagoF29Reemplazo(false)"> ➕ Registrar otro pago (parcial o adicional)</label></div>`;})():''}
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-p" onclick="generarAsientoPagoF29()" ${(!r.movs.length||!r.cuadra)?'disabled style="opacity:.5;cursor:not-allowed"':''}>
-        🏦 ${pagosPrevios.length?'Registrar otro pago':'Generar asiento de pago'}
+        ${PAGOF29.reemplazarId?`♻️ Reemplazar pago N°${numeroMostrar(pagosPrevios.find(a=>a.id===PAGOF29.reemplazarId))}`:pagosPrevios.length?'🏦 Registrar otro pago':'🏦 Generar asiento de pago'}
       </button>
     </div>
   </div>`;
@@ -1403,7 +1427,8 @@ async function generarAsientoPagoF29(){
   const faltantes=[...new Set(r.movs.filter(m=>!PDC.some(x=>x.cd===m.cd)).map(m=>m.cd))];
   if(faltantes.length){toast(`⚠️ Estas cuentas no existen en el plan: ${faltantes.join(', ')}`,'e');return;}
 
-  const pagosPrevios=asientosPagoF29(periodo);
+  const reemplazo=PAGOF29.reemplazarId?(S.asientos||[]).find(a=>a.id===PAGOF29.reemplazarId&&!a.anulado):null;
+  const pagosPrevios=asientosPagoF29(periodo).filter(a=>!reemplazo||a.id!==reemplazo.id);
   const per=`${MESES[mes-1]} ${anio}`;
   const excedidos=CONCEPTOS_F29.filter(c=>!c.gasto&&PAGOF29.incluir[c.k]).map(c=>{
     const actual=Math.round(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:(r.sug[c.k]||0));
@@ -1412,24 +1437,31 @@ async function generarAsientoPagoF29(){
   if(excedidos.length){toast(`⚠️ El pago excede el saldo pendiente en: ${excedidos.map(x=>x.c.lbl).join(', ')}.`,'e');return;}
   const detalle=r.movs.filter(m=>m.debe>0)
     .map(m=>`  ${m.cd} ${m.nm}: ${fmtC(m.debe)}`).join('\n');
-  const msg=(pagosPrevios.length?`💳 Ya existen ${pagosPrevios.length} pago(s) para ${per}. Este asiento se registrará como pago parcial/adicional.\n\n`:'')
+  const msg=(reemplazo?`♻️ Se REEMPLAZA el pago N°${numeroMostrar(reemplazo)} de ${per} (mismo número; no se crea otro asiento).\n\n`
+      :pagosPrevios.length?`💳 Ya existen ${pagosPrevios.length} pago(s) para ${per}. Este asiento se registrará como pago parcial/adicional.\n\n`:'')
     +`Pago F29 — ${per}\n\n${detalle}\n\nMonto de este pago: ${fmtC(r.total)}\nContra: ${pdcNm(PAGOF29.cuentas.banco)||PAGOF29.cuentas.banco}\n\n¿Registrar el pago?`;
   if(!confirm(msg))return;
 
-  const folio=proxFolioComprobante();
+  const folio=reemplazo?null:proxFolioComprobante();
   const fecha=PAGOF29.fecha||fechaPagoDefault(anio,mes);
   const glosa=PAGOF29.glosa||`Pago F29 ${per}`;
-  const idPago='as_pagof29_'+Date.now();
-  const pr=await persistirAsientosCritico(()=>{S.asientos.push({
-    id:idPago,n:folio,folioComp:folio,fecha,glosa,
-    movs:r.movs.map(m=>({...m})),
-    origenAuto:'pagof29',periodoIVA:periodo,tipo:'tributario',
-    f29Detalle:{version:14,periodo,pagoNro:pagosPrevios.length+1,componentes:Object.fromEntries(CONCEPTOS_F29.map(c=>[c.k,PAGOF29.incluir[c.k]?Math.round(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:r.sug[c.k]||0):0])),cuentas:{...PAGOF29.cuentas},totalTributos:Math.round(CONCEPTOS_F29.filter(c=>!c.gasto&&PAGOF29.incluir[c.k]).reduce((t,c)=>t+(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:r.sug[c.k]||0),0)),totalPagado:Math.round(r.total||0),declarado:esF29Presentado(declaracionF29(periodo))?{...(declaracionF29(periodo).declarado||{})}:null},
-  });});
+  const idPago=reemplazo?reemplazo.id:'as_pagof29_'+Date.now();
+  const pr=await persistirAsientosCritico(()=>{
+    const f29Detalle={version:14,periodo,pagoNro:pagosPrevios.length+1,componentes:Object.fromEntries(CONCEPTOS_F29.map(c=>[c.k,PAGOF29.incluir[c.k]?Math.round(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:r.sug[c.k]||0):0])),cuentas:{...PAGOF29.cuentas},totalTributos:Math.round(CONCEPTOS_F29.filter(c=>!c.gasto&&PAGOF29.incluir[c.k]).reduce((t,c)=>t+(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:r.sug[c.k]||0),0)),totalPagado:Math.round(r.total||0),declarado:esF29Presentado(declaracionF29(periodo))?{...(declaracionF29(periodo).declarado||{})}:null};
+    if(reemplazo){
+      const i=S.asientos.findIndex(a=>a.id===idPago);
+      S.asientos[i]={...S.asientos[i],fecha,glosa,movs:r.movs.map(m=>({...m})),cuentaPago:PAGOF29.cuentas.banco,f29Detalle:{...f29Detalle,pagoNro:S.asientos[i].f29Detalle?.pagoNro||f29Detalle.pagoNro},actualizadoEn:new Date().toISOString()};
+    }else S.asientos.push({
+      id:idPago,n:folio,folioComp:folio,fecha,glosa,
+      movs:r.movs.map(m=>({...m})),cuentaPago:PAGOF29.cuentas.banco,
+      origenAuto:'pagof29',periodoIVA:periodo,tipo:'tributario',f29Detalle,
+    });
+  });
   if(!pr.ok){toast('❌ No se pudo guardar el pago F29. La operación NO se contabilizó.','e');return;}
   const numPago=numeroMostrar(S.asientos.find(a=>a.id===idPago))||folio;
-  toast(`✅ Asiento N°${numPago} — pago F29 ${per} · ${fmtC(r.total)}`);
-  logAccion('Generó pago de F29',`${per} · asiento N°${numPago} · ${fmtC(r.total)}`);
+  PAGOF29.reemplazarId=idPago;PAGOF29.montos={};   // un nuevo «Generar» reemplaza este pago salvo que se elija «Registrar otro»
+  toast(`✅ Asiento N°${numPago} ${reemplazo?'reemplazado':'registrado'} — pago F29 ${per} · ${fmtC(r.total)}`);
+  logAccion(reemplazo?'Reemplazó pago de F29':'Generó pago de F29',`${per} · asiento N°${numPago} · ${fmtC(r.total)}`);
   PAGOF29.montos={}; PAGOF29.fecha=''; PAGOF29.glosa='';
   rerender();
   renderF29();
@@ -1439,5 +1471,5 @@ export {setRemanenteAnticipoInicialF29, setF29Manual, setF29Anticipo, setF29Tasa
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,
-        setPagoF29Cuenta, setPagoF29Campo, setPagoF29Monto, togglePagoF29, resetPagoF29, usarSugeridoF29,
+        setPagoF29Cuenta, setPagoF29Campo, setPagoF29Monto, togglePagoF29, setPagoF29Reemplazo, resetPagoF29, usarSugeridoF29,
         ivaRetenidoFacturasCompra, asientoPagoExistente, asientosPagoF29};
