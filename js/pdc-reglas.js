@@ -57,6 +57,8 @@ function asegurarCuentasSistema(arr=PDC){
     {cd:'2103005',nm:'IVA RETENIDO FACTURAS DE COMPRA',tp:'P',nat:'C',tipoIVA:'iva_retenido',esCuentaTributaria:true},
     // V2.22.6 · Ventas pagadas con tarjeta, por cobrar al operador de pagos
     {cd:'1107004',nm:'TARJETAS POR COBRAR (DÉBITO Y CRÉDITO)',tp:'A',nat:'D'},
+    // V2.22.20 · Activo fijo en construcción o puesta en marcha (no se deprecia hasta ponerlo en servicio)
+    {cd:'1201007',nm:'OBRAS EN CURSO',tp:'A',nat:'D'},
   ];
   for(const c of requeridas){
     if(!arr.some(x=>x.cd===c.cd)){arr.push(normalizarCuenta(c));cambios++;}

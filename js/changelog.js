@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.04-1800';
+const APP_VERSION='v2026.11.04-1900';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.20',fecha:'04-11-2026',titulo:'Activo fijo: obras en curso y mejoras',items:[
+    {tipo:'nuevo',txt:'Fichas en etapa «🏗️ Obra en curso / puesta en marcha»: sus facturas (registradas en Compras con la línea a la nueva cuenta 1201007 OBRAS EN CURSO) se agregan a la ficha con 🧾 y forman su costo, sin depreciarse. Al terminar, «✅ Poner en servicio» genera el traspaso de 1201007 a la cuenta del bien y la depreciación parte en esa fecha.'},
+    {tipo:'nuevo',txt:'Mejoras de un bien en uso (por ejemplo, de una maquinaria): la factura se registra en Compras a la cuenta del bien y se agrega con 🧾 como mejora. Suma al costo y se deprecia desde su fecha en la vida útil restante del bien (mínimo 12 meses). Con depreciación instantánea, las mejoras del año se rebajan en la conciliación de Renta.'},
+  ]},
   {version:'V2.22.19',fecha:'04-11-2026',titulo:'F29: editar y regenerar sin duplicar',items:[
     {tipo:'nuevo',txt:'La compensación de IVA y el pago del F29 ahora se pueden editar (✏️ Editar en Libro Diario y Comprobantes), como un asiento manual y con el mismo número. Al editar el pago, el total pagado y la cuenta de banco del F29 se actualizan.'},
     {tipo:'correccion',txt:'«Generar de nuevo» la compensación de IVA creaba OTRO asiento y dejaba el anterior. Ahora «♻️ Regenerar» recalcula y reemplaza el mismo asiento (mismo número).'},

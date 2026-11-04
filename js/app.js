@@ -125,7 +125,7 @@ import {renderAsientos, abrirForm, cerrarForm, editarAsiento, duplicarAsiento,
         proxFolioAsiento, proxFolioComprobante, migrarFoliosComprobante, AF} from './asientos.js';
 import {asegurarNumerosContables} from './correlativo-contable.js';
 import {renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF,
-        editarAF, eliminarAF, generarAsientoDepreciacion, AFB} from './activofijo.js';
+        editarAF, eliminarAF, generarAsientoDepreciacion, AFB, toggleCostosAF, onCompraCostoAF, agregarCostoAF, quitarCostoAF, ponerEnServicioAF} from './activofijo.js';
 import {imprimirRemuneraciones,renderRemuneraciones, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange,
         previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador,
         onParamRem, verLiquidacion, generarAsientoRemuneraciones, REMF, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired} from './remuneraciones.js';
@@ -837,7 +837,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   dtmRenderDist, dtmUpdDistCheck, dtmRemover, quitarDte, folioPreviewDte, abrirAsientoDesde,
   // activo fijo
   renderActivoFijo, abrirFormAF, onCatAF, onCompraAF, cerrarFormAF, previewAF, guardarAF, editarAF,
-  eliminarAF, generarAsientoDepreciacion,
+  eliminarAF, generarAsientoDepreciacion, toggleCostosAF, onCompraCostoAF, agregarCostoAF, quitarCostoAF, ponerEnServicioAF,
   // remuneraciones
   renderRemuneraciones, ctGuardarEdicion, ctInsertarDato, ctValidarEditor, ctBajarWordPlantilla, ctBajarWordEditor, ctSubirWordPlantilla, ctReset, ctVistaActiva, volverContratos, abrirContratoTrabajo, ctCambiarPlantilla, ctEditarTexto, ctGuardarTexto, ctQuitarTexto, ctImprimir, ctPDF, ctWord,
   ctInsertar, verPlantillasContrato, ctEditarPlantilla, ctNuevaPlantilla, ctDuplicarPlantilla, ctCancelarPlantilla, ctSubirPlantilla, ctGuardarPlantilla,
