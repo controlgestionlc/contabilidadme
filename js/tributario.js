@@ -13,6 +13,7 @@ import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {tributacionCompra,clasificacionIVACompra,periodoContableCompra} from './motor-contable.js';
 import {utmDelPeriodo,fuenteUTM,cargarUTMHistorico,asegurarUTMHistoricoAlDia} from './utm-historico.js';
 import './storage.js';
+import {numeroMostrar} from './correlativo-contable.js';
 
 
 
@@ -941,7 +942,7 @@ function renderCompensacionIVA(){
         <div style="font-size:15px;font-weight:700">🧾 Asiento de compensación de IVA</div>
         <div style="font-size:11px;color:var(--mt);margin-top:2px">Liquidación del período ${MESES[mes-1]} ${anio} — salda Débito contra Crédito Fiscal</div>
       </div>
-      ${yaExiste?`<span class="badge br" title="Ya se generó la compensación de este período">⚠️ Ya generado — Asiento N°${yaExiste.n}</span>`:''}
+      ${yaExiste?`<span class="badge br" title="Ya se generó la compensación de este período">⚠️ Ya generado — Asiento N°${numeroMostrar(yaExiste)}</span>`:''}
     </div>
 
     <div class="info-tip" style="margin:10px 0 14px;font-size:11px;line-height:1.6">
@@ -1053,7 +1054,7 @@ async function generarAsientoIVA(){
   const per=`${MESES[mes-1]} ${anio}`;
   const resumen=r.ivaAPagar>0?`IVA a pagar ${fmtC(r.ivaAPagar)}`:`Remanente ${fmtC(r.remanenteNuevo)}`;
   const msg=(yaExiste
-      ? `⚠️ Ya existe el asiento N°${yaExiste.n} de compensación de ${per}.\nSe creará OTRO asiento (el anterior no se borra: anúlalo si corresponde).\n\n`
+      ? `⚠️ Ya existe el asiento N°${numeroMostrar(yaExiste)} de compensación de ${per}.\nSe creará OTRO asiento (el anterior no se borra: anúlalo si corresponde).\n\n`
       : '')
     +`Compensación de IVA — ${per}\n\n`
     +`Débito fiscal:   ${fmtC(r.d.debito)}\n`
@@ -1067,15 +1068,18 @@ async function generarAsientoIVA(){
   const folio=proxFolioComprobante();
   const fecha=IVAC.fecha||ultimoDiaMes(anio,mes);
   const glosa=IVAC.glosa||`Compensación IVA ${per} — F29`;
+  const idIVA='as_iva_'+Date.now();
   const pr=await persistirAsientosCritico(()=>{S.asientos.push({
-    id:'as_iva_'+Date.now(),n:folio,folioComp:folio,fecha,glosa,
+    id:idIVA,n:folio,folioComp:folio,fecha,glosa,
     movs:r.movs.map(m=>({...m})),
     origenAuto:'ivaf29',periodoIVA:periodo,tipo:'tributario',
     f29Detalle:{version:13,periodo,componentes:{ivaAPagar:Math.round(r.ivaAPagar||0),ppmProvisionado:IVAC.incluirPPM?Math.round(r.d.ppm||0):0,remanenteNuevo:Math.round(r.remanenteNuevo||0)},cuentas:{...IVAC.cuentas},calculado:snapshotF29(r.d),declarado:esF29Presentado(declaracionF29(periodo))?{...(declaracionF29(periodo).declarado||{})}:null},
   });});
   if(!pr.ok){toast('❌ No se pudo guardar la compensación de IVA. La operación NO se contabilizó.','e');return;}
-  toast(`✅ Asiento N°${folio} — compensación IVA ${per} · ${resumen}`);
-  logAccion('Generó compensación de IVA',`${per} · asiento N°${folio} · ${resumen}`);
+  // V2.22.17 · el número es el contable definitivo (el del Libro Diario), no el folio provisorio
+  const numIVA=numeroMostrar(S.asientos.find(a=>a.id===idIVA))||folio;
+  toast(`✅ Asiento N°${numIVA} — compensación IVA ${per} · ${resumen}`);
+  logAccion('Generó compensación de IVA',`${per} · asiento N°${numIVA} · ${resumen}`);
   rerender();
   renderF29();
 }
@@ -1369,15 +1373,17 @@ async function generarAsientoPagoF29(){
   const folio=proxFolioComprobante();
   const fecha=PAGOF29.fecha||fechaPagoDefault(anio,mes);
   const glosa=PAGOF29.glosa||`Pago F29 ${per}`;
+  const idPago='as_pagof29_'+Date.now();
   const pr=await persistirAsientosCritico(()=>{S.asientos.push({
-    id:'as_pagof29_'+Date.now(),n:folio,folioComp:folio,fecha,glosa,
+    id:idPago,n:folio,folioComp:folio,fecha,glosa,
     movs:r.movs.map(m=>({...m})),
     origenAuto:'pagof29',periodoIVA:periodo,tipo:'tributario',
     f29Detalle:{version:14,periodo,pagoNro:pagosPrevios.length+1,componentes:Object.fromEntries(CONCEPTOS_F29.map(c=>[c.k,PAGOF29.incluir[c.k]?Math.round(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:r.sug[c.k]||0):0])),cuentas:{...PAGOF29.cuentas},totalTributos:Math.round(CONCEPTOS_F29.filter(c=>!c.gasto&&PAGOF29.incluir[c.k]).reduce((t,c)=>t+(PAGOF29.montos[c.k]!=null?PAGOF29.montos[c.k]:r.sug[c.k]||0),0)),totalPagado:Math.round(r.total||0),declarado:esF29Presentado(declaracionF29(periodo))?{...(declaracionF29(periodo).declarado||{})}:null},
   });});
   if(!pr.ok){toast('❌ No se pudo guardar el pago F29. La operación NO se contabilizó.','e');return;}
-  toast(`✅ Asiento N°${folio} — pago F29 ${per} · ${fmtC(r.total)}`);
-  logAccion('Generó pago de F29',`${per} · asiento N°${folio} · ${fmtC(r.total)}`);
+  const numPago=numeroMostrar(S.asientos.find(a=>a.id===idPago))||folio;
+  toast(`✅ Asiento N°${numPago} — pago F29 ${per} · ${fmtC(r.total)}`);
+  logAccion('Generó pago de F29',`${per} · asiento N°${numPago} · ${fmtC(r.total)}`);
   PAGOF29.montos={}; PAGOF29.fecha=''; PAGOF29.glosa='';
   rerender();
   renderF29();

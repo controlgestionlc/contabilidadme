@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.04-1630';
+const APP_VERSION='v2026.11.04-1700';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.17',fecha:'04-11-2026',titulo:'F29: número de asiento igual al del Libro Diario',items:[
+    {tipo:'correccion',txt:'El F29 mostraba "Ya generado — Asiento N°…" con el folio provisorio del momento de generarlo, no con el número contable definitivo que muestra el Libro Diario: podía apuntar a otro asiento (por ejemplo, a una factura de compra). Ahora la compensación de IVA y el pago del F29 muestran el mismo número del Libro Diario.'},
+    {tipo:'correccion',txt:'Lo mismo en el aviso de ejercicio ya cerrado, el de posible asiento duplicado y la asignación de centros de costo.'},
+  ]},
   {version:'V2.22.16',fecha:'04-11-2026',titulo:'Venta cobrada no cambia de forma de pago',items:[
     {tipo:'correccion',txt:'Si una venta a Clientes ya estaba incluida en un cobro y se cambiaba a Contado, Tarjetas o Deudores, el cobro seguía rebajando 1104001 Clientes sin el cargo de la venta y Clientes quedaba con saldo negativo. Ahora el sistema no permite ese cambio (al editar ni en el cambio masivo) hasta quitar la venta del cobro en Pagos y Cobros → Historial.'},
   ]},

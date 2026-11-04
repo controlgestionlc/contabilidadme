@@ -102,7 +102,7 @@ export function movimientosGasto() {
       out.push({
         k: `a|${a.id}|${i}`, tipo: 'asiento',
         fecha: a.fecha || '', cuenta: m.cd, monto,
-        doc: `Asiento N°${a.n}`,
+        doc: `Asiento N°${a.numeroContable||a.n}`,
         glosa: [a.glosa || '', m.desc || ''].filter(Boolean).join(' — '),
         cc: m.cc || '', ccDoc: '',
         ir: `editarAsientoRef(${a.n})`,

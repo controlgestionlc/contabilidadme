@@ -1042,7 +1042,7 @@ async function guardarAsiento(){
   const sig=sigAsiento(fecha,movsClean);
   const dupAs=S.asientos.find(a=>a.id!==AF.editId&&sigAsiento(a.fecha,a.movs)===sig);
   if(dupAs){
-    if(!confirm(`⚠️ POSIBLE DUPLICADO\n\nYa existe el Asiento N°${dupAs.n} con la misma fecha, cuentas y montos:\n  "${dupAs.glosa}"\n\n¿Deseas crear este asiento de todas formas?`)){
+    if(!confirm(`⚠️ POSIBLE DUPLICADO\n\nYa existe el Asiento N°${dupAs.numeroContable||dupAs.n} con la misma fecha, cuentas y montos:\n  "${dupAs.glosa}"\n\n¿Deseas crear este asiento de todas formas?`)){
       return;
     }
   }

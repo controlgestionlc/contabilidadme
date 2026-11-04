@@ -60,7 +60,7 @@ async function generarAsientoCierre(){
   const anio=S.empresa.anio;
   if(!puedeGestionarCierreAnual()){toast('🚫 No tienes permiso para cerrar este ejercicio en la empresa activa','e');return;}
   const existente=S.asientos.find(a=>!a.anulado&&(a.tipo==='cierre'||(a.glosa&&a.glosa.includes('Cierre del ejercicio '+anio))));
-  if(existente){toast(`🔒 El ejercicio ${anio} ya está cerrado (Asiento N°${existente.n})`,'e');return;}
+  if(existente){toast(`🔒 El ejercicio ${anio} ya está cerrado (Asiento N°${existente.numeroContable||existente.n})`,'e');return;}
   const aud=auditoriaIntegridad();
   const criticas=(aud.hallazgos||[]).filter(h=>h.sev==='critica');
   if(criticas.length){
