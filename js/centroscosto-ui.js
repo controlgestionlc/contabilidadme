@@ -42,15 +42,15 @@ export function renderCentrosCosto(){
       No hay centros de costo.<br><br>
       <button class="btn btn-p" onclick="abrirFormCC(1)">+ Crear primer centro</button>
       <div style="margin-top:14px;font-size:11px;color:var(--mt);max-width:420px;margin-left:auto;margin-right:auto">
-        Organiza los costos en dos niveles: <strong>centro principal</strong> (ej. Administración, Área Maderas, Transporte, un predio)
-        y <strong>subcentro</strong> (ej. Contabilidad, Aserradero, Camión 1, un cuartel).
+        Organiza los costos en dos niveles: <strong>centro principal</strong> (ej. Administración, Producción, Ventas, una sucursal)
+        y <strong>subcentro</strong> (ej. Contabilidad, Planta 1, Vehículo 1, un proyecto).
         Los subcentros <strong>Normales</strong> solo acumulan costos; únicamente los marcados como <strong>inversión en curso</strong> habilitan capitalización a activo fijo.
       </div></div>
   <!-- Formulario -->
   <div class="card" id="cc-form" style="display:none;margin-top:14px">
     <div class="card-title" id="ccf-title">Nuevo centro de costo</div>
     <div class="fg">
-      <div class="grp full"><label>Nombre</label><input type="text" id="ccf-nombre" placeholder="Ej: Administración · Transporte · Cuartel 3"></div>
+      <div class="grp full"><label>Nombre</label><input type="text" id="ccf-nombre" placeholder="Ej: Administración · Ventas · Proyecto A"></div>
       <div class="grp"><label>Código (opcional)</label><input type="text" id="ccf-codigo" placeholder="Ej: ADM · TRA · C03"></div>
       <div class="grp" id="ccf-padre-wrap"><label>Centro principal</label><select id="ccf-padre"></select></div>
       <div class="grp" id="ccf-estado-wrap"><label>Tipo de centro</label><select id="ccf-estado" onchange="onTipoCentroChange()">
@@ -66,7 +66,7 @@ export function renderCentrosCosto(){
       <div class="grp full" id="ccf-pcts-wrap">
         <label>% que se capitaliza cada año</label>
         <div id="ccf-pcts" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-        <div style="font-size:10px;color:var(--mt);margin-top:4px">El resto de cada año va a <strong>costo del período</strong> (resultado). Ej. cerezos: años 1-3 100% activo, año 4 50/50, año 5 en adelante 100% costo.</div>
+        <div style="font-size:10px;color:var(--mt);margin-top:4px">El resto de cada año va a <strong>costo del período</strong> (resultado). Ej.: años 1-3 100% activo, año 4 50/50, año 5 en adelante 100% costo.</div>
       </div>
     </div>
     <div class="save-row" style="display:flex;gap:8px">
@@ -145,7 +145,7 @@ export function renderCentrosCosto(){
   <div class="card" id="cc-form" style="display:none;margin-top:14px">
     <div class="card-title" id="ccf-title">Nuevo centro de costo</div>
     <div class="fg">
-      <div class="grp full"><label>Nombre</label><input type="text" id="ccf-nombre" placeholder="Ej: Administración · Transporte · Cuartel 3"></div>
+      <div class="grp full"><label>Nombre</label><input type="text" id="ccf-nombre" placeholder="Ej: Administración · Ventas · Proyecto A"></div>
       <div class="grp"><label>Código (opcional)</label><input type="text" id="ccf-codigo" placeholder="Ej: ADM · TRA · C03"></div>
       <div class="grp" id="ccf-padre-wrap"><label>Centro principal</label><select id="ccf-padre"></select></div>
       <div class="grp" id="ccf-estado-wrap"><label>Tipo de centro</label><select id="ccf-estado" onchange="onTipoCentroChange()">
@@ -161,7 +161,7 @@ export function renderCentrosCosto(){
       <div class="grp full" id="ccf-pcts-wrap">
         <label>% que se capitaliza cada año</label>
         <div id="ccf-pcts" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-        <div style="font-size:10px;color:var(--mt);margin-top:4px">El resto de cada año va a <strong>costo del período</strong> (resultado). Ej. cerezos: años 1-3 100% activo, año 4 50/50, año 5 en adelante 100% costo.</div>
+        <div style="font-size:10px;color:var(--mt);margin-top:4px">El resto de cada año va a <strong>costo del período</strong> (resultado). Ej.: años 1-3 100% activo, año 4 50/50, año 5 en adelante 100% costo.</div>
       </div>
     </div>
     <div class="save-row" style="display:flex;gap:8px">
@@ -209,7 +209,7 @@ function renderDetalleCC(id){
     <td style="font-family:var(--mono);text-align:right;font-size:11px;color:var(--warn)">${fmtC(f.costo)}</td>
   </tr>`).join('');
   return `<tr style="background:rgba(0,0,0,.12)">
-      <td class="tl" style="padding-left:34px;font-size:10px;color:var(--mt);text-transform:uppercase">Temporada</td>
+      <td class="tl" style="padding-left:34px;font-size:10px;color:var(--mt);text-transform:uppercase">Período</td>
       <td style="text-align:right;font-size:10px;color:var(--mt)">GASTO</td>
       <td style="text-align:right;font-size:10px;color:var(--ach)">→ ACTIVO</td>
       <td style="text-align:right;font-size:10px;color:var(--warn)">→ COSTO</td>
@@ -281,7 +281,7 @@ function renderPreviewCierre(){
   const pendientes=conMovs.filter(f=>!f.cerrado&&f.m.total>0);
 
   cont.innerHTML=`<div class="card-np" style="margin-bottom:10px"><div class="tw"><table>
-    <thead><tr><th class="tl">CENTRO</th><th class="tl">TEMPORADA</th><th style="text-align:right">GASTO MES</th><th style="text-align:right">% ACT</th><th style="text-align:right">→ ACTIVO</th><th style="text-align:right">→ COSTO</th><th></th></tr></thead>
+    <thead><tr><th class="tl">CENTRO</th><th class="tl">PERÍODO</th><th style="text-align:right">GASTO MES</th><th style="text-align:right">% ACT</th><th style="text-align:right">→ ACTIVO</th><th style="text-align:right">→ COSTO</th><th></th></tr></thead>
     <tbody>${conMovs.map(({centro,m,cerrado})=>`<tr${cerrado?' style="opacity:.5"':''}>
       <td class="tl" style="font-size:12px">${centro.nombre}</td>
       <td class="tl" style="font-size:11px;color:var(--mt)">${m.lblTemporada} · año ${m.anioFormacion}</td>
@@ -315,7 +315,7 @@ export async function ejecutarCierreMensual(){
   const totActivo=pendientes.reduce((s,x)=>s+x.m.activo,0);
   const totCosto=pendientes.reduce((s,x)=>s+x.m.costo,0);
   const totGasto=pendientes.reduce((s,x)=>s+x.m.total,0);
-  if(!confirm(`¿Cerrar ${MESES[mes-1]} ${anio}?\n\n${pendientes.length} cuarteles\nGasto del mes: ${fmtC(totGasto)}\n→ Activo (inversión): ${fmtC(totActivo)}\n→ Costo del período: ${fmtC(totCosto)}\n\nSe generará un asiento de traspaso. Podrás revertirlo si te equivocas.`))return;
+  if(!confirm(`¿Cerrar ${MESES[mes-1]} ${anio}?\n\n${pendientes.length} subcentro${pendientes.length===1?'':'s'}\nGasto del mes: ${fmtC(totGasto)}\n→ Activo (inversión): ${fmtC(totActivo)}\n→ Costo del período: ${fmtC(totCosto)}\n\nSe generará un asiento de traspaso. Podrás revertirlo si te equivocas.`))return;
 
   const movs=[];
   // Por cada cuartel: cargar su activo en curso y su costo de huerto
@@ -557,10 +557,10 @@ export function abrirCapitalizar(id){
   cont.innerHTML=`
     <div class="info-tip" style="margin-bottom:12px">
       Se traspasará a activo fijo <strong>solo la porción activable</strong> de <strong>${ccNombre(id)}</strong>,
-      según la curva de capitalización configurada. El resto ya es costo del huerto y permanece en resultado.
+      según la curva de capitalización configurada. El resto ya es costo del período y permanece en resultado.
     </div>
     <div class="card-np" style="margin-bottom:12px"><div class="tw"><table>
-      <thead><tr><th class="tl">TEMPORADA</th><th style="text-align:right">GASTO</th><th style="text-align:right">% ACT.</th><th style="text-align:right">A ACTIVO</th><th style="text-align:right">A COSTO</th></tr></thead>
+      <thead><tr><th class="tl">PERÍODO</th><th style="text-align:right">GASTO</th><th style="text-align:right">% ACT.</th><th style="text-align:right">A ACTIVO</th><th style="text-align:right">A COSTO</th></tr></thead>
       <tbody>${rep.filas.map(f=>`<tr>
         <td class="tl" style="font-size:12px">${f.lbl} <span style="color:var(--mt)">(año ${f.anioFormacion})</span></td>
         <td style="font-family:var(--mono);text-align:right">${fmtC(f.total)}</td>
@@ -583,8 +583,8 @@ export function abrirCapitalizar(id){
       </select></div>
       <div class="grp full"><label>Cuenta de costo del período</label><select id="cap-cuenta-costo">
         ${PDC.filter(x=>x.cd.length===7&&x.nat&&(x.cd.startsWith('31')||x.cd.startsWith('33'))).map(x=>`<option value="${x.cd}" ${x.cd===(c.cuentaCosto||'3101003')?'selected':''}>${x.cd} — ${x.nm}</option>`).join('')}
-      </select><div style="font-size:10px;color:var(--mt);margin-top:2px">Recibe la parte NO capitalizable (${fmtC(rep.totalCosto)}), que va a resultado de la temporada.</div></div>
-      <div class="grp full"><label>Descripción del activo</label><input type="text" id="cap-desc" value="${c.nombre}" placeholder="Ej: Plantación cuartel 3 · Galpón · Camión"></div>
+      </select><div style="font-size:10px;color:var(--mt);margin-top:2px">Recibe la parte NO capitalizable (${fmtC(rep.totalCosto)}), que va a resultado del período.</div></div>
+      <div class="grp full"><label>Descripción del activo</label><input type="text" id="cap-desc" value="${c.nombre}" placeholder="Ej: Proyecto A · Galpón · Equipo"></div>
     </div>
     <div class="info-tip" style="font-size:11px;margin:10px 0;background:rgba(210,153,34,.10);border-color:var(--warn)">
       ⚠️ Revisa con tu contador qué costos son capitalizables. En general se activan los <strong>costos directos del proyecto</strong> (materiales, mano de obra, preparación) y no los gastos generales de administración.
@@ -608,7 +608,7 @@ export async function confirmarCapitalizar(id){
   const cuentaCosto=(document.getElementById('cap-cuenta-costo')||{}).value||c.cuentaCosto||'3101003';
   if(!cuentaActivo){toast('⚠️ Selecciona la cuenta de activo','e');return;}
   if(rep.totalCosto>0&&!cuentaCosto){toast('⚠️ Selecciona la cuenta de costo del período','e');return;}
-  if(!confirm(`¿Capitalizar ${fmtC(total)} de "${c.nombre}" a la cuenta ${cuentaActivo}?\n\nGasto total acumulado: ${fmtC(rep.totalGasto)}\nSe capitaliza (activo): ${fmtC(rep.totalActivo)}\nQueda como costo del período: ${fmtC(rep.totalCosto)}\n\nSe generará el asiento de traspaso y el cuartel quedará como capitalizado.`))return;
+  if(!confirm(`¿Capitalizar ${fmtC(total)} de "${c.nombre}" a la cuenta ${cuentaActivo}?\n\nGasto total acumulado: ${fmtC(rep.totalGasto)}\nSe capitaliza (activo): ${fmtC(rep.totalActivo)}\nQueda como costo del período: ${fmtC(rep.totalCosto)}\n\nSe generará el asiento de traspaso y el subcentro quedará como capitalizado.`))return;
 
   // ── Construcción del asiento ──
   // Se abona el TOTAL de los gastos acumulados (por su cuenta de origen) y se

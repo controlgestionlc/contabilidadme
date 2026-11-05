@@ -226,7 +226,7 @@ function bloqueDistribucion(){
       <span style="font-weight:600">Distribuir el gasto entre varias cuentas por porcentaje</span>
     </label>
     <div style="font-size:10px;color:var(--mt);margin-top:2px;margin-left:24px">
-      Útil cuando un mismo documento se reparte entre predios o áreas. Cada tramo puede llevar su centro de costo.
+      Útil cuando un mismo documento se reparte entre áreas o centros de costo. Cada tramo puede llevar su centro de costo.
     </div>
     ${activa?`
     <div style="margin-top:12px">

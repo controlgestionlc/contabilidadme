@@ -279,7 +279,7 @@ export function renderAsigCC() {
       <div class="empty"><div class="ei">📊</div>
         <div style="font-weight:600;margin-bottom:6px">Todavía no hay centros de costo</div>
         <div style="font-size:12px;max-width:520px;margin:0 auto 14px">
-          Un centro de costo es el predio, el cuartel, el camión o el área a la que se le carga
+          Un centro de costo es el área, el proyecto, el local, el vehículo o la unidad a la que se le carga
           el gasto. Sin al menos uno creado no hay nada que asignar.
         </div>
         <button class="btn btn-p" onclick="nav('centroscosto')">Crear centros de costo</button>
@@ -318,8 +318,8 @@ export function renderAsigCC() {
     </div>
     <div class="info-tip" style="margin-top:12px">
       📊 Aquí están los movimientos de cuentas de <strong>gasto y costo</strong> (grupos 31 a 35) del
-      ejercicio ${S.empresa.anio}. Los que quedaron sin centro no suman en el costo acumulado del predio
-      ni del cuartel, así que la capitalización y el control de costos salen cortos.
+      ejercicio ${S.empresa.anio}. Los que quedaron sin centro no suman en el costo acumulado de ningún
+      centro ni subcentro, así que la capitalización y el control de costos salen cortos.
       Asignar aquí escribe en el mismo campo que se llena al capturar el documento: el resultado es
       idéntico a haberlo puesto desde el principio.
     </div>

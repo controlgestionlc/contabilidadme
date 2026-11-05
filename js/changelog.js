@@ -8,13 +8,16 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.04-2140';
+const APP_VERSION='v2026.11.05-1530';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.23',fecha:'05-11-2026',titulo:'Textos genéricos para cualquier rubro',items:[
+    {tipo:'cambio',txt:'Los avisos y ayudas de centros de costo ya no hablan de predios, cuarteles ni huertos: usan centro y subcentro, para empresas de cualquier rubro (por ejemplo, el aviso de gastos sin centro de costo del Estado de Resultados).'},
+  ]},
   {version:'V2.22.22',fecha:'05-11-2026',titulo:'Centro de costo sólo donde corresponde',items:[
     {tipo:'cambio',txt:'Las cuentas de activo ya no piden centro de costo al importar el RCV ni al registrar o editar una compra o boleta de honorarios, aunque tengan marcado «Centro de costo obligatorio».'},
     {tipo:'cambio',txt:'El centro de costo es obligatorio en las cuentas de gasto y en cualquier otra cuenta marcada con «Centro de costo obligatorio». Un documento del RCV con una cuenta de gasto sin centro queda pendiente en el importador para completarlo.'},

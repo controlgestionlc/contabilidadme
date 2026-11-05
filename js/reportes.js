@@ -923,7 +923,7 @@ async function renderResultados(){
       avisoCC=`<div class="eerr-aviso no-print">
         <span style="font-size:16px">🎯</span>
         <span><strong>${p.n} movimiento${p.n===1?'':'s'} de gasto por ${fmtC(p.monto)}</strong>
-        no tiene${p.n===1?'':'n'} centro de costo, así que no suma${p.n===1?'':'n'} en el costo del predio ni del cuartel.</span>
+        no tiene${p.n===1?'':'n'} centro de costo, así que no suma${p.n===1?'':'n'} en el costo de ningún centro ni subcentro.</span>
         <button class="btn btn-g" style="margin-left:auto;font-size:11px" onclick="nav('asigcc')">Asignar centros</button>
       </div>`;
     }
