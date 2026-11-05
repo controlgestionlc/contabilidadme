@@ -13,7 +13,7 @@ import {leerArchivo,resolverVencimientoImportado} from './importadorsii.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import './storage.js';
 import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
-import {validarMovimientosPDC} from './pdc-reglas.js';
+import {validarMovimientosPDC,lineasSinCentroCosto} from './pdc-reglas.js';
 import {buscarRecepcionParaCompra} from './conciliacion-compras-motor.js';
 import {validarDetalleRCV} from './rcv-detalle.js';
 
@@ -52,6 +52,8 @@ function validarCuadraturaImportCompras(){
       const vd=validarDetalleRCV('compra',d,d.detalleRCV.lineas,{aceptaRedondeo:d.detalleRCV.aceptaRedondeo,legacyOtros:!(d.detalleRCV.v>=2),ivaLinea:d.detalleRCV.iva??null});
       if(!vd.ok){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:'Detalle del paso 2: '+vd.errores[0],tipo:'detalle'});return;}
     }
+    const sinCC=lineasSinCentroCosto(dist);
+    if(sinCC.length){out.push({idx:i,tipoDTE:d.tipoDTE,numero:d.numero,diferencia:0,motivo:`La cuenta de gasto ${sinCC[0].cuenta} exige centro de costo`,tipo:'pdc'});return;}
     const doc={...d,id:prev?.id||`preview-c-${i}`,fecha:d.fechaOriginal||d.fecha,
       periodoContable:periodoImportSeleccionado(),fechaContabilizacion:fechaContabilizacionImport(d),dist,
       totalIncluyeRetencion:(+d.tipoDTE===45||+d.tipoDTE===46)?false:d.totalIncluyeRetencion,
@@ -748,6 +750,8 @@ async function guardarCompra(){
   if(!dist.length){toast('⚠️ Agrega al menos una cuenta de gasto','e');return;}
   const sumDist=dist.reduce((s,l)=>s+l.monto,0);
   if(Math.abs(sumDist-(neto+exento))>1){toast('⚠️ La distribución debe cuadrar con Neto + Exento','e');return;}
+  const sinCC=lineasSinCentroCosto(dist);
+  if(sinCC.length){toast(`⚠️ La cuenta de gasto ${sinCC[0].cuenta} exige centro de costo`,'e');return;}
 
   const dup=S.compras.find(v=>v.rutCodigo===r.codigo&&+v.tipoDTE===tipoDTE&&v.numero===numero&&v.id!==CF.editId);
   if(dup){

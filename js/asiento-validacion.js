@@ -43,7 +43,7 @@ function validarAsientoCentral(a,{validarReferencias=true}={}){
     if(debe>0&&haber>0)errores.push(`Línea ${i+1}: no puede tener Debe y Haber simultáneamente`);
     if(debe===0&&haber===0)errores.push(`Línea ${i+1}: el movimiento tiene monto cero`);
     const r=reglaCuenta(m.cd);
-    if(r?.requiereCentroCosto&&!m.cc)errores.push(`Línea ${i+1}: la cuenta ${m.cd} exige centro de costo`);
+    if(r?.requiereCentroCosto&&r.tipo!=='A'&&!m.cc)errores.push(`Línea ${i+1}: la cuenta ${m.cd} exige centro de costo`);
     if(m.cc&&!centroExiste(m.cc))errores.push(`Línea ${i+1}: el centro de costo ${m.cc} no existe`);
   });
 

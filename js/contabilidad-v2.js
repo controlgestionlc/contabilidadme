@@ -452,7 +452,7 @@ function auditoriaIntegridad(){
         if(!r.activa)agregar('alta','cuenta_inactiva',`Asiento ${a.n||a.id}: usa cuenta inactiva ${m.cd}`,a.id);
         if(!r.aceptaMovimientos)agregar('critica','movimiento_en_agrupadora',`Asiento ${a.n||a.id}: movimiento directo en cuenta agrupadora ${m.cd}`,a.id);
         if(r.requiereAuxiliar&&!m.rutCodigo)agregar('critica','cuenta_requiere_auxiliar',`Asiento ${a.numeroContable||a.n||a.id}: ${m.cd} requiere auxiliar`,a.id);
-        if(r.requiereCentroCosto&&!m.cc)agregar('critica','cc_obligatorio_faltante',`Asiento ${a.numeroContable||a.n||a.id}: ${m.cd} exige centro de costo`,a.id);
+        if(r.requiereCentroCosto&&r.tipo!=='A'&&!m.cc)agregar('critica','cc_obligatorio_faltante',`Asiento ${a.numeroContable||a.n||a.id}: ${m.cd} exige centro de costo`,a.id);
         if(m.cc&&!r.aceptaCentroCosto)agregar('alta','cc_no_permitido',`Asiento ${a.numeroContable||a.n||a.id}: ${m.cd} no admite centro de costo`,a.id);
         if(m.cc&&!(S.centros||[]).some(c=>String(c.id)===String(m.cc)||String(c.codigo||'')===String(m.cc)))agregar('critica','cc_inexistente',`Asiento ${a.numeroContable||a.n||a.id}: centro de costo ${m.cc} inexistente`,a.id);
       }

@@ -18,7 +18,7 @@
 // Una diferencia de $1 por redondeo del emisor sólo se acepta marcándola.
 
 import {fmtC, IVA, dteC, dteV, rutFmt, pdcNm, toast, PDC} from './core.js';
-import {reglaCuenta} from './pdc-reglas.js';
+import {reglaCuenta,exigeCentroCosto} from './pdc-reglas.js';
 import {ccOpts, ccNombre} from './centroscosto.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {tributacionCompra, asientoCompra, asientoVenta, asientoHonorarioDoc, esCuentaCajaBanco, CUENTA_BANCO_DEFECTO} from './motor-contable.js';
@@ -47,7 +47,7 @@ function validarDetalleRCV(tipo,doc,lineas,{aceptaRedondeo=false,legacyOtros=fal
       else{
         if(!r.aceptaMovimientos)errores.push(`${k}: la cuenta ${l.cuenta} es agrupadora y no acepta movimientos.`);
         if(r.activa===false)errores.push(`${k}: la cuenta ${l.cuenta} está inactiva.`);
-        if(r.requiereCentroCosto&&!l.cc)errores.push(`${k}: la cuenta ${l.cuenta} exige centro de costo.`);
+        if(exigeCentroCosto(r)&&!l.cc)errores.push(`${k}: la cuenta ${l.cuenta} exige centro de costo.`);
         if(l.cc&&!r.aceptaCentroCosto)avisos.push(`${k}: la cuenta ${l.cuenta} no admite centro de costo; se ignorará.`);
       }
     }
