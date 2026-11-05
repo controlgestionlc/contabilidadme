@@ -3,7 +3,7 @@ import {fmtC, fmt, MESES, IVA, dteV, dteC, esDteHonorario, PDC, pdcNm, toast, pn
 import {retencionHonorarios, getIndicadores} from './indicadores.js';
 import {todosDocsCompras, todosDocsVentas, proxFolioComprobante} from './asientos.js';
 import {inputCuenta} from './buscadorcuentas.js';
-import {buildMayor} from './reportes.js';
+import {buildMayor, genDiario} from './reportes.js';
 import {logAccion} from './firebase.js';
 import {rerender} from './ui.js';
 import {savePDC} from './pdc.js';
@@ -372,6 +372,12 @@ function calcularF29Anual(){
     // a mano reemplazan lo calculado y el débito y los totales se recalculan.
     const man=(declaracionF29(per)?.manual)||{};
     const hayMan=k=>man[k]!=null&&man[k]!=='';
+    // Antes de que el valor digitado reemplace al calculado se guarda el respaldo
+    // real: el IVA que sí viene de documentos cargados. La diferencia es débito
+    // declarado que ningún asiento de venta abonó, y deja saldo en 2103003.
+    const digitado=[];
+    if(hayMan('111'))digitado.push({codigo:111,declarado:Math.max(0,Math.round(+man['111']||0)),enDocumentos:vdet.boletas.iva});
+    if(hayMan('759'))digitado.push({codigo:759,declarado:Math.max(0,Math.round(+man['759']||0)),enDocumentos:vdet.comprobantes.iva});
     if(hayMan('110'))vdet.boletas.n=Math.max(0,Math.round(+man['110']||0));
     // El neto de boletas y comprobantes ingresados a mano también suma a la
     // base del PPM (ingresos brutos): neto = IVA ÷ 19 %.
@@ -448,7 +454,7 @@ function calcularF29Anual(){
       39:ivaRetenido
     };
     const decl=declaracionF29(per);
-    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,remanenteReaj,reajusteRemanente,remanenteSinUTM,utmRemanenteAnt,utmPeriodo,utmImputacion,remanenteUTM,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,tasaPPM,tasaPPMFuente,c557Fuente,manuales,ppm,retencionHon,iusc,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
+    meses.push({m,ventasNetas,ventasExentas,debito,ivaRetenido,debitoTotal,comprasNetas,credito,creditoActivoFijo,creditoMes,ivaNoRecuperable,remanenteAnt,remanenteReaj,reajusteRemanente,remanenteSinUTM,utmRemanenteAnt,utmPeriodo,utmImputacion,remanenteUTM,creditoTotal,ivaDeterminado,ivaAPagar,remanente,basePPM,tasaPPM,tasaPPMFuente,c557Fuente,manuales,digitado,ppm,retencionHon,iusc,totalPagar,nDocsV:vs.length,nDocsC:cs.length,codigos,detalleVentas:vdet,detalleCompras:cdet,declaracion:decl||null});
     // Si el período fue presentado, el arrastre legal al mes siguiente es el
     // remanente DECLARADO, no el que hoy resulte de recalcular documentos viejos.
     remanenteAnt=esF29Presentado(decl)?codDecl(decl,77,remanente):remanente;
@@ -464,7 +470,10 @@ function calcularF29Anual(){
 // efectivamente contabilizados. Para asientos V2.13 usa metadata f29Detalle;
 // para históricos conserva un fallback por descripción/código F29.
 function _asientosF29(periodo,origen){
-  return (S.asientos||[]).filter(a=>!a.anulado&&a.origenAuto===origen&&a.periodoIVA===periodo);
+  // Incluye los que no traen la marca interna (importados, de versiones
+  // anteriores o escritos a mano): si no se contaran, dos compensaciones del
+  // mismo mes pasarían por una sola y la alerta de duplicado no saltaría.
+  return (S.asientos||[]).filter(a=>!a.anulado&&esAsientoF29De(a,periodo,origen));
 }
 function _montoMov(a,re,lado='debe'){
   return (a?.movs||[]).reduce((s,m)=>re.test(String(m.desc||''))?s+(+m[lado]||0):s,0);
@@ -752,6 +761,7 @@ function renderF29(){
     <div style="margin-top:12px;font-size:10px;color:var(--mt)">Los códigos corresponden al Formulario 29 del SII. Este es un cálculo referencial basado en tus registros; verifica antes de declarar.</div>
   </div>
   ${panelDeclaracion}
+  ${renderCuadraturaIVA(mSel)}
   ${renderConciliacionF29(mSel)}
   <div id="f29-pasos" style="max-width:900px"></div>
   <div id="ivac-content" style="max-width:760px"></div>
@@ -858,9 +868,152 @@ function ultimoDiaMes(anio,mes){
   return `${anio}-${String(mes).padStart(2,'0')}-${String(new Date(anio,mes,0).getDate()).padStart(2,'0')}`;
 }
 
+// ── Reconocer las compensaciones y los pagos del F29 ya registrados ──
+// La marca interna (origenAuto + periodoIVA) solo la llevan los asientos que
+// generó esta versión. Uno importado de otro sistema, traído de una versión
+// anterior o escrito a mano no la trae, y entonces no se ve: generar la
+// compensación del mes crea un segundo asiento y el débito queda cargado dos
+// veces en 2103003. Por eso se reconoce también por la glosa, que es la que
+// el propio sistema escribe, y por la fecha.
+const _sinTildes=x=>String(x||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+const _perIVA=(anio,mes)=>`${anio}-${String(mes).padStart(2,'0')}`;
+
+// Devuelve {origen,periodo} del asiento del F29, o null si no lo es.
+function clasificarAsientoF29(a){
+  if(a?.origenAuto&&a?.periodoIVA)return {origen:a.origenAuto,periodo:a.periodoIVA};
+  const g=_sinTildes(a?.glosa);
+  if(!g)return null;
+  const origen=g.startsWith('compensacion iva')?'ivaf29':g.startsWith('pago f29')?'pagof29':null;
+  if(!origen)return null;
+  const mes=MESES.findIndex(nm=>g.includes(_sinTildes(nm)))+1;
+  const anio=+(/\b(20\d{2})\b/.exec(g)?.[1]||0);
+  if(mes&&anio)return {origen,periodo:_perIVA(anio,mes)};
+  // Sin mes en la glosa se usa la fecha: la compensación es del último día del
+  // mes que liquida y el pago, del mes siguiente al que paga.
+  const f=String(a?.fecha||'');
+  if(!/^\d{4}-\d{2}/.test(f))return null;
+  if(origen==='ivaf29')return {origen,periodo:f.slice(0,7)};
+  const y=+f.slice(0,4),mm=+f.slice(5,7);
+  return {origen,periodo:mm===1?_perIVA(y-1,12):_perIVA(y,mm-1)};
+}
+function esAsientoF29De(a,periodo,origen){
+  const c=clasificarAsientoF29(a);
+  return !!c&&c.origen===origen&&c.periodo===periodo;
+}
+
 // ¿Ya se generó el asiento de compensación de este período?
 function asientoIVAExistente(periodo){
-  return (S.asientos||[]).find(a=>!a.anulado&&a.origenAuto==='ivaf29'&&a.periodoIVA===periodo)||null;
+  return (S.asientos||[]).find(a=>!a.anulado&&esAsientoF29De(a,periodo,'ivaf29'))||null;
+}
+
+// ═══ CUADRATURA DEL IVA DÉBITO FISCAL (2103003) ═══
+//
+// La cuenta es un vaivén mensual: las ventas la abonan documento a documento y
+// la compensación del F29 la carga de una vez por el débito del cód. 538. Si
+// los dos lados coinciden, cada mes la deja en cero. Un saldo que sobrevive al
+// mes es casi siempre una de estas cosas:
+//
+//   1. Débito declarado sin documento detrás. Los códigos 111 (boletas) y 759
+//      (comprobantes de pago electrónico) se digitan desde el resumen del SII.
+//      El F29 los suma al débito, pero si esas boletas no están cargadas como
+//      documentos de venta nadie abona la cuenta y queda un saldo deudor igual
+//      a lo digitado. Faltan además los ingresos y el dinero cobrado.
+//   2. Compensación duplicada: dos asientos cargando el mismo mes.
+//   3. Compensación desactualizada: se generó y después se agregó, editó o
+//      anuló una venta del mes, así que el abono cambió y el cargo no.
+//
+// La conciliación F29 ↔ pagos de más abajo mira el lado del impuesto a enterar
+// (cód. 89, 62, 151, 48). Esta mira el otro lado, el del devengo, que es donde
+// se esconde un descuadre que no aparece hasta que se lee el balance.
+const TOLERANCIA_IVA=1;
+const EXPLICACION_IVA={
+  'cuadra':'El débito del F29 y el mayor coinciden.',
+  'digitado-sin-documento':'El débito incluye boletas o comprobantes digitados a mano que no están cargados como documentos de venta: por eso nadie abonó la cuenta. Cárgalos como resumen de ventas del mes y el saldo se cierra solo; de paso entran los ingresos y el dinero cobrado, que también faltan.',
+  'duplicada':'Hay más de un asiento de compensación para el mes y el débito quedó cargado dos veces. Anula el repetido.',
+  'desactualizada':'La compensación se generó con un débito distinto del actual: alguna venta del mes se agregó, editó o anuló después. Regenérala desde este mismo F29.',
+  'sin-compensar':'Las ventas abonaron la cuenta pero todavía no se genera la compensación del mes.',
+  'otra':'Hay movimientos en la cuenta que no vienen ni de las ventas del mes ni de su compensación. Revisa el mayor de la cuenta en el período.',
+};
+
+// Movimientos de la cuenta de débito por período, separados por su origen.
+function movimientosDebitoIVA(){
+  const cta=IVAC.cuentas.debito;
+  const r={};
+  genDiario().forEach(e=>{
+    const per=String(e.fecha||'').slice(0,7);
+    if(!/^\d{4}-\d{2}$/.test(per))return;
+    const esComp=esAsientoF29De({glosa:e.glosa,fecha:e.fecha,
+      origenAuto:e.origenAuto,periodoIVA:e.periodoIVA},per,'ivaf29');
+    e.movs.forEach(m=>{
+      if(m.cd!==cta)return;
+      const x=r[per]||(r[per]={periodo:per,ventas:0,compensacion:0,manual:0,apertura:0,comps:new Set()});
+      const debe=+m.debe||0,haber=+m.haber||0;
+      if(e.origen==='apertura')x.apertura+=debe-haber;
+      else if(e.fuente==='ventas')x.ventas+=haber-debe;
+      else if(esComp){x.compensacion+=debe-haber;if(debe>0)x.comps.add(e.asientoId||e.ref||e.n);}
+      else x.manual+=debe-haber;
+    });
+  });
+  return r;
+}
+
+// Diagnóstico mes a mes: qué dice el F29 y qué dice el mayor.
+function cuadraturaDebitoIVA(){
+  const data=calcularF29Anual(),mov=movimientosDebitoIVA(),anio=S.empresa.anio;
+  return data.map(d=>{
+    const per=_perIVA(anio,d.m);
+    const m=mov[per]||{periodo:per,ventas:0,compensacion:0,manual:0,apertura:0,comps:new Set()};
+    const nComp=m.comps.size;
+    const saldo=m.compensacion+m.manual-m.ventas;
+    // Lo digitado a mano que ningún documento respalda: la parte del débito que
+    // el libro no puede haber abonado nunca.
+    const digitadoSinDoc=(d.digitado||[]).reduce((s,x)=>s+Math.max(0,Math.round(x.declarado)-Math.round(x.enDocumentos)),0);
+    const causa=Math.abs(saldo)<=TOLERANCIA_IVA?'cuadra'
+      :nComp>1?'duplicada'
+      :!nComp?'sin-compensar'
+      :(digitadoSinDoc>0&&Math.abs(saldo-digitadoSinDoc)<=TOLERANCIA_IVA)?'digitado-sin-documento'
+      :Math.abs(m.compensacion-Math.round(d.debito))>TOLERANCIA_IVA?'desactualizada'
+      :'otra';
+    return {periodo:per,mes:d.m,debitoF29:Math.round(d.debito),ventas:m.ventas,compensacion:m.compensacion,
+      manual:m.manual,apertura:m.apertura,nComp,saldo,digitadoSinDoc,digitado:d.digitado||[],causa};
+  });
+}
+
+// Panel de cuadratura: el mes elegido explicado y el año entero en una tabla.
+function renderCuadraturaIVA(mes){
+  const todos=cuadraturaDebitoIVA(),c=todos[mes-1];
+  const malos=todos.filter(x=>x.causa!=='cuadra'&&x.causa!=='sin-compensar');
+  const cta=IVAC.cuentas.debito,nm=pdcNm(cta)||'IVA Débito Fiscal';
+  if(!malos.length&&c.causa==='cuadra'){
+    return `<div class="card" style="max-width:980px;margin-top:14px">
+      <div style="font-size:12px;color:var(--ach)">✅ ${cta} ${nm} cuadra en ${MESES[mes-1]}: el débito del F29 y el mayor coinciden.</div>
+    </div>`;
+  }
+  const fila=x=>`<tr${x.mes===mes?' style="background:rgba(88,166,255,.08)"':''}>
+    <td class="tl">${MESES[x.mes-1]}</td>
+    <td>${fmtC(x.debitoF29)}</td><td>${fmtC(x.ventas)}</td><td>${fmtC(x.compensacion)}</td>
+    <td style="font-weight:700;color:${Math.abs(x.saldo)<=TOLERANCIA_IVA?'var(--mt)':'var(--err)'}">${x.saldo?fmtC(x.saldo):'—'}</td>
+    <td class="tl" style="color:var(--mt)">${x.causa==='cuadra'?'cuadra':x.causa==='sin-compensar'?'sin compensar':x.causa.replaceAll('-',' ')}</td>
+  </tr>`;
+  const detalleDigitado=c.digitado.filter(x=>x.declarado>x.enDocumentos)
+    .map(x=>`cód. ${x.codigo}: declarado ${fmtC(x.declarado)}, respaldado por documentos ${fmtC(x.enDocumentos)}`).join(' · ');
+  return `<div class="card" style="max-width:980px;margin-top:14px">
+    <div class="card-title">🔍 Cuadratura del IVA débito fiscal</div>
+    <div style="font-size:11px;color:var(--mt)">Cuenta ${cta} ${nm} — las ventas la abonan, la compensación la carga. Cada mes debería quedar en cero.</div>
+    ${c.causa!=='cuadra'?`<div class="info-tip" style="margin:10px 0;background:rgba(248,81,73,.08);border-color:var(--err)">
+      <strong>${MESES[mes-1]} queda con saldo ${fmtC(c.saldo)}.</strong><br>
+      Débito del F29 ${fmtC(c.debitoF29)} · abonado por ventas ${fmtC(c.ventas)} · cargado por la compensación ${fmtC(c.compensacion)}${c.manual?` · asientos a mano ${fmtC(c.manual)}`:''}.<br>
+      ${EXPLICACION_IVA[c.causa]}
+      ${detalleDigitado?`<br>${detalleDigitado}.`:''}
+      ${c.nComp>1?`<br>Compensaciones activas del mes: ${_asientosF29(c.periodo,'ivaf29').map(a=>'N°'+(numeroMostrar(a)||a.n||'—')).join(', ')}.`:''}
+    </div>`:''}
+    ${c.apertura?`<div style="font-size:11px;color:var(--mt);margin:8px 0">Saldo de apertura en la cuenta: ${fmtC(c.apertura)}. Viene del balance inicial y no entra en el cuadre del mes.</div>`:''}
+    <div class="card-np"><div class="tw"><table><thead><tr>
+      <th class="tl">MES</th><th>DÉBITO F29</th><th>ABONADO VENTAS</th><th>COMPENSADO</th><th>SALDO</th><th class="tl">ESTADO</th>
+    </tr></thead><tbody>
+      ${todos.filter(x=>x.debitoF29||x.ventas||x.compensacion||x.saldo).map(fila).join('')||'<tr><td colspan="6" class="tl" style="color:var(--mt)">Sin movimientos en la cuenta este año.</td></tr>'}
+    </tbody></table></div></div>
+  </div>`;
 }
 
 // Calcula las líneas del asiento para un mes. Devuelve {movs, detalle, cuadra}.
@@ -1470,6 +1623,7 @@ async function generarAsientoPagoF29(){
 export {setRemanenteAnticipoInicialF29, setF29Manual, setF29Anticipo, setF29TasaPPM, tasaPPMPeriodo, iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
+        clasificarAsientoF29, esAsientoF29De, movimientosDebitoIVA, cuadraturaDebitoIVA, renderCuadraturaIVA, EXPLICACION_IVA,
         PAGOF29, CONCEPTOS_F29, calcularPagoF29, montosSugeridosF29, renderPagoF29, generarAsientoPagoF29,
         setPagoF29Cuenta, setPagoF29Campo, setPagoF29Monto, togglePagoF29, setPagoF29Reemplazo, resetPagoF29, usarSugeridoF29,
         ivaRetenidoFacturasCompra, asientoPagoExistente, asientosPagoF29};

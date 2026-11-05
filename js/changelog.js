@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.04-1900';
+const APP_VERSION='v2026.11.04-2140';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.21',fecha:'04-11-2026',titulo:'Cuadratura del IVA débito fiscal',items:[
+    {tipo:'nuevo',txt:'El F29 del mes muestra la cuadratura de la cuenta 2103003 IVA Débito Fiscal: el débito del F29, lo que abonaron las ventas y lo que cargó la compensación, con el año entero en una tabla. Si la cuenta no queda en cero, nombra la causa en vez de dejar el saldo suelto hasta que aparezca en el balance.'},
+    {tipo:'nuevo',txt:'Detecta el caso de boletas o comprobantes de pago electrónico digitados en los códigos 111 y 759 sin estar cargados como documentos de venta: el F29 suma ese IVA al débito, pero nadie abona la cuenta y queda un saldo deudor por el monto digitado. También faltan los ingresos y el dinero cobrado.'},
+    {tipo:'arreglo',txt:'Las compensaciones de IVA y los pagos del F29 traídos de otro sistema, de una versión anterior o escritos a mano ahora se reconocen por su glosa. Antes solo se veían los que llevaban la marca interna, así que generar la compensación de un mes ya compensado creaba un segundo asiento y el débito quedaba cargado dos veces. Ahora se reemplaza el existente y la alerta de duplicado cuenta también los antiguos.'},
+  ]},
   {version:'V2.22.20',fecha:'04-11-2026',titulo:'Activo fijo: obras en curso y mejoras',items:[
     {tipo:'nuevo',txt:'Fichas en etapa «🏗️ Obra en curso / puesta en marcha»: sus facturas (registradas en Compras con la línea a la nueva cuenta 1201007 OBRAS EN CURSO) se agregan a la ficha con 🧾 y forman su costo, sin depreciarse. Al terminar, «✅ Poner en servicio» genera el traspaso de 1201007 a la cuenta del bien y la depreciación parte en esa fecha.'},
     {tipo:'nuevo',txt:'Mejoras de un bien en uso (por ejemplo, de una maquinaria): la factura se registra en Compras a la cuenta del bien y se agrega con 🧾 como mejora. Suma al costo y se deprecia desde su fecha en la vida útil restante del bien (mínimo 12 meses). Con depreciación instantánea, las mejoras del año se rebajan en la conciliación de Renta.'},
