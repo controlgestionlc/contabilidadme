@@ -4,7 +4,7 @@ import {retencionHonorarios} from './indicadores.js';
 import {S} from './state.js';
 import {ccOpts} from './centroscosto.js';
 import {asientoHonorario,asientoPagoHonorario} from './motor-contable.js';
-import {validarMovimientosPDC} from './pdc-reglas.js';
+import {validarMovimientosPDC,lineasSinCentroCosto} from './pdc-reglas.js';
 import {ejercicioCerrado,puedeOperarFecha,persistirClavesCritico} from './contabilidad-v2.js';
 import './storage.js';
 
@@ -142,6 +142,7 @@ async function guardarHonComprobante(){
   const pagar=!!document.getElementById('honf-pagar')?.checked;
   if(pagar){h.modalidad='contado';h.fechaPago=val('honf-fecha-pago');h.cuentaPago=val('honf-cuenta-pago');}else h.modalidad='pendiente';
   if(!h.fecha||!h.numero||!h.nombre||!h.rut||!(h.bruto>0)||!h.cuentaGasto){toast('⚠️ Completa fecha, número, prestador, RUT, bruto y cuenta de gasto','e');return;}
+  if(lineasSinCentroCosto([{cuenta:h.cuentaGasto,cc:h.cc}]).length){toast(`⚠️ La cuenta de gasto ${h.cuentaGasto} exige centro de costo`,'e');return;}
   if(!puedeOperarFecha(h.fecha)||pagar&&!puedeOperarFecha(h.fechaPago)){toast('🔒 La fecha pertenece a un período cerrado','e');return;}
   if(pagar&&(!h.fechaPago||!h.cuentaPago)){toast('⚠️ Completa fecha y cuenta de pago','e');return;}
   const dup=(S.honorarios||[]).find(x=>x.estado!=='anulado'&&x.id!==h.id&&String(x.numero)===String(h.numero)&&String(x.rut).replace(/\W/g,'')===String(h.rut).replace(/\W/g,''));

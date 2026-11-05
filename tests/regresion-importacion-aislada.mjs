@@ -36,7 +36,7 @@ async function cargar(ruta,{S,asiento,pdc,upsert,tipo}){
     guardarDocumentoContabilizado:async()=>({ok:true}),anularDocumentoContabilizado:async()=>({ok:true}),ejercicioCerrado:()=>false,upsertAsientoDocumento:upsert,anularAsientoDocumento:noop,persistirClavesCritico:async()=>{},puedeOperarFecha:()=>true,
     tributacionCompra:()=>({}),periodoContableCompra:d=>d.periodoContable||String(d.fecha||'').slice(0,7),fechaContabilizacionCompra:d=>d.fecha,asientoCompra:asiento,asientoVenta:asiento,
     claveRCV:d=>`${d.rutCodigo}|${d.tipoDTE}|${d.numero}`,compararCompraRCV:()=>({igual:false,cambios:[],fingerprint:'x'}),compararVentaRCV:()=>({igual:false,cambios:[],fingerprint:'x'}),snapshotCompraRCV:d=>d,snapshotVentaRCV:d=>d,fingerprintSnapshot:()=> 'fp',valorCambio:String,
-    validarMovimientosPDC:pdc,
+    validarMovimientosPDC:pdc,lineasSinCentroCosto:()=>[],
   };
   const constantes={S,MESES:['Enero','Febrero'],IVA:0,DTE_COMPRAS:[],DTE_VENTAS:[],CCOLS:[],CUENTAS_GASTO:[],CUENTAS_COMPRA:[],CUENTAS_INGRESO:[]};
   for(const [spec,nombres] of importsDe(src)){

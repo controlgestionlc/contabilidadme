@@ -100,9 +100,20 @@ function validarMovimientoPDC(m,{manual=false,apertura=false,cierre=false}={}){
   if(apertura&&!r.permiteApertura)errs.push(`La cuenta ${m.cd} no permite apertura`);
   if(cierre&&!r.permiteCierre)errs.push(`La cuenta ${m.cd} no permite cierre`);
   if(r.requiereAuxiliar&&!m.rutCodigo)errs.push(`La cuenta ${m.cd} requiere auxiliar (${r.tipoAuxiliar||'identificación'})`);
-  if(r.requiereCentroCosto&&!m.cc)errs.push(`La cuenta ${m.cd} exige centro de costo`);
+  if(r.requiereCentroCosto&&r.tipo!=='A'&&!m.cc)errs.push(`La cuenta ${m.cd} exige centro de costo`);
   if(m.cc&&!r.aceptaCentroCosto)errs.push(`La cuenta ${m.cd} no admite centro de costo`);
   return errs;
+}
+// Centro de costo obligatorio al capturar (RCV, compras, honorarios): nunca en cuentas de
+// activo; siempre en cuentas de gasto (tipo C) que lo admiten; en las demás, sólo si la
+// cuenta tiene marcado «Centro de costo obligatorio».
+function exigeCentroCosto(r){
+  if(!r||r.tipo==='A')return false;
+  return !!r.requiereCentroCosto||(r.tipo==='C'&&!!r.aceptaCentroCosto);
+}
+// Cuentas de gasto de una distribución que quedaron sin centro de costo.
+function lineasSinCentroCosto(lineas){
+  return (lineas||[]).filter(l=>l&&l.cuenta&&!l.cc&&exigeCentroCosto(reglaCuenta(l.cuenta)));
 }
 function validarMovimientosPDC(movs,opts={}){
   const errores=[];
@@ -110,4 +121,4 @@ function validarMovimientosPDC(movs,opts={}){
   return {ok:errores.length===0,errores};
 }
 
-export {AUX_POR_DEFECTO,IVA_POR_DEFECTO,inferirReglasCuenta,normalizarCuenta,normalizarPDC,asegurarCuentasSistema,actualizarNombresAntiguos,reglaCuenta,validarMovimientoPDC,validarMovimientosPDC};
+export {AUX_POR_DEFECTO,IVA_POR_DEFECTO,inferirReglasCuenta,normalizarCuenta,normalizarPDC,asegurarCuentasSistema,actualizarNombresAntiguos,reglaCuenta,validarMovimientoPDC,validarMovimientosPDC,exigeCentroCosto,lineasSinCentroCosto};

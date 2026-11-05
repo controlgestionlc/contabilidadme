@@ -15,6 +15,10 @@ const APP_VERSION='v2026.11.04-2140';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.22',fecha:'05-11-2026',titulo:'Centro de costo sólo donde corresponde',items:[
+    {tipo:'cambio',txt:'Las cuentas de activo ya no piden centro de costo al importar el RCV ni al registrar o editar una compra o boleta de honorarios, aunque tengan marcado «Centro de costo obligatorio».'},
+    {tipo:'cambio',txt:'El centro de costo es obligatorio en las cuentas de gasto y en cualquier otra cuenta marcada con «Centro de costo obligatorio». Un documento del RCV con una cuenta de gasto sin centro queda pendiente en el importador para completarlo.'},
+  ]},
   {version:'V2.22.21',fecha:'04-11-2026',titulo:'Cuadratura del IVA débito fiscal',items:[
     {tipo:'nuevo',txt:'El F29 del mes muestra la cuadratura de la cuenta 2103003 IVA Débito Fiscal: el débito del F29, lo que abonaron las ventas y lo que cargó la compensación, con el año entero en una tabla. Si la cuenta no queda en cero, nombra la causa en vez de dejar el saldo suelto hasta que aparezca en el balance.'},
     {tipo:'nuevo',txt:'Detecta el caso de boletas o comprobantes de pago electrónico digitados en los códigos 111 y 759 sin estar cargados como documentos de venta: el F29 suma ese IVA al débito, pero nadie abona la cuenta y queda un saldo deudor por el monto digitado. También faltan los ingresos y el dinero cobrado.'},
