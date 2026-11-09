@@ -95,7 +95,11 @@ async function crearSnapshotRecuperacion(tipo='manual',motivo=''){
   if(bloqueos.length)return {ok:false,motivo:'persistencia-bloqueada',bloqueos};
   RECOVERY.creando=true;
   try{
-    await cargarRecoveryIndex();
+    // V2.22.25 · Se relee siempre el índice desde la nube: así queda su revisión
+    // vigente (otro equipo pudo crear un snapshot, o el navegador perdió la
+    // memoria al volver de segundo plano). Antes se usaba la copia en memoria y
+    // la escritura fallaba con «clave-no-sincronizada».
+    await cargarRecoveryIndex(true);
     const lectura=await leerClavesParaSnapshot();
     if(lectura.fallidas.length)return {ok:false,motivo:'lectura-incompleta',fallidas:lectura.fallidas};
     if(!lectura.datos.length)return {ok:false,motivo:'sin-datos'};
@@ -117,10 +121,19 @@ async function crearSnapshotRecuperacion(tipo='manual',motivo=''){
       empresaId:window.storage.getPrefijo?.()||'',empresa:S.empresa.nombre||'',anio:anio(),
       archivos,totalClaves:archivos.length,totalBytes:archivos.reduce((s,x)=>s+x.bytes,0),version:1
     };
-    const candidatos=[manifest,...RECOVERY.index.filter(x=>x.id!==manifest.id)];
-    const conservar=candidatos.slice(0,MAX_SNAPSHOTS);
-    const eliminar=candidatos.slice(MAX_SNAPSHOTS);
-    const ir=await window.storage.set(indexKey(),JSON.stringify(conservar));
+    const escribirIndice=async()=>{
+      const candidatos=[manifest,...RECOVERY.index.filter(x=>x.id!==manifest.id)];
+      const conservar=candidatos.slice(0,MAX_SNAPSHOTS);
+      const eliminar=candidatos.slice(MAX_SNAPSHOTS);
+      const ir=await window.storage.set(indexKey(),JSON.stringify(conservar));
+      return {ir,conservar,eliminar};
+    };
+    let {ir,conservar,eliminar}=await escribirIndice();
+    // Si otro equipo escribió el índice entremedio: releer y reintentar una vez
+    if(!ir?.ok&&(ir?.motivo==='clave-no-sincronizada'||ir?.conflicto||ir?.motivo==='conflicto')){
+      await cargarRecoveryIndex(true);
+      ({ir,conservar,eliminar}=await escribirIndice());
+    }
     if(!ir?.ok)return {ok:false,motivo:ir?.motivo||'no-se-pudo-actualizar-indice'};
     RECOVERY.index=conservar;RECOVERY.cargado=true;
     // El índice ya apunta sólo a snapshots válidos; la limpieza puede hacerse después.
