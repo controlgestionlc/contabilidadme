@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.09-1400';
+const APP_VERSION='v2026.11.09-1900';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.26',fecha:'09-11-2026',titulo:'Editar desde el Libro Mayor y asignación masiva de centros',items:[
+    {tipo:'nuevo',txt:'Libro Mayor: cada línea del detalle de una cuenta tiene ✏️. Abre el asiento en su editor: el documento de ventas o compras, el editor de pagos y cobros, el asiento manual o el F29; si no tiene editor propio, abre su comprobante.'},
+    {tipo:'nuevo',txt:'Asignar centros de costo: el filtro de cuentas permite elegir una o más cuentas, y «⚡ Asignación masiva» asigna un centro a todos los movimientos filtrados de una vez (avisa si alguno ya tenía otro centro).'},
+  ]},
   {version:'V2.22.25',fecha:'09-11-2026',titulo:'Punto de recuperación antes de importar',items:[
     {tipo:'arreglo',txt:'Al importar el RCV (u otra operación masiva) podía aparecer «No se pudo crear el snapshot previo (clave-no-sincronizada)». Pasaba cuando el índice de puntos de recuperación lo había actualizado otro equipo o el navegador perdió la memoria al volver de segundo plano. Ahora se relee desde la nube antes de crear el punto y, si cambió entremedio, se reintenta.'},
   ]},

@@ -62,7 +62,7 @@ import {buscarCT, cerrarBuscarCT, navCT, aplicarCT, abrirCTModal, cerrarCTModal,
         editarCT, guardarCT, borrarCT, copiarCTaEmpresa} from './comprobantestipo-ui.js';
 import {cargarCentros, cargarCierresCC, ccOpts, ccNombre, costoAcumulado} from './centroscosto.js';
 import {renderAsigCC, resetAsigCC, setAsigCC, limpiarFiltrosCC, setCCMov, toggleSelCC,
-        selTodosCC, limpiarSelCC, setBulkCC, asignarSelCC, exportarAsigCCExcel,
+        selTodosCC, limpiarSelCC, setBulkCC, asignarSelCC, exportarAsigCCExcel, toggleCuentaCC, setCtasAbiertoCC, limpiarCuentasCC, setMasivoCC, asignarFiltradoCC,
         pendientesCC, ACC} from './asigcc.js';
 import {renderCentrosCosto, abrirFormCC, editarCC, cerrarFormCC, guardarCC, borrarCC,
         verDetalleCC, abrirCapitalizar, confirmarCapitalizar, onCurvaChange,
@@ -162,10 +162,10 @@ import {genDiario, renderDiario, setDiarioQ, buildMayor, renderMayor, renderBala
         poblarCmpSelect, onCmpYear, renderResultados, corregirDesdeDiario, editarAsientoRef,
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla,
-        exportarMayorExcel, toggleMayorCuenta} from './reportes.js';
+        exportarMayorExcel, toggleMayorCuenta, editarLineaMayor} from './reportes.js';
 import {lcvAtender,renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV} from './libroscv.js';
 import {initMoneyInputs,normalizarMontos} from './money-inputs.js';
-import {cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
+import {abrirEntradaComprobante, cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
         eliminarComprobante, anularComprobante,
         setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
@@ -793,7 +793,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   abrirImportSIIVentas, cambiarPeriodoImportV, toggleAllImportV, aplicarCuentaATodosV, setBulkCuentaImpV, setBulkCuentaImp, setImportCC, aplicarCCATodos, setImportGlosa, enfocarPendienteImportC, enfocarPendienteImportV,
   toggleCSel, toggleCSelAll, limpiarCSel, eliminarCSel, toggleVSel, toggleVSelAll, limpiarVSel, eliminarVSel, cambiarFPVSel,
   abrirFichaAux, abrirFichaAuxNueva, fichaRutInput, cerrarFichaAux, setFichaCuenta, guardarFichaAuxUI,
-  cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
+  abrirEntradaComprobante, cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, renderComprobantes, setCmpFiltro, limpiarCmpFiltro, toggleCmpDet, cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, corregirDescuadreCmp,
   abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,
   eliminarComprobante, anularComprobante,
   setCmpEdGlosa, setCmpEdFecha, setCmpEdCuenta, setCmpEdCampo, setCmpEdMonto, setCmpEdMontoBlur, addCmpEdLinea, delCmpEdLinea,
@@ -868,7 +868,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderDiario, setDiarioQ, renderMayor, renderBalance, renderBalance8, exportarBalance8Excel, onCmpYear, renderResultados,
   renderLibrosCV,setLibroCVTipo,setLibroCVMes,setLibroCVDte,exportarLibroCVExcel,exportarLibroCVCSV,
   onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
-  onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel, toggleMayorCuenta,
+  onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel, toggleMayorCuenta, editarLineaMayor,
   renderIntegridad,renderPilotoUI,guardarPilotoUI,certificarPilotoUI,invalidarPilotoUI,migrarAsientosV2,renderCierresMensuales,cerrarMesContableOperativo,reabrirMesContableOperativo,
   setChecklistPreprod,habilitarEscriturasPrueba,bloquearEscriturasPrueba,activarProduccion,volverAPrueba,descargarActaHabilitacion,actualizarBadgeEntorno,
   ejecutarRegresionContableUI,ejecutarPruebasProductivasUI,iniciarPruebaConcurrenciaUI,prepararPruebaConcurrenciaUI,escribirPruebaConcurrenciaUI,verificarPruebaConcurrenciaUI,ejecutarSimulacroRestauracionUI,crearSnapshotUI,verificarSnapshotUI,restaurarSnapshotUI,
@@ -883,7 +883,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderF29, verF29Anual, verF29Mes, renderPPM, setF29Declarado, setF29DeclCampo, setF29UTM, setF29TasaPPM, setF29Anticipo, setF29Manual, setRemanenteAnticipoInicialF29, setRemanenteInicialF29, setUTMManual, buscarUTMNuevas, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29, setFCView, renderFlujoCaja,
   // asignación manual de centros de costo
   renderAsigCC, resetAsigCC, setAsigCC, limpiarFiltrosCC, setCCMov, toggleSelCC, selTodosCC,
-  limpiarSelCC, setBulkCC, asignarSelCC, exportarAsigCCExcel, pendientesCC,
+  limpiarSelCC, setBulkCC, asignarSelCC, exportarAsigCCExcel, toggleCuentaCC, setCtasAbiertoCC, limpiarCuentasCC, setMasivoCC, asignarFiltradoCC, pendientesCC,
   // declaraciones juradas de renta
   renderDJ, cargarDJ, resetDJ, setDJVerTodas, setDJEstado, editarDJ, nuevaDJ, cerrarEditorDJ,
   guardarDJ, borrarDJ, restaurarCatalogoDJ, exportarDJExcel,

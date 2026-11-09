@@ -1310,7 +1310,14 @@ function guardarCmpEdDte(){
   toast('✅ Datos del documento actualizados');
 }
 
-export {buscarComprobantesHdr, cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, abrirComprobantePor, corregirDescuadreCmp,
+// V2.22.26 · Abre un comprobante del Libro Diario/Mayor en su modal (ver y editar)
+function abrirEntradaComprobante(e){
+  if(!e)return;
+  nav('comprobantes');
+  setTimeout(()=>abrirEntradaCmp(e),60);
+}
+
+export {abrirEntradaComprobante, buscarComprobantesHdr, cmpHdrBuscar, cmpHdrTecla, cmpHdrCerrar, cmpHdrElegir, abrirComprobantePor, corregirDescuadreCmp,
         setCmpFiltro, limpiarCmpFiltro, toggleCmpDet,
         cmpNumeroBuscar, renderCmpNumeroList, cmpNumeroElegir, cmpNumeroElegirResultado, mismaEntradaCmp,
         abrirCmpModal, cerrarCmpModal, cmpModalEditar, cmpModalCancelar, cmpModalGuardar,

@@ -42,13 +42,15 @@ const esCosteable = cd => /^3[1-5]\d{5}$/.test(String(cd || ''));
 // propiedades—, o window.ACC quedaría apuntando al objeto viejo.
 const ACC = {
   mes: '', cuenta: '', origen: '', ver: 'pendientes', q: '',
+  cuentas: [],  // V2.22.26 · filtro por una o más cuentas
   sel: {},      // {clave: true} de los movimientos marcados
   bulk: '',     // centro elegido para la asignación en bloque
+  masivo: '',   // centro para asignar a todo lo filtrado
 };
 
 export function resetAsigCC() {
   ACC.mes = ''; ACC.cuenta = ''; ACC.origen = ''; ACC.ver = 'pendientes';
-  ACC.q = ''; ACC.sel = {}; ACC.bulk = '';
+  ACC.q = ''; ACC.sel = {}; ACC.bulk = ''; ACC.cuentas = []; ACC.masivo = '';
 }
 
 const ORIGENES = {
@@ -139,6 +141,7 @@ function filtrar(movs) {
     if (ACC.ver === 'asignados' && !asignado) return false;
     if (ACC.mes && +String(m.fecha).slice(5, 7) !== +ACC.mes) return false;
     if (ACC.cuenta && m.cuenta !== ACC.cuenta) return false;
+    if (ACC.cuentas.length && !ACC.cuentas.includes(m.cuenta)) return false;
     if (ACC.origen && m.tipo !== ACC.origen) return false;
     if (!q) return true;
     return (m.doc + ' ' + m.glosa + ' ' + m.cuenta + ' ' + (pdcNm(m.cuenta) || ''))
@@ -243,6 +246,38 @@ export async function asignarSelCC() {
   renderAsigCC();
 }
 
+// ── V2.22.26 · Filtro por varias cuentas y asignación masiva de lo filtrado ──
+export function toggleCuentaCC(cd) {
+  const i = ACC.cuentas.indexOf(cd);
+  if (i >= 0) ACC.cuentas.splice(i, 1); else ACC.cuentas.push(cd);
+  ACC.cuenta = ''; ACC.sel = {};
+  ACC._ctasAbierto = true;
+  renderAsigCC();
+}
+export function setCtasAbiertoCC(v) { ACC._ctasAbierto = !!v; }
+export function limpiarCuentasCC() { ACC.cuentas.splice(0); ACC.cuenta = ''; ACC.sel = {}; renderAsigCC(); }
+export function setMasivoCC(v) { ACC.masivo = v; const b = document.getElementById('acc-masivo-btn'); if (b) b.disabled = !v; }
+// Asigna el centro elegido a TODOS los movimientos que muestra el filtro actual
+// (por ejemplo, todas las líneas de las cuentas 3201001 y 3201005 del año).
+export async function asignarFiltradoCC() {
+  const lista = filtrar(movimientosGasto());
+  if (!lista.length) { toast('⚠️ No hay movimientos con el filtro actual', 'e'); return; }
+  if (!ACC.masivo) { toast('⚠️ Elige el centro de costo que quieres aplicar', 'e'); return; }
+  const nombre = ccNombre(ACC.masivo) || ACC.masivo;
+  const conCentro = lista.filter(m => m.cc && m.cc !== ACC.masivo).length;
+  const ctas = ACC.cuentas.length ? ACC.cuentas.join(', ') : (ACC.cuenta || 'todas las cuentas');
+  if (!confirm(`¿Asignar «${nombre}» a los ${lista.length} movimiento(s) filtrados?\n\nCuentas: ${ctas}\nMonto: ${fmtC(lista.reduce((s, m) => s + m.monto, 0))}${conCentro ? `\n\n⚠️ ${conCentro} ya tienen otro centro y se reemplaza.` : ''}\n\nSe puede volver a cambiar uno por uno desde esta misma pantalla.`)) return;
+  const cols = new Set();
+  let n = 0;
+  lista.forEach(m => { const c = aplicar(m.k, ACC.masivo); if (c) { cols.add(c); n++; } });
+  if (!n) { toast('⚠️ No se pudo asignar ningún movimiento', 'e'); return; }
+  if (!await guardar(cols)) return;
+  logAccion('Asignó centro de costo masivo', `${n} movimientos (${ctas}) → ${nombre}`);
+  ACC.sel = {};
+  toast(`📊 ${n} movimiento${n === 1 ? '' : 's'} asignado${n === 1 ? '' : 's'} a ${nombre}`);
+  renderAsigCC();
+}
+
 // ── Filtros ──
 export function setAsigCC(campo, valor) {
   ACC[campo] = valor;
@@ -251,7 +286,7 @@ export function setAsigCC(campo, valor) {
 }
 export function limpiarFiltrosCC() {
   ACC.mes = ''; ACC.cuenta = ''; ACC.origen = ''; ACC.ver = 'pendientes'; ACC.q = '';
-  ACC.sel = {};
+  ACC.sel = {}; ACC.cuentas.splice(0); ACC.masivo = '';
   renderAsigCC();
 }
 
@@ -341,10 +376,16 @@ export function renderAsigCC() {
       ${Object.keys(ORIGENES).map(k =>
         `<option value="${k}" ${ACC.origen === k ? 'selected' : ''}>${ORIGENES[k].ic} ${ORIGENES[k].nm}</option>`).join('')}
     </select>
-    <select onchange="setAsigCC('cuenta',this.value)" style="max-width:280px">
-      <option value="">Todas las cuentas</option>
-      ${cuentas.map(c => `<option value="${c}" ${ACC.cuenta === c ? 'selected' : ''}>${c} — ${esc(pdcNm(c) || '')}</option>`).join('')}
-    </select>
+    <details class="acc-ctas" ${ACC._ctasAbierto ? 'open' : ''} ontoggle="setCtasAbiertoCC(this.open)" style="position:relative">
+      <summary class="btn btn-g" style="list-style:none;cursor:pointer">📒 ${ACC.cuentas.length ? `${ACC.cuentas.length} cuenta${ACC.cuentas.length === 1 ? '' : 's'}` : 'Todas las cuentas'} ▾</summary>
+      <div style="position:absolute;z-index:30;top:110%;left:0;min-width:340px;max-height:320px;overflow:auto;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.35)">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mt);margin-bottom:6px"><span>Filtra por una o más cuentas</span>${ACC.cuentas.length ? '<a href="#" onclick="event.preventDefault();limpiarCuentasCC()">Quitar</a>' : ''}</div>
+        ${cuentas.map(c => `<label style="display:flex;gap:6px;align-items:center;font-size:12px;padding:3px 2px;cursor:pointer;text-transform:none;font-weight:400;letter-spacing:0;margin:0;color:var(--tx)">
+          <input type="checkbox" ${ACC.cuentas.includes(c) ? 'checked' : ''} onchange="toggleCuentaCC('${c}')">
+          <span style="font-family:var(--mono);font-size:11px">${c}</span><span style="color:var(--mt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(pdcNm(c) || '')}</span>
+          <span style="margin-left:auto;font-size:10px;color:var(--mt)">${todos.filter(m => m.cuenta === c && (ACC.ver !== 'pendientes' || !ccEfectivo(m))).length}</span></label>`).join('')}
+      </div>
+    </details>
     <input type="text" placeholder="Buscar documento, proveedor o cuenta…" value="${esc(ACC.q)}"
       oninput="setAsigCC('q',this.value)" style="min-width:220px">
     <button class="btn btn-g" onclick="limpiarFiltrosCC()">Limpiar</button>
@@ -352,6 +393,12 @@ export function renderAsigCC() {
     <span class="doc-count">${lista.length} movimiento${lista.length === 1 ? '' : 's'}</span>
   </div>
 
+  ${lista.length ? `<div class="acc-bulk" style="margin-bottom:10px">
+    <span class="acc-bulk-n">⚡ Asignación masiva</span>
+    <span style="color:var(--mt);font-size:11px">los ${lista.length} movimiento${lista.length === 1 ? '' : 's'} filtrados${ACC.cuentas.length ? ` de ${ACC.cuentas.length === 1 ? 'la cuenta ' + ACC.cuentas[0] : ACC.cuentas.length + ' cuentas'}` : ''} (${fmtC(lista.reduce((s, m) => s + m.monto, 0))}) a</span>
+    <select onchange="setMasivoCC(this.value)" style="width:auto;flex:0 1 280px;min-width:200px">${ccOpts(ACC.masivo)}</select>
+    <button class="btn btn-p" id="acc-masivo-btn" onclick="asignarFiltradoCC()" ${ACC.masivo ? '' : 'disabled'}>📊 Asignar todo lo filtrado</button>
+  </div>` : ''}
   <div id="acc-barra-sel">${barraSel(nSel)}</div>
 
   ${lista.length ? tabla(lista, clavesVisibles) : vacio(pend.length)}`;

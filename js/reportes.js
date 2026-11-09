@@ -414,7 +414,7 @@ function buildMayor(desde,hasta){
       if(antes){M[m.cd].saldoAnterior+=m.debe-m.haber;return;}
       if(despues)return;
       M[m.cd].debe+=m.debe;M[m.cd].haber+=m.haber;
-      M[m.cd].movs.push({n:e.n,fecha:e.fecha,glosa:e.glosa,desc:m.desc||'',debe:m.debe,haber:m.haber});
+      M[m.cd].movs.push({n:e.n,fecha:e.fecha,glosa:e.glosa,desc:m.desc||'',debe:m.debe,haber:m.haber,e});
     });
   });
   Object.values(M).forEach(a=>{let s=a.saldoAnterior;a.movs.forEach(m=>{s+=m.debe-m.haber;m.saldo=s;});a.saldo=a.saldoAnterior+a.debe-a.haber;});
@@ -535,11 +535,22 @@ function renderMayor(){
 // El detalle de movimientos se arma recién al expandir la cuenta, así la
 // pantalla no pinta miles de filas al entrar.
 let MAY_M={};              // último Mayor calculado (lo usa el detalle al expandir)
+let MAY_ENT=[];            // V2.22.26 · comprobantes de las líneas visibles (botón Editar)
+// Abre el asiento de una línea del Mayor en su editor: el documento (ventas,
+// compras, honorarios), el editor de pagos, el asiento manual; si no tiene
+// editor propio, el comprobante (desde ahí se edita o anula).
+function editarLineaMayor(i){
+  const e=MAY_ENT[+i];if(!e)return;
+  if(e.tipo==='pago'&&(e.asientoId||e.ref)&&window.abrirEditorPago){window.abrirEditorPago(e.asientoId||e.ref);return;}
+  const d=destinoEdicion(e);
+  if(d){try{(new Function(d.fn))();}catch(err){console.warn('Mayor editar',err);}return;}
+  if(window.abrirEntradaComprobante)window.abrirEntradaComprobante(e);
+}
 const MAY_EXP=new Set();   // cuentas expandidas (se conservan al filtrar)
 function renderMayorTabla(){
   const box=document.getElementById('mayor-tabla');if(!box)return;
   const M=buildMayor(MAY_F.desde,MAY_F.hasta);
-  MAY_M=M;
+  MAY_M=M;MAY_ENT=[];
   const keys=cuentasMayorFiltradas(M);
 
   const cnt=document.getElementById('mayor-count');
@@ -588,17 +599,21 @@ function filaDetalleMayor(cd){
   const a=MAY_M[cd];if(!a)return'';
   const hayPeriodo=!!(MAY_F.desde||MAY_F.hasta);
   const filaAnt=hayPeriodo
-    ? `<tr style="background:var(--sf2)"><td class="tl" style="font-family:var(--mono);font-size:10px">—</td><td class="cel-trunc" style="font-style:italic;color:var(--mt)">Saldo anterior al ${MAY_F.desde||'inicio'}</td><td>–</td><td>–</td><td style="font-weight:600">${fmtC(Math.abs(a.saldoAnterior))}</td></tr>`
+    ? `<tr style="background:var(--sf2)"><td class="tl" style="font-family:var(--mono);font-size:10px">—</td><td class="cel-trunc" style="font-style:italic;color:var(--mt)">Saldo anterior al ${MAY_F.desde||'inicio'}</td><td>–</td><td>–</td><td style="font-weight:600">${fmtC(Math.abs(a.saldoAnterior))}</td><td></td></tr>`
     : '';
   const movs=a.movs.map(m=>{
     const extra=descAporta(m.glosa,m.desc)?` — ${m.desc}`:'';
     const txt=(m.glosa||'')+extra;
-    return `<tr><td class="tl" style="font-family:var(--mono);font-size:10px">${m.fecha}</td><td class="cel-trunc" title="${attr(txt)}"><span style="font-family:var(--mono);color:var(--mt);font-size:10px;margin-right:6px">N°${m.n}</span>${m.glosa||''}${extra?`<span style="color:var(--mt)">${extra}</span>`:''}</td><td>${m.debe?fmtC(m.debe):'–'}</td><td>${m.haber?fmtC(m.haber):'–'}</td><td style="font-weight:600">${fmtC(Math.abs(m.saldo))}</td></tr>`;
-  }).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--mt);padding:10px">Sin movimientos en el periodo</td></tr>`;
+    const i=MAY_ENT.push(m.e)-1;
+    const d=m.e?destinoEdicion(m.e):null;
+    const tit=m.e?.tipo==='pago'?'Editar el pago o cobro':d?.hint||'Abrir el comprobante para verlo o editarlo';
+    return `<tr><td class="tl" style="font-family:var(--mono);font-size:10px">${m.fecha}</td><td class="cel-trunc" title="${attr(txt)}"><span style="font-family:var(--mono);color:var(--mt);font-size:10px;margin-right:6px">N°${m.n}</span>${m.glosa||''}${extra?`<span style="color:var(--mt)">${extra}</span>`:''}</td><td>${m.debe?fmtC(m.debe):'–'}</td><td>${m.haber?fmtC(m.haber):'–'}</td><td style="font-weight:600">${fmtC(Math.abs(m.saldo))}</td>
+      <td style="text-align:center">${m.e?`<button class="btn btn-g" style="padding:1px 7px;font-size:11px" title="${attr(tit)}" onclick="event.stopPropagation();editarLineaMayor(${i})">✏️</button>`:''}</td></tr>`;
+  }).join('')||`<tr><td colspan="6" style="text-align:center;color:var(--mt);padding:10px">Sin movimientos en el periodo</td></tr>`;
   return `<tr class="may-det" data-det="${cd}"><td colspan="6" style="padding:0 0 10px 28px;background:var(--sf2)">
     <table class="tbl-fija" style="font-size:11px">
-      <colgroup><col style="width:92px"><col><col style="width:118px"><col style="width:118px"><col style="width:126px"></colgroup>
-      <thead><tr><th class="tl">FECHA</th><th class="tl">GLOSA</th><th>DEBE</th><th>HABER</th><th>SALDO</th></tr></thead>
+      <colgroup><col style="width:92px"><col><col style="width:118px"><col style="width:118px"><col style="width:126px"><col style="width:46px"></colgroup>
+      <thead><tr><th class="tl">FECHA</th><th class="tl">GLOSA</th><th>DEBE</th><th>HABER</th><th>SALDO</th><th></th></tr></thead>
       <tbody>${filaAnt}${movs}</tbody>
     </table></td></tr>`;
 }
@@ -1093,6 +1108,6 @@ function exportarBalance8Excel(){
   }catch(e){toast('❌ No se pudo exportar: '+e.message,'e');}
 }
 
-export {genDiario, renderDiario, setDiarioQ, buildMayor, buildMayorAnio, totalesDeMayor, CMP_YEAR, fmtVar, renderMayor, renderBalance, renderBalance8, calcularBalance8, exportarBalance8Excel, poblarCmpSelect, onCmpYear, renderComparativo, renderResultados, corregirDesdeDiario, editarAsientoRef, destinoEdicion,
+export {editarLineaMayor, genDiario, renderDiario, setDiarioQ, buildMayor, buildMayorAnio, totalesDeMayor, CMP_YEAR, fmtVar, renderMayor, renderBalance, renderBalance8, calcularBalance8, exportarBalance8Excel, poblarCmpSelect, onCmpYear, renderComparativo, renderResultados, corregirDesdeDiario, editarAsientoRef, destinoEdicion,
         onDiarioMes, setDiarioFecha, limpiarFiltrosDiario, exportarDiarioExcel,
         onMayorMes, setMayorFecha, setMayorQ, limpiarFiltrosMayor, renderMayorTabla, exportarMayorExcel, toggleMayorCuenta};
