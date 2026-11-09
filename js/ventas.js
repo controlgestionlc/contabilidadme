@@ -133,7 +133,7 @@ async function cambiarFPVSel(nuevaFP){
   try{
     S.ventas.forEach(d=>{
       if(!VF_SEL.has(d.id)||d.estado==='anulado')return;
-      if(nuevaFP==='clientes'&&esResumenV(d.tipoDTE)){resumenes++;return;}   // V2.22.14
+      if(nuevaFP==='clientes'&&sinClienteV(d.tipoDTE,d.rutCodigo)){resumenes++;return;}   // V2.22.14
       if(nuevaFP!=='clientes'&&cobradoCliente(d)){conCobro++;return;}           // V2.22.16
       if(d.formaPago!==nuevaFP){d.formaPago=nuevaFP;upsertAsientoDocumento('ventas',d);cambiados++;}
     });
@@ -323,6 +323,28 @@ function renderVResumen(){
 const TIPOS_RESUMEN_V=new Set([35,39,41,48]);
 const esResumenV=t=>TIPOS_RESUMEN_V.has(+t);
 const RUT_PUBLICO={codigo:'66666666',dv:'6'};
+// V2.22.24 · RUT genéricos (consumidor final, sin cliente identificado). Una nota de
+// crédito o débito a uno de ellos corrige ventas al público (boletas, vouchers) y
+// no puede quedar en Clientes: el auxiliar 1104001 quedaría con un saldo que nadie paga.
+const RUTS_GENERICOS=new Set(['1','11111111','55555555','66666666']);
+const esRutGenerico=c=>RUTS_GENERICOS.has(String(c||'').replace(/^0+/,''));
+const esNotaV=t=>+t===56||+t===61;
+// ¿El documento es venta al público, sin auxiliar de clientes?
+const sinClienteV=(t,rutCodigo)=>esResumenV(t)||(esNotaV(t)&&esRutGenerico(rutCodigo));
+function vfAjustarFormaPago(){
+  const t=+(document.getElementById('vf-dte')?.value||33);
+  const rc=rutParse(document.getElementById('vf-rut')?.value||'').codigo;
+  const publico=sinClienteV(t,rc);
+  const fp=document.getElementById('vf-fp');
+  if(fp){
+    const optC=fp.querySelector('option[value="clientes"]');
+    if(optC){optC.disabled=publico;optC.hidden=publico;}
+    if(publico&&fp.value==='clientes')fp.value=t===48?'tarjetas':'banco';
+    vfFpChanged();
+  }
+  const ay=document.getElementById('vf-nota-generica');
+  if(ay)ay.style.display=esNotaV(t)&&esRutGenerico(rc)?'':'none';
+}
 function vfDteChanged(){
   const t=+document.getElementById('vf-dte')?.value||0;
   const row=document.getElementById('vf-ref-row');if(row)row.style.display=(t===56||t===61)?'grid':'none';
@@ -330,13 +352,8 @@ function vfDteChanged(){
   const res=esResumenV(t);
   const cr=document.getElementById('vf-cant-row');if(cr)cr.style.display=res?'grid':'none';
   // V2.22.14 · Un resumen de boletas o vouchers es venta al público: no genera auxiliar de clientes
-  const fp=document.getElementById('vf-fp');
-  if(fp){
-    const optC=fp.querySelector('option[value="clientes"]');
-    if(optC){optC.disabled=res;optC.hidden=res;}
-    if(res&&fp.value==='clientes')fp.value=t===48?'tarjetas':'banco';
-    vfFpChanged();
-  }
+  // V2.22.24 · lo mismo para una nota de crédito o débito a un RUT genérico
+  vfAjustarFormaPago();
   const lbl=document.getElementById('vf-num-lbl');if(lbl)lbl.textContent=res?'Folios (desde-hasta) o referencia':'N° Documento';
   const num=document.getElementById('vf-num');if(num)num.placeholder=res?'Ej: 1501-1850 (opcional)':'Ej: 1234';
   const ay=document.getElementById('vf-cant-ayuda');
@@ -482,7 +499,7 @@ function editarVenta(id){
   document.getElementById('vf-otros').value=d.otrosImpuestos||'';
   document.getElementById('vf-total').value=d.total||'';
   document.getElementById('vf-fp').value=d.formaPago||'banco';
-  if(esResumenV(d.tipoDTE)&&d.formaPago==='clientes')document.getElementById('vf-fp').value=+d.tipoDTE===48?'tarjetas':'banco';   // V2.22.14 · corrige al guardar
+  if(sinClienteV(d.tipoDTE,d.rutCodigo)&&d.formaPago==='clientes')document.getElementById('vf-fp').value=+d.tipoDTE===48?'tarjetas':'banco';   // V2.22.14/24 · corrige al guardar
   vfFpChanged(esCuentaCajaBanco(d.cuentaCobro)?d.cuentaCobro:CUENTA_BANCO_DEFECTO);
   document.getElementById('vf-dup-warn').style.display='none';
   _vfCuentaSel=d.cuentaIngreso||'';
@@ -506,6 +523,7 @@ function vfRutInput(val){
     vfRefrescarDocs();
   }else if(r.codigo){el.textContent='✗ DV ≠ '+rutDV(r.codigo);el.className='rut-dv bad';vfRefrescarDocs();}
   else{el.textContent='…';el.className='rut-dv';}
+  vfAjustarFormaPago();
 }
 
 // Detección de duplicado en vivo (mientras el usuario escribe)
@@ -577,6 +595,8 @@ async function guardarVenta(){
   if(cuentaCobro&&(!esCuentaCajaBanco(cuentaCobro)||!cajasVentas().some(c=>c.cd===cuentaCobro))){toast('⚠️ Elige una caja o banco (cuenta 1101xxx) que exista en el plan de cuentas','e');return;}
   if(resumen&&formaPago==='clientes'){toast('⚠️ Las boletas y comprobantes electrónicos no van a Clientes: elige Banco, Tarjetas o Deudores','e');return;}
   const r=rutParse(rutInput);
+  const notaGenerica=esNotaV(tipoDTE)&&esRutGenerico(r.codigo);
+  if(notaGenerica&&formaPago==='clientes'){toast('⚠️ Una nota a un RUT genérico corrige ventas al público: no va a Clientes. Elige Banco o Tarjetas (donde quedaron las ventas que corrige).','e');return;}
   if(!r.codigo){toast('⚠️ Ingresa el RUT del cliente','e');return;}
   if(!r.valido){toast('⚠️ RUT inválido — dígito verificador no coincide','e');return;}
   if(!razonSocial){toast('⚠️ Ingresa la razón social','e');return;}
@@ -597,6 +617,8 @@ async function guardarVenta(){
   const referencia=esNota?{tipoDTE:+document.getElementById('vf-ref-tipo')?.value||33,folio:(document.getElementById('vf-ref-folio')?.value||'').trim(),fecha:document.getElementById('vf-ref-fecha')?.value||'',razon:(document.getElementById('vf-ref-razon')?.value||'').trim()}:null;
   const refRegistrada=referencia?_vfRefs.find(d=>+d.tipoDTE===referencia.tipoDTE&&String(d.numero||'')===referencia.folio&&(!referencia.fecha||d.fecha===referencia.fecha)):null;
   if(refRegistrada){referencia.documentoId=refRegistrada.id;referencia.totalOriginal=refRegistrada.total||0;}
+  // Nota global a RUT genérico: corrige varios documentos, la referencia puede ser «VARIOS»
+  if(esNota&&!referencia.folio&&notaGenerica){referencia.folio='VARIOS';referencia.global=true;}
   if(esNota&&!referencia.folio){toast('⚠️ Las Notas de Crédito/Débito deben indicar el folio del documento referenciado','e');return;}
   if(!puedeOperarFecha(fecha)){toast('🔒 El período contable de esta fecha está cerrado. Reabre el período antes de registrar o modificar documentos.','e');return;}
   const prevEdit=VF.editId?S.ventas.find(x=>x.id===VF.editId):null;
@@ -679,7 +701,7 @@ function mostrarVentasImportadas(res,nombreArchivo){
     d.fechaOriginal=d.fecha;
     const ficha=fichaAux('cliente',d.rutCodigo);
     d.cuenta=dup?.cuentaIngreso||ficha?.cuentaDefault||'';
-    d.fp=dup?.formaPago||(esResumenV(d.tipoDTE)?(+d.tipoDTE===48?'tarjetas':'banco'):'clientes');
+    d.fp=dup?.formaPago||(sinClienteV(d.tipoDTE,d.rutCodigo)?(+d.tipoDTE===48?'tarjetas':'banco'):'clientes');
   });
 
   // Mutar IMV in-place (NO reasignar): window.IMV apunta a este mismo objeto y

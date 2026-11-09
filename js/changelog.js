@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.05-1530';
+const APP_VERSION='v2026.11.09-1330';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.24',fecha:'09-11-2026',titulo:'Notas de crédito a RUT genérico',items:[
+    {tipo:'nuevo',txt:'Una nota de crédito o débito emitida a un RUT genérico (11.111.111-1, 66.666.666-6…) corrige ventas al público, como boletas o vouchers duplicados: ya no puede quedar a Clientes. El formulario oculta esa opción y propone Banco; elige Tarjetas si corrige vouchers. Así no deja saldo en Clientes ni aparece en Pagos y Cobros.'},
+    {tipo:'nuevo',txt:'Si la nota corrige varios documentos, el folio referenciado puede quedar en blanco: se guarda como «VARIOS». En la importación del RCV estas notas parten en Banco, y al editar una que quedó a Clientes se propone Banco para corregirla al guardar.'},
+  ]},
   {version:'V2.22.23',fecha:'05-11-2026',titulo:'Textos genéricos para cualquier rubro',items:[
     {tipo:'cambio',txt:'Los avisos y ayudas de centros de costo ya no hablan de predios, cuarteles ni huertos: usan centro y subcentro, para empresas de cualquier rubro (por ejemplo, el aviso de gastos sin centro de costo del Estado de Resultados).'},
   ]},
