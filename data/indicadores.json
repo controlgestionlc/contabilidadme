@@ -9,10 +9,10 @@
   },
   "dolar": {
     "codigo": "dolar",
-    "fecha": "2026-11-06T03:00:00.000Z",
+    "fecha": "2026-11-09T03:00:00.000Z",
     "nombre": "Dólar observado",
     "unidad_medida": "Pesos",
-    "valor": 970.94
+    "valor": 979.88
   },
   "dolar_intercambio": {
     "codigo": "dolar_intercambio",
@@ -23,12 +23,12 @@
   },
   "euro": {
     "codigo": "euro",
-    "fecha": "2026-11-06T03:00:00.000Z",
+    "fecha": "2026-11-09T03:00:00.000Z",
     "nombre": "Euro",
     "unidad_medida": "Pesos",
-    "valor": 1090.94
+    "valor": 1092.4
   },
-  "fecha": "2026-11-08T20:00:00.000Z",
+  "fecha": "2026-11-09T23:00:00.000Z",
   "imacec": {
     "codigo": "imacec",
     "fecha": "2026-09-01T04:00:00.000Z",
@@ -45,17 +45,17 @@
   },
   "ivp": {
     "codigo": "ivp",
-    "fecha": "2026-11-08T03:00:00.000Z",
+    "fecha": "2026-11-09T03:00:00.000Z",
     "nombre": "Indice de valor promedio (IVP)",
     "unidad_medida": "Pesos",
-    "valor": 42824.39
+    "valor": 42830.31
   },
   "libra_cobre": {
     "codigo": "libra_cobre",
-    "fecha": "2026-11-06T03:00:00.000Z",
+    "fecha": "2026-11-09T03:00:00.000Z",
     "nombre": "Libra de Cobre",
     "unidad_medida": "Dólar",
-    "valor": 6.4
+    "valor": 6.32
   },
   "tasa_desempleo": {
     "codigo": "tasa_desempleo",
@@ -66,17 +66,17 @@
   },
   "tpm": {
     "codigo": "tpm",
-    "fecha": "2026-11-06T03:00:00.000Z",
+    "fecha": "2026-11-09T03:00:00.000Z",
     "nombre": "Tasa Política Monetaria (TPM)",
     "unidad_medida": "Porcentaje",
     "valor": 4.5
   },
   "uf": {
     "codigo": "uf",
-    "fecha": "2026-11-08T03:00:00.000Z",
+    "fecha": "2026-11-09T03:00:00.000Z",
     "nombre": "Unidad de fomento (UF)",
     "unidad_medida": "Pesos",
-    "valor": 41290.15
+    "valor": 41295.46
   },
   "utm": {
     "codigo": "utm",
