@@ -13,7 +13,7 @@ const modulo=async code=>{const m=new vm.SourceTextModule(code,{context:ctx});aw
 ctx.S_REF=S;
 const state2=await modulo(`export const S=globalThis.S_REF; export const AUTH={user:{activo:true,rol:'admin'}};`);
 const firebase=await modulo(`export const logAccion=()=>{}; export const logCambio=()=>{};`);
-const core=await modulo(`export const pdcNm=x=>x; export const dteV=x=>({signo:+x===61?-1:1,nm:'DTE',cuenta:'4101002'}); export const dteC=x=>({signo:[56,61].includes(+x)?-1:1,nm:'DTE'});`);
+const core=await modulo(`export const pdcNm=x=>x; export const dteV=x=>({signo:+x===61?-1:1,nm:'DTE',cuenta:'4101002'}); export const dteC=x=>({signo:[56,61].includes(+x)?-1:1,nm:'DTE'}); export const esDteHonorario=()=>false;`);
 const pdc=await modulo(`export const validarMovimientosPDC=()=>({ok:true,errores:[]}); export const reglaCuenta=()=>({});`);
 const corr=await modulo(`export const asegurarNumerosContables=async()=>({ok:true});`);
 const val=await modulo(`export const validarAsientoCentral=()=>({ok:true}); export const validarMutacionAsientos=()=>({ok:true,errores:[],cambiados:[]}); export const leerAsientosPersistidosLocal=()=>[];`);
@@ -22,12 +22,14 @@ const empresas=await modulo(`export const empresaActiva=()=>({}); export const p
 const motorSrc=fs.readFileSync(new URL('../js/motor-contable.js',import.meta.url),'utf8');
 const motor=new vm.SourceTextModule(motorSrc,{context:ctx});
 await motor.link(s=>{if(s==='./core.js')return core;if(s==='./pdc-reglas.js')return pdc;throw new Error(s);});await motor.evaluate();
+const rcvSrc=fs.readFileSync(new URL('../js/rcv-control.js',import.meta.url),'utf8');
+const rcv=new vm.SourceTextModule(rcvSrc,{context:ctx});await rcv.link(s=>{throw new Error(s);});await rcv.evaluate();
 const orqSrc=fs.readFileSync(new URL('../js/contabilidad-v2.js',import.meta.url),'utf8');
 const orq=new vm.SourceTextModule(orqSrc,{context:ctx});
 await orq.link(s=>({
   './state.js':state2,'./firebase.js':firebase,'./motor-contable.js':motor,'./pdc-reglas.js':pdc,
   './core.js':core,'./correlativo-contable.js':corr,'./asiento-validacion.js':val,
-  './auth.js':auth,'./empresas.js':empresas
+  './auth.js':auth,'./empresas.js':empresas,'./rcv-control.js':rcv
 }[s]||Promise.reject(new Error(s))));
 await orq.evaluate();
 const {guardarDocumentoContabilizado}=orq.namespace;

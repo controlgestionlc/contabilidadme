@@ -1,5 +1,5 @@
 import {tributacionCompra,periodoContableCompra,fechaContabilizacionCompra,asientoCompra} from './motor-contable.js';
-import {claveRCV,compararCompraRCV,snapshotCompraRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
+import {documentoDuplicado,claveRCV,compararCompraRCV,snapshotCompraRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 // compras.js — Libro de compras + importador SII
 import {toast, fmt, pn, today, MESES, IVA, DTE_COMPRAS, dteC, esDteHonorario, rutParse, rutFmt, rutDV, pdcNm, CCOLS, CUENTAS_GASTO, CUENTAS_COMPRA, fmtC} from './core.js';
 import {rerender} from './ui.js';
@@ -12,7 +12,7 @@ import {inputCuenta} from './buscadorcuentas.js';
 import {leerArchivo,resolverVencimientoImportado} from './importadorsii.js';
 import {fichaAux, fichasAux, guardarFichasAux} from './importadoraux.js';
 import './storage.js';
-import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
+import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha,docsOtrosEjercicios,docsEnAsientos,textoDup} from './contabilidad-v2.js';
 import {validarMovimientosPDC,lineasSinCentroCosto} from './pdc-reglas.js';
 import {buscarRecepcionParaCompra} from './conciliacion-compras-motor.js';
 import {validarDetalleRCV} from './rcv-detalle.js';
@@ -1457,7 +1457,14 @@ async function confirmarImportacion(){
   // tomar números que no choquen con ellos.
   const sinFolio=[];
   const recepMatches=[]; // V2.22: {recepcionId,docId} — conciliación automática pendiente de persistir
+  // V2.22.27 · Un documento ya registrado en un asiento manual o en otro ejercicio no entra.
+  const otrosAnios=await docsOtrosEjercicios('compras');
+  const enAsientos=docsEnAsientos('compras');
   incluidos.forEach((d,i)=>{
+    if(!prevPorClave.get(claveDocCompra(d))){
+      const dupA=documentoDuplicado(d,enAsientos)||documentoDuplicado(d,otrosAnios);
+      if(dupA){d.errorImport=textoDup(dupA,'compras');d.estadoImport='pendiente_error';d.incluir=false;pendientesError.push(d);return;}
+    }
     const fechaFinal=d.fechaOriginal;
     const periodoContable=periodoImportSeleccionado();
     const fechaContabilizacion=fechaContabilizacionImport(d);
@@ -1555,6 +1562,7 @@ async function confirmarImportacion(){
     try{
       if(idxPrev>=0)S.compras[idxPrev]=doc;else S.compras.push(doc);
       upsertAsientoDocumento('compras',doc);
+      prevPorClave.set(claveDocCompra(doc),doc);   // un folio repetido en el mismo archivo actualiza, no duplica
       if(typeof doc.corrMes!=='number')sinCorr.push(doc);
       if(!doc.folioComp)sinFolio.push(doc);
       if(fueraDelPeriodo)fueraPeriodoContable++;

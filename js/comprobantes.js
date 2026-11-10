@@ -12,7 +12,8 @@ import {fmt, fmtC, MESES, pdcNm, today, toast, rutFmt, dteV, dteC, rutParse, DTE
 import {S, getCurSec} from './state.js';
 import {nav, rerender} from './ui.js';
 import {genDiario, destinoEdicion, corregirDesdeDiario, editarAsientoRef} from './reportes.js';
-import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux, asegurarFormNuevo} from './asientos.js';
+import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux, asegurarFormNuevo, todosDocsCompras, todosDocsVentas} from './asientos.js';
+import {claveRCV} from './rcv-control.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {logAccion} from './firebase.js';
 import {ejercicioCerrado,persistirAsientosCritico,persistirClavesCritico,anularDocumentoContabilizado,anularAsientoDocumento} from './contabilidad-v2.js';
@@ -1295,6 +1296,16 @@ function guardarCmpEdDte(){
   if(!d.tipoDTE){toast('⚠️ Falta el tipo de documento','e');return;}
   if(!String(d.numero||'').trim()){toast('⚠️ Falta el folio','e');return;}
   if(!d.fecha){toast('⚠️ Falta la fecha','e');return;}
+  // V2.22.27 · El documento no puede existir ya en el libro ni en otro asiento
+  {
+    const cd=CMP_MODAL.edit.movs[li]?.cd;
+    const docs=cd==='2102001'?todosDocsCompras():cd==='1104001'?todosDocsVentas():[];
+    const e=CMP_ENTRIES[CMP_MODAL.idx]||{};
+    const dup=docs.find(x=>claveRCV(x)===claveRCV(d)
+      &&!(x.origen==='asiento'&&(x.asientoId===e.asientoId||x.asientoId===e.id)&&x.lineaIdx===li)
+      &&!(x.origen==='libro'&&e.docId&&x.id===e.docId));
+    if(dup){toast(`⚠️ Documento duplicado: DTE ${dup.tipoDTE} N°${dup.numero} ya está registrado (${dup.origen==='asiento'?'asiento N°'+(dup.asientoN||''):'libro'}, ${dup.fecha||''}). No se puede repetir.`,'e');return;}
+  }
 
   CMP_MODAL.edit.movs[li].dte={...d};
   const m=CMP_MODAL.edit.movs[li];

@@ -6,6 +6,7 @@ import {asientoVenta,asientoCompra,asientoHonorarioDoc,cuadratura,tributacionCom
 import {validarMovimientosPDC,reglaCuenta} from './pdc-reglas.js';
 import {dteV,dteC,esDteHonorario} from './core.js';
 import {asegurarNumerosContables} from './correlativo-contable.js';
+import {documentoDuplicado,textoDuplicado} from './rcv-control.js';
 import {validarAsientoCentral,validarMutacionAsientos,leerAsientosPersistidosLocal} from './asiento-validacion.js';
 import {puedeEditar} from './auth.js';
 import {empresaActiva,puedeVerEmpresa} from './empresas.js';
@@ -194,6 +195,40 @@ function anularAsientoDocumento(fuente,docId,motivo='documento anulado'){
 
 // Guarda documento + asiento como una unidad lógica. Si una de las dos
 // persistencias falla, restaura el estado en memoria y reintenta restaurar nube.
+// ═══ V2.22.27 · Un documento (RUT + tipo + folio) existe una sola vez ═══
+// Se revisa el libro del ejercicio, los documentos registrados dentro de asientos
+// manuales y los libros del ejercicio anterior y siguiente (un documento del SII
+// no se repite nunca, aunque se haya contabilizado en otro año).
+async function docsOtrosEjercicios(fuente){
+  const anio=+S.empresa.anio,out=[];
+  for(const y of [anio-1,anio+1]){
+    try{
+      const r=await window.storage.get(`${fuente}-${y}`);
+      const a=r?.value?JSON.parse(r.value):null;
+      if(Array.isArray(a))a.forEach(d=>{if(d&&d.estado!=='anulado')out.push({...d,_anio:y});});
+    }catch(e){}
+  }
+  return out;
+}
+// Documentos registrados como líneas de un asiento manual (Clientes/Proveedores con DTE)
+function docsEnAsientos(fuente){
+  const cta=fuente==='ventas'?'1104001':'2102001';
+  const out=[];
+  (S.asientos||[]).forEach(a=>{
+    if(a.anulado)return;
+    if(a.referenciaDoc?.fuente===fuente)return;   // asiento generado desde un documento del libro
+    (a.movs||[]).forEach((m,li)=>{if(m.cd===cta&&m.dte?.numero)out.push({...m.dte,id:`as_${a.id}_${li}`,origen:'asiento',asientoN:a.numeroContable||a.n});});
+  });
+  return out;
+}
+function textoDup(dup,fuente){
+  return textoDuplicado(dup,fuente)+(dup._anio?` Está en el ejercicio ${dup._anio}.`:'')+(dup.origen==='asiento'?` Está en el asiento manual N°${dup.asientoN}.`:'');
+}
+async function verificarSinDuplicado(fuente,doc,arr){
+  const dup=documentoDuplicado(doc,arr)||documentoDuplicado(doc,docsEnAsientos(fuente))||documentoDuplicado(doc,await docsOtrosEjercicios(fuente));
+  if(dup)throw new Error(textoDup(dup,fuente));
+}
+
 async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
   const lock=`${fuente}:${doc.id}`;
   if(documentosGuardando.has(lock))return {ok:false,motivo:'guardado-en-curso'};
@@ -214,6 +249,7 @@ async function guardarDocumentoContabilizado(fuente,doc,arr,esEdicion=false){
         doc.excluidoAuto=false;
       }
     }
+    if(doc.estado!=='anulado')await verificarSinDuplicado(fuente,doc,arr);
     if(esEdicion){
       const i=arr.findIndex(x=>x.id===doc.id); if(i<0)throw new Error('Documento no encontrado');
       arr[i]=doc;
@@ -530,4 +566,4 @@ function auditoriaIntegridad(){
   return {ok:hallazgos.length===0,total:hallazgos.length,hallazgos,porSeveridad};
 }
 
-export {validarAsientoCentral,validarMutacionAsientos,idAsientoDoc,ejercicioCerrado,periodoCerrado,puedeOperarFecha,cerrarPeriodoContable,reabrirPeriodoContable,persistirClavesCritico,persistirAsientosCritico,asientoDesdeDocumento,upsertAsientoDocumento,anularAsientoDocumento,guardarDocumentoContabilizado,anularDocumentoContabilizado,migrarDocumentosAAsientos,auditoriaIntegridad};
+export {docsOtrosEjercicios,docsEnAsientos,textoDup,validarAsientoCentral,validarMutacionAsientos,idAsientoDoc,ejercicioCerrado,periodoCerrado,puedeOperarFecha,cerrarPeriodoContable,reabrirPeriodoContable,persistirClavesCritico,persistirAsientosCritico,asientoDesdeDocumento,upsertAsientoDocumento,anularAsientoDocumento,guardarDocumentoContabilizado,anularDocumentoContabilizado,migrarDocumentosAAsientos,auditoriaIntegridad};

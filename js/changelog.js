@@ -8,13 +8,18 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.09-1900';
+const APP_VERSION='v2026.11.10-1330';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.27',fecha:'10-11-2026',titulo:'Un documento de compra o venta se registra una sola vez',items:[
+    {tipo:'arreglo',txt:'El importador del RCV de ventas podía contabilizar dos veces el mismo documento: usaba la marca de duplicado calculada al cargar el archivo, que quedaba vieja si se importaba dos veces, desde otra pestaña o con el paso 2. Ahora compras y ventas buscan el documento en el libro al momento de contabilizar y, si ya está, lo actualizan en vez de crear otro. Un folio repetido dentro del mismo archivo tampoco entra dos veces.'},
+    {tipo:'cambio',txt:'La clave del documento (RUT + tipo + folio) se compara normalizada: «000518778» y «518778», o «07.987.955» y «7987955», son el mismo documento. Además se revisan los documentos registrados dentro de asientos manuales y los libros del ejercicio anterior y siguiente: si el documento ya está ahí, no se registra y se indica dónde está.'},
+    {tipo:'cambio',txt:'Lo mismo al registrar o editar a mano (ventas, compras, honorarios, asientos manuales con documento y datos del documento en Comprobantes). El libro de ventas muestra, como el de compras, un aviso con los duplicados que ya existían para anular la copia sobrante.'},
+  ]},
   {version:'V2.22.26',fecha:'09-11-2026',titulo:'Editar desde el Libro Mayor y asignación masiva de centros',items:[
     {tipo:'nuevo',txt:'Libro Mayor: cada línea del detalle de una cuenta tiene ✏️. Abre el asiento en su editor: el documento de ventas o compras, el editor de pagos y cobros, el asiento manual o el F29; si no tiene editor propio, abre su comprobante.'},
     {tipo:'nuevo',txt:'Asignar centros de costo: el filtro de cuentas permite elegir una o más cuentas, y «⚡ Asignación masiva» asigna un centro a todos los movimientos filtrados de una vez (avisa si alguno ya tenía otro centro).'},

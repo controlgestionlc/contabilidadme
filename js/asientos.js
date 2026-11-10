@@ -1,4 +1,5 @@
 // asientos.js — Asientos manuales, modal DTE, documentos unificados
+import {claveRCV} from './rcv-control.js';
 import {toast, fmtC, pn, today, IVA, pdcNm, PDC, CUENTAS_SEL, rutParse, rutFmt, dteV, dteC, rutDV} from './core.js';
 import {updateHdr} from './empresa.js';
 import {nav, rerender} from './ui.js';
@@ -649,7 +650,7 @@ function dtmCheckDup(){
   const esCompra=l.cd==='2102001';
   const docs=esCompra?todosDocsCompras():todosDocsVentas();
   // Excluir el DTE actual si estamos editando
-  const dup=docs.find(d=>d.rutCodigo===r.codigo&&+d.tipoDTE===tipoDTE&&d.numero===numero
+  const dup=docs.find(d=>claveRCV(d)===claveRCV({rutCodigo:r.codigo,tipoDTE,numero})
     &&!(d.origen==='asiento'&&d.asientoId===AF.editId&&d.lineaIdx===DM.lineaIdx));
   if(dup){
     const folios=foliosMensuales(docs);
@@ -726,7 +727,7 @@ function dtmGuardar(){
 
   // Validar duplicado (los honorarios no van a los libros de compra/venta)
   const docs=esHon?[]:(esCompra?todosDocsCompras():todosDocsVentas());
-  const dup=docs.find(d=>d.rutCodigo===r.codigo&&+d.tipoDTE===tipoDTE&&d.numero===numero
+  const dup=docs.find(d=>claveRCV(d)===claveRCV({rutCodigo:r.codigo,tipoDTE,numero})
     &&!(d.origen==='asiento'&&d.asientoId===AF.editId&&d.lineaIdx===DM.lineaIdx));
   if(dup){
     const folios=foliosMensuales(docs);
@@ -1052,7 +1053,8 @@ async function guardarAsiento(){
     if(!m.dte)continue;
     const esCompra=m.cd==='2102001';
     const docs=esCompra?todosDocsCompras():todosDocsVentas();
-    const dup=docs.find(d=>d.rutCodigo===m.dte.rutCodigo&&+d.tipoDTE===+m.dte.tipoDTE&&d.numero===m.dte.numero
+    // V2.22.27 · clave normalizada (RUT, tipo y folio sin ceros ni espacios)
+    const dup=docs.find(d=>claveRCV(d)===claveRCV(m.dte)
       &&!(d.origen==='asiento'&&d.asientoId===AF.editId&&d.lineaIdx===i));
     if(dup){
       const folios=foliosMensuales(docs);

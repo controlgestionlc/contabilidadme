@@ -9,8 +9,8 @@ import {logAccion,logCambio} from './firebase.js';
 import {mesRango, mesOpts, dteVentasOpts, foliosMensuales} from './helpers.js';
 import {todosDocsVentas, abrirAsientoDesde, proxFolioComprobante} from './asientos.js';
 import './storage.js';
-import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha} from './contabilidad-v2.js';
-import {claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
+import {guardarDocumentoContabilizado,anularDocumentoContabilizado,ejercicioCerrado,upsertAsientoDocumento,anularAsientoDocumento,persistirClavesCritico,puedeOperarFecha,docsOtrosEjercicios,docsEnAsientos,textoDup} from './contabilidad-v2.js';
+import {documentoDuplicado,claveRCV,compararVentaRCV,snapshotVentaRCV,fingerprintSnapshot,valorCambio} from './rcv-control.js';
 import {asientoVenta,esCuentaCajaBanco,CUENTA_BANCO_DEFECTO,pagosDocumento} from './motor-contable.js';
 import {validarMovimientosPDC} from './pdc-reglas.js';
 import {validarDetalleRCV} from './rcv-detalle.js';
@@ -180,7 +180,33 @@ Los documentos y sus asientos se conservarán para trazabilidad.`))return;
   rerender();
 }
 
+// V2.22.27 · Aviso de documentos duplicados en ventas (misma clave RUT + tipo + folio)
+function renderVDupAlert(){
+  const el=document.getElementById('v-dup-alert');if(!el)return;
+  const map=new Map();
+  todosDocsVentas().forEach(d=>{const k=claveRCV(d);if(!map.has(k))map.set(k,[]);map.get(k).push(d);});
+  const grupos=[...map.values()].filter(g=>g.length>1).sort((a,b)=>(a[0].fecha||'').localeCompare(b[0].fecha||''));
+  if(!grupos.length){el.style.display='none';el.innerHTML='';return;}
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const montoDup=grupos.reduce((s,g)=>s+(g.length-1)*(+g[0].total||0)*((dteV(g[0].tipoDTE)?.signo)||1),0);
+  const filas=grupos.slice(0,25).map(g=>{const d=g[0];return `<tr>
+    <td class="tl" style="font-family:var(--mono);font-size:11px">${esc(d.fecha)}</td>
+    <td class="tl" style="font-family:var(--mono);font-size:11px">${d.tipoDTE} N°${esc(d.numero)}</td>
+    <td class="tl" style="font-family:var(--mono);font-size:11px">${rutFmt(d.rutCodigo,d.rutDV)}</td>
+    <td class="tnm" style="font-size:11px">${esc(d.razonSocial)}</td>
+    <td style="font-size:11px;font-weight:600">${fmtC(d.total)}</td>
+    <td class="tl" style="font-size:10px;color:var(--mt)">${g.length}× · ${g.map(x=>x.origen==='asiento'?`✏ Asiento N°${x.asientoN}`:'📗 Libro').join(' + ')}</td></tr>`;}).join('');
+  el.style.display='block';
+  el.innerHTML=`<div style="background:rgba(248,81,73,.07);border:1px solid rgba(248,81,73,.35);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--err);margin-bottom:4px">⚠️ ${grupos.length} documento${grupos.length===1?'':'s'} duplicado${grupos.length===1?'':'s'} en el libro de ventas</div>
+    <div style="font-size:11px;color:var(--mt);margin-bottom:10px">Mismo RUT + tipo de DTE + folio registrado más de una vez: inflan las ventas en <strong style="color:var(--err)">${fmtC(montoDup)}</strong>. Anula la copia sobrante (si viene de un asiento manual, desde el asiento). Desde la V2.22.27 el sistema ya no permite registrarlos.</div>
+    <div class="tw" style="max-height:260px;overflow:auto"><table>
+      <thead><tr><th class="tl">FECHA</th><th class="tl">DOC</th><th class="tl">RUT</th><th class="tl">RAZÓN SOCIAL</th><th>TOTAL</th><th class="tl">ORIGEN</th></tr></thead>
+      <tbody>${filas}</tbody></table></div></div>`;
+}
+
 function renderVentas(){
+  renderVDupAlert();
   const selMes=document.getElementById('vf-mes');
   if(selMes&&selMes.options.length<=1)selMes.innerHTML=mesOpts(selMes.value);
   const selDteFlt=document.getElementById('vf-dte-flt');
@@ -915,10 +941,23 @@ async function confirmarImportacionV(){
 
   let importados=0;
   const aplicados=[],pendientesError=[];
+  // V2.22.27 · El documento anterior se busca AHORA en el libro (no en la vista
+  // previa, que pudo quedar vieja si se importó dos veces o en otra pestaña), y se
+  // actualiza al registrar cada uno: un mismo folio repetido en el archivo
+  // tampoco entra dos veces.
+  const prevPorClaveV=new Map();
+  S.ventas.forEach(x=>{const k=claveRCV(x);if(!prevPorClaveV.has(k)||prevPorClaveV.get(k)?.estado==='anulado')prevPorClaveV.set(k,x);});
+  const otrosAnios=await docsOtrosEjercicios('ventas');
+  const enAsientos=docsEnAsientos('ventas');
+  const rechazar=(d,msg)=>{d.errorImport=msg;d.estadoImport='pendiente_error';d.incluir=false;pendientesError.push(d);};
   // Reservar rango de folios de comprobante para las ventas.
   let folioNext=proxFolioComprobante();
   incluidos.forEach((d,i)=>{
-    const prev=d.dup||null;
+    const prev=prevPorClaveV.get(claveRCV(d))||null;
+    if(!prev){
+      const dupA=documentoDuplicado(d,enAsientos)||documentoDuplicado(d,otrosAnios);
+      if(dupA){rechazar(d,textoDup(dupA,'ventas'));return;}
+    }
     const fecha=d.fechaOriginal||d.fecha; // fecha documental RCV: nunca se fuerza al período
     const folioCandidato=prev?.folioComp||folioNext;
     const doc={
@@ -957,6 +996,7 @@ async function confirmarImportacionV(){
     try{
       if(idxPrev>=0)S.ventas[idxPrev]=doc;else S.ventas.push(doc);
       upsertAsientoDocumento('ventas',doc);
+      prevPorClaveV.set(claveRCV(doc),doc);
       if(!prev)folioNext++;
       delete d.errorImport;
       aplicados.push(d);importados++;
