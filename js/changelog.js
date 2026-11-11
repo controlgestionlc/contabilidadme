@@ -15,6 +15,16 @@ const APP_VERSION='v2026.11.11-0930';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.30',fecha:'11-11-2026',titulo:'Parámetros previsionales y meses cerrados',items:[
+    {tipo:'mejora',txt:'Los cambios en los parámetros previsionales (⚙️) se aplican sólo a los meses abiertos. Un mes con el libro cerrado conserva los parámetros con que se cerró: liquidaciones, libro, Previred, LRE, imposiciones y asiento.'},
+    {tipo:'mejora',txt:'Al reabrir un mes, se recalcula automáticamente con los parámetros vigentes y, si su asiento de remuneraciones ya no cuadra, se ofrece actualizarlo (el anterior queda anulado).'},
+    {tipo:'mejora',txt:'Al guardar los parámetros, los asientos de remuneraciones de meses abiertos que cambian se pueden actualizar de una vez. El panel ⚙️ indica qué meses están cerrados.'},
+    {tipo:'arreglo',txt:'El asiento de remuneraciones de un mes cerrado toma los montos del libro cerrado, no un recálculo en vivo.'}
+  ]},
+  {version:'V2.22.29',fecha:'11-11-2026',titulo:'Previsional dentro de Remuneraciones',items:[
+    {tipo:'mejora',txt:'Los parámetros previsionales (comisiones AFP, SIS, mutual/ISL, seguro de cesantía y reforma) se abren con el botón ⚙️ en Remuneraciones, junto a + Trabajador e 🖨️.'},
+    {tipo:'mejora',txt:'Indicadores deja un enlace directo al panel. Al guardar o restaurar las tasas se recalculan las liquidaciones del mes.'}
+  ]},
   {version:'V2.22.28',fecha:'11-11-2026',titulo:'Archivo Previred: renta imponible IPS/Fonasa',items:[
     {tipo:'arreglo',txt:'Previred rechazaba la nómina con «Renta Imponible IPS igual a cero, con cotización FONASA mayor a cero» y «Cotización FONASA inválida»: el archivo no informaba la renta imponible IPS/ISL/Fonasa (campo 64). Ahora se informa cuando el trabajador cotiza a Fonasa o hay cotización al ISL.'},
     {tipo:'arreglo',txt:'La solicitud de subsidio trabajador joven (campo 25) va en «N» en vez de en blanco (Previred lo advertía).'},

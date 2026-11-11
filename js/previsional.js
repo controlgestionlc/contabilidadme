@@ -97,7 +97,15 @@ function patronalVigente(g){
 }
 
 // ── Acceso a la configuración vigente (mezcla defaults con lo guardado) ──
+// V2.22.29 — Mientras se calcula un mes cerrado, rigen los parámetros guardados en su cierre.
+let PREV_FIJO=null;
+export function conPrevisional(fijo,fn){
+  if(!fijo||!fijo.patronal)return fn();
+  const antes=PREV_FIJO;PREV_FIJO=fijo;
+  try{return fn();}finally{PREV_FIJO=antes;}
+}
 export function getPrevisional(){
+  if(PREV_FIJO)return PREV_FIJO;
   const g=(S.empresa&&S.empresa.previsional)||{};
   return {
     afps:      g.afps||AFP_DEFAULT,

@@ -110,13 +110,14 @@ function saludCodigo(linea,p){
   const key=linea.saludKey||(S.trabajadores||[]).find(t=>t.id===linea.id)?.salud;
   return val(p.saludCodigo,SALUD_DT[key]||'');
 }
-function ccafCodigo(p){
+// V2.22.29: la caja y la mutual salen de la línea del libro (fijas si el mes está cerrado)
+function ccafCodigo(p,linea){
   if(p.ccafCodigo!==undefined&&p.ccafCodigo!=='')return String(p.ccafCodigo);
-  return CCAF_DT[getPrevisional().patronal.cajaInstitucion]||'0';
+  return CCAF_DT[(linea&&linea.cajaInst)||getPrevisional().patronal.cajaInstitucion]||'0';
 }
-function mutualCodigo(p){
+function mutualCodigo(p,linea){
   if(p.mutualCodigo!==undefined&&p.mutualCodigo!=='')return String(p.mutualCodigo);
-  return MUTUAL_DT[getPrevisional().patronal.mutualInstitucion]??'';
+  return MUTUAL_DT[(linea&&linea.mutualInst)||getPrevisional().patronal.mutualInstitucion]??'';
 }
 
 export function construirRegistroLRE(linea){
@@ -126,7 +127,7 @@ export function construirRegistroLRE(linea){
   r['1101']=rutDT(linea.rut); r['1102']=fechaDT(p.fechaInicio); r['1103']=fechaDT(p.fechaTermino); r['1104']=val(p.causalTermino);
   r['1105']=val(p.region); r['1106']=val(p.comuna); r['1170']=val(p.tipoImpuesto,'1'); r['1146']=val(p.tecnicoExtranjero,'0');
   r['1107']=val(p.jornada,'101'); r['1108']=val(p.discapacidad,'0'); r['1109']=val(p.pensionadoVejez,'0'); r['1141']=afpCodigo(linea,p);
-  r['1142']=val(p.ips,'0'); r['1143']=saludCodigo(linea,p); r['1151']=val(p.afc,'1'); r['1110']=ccafCodigo(p); r['1152']=mutualCodigo(p);
+  r['1142']=val(p.ips,'0'); r['1143']=saludCodigo(linea,p); r['1151']=val(p.afc,'1'); r['1110']=ccafCodigo(p,linea); r['1152']=mutualCodigo(p,linea);
   r['1111']=val(p.cargasLegales); r['1112']=val(p.cargasMaternales); r['1113']=val(p.cargasInvalidez); r['1114']=val(linea.tramoAF||p.tramoAsignacion);
   for(let i=1;i<=10;i++)r[String(1170+i)]=val(p[`rutSindicato${i}`]);
   r['1115']=val(p.diasTrabajados,'30'); r['1116']=val(p.diasLicencia); r['1117']=val(p.diasVacaciones); r['1118']=val(p.subsidioJoven,'0');

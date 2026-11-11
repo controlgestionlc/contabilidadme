@@ -8,7 +8,7 @@
 
 import {toast, fmtC, MESES} from './core.js';
 import {S} from './state.js';
-import {libroDelMes} from './libroremuneraciones.js';
+import {libroDelMes, previsionalDelLibro} from './libroremuneraciones.js';
 import {getPrevisional, mutualInfo, cajaInfo, SIS_A_SEGURO_SOCIAL_DESDE} from './previsional.js';
 
 // Fonasa con empresa afiliada a CCAF (Formato Previred v58)
@@ -18,7 +18,7 @@ const R=n=>Math.round(+n||0);
 
 function construirImposiciones(mes){
   const L=libroDelMes(mes);
-  const P=getPrevisional().patronal;
+  const P=previsionalDelLibro(L).patronal;   // V2.22.29: los del cierre si el mes está cerrado
   const TASA_FONASA_CON_CCAF=tasaNum(P.ccafSaludFonasa,2.8), TASA_CCAF_FONASA=tasaNum(P.ccafSaludCaja,4.2);
   const conCaja=(P.cajaInstitucion||'ninguna')!=='ninguna';
   const nomCaja=conCaja?cajaInfo(P.cajaInstitucion).nm:'';

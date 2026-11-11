@@ -7,13 +7,14 @@ import {proxFolioAsiento} from './asientos.js';
 import {getIndicadores, IND, calcularGratificacion, topeGratificacionMensual,
         getIUSCTabla, calcularIUSCDetalle, IUSC_TABLA_OFICIAL,
         tramoAsignacionFamiliar, montoAsignacionTramo, tasasTrabajoPesado} from './indicadores.js';
-import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal, tasasAFC} from './previsional.js';
+import {getPrevisional, afpInfo, isapreInfo, calcularAportePatronal, tasasAFC, conPrevisional} from './previsional.js';
 import {ejercicioCerrado,persistirAsientosCritico} from './contabilidad-v2.js';
 import {numeroMostrar} from './correlativo-contable.js';
 import {asistenciaMes, libroRemCerrado, alertaMesCerrado} from './asistencia.js';
 import {ufDelPeriodo, fmtUF} from './uf-historico.js';
 import {numeroALetras} from './numletras.js';
 import {anticiposMes,aplicarAnticipos} from './anticipos.js';
+import {libroDelMes} from './libroremuneraciones.js';
 import './storage.js';
 
 let REMF={editId:null}; // form trabajador (estado interno)
@@ -220,10 +221,15 @@ function calcularLiquidacion(t,uf,utm,asis){
 
 // Liquidación del mes seleccionado en la sección, con su asistencia
 function mesRemSel(){return +(document.getElementById('rem-mes')?.value||1);}
+// V2.22.29: parámetros previsionales guardados al cerrar el mes (null si está abierto)
+function previsionalCierre(m){
+  const c=S.libroRem&&S.libroRem[`${S.empresa.anio}-${String(m).padStart(2,'0')}`];
+  return c&&c.previsional&&c.previsional.patronal?c.previsional:null;
+}
 function liquidacionMes(t,uf,utm,mes){
   const m=mes||mesRemSel();
   // V2.21.63: los anticipos del mes se descuentan como otro descuento
-  return aplicarAnticipos(calcularLiquidacion(t,uf,utm,asistenciaMes(t,S.empresa.anio,m)),anticiposMes(t,S.empresa.anio,m));
+  return conPrevisional(previsionalCierre(m),()=>aplicarAnticipos(calcularLiquidacion(t,uf,utm,asistenciaMes(t,S.empresa.anio,m)),anticiposMes(t,S.empresa.anio,m)));
 }
 
 function abrirFormTrabajador(){
@@ -553,7 +559,7 @@ function htmlLiquidacion(t,opts={}){
   const pct=v=>(+v||0).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
   const fFecha=iso=>{const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
   const hoy=new Date();const fecha=`${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
-  const comision=+(afpInfo(t.afp).comision||0);
+  const comision=+(conPrevisional(previsionalCierre(mesN),()=>afpInfo(t.afp)).comision||0);
   const pctTrab=(P.tasaAFP!=null?+P.tasaAFP*100:10)+comision;   // remParams entrega la tasa en fracción (0,10)
   const esIsapre=t.salud&&t.salud!=='fonasa';
   const pctSalud=((P.tasaSalud!=null?+P.tasaSalud*100:7)).toLocaleString('es-CL',{maximumFractionDigits:2})+'%';   // remParams entrega fracción (0,07)
@@ -679,39 +685,29 @@ function imprimirRemuneraciones(){
   setTimeout(limpiar,1500);
 }
 
-async function generarAsientoRemuneraciones(){
-  const anio=S.empresa.anio;
-  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de generar remuneraciones.','e');return;}
-  const mesNum=+document.getElementById('rem-mes').value||1;
+// V2.22.29 — Totales del mes para el asiento. Con el libro CERRADO se usan sus
+// montos (fotografía con los parámetros previsionales de ese momento); con el
+// mes abierto se calcula en vivo con los parámetros vigentes.
+function totalesRemMes(mesNum){
+  const L=libroDelMes(mesNum);
+  if(L&&L.cerrado){
+    const T=L.totales||{};
+    return {cerrado:true,n:L.lineas.length,uf:L.uf,utm:L.utm,
+      totSueldo:+T.totalImponible||0,totColMov:(+T.totalNoImponible||0)-(+T.asigFamiliar||0),totAF:+T.asigFamiliar||0,totTP:+T.descTrabPesado||0,
+      totAFP:+T.descAFP||0,totSalud:+T.descSalud||0,totCes:+T.descCesantia||0,totIusc:+T.iusc||0,totLiq:+T.liquido||0,totAnt:+T.anticipo||0,totPatronal:+T.totalPatronal||0};
+  }
   const uf=getUF(),utm=getUTM();
-  if(!S.trabajadores.length){toast('⚠️ No hay trabajadores','e');return;}
-  // Acumular
-  let totSueldo=0,totColMov=0,totAFP=0,totSalud=0,totCes=0,totIusc=0,totLiq=0,totPatronal=0,totAF=0,totTP=0,totAnt=0;
-  S.trabajadores.forEach(t=>{
-    const l=liquidacionMes(t,uf,utm,mesNum);
-    totSueldo+=l.totalImponible;totColMov+=l.totalNoImponible-(l.asigFamiliar||0);totAF+=l.asigFamiliar||0;totTP+=l.descTrabPesado||0;
-    totAFP+=l.descAFP;totSalud+=l.descSalud;totCes+=l.descCesantia;totIusc+=l.iusc;totLiq+=l.liquido;totAnt+=l.anticipo||0;
-    totPatronal+=l.patronal.total;
+  const t={cerrado:false,n:S.trabajadores.length,uf,utm,totSueldo:0,totColMov:0,totAFP:0,totSalud:0,totCes:0,totIusc:0,totLiq:0,totPatronal:0,totAF:0,totTP:0,totAnt:0};
+  S.trabajadores.forEach(tr=>{
+    const l=liquidacionMes(tr,uf,utm,mesNum);
+    t.totSueldo+=l.totalImponible;t.totColMov+=l.totalNoImponible-(l.asigFamiliar||0);t.totAF+=l.asigFamiliar||0;t.totTP+=l.descTrabPesado||0;
+    t.totAFP+=l.descAFP;t.totSalud+=l.descSalud;t.totCes+=l.descCesantia;t.totIusc+=l.iusc;t.totLiq+=l.liquido;t.totAnt+=l.anticipo||0;
+    t.totPatronal+=l.patronal.total;
   });
-  if(totSueldo<=0){toast('⚠️ No hay montos','e');return;}
-  // Último día calendario real del mes: evita fechas inexistentes como
-  // 2026-02-30 y mantiene el asiento dentro del período de remuneraciones.
-  const ultimoDia=new Date(anio,mesNum,0).getDate();
-  const fecha=`${anio}-${String(mesNum).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
-  // V2.21.36 — Antes de decidir, se trae el libro de asientos vigente desde la
-  // nube: otro equipo (o una sesión anterior) pudo haber grabado asientos que
-  // esta pantalla aún no tiene en memoria.
-  const fresco=await refrescarAsientosDesdeNube(anio);
-  if(!fresco.ok){toast('⚠️ No se pudo leer el libro de asientos desde la nube ('+fresco.motivo+'). Revisa la conexión e inténtalo de nuevo.','e');return;}
-  // V2.21.35 — Un solo asiento activo de remuneraciones por mes. Si ya existe,
-  // se ofrece reemplazarlo: el anterior queda ANULADO (no se borra su número).
-  const periodo=`${anio}-${String(mesNum).padStart(2,'0')}`;
-  const previos=(S.asientos||[]).filter(a=>!a.anulado&&a.tipo==='remuneraciones'&&(a.periodo===periodo||String(a.fecha||'').slice(0,7)===periodo));
-  const resumen=`${S.trabajadores.length} trabajadores\nLíquido a pagar: ${fmtC(totLiq)}\nAporte patronal: ${fmtC(totPatronal)}`;
-  if(previos.length){
-    const nums=previos.map(a=>'N°'+(numeroMostrar(a)||'?')).join(', ');
-    if(!confirm(`${previos.length===1?'Ya existe el asiento':'Ya existen los asientos'} de remuneraciones de ${MESES[mesNum-1]} ${anio}: ${nums}.\n\n¿Reemplazarlo por uno nuevo?\n${previos.length===1?'El anterior queda anulado':'Los anteriores quedan anulados'} (conserva${previos.length===1?'':'n'} su número, sin efecto contable).\n\n${resumen}`))return;
-  }else if(!confirm(`¿Generar asiento de remuneraciones de ${MESES[mesNum-1]} ${anio}?\n\n${resumen}`))return;
+  return t;
+}
+function movsRemuneraciones(T,mesNum){
+  const {totSueldo,totColMov,totAFP,totSalud,totCes,totIusc,totLiq,totPatronal,totAF,totTP,totAnt}=T;
   const movs=[];
   // DEBE: gasto en sueldos (imponible + no imponible)
   movs.push({cd:'3201001',nm:pdcNm('3201001'),debe:totSueldo,haber:0,desc:'Sueldos '+MESES[mesNum-1]});
@@ -732,10 +728,63 @@ async function generarAsientoRemuneraciones(){
     movs.push({cd:'3201013',nm:pdcNm('3201013'),debe:totPatronal,haber:0,desc:'Aporte patronal (SIS, mutual, AFC'+(totTP?', trabajo pesado':'')+')'});
     movs.push({cd:'2104001',nm:pdcNm('2104001'),debe:0,haber:totPatronal,desc:'Aporte patronal por pagar'});
   }
+  return movs;
+}
+const periodoRem=mesNum=>`${S.empresa.anio}-${String(mesNum).padStart(2,'0')}`;
+function asientosRemActivos(mesNum){
+  const periodo=periodoRem(mesNum);
+  return (S.asientos||[]).filter(a=>!a.anulado&&a.tipo==='remuneraciones'&&(a.periodo===periodo||String(a.fecha||'').slice(0,7)===periodo));
+}
+// Saldo neto por cuenta de una lista de movimientos (para comparar asientos)
+const netoPorCuenta=movs=>{const m={};(movs||[]).forEach(x=>{m[x.cd]=(m[x.cd]||0)+Math.round((+x.debe||0)-(+x.haber||0));});
+  Object.keys(m).forEach(k=>{if(!m[k])delete m[k];});return m;};
+/** Asiento activo de remuneraciones del mes cuyos montos ya no coinciden con el cálculo vigente (o null). */
+export function asientoRemDesactualizado(mesNum){
+  const previos=asientosRemActivos(mesNum);
+  if(previos.length!==1)return previos.length?previos[0]:null;
+  const T=totalesRemMes(mesNum);
+  if(!T.n||T.totSueldo<=0)return null;
+  const a=netoPorCuenta(previos[0].movs),b=netoPorCuenta(movsRemuneraciones(T,mesNum));
+  const ks=new Set([...Object.keys(a),...Object.keys(b)]);
+  for(const k of ks)if((a[k]||0)!==(b[k]||0))return previos[0];
+  return null;
+}
+
+// opts.mes: mes a generar (si no, el del selector). opts.auto: sin confirmaciones
+// (lo usa la actualización automática al cambiar parámetros o reabrir un mes).
+async function generarAsientoRemuneraciones(opts={}){
+  const anio=S.empresa.anio;
+  const auto=!!opts.auto;
+  if(ejercicioCerrado()){toast('🔒 El ejercicio está cerrado. Reabre antes de generar remuneraciones.','e');return {ok:false};}
+  const mesNum=+opts.mes||+document.getElementById('rem-mes').value||1;
+  if(!S.trabajadores.length){if(!auto)toast('⚠️ No hay trabajadores','e');return {ok:false};}
+  const T=totalesRemMes(mesNum);
+  const {uf,utm,totLiq,totPatronal,totSueldo}=T;
+  if(totSueldo<=0){if(!auto)toast('⚠️ No hay montos','e');return {ok:false};}
+  // Último día calendario real del mes: evita fechas inexistentes como
+  // 2026-02-30 y mantiene el asiento dentro del período de remuneraciones.
+  const ultimoDia=new Date(anio,mesNum,0).getDate();
+  const fecha=`${anio}-${String(mesNum).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
+  // V2.21.36 — Antes de decidir, se trae el libro de asientos vigente desde la
+  // nube: otro equipo (o una sesión anterior) pudo haber grabado asientos que
+  // esta pantalla aún no tiene en memoria.
+  const fresco=await refrescarAsientosDesdeNube(anio);
+  if(!fresco.ok){toast('⚠️ No se pudo leer el libro de asientos desde la nube ('+fresco.motivo+'). Revisa la conexión e inténtalo de nuevo.','e');return {ok:false};}
+  // V2.21.35 — Un solo asiento activo de remuneraciones por mes. Si ya existe,
+  // se ofrece reemplazarlo: el anterior queda ANULADO (no se borra su número).
+  const periodo=periodoRem(mesNum);
+  const previos=asientosRemActivos(mesNum);
+  const resumen=`${T.n} trabajadores${T.cerrado?' (libro cerrado)':''}\nLíquido a pagar: ${fmtC(totLiq)}\nAporte patronal: ${fmtC(totPatronal)}`;
+  if(auto){/* confirmado por quien llama */}
+  else if(previos.length){
+    const nums=previos.map(a=>'N°'+(numeroMostrar(a)||'?')).join(', ');
+    if(!confirm(`${previos.length===1?'Ya existe el asiento':'Ya existen los asientos'} de remuneraciones de ${MESES[mesNum-1]} ${anio}: ${nums}.\n\n¿Reemplazarlo por uno nuevo?\n${previos.length===1?'El anterior queda anulado':'Los anteriores quedan anulados'} (conserva${previos.length===1?'':'n'} su número, sin efecto contable).\n\n${resumen}`))return {ok:false};
+  }else if(!confirm(`¿Generar asiento de remuneraciones de ${MESES[mesNum-1]} ${anio}?\n\n${resumen}`))return {ok:false};
+  const movs=movsRemuneraciones(T,mesNum);
   // El número lo asigna la secuencia contable al guardar (numeroContable).
   // Antes se usaba un folio calculado en el equipo, que podía coincidir con
   // el número de otro asiento (por ejemplo, de una factura).
-  if(GEN_REM_EN_CURSO)return;
+  if(GEN_REM_EN_CURSO)return {ok:false};
   GEN_REM_EN_CURSO=true;
   const id='as_rem_'+periodo+'_'+Date.now().toString(36);
   const idsPrevios=new Set(previos.map(a=>a.id));
@@ -750,15 +799,38 @@ async function generarAsientoRemuneraciones(){
   if(!r.ok){
     console.error('Asiento de remuneraciones no guardado:',r.motivo);
     toast('❌ No se pudo guardar el asiento de remuneraciones ('+(r.motivo||'error desconocido')+'). La operación NO se contabilizó.','e');
-    return;
+    return {ok:false};
   }
   const nuevo=(S.asientos||[]).find(a=>a.id===id);
   const num=numeroMostrar(nuevo);
   toast('✅ Asiento N°'+(num||'?')+' de remuneraciones ('+fmtC(totLiq)+' líquido)'+(previos.length?' · anulado'+(previos.length>1?'s':'')+' '+previos.map(a=>'N°'+numeroMostrar(a)).join(', '):''));
   logAccion('Generó asiento de remuneraciones',`${MESES[mesNum-1]} ${anio} · N°${num} · ${fmtC(totLiq)} líquido${previos.length?' · reemplaza '+previos.map(a=>'N°'+numeroMostrar(a)).join(', '):''}`);
-  renderRemuneraciones();updateHdr();
+  if(!auto){renderRemuneraciones();updateHdr();}
+  return {ok:true,num,previos:previos.map(a=>numeroMostrar(a))};
 }
 let GEN_REM_EN_CURSO=false;
+
+/**
+ * V2.22.29 — Después de cambiar parámetros previsionales o reabrir un mes:
+ * busca, entre los meses indicados que estén ABIERTOS, los asientos de
+ * remuneraciones cuyos montos ya no coinciden con el cálculo vigente y ofrece
+ * reemplazarlos (el anterior queda anulado). Los meses cerrados no se tocan.
+ */
+export async function actualizarAsientosRem(meses,motivo){
+  if(ejercicioCerrado()||!(S.trabajadores||[]).length)return;
+  const pend=meses.filter(m=>!libroDelMes(m).cerrado).map(m=>({m,a:asientoRemDesactualizado(m)})).filter(x=>x.a);
+  if(!pend.length)return;
+  const lista=pend.map(x=>`• ${MESES[x.m-1]}: asiento N°${numeroMostrar(x.a)||'?'}`).join('\n');
+  if(!confirm(`${motivo}\n\nEstos asientos de remuneraciones ya no coinciden con el cálculo vigente:\n${lista}\n\n¿Actualizarlos ahora? Cada uno se reemplaza por uno nuevo y el anterior queda anulado (conserva su número).`))return;
+  const hechos=[];
+  for(const x of pend){
+    const r=await generarAsientoRemuneraciones({mes:x.m,auto:true});
+    if(r&&r.ok)hechos.push(`${MESES[x.m-1]} N°${r.num}`);
+  }
+  if(hechos.length){toast(`🔄 Asientos de remuneraciones actualizados: ${hechos.join(', ')}`);
+    logAccion('Actualizó asientos de remuneraciones',`${motivo} · ${hechos.join(', ')}`);}
+  if(window.renderRemuneraciones)window.renderRemuneraciones();updateHdr();
+}
 
 // Une al estado en memoria lo que está en la nube: los asientos que sólo están
 // allá se agregan; para los que están en ambos manda la nube (es lo grabado).
@@ -779,4 +851,5 @@ async function refrescarAsientosDesdeNube(anio){
 }
 
 
-export {imprimirRemuneraciones, htmlLiquidacion, membreteEmpresa, mesRemSel, rentaMinimaDe, cargasFamiliares, asignacionFamiliar, ingresoSemestreAnterior, remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, REMF};
+export {imprimirRemuneraciones, htmlLiquidacion, membreteEmpresa, mesRemSel, rentaMinimaDe, cargasFamiliares, asignacionFamiliar, ingresoSemestreAnterior, remParams, IUSC_TABLA, calcularIUSC, getUF, getUTM, calcularLiquidacion, liquidacionMes, onTipoPagoChange, imprimirLiquidacion, sugerirNombresPrevired, abrirFormTrabajador, cerrarFormTrabajador, onSaludChange, onGratModoChange, gratificacionModo, leerFormTrabajador, leerLRETrabajador, cargarLREForm, previewLiq, guardarTrabajador, editarTrabajador, eliminarTrabajador, onParamRem, renderRemuneraciones, verLiquidacion, generarAsientoRemuneraciones, refrescarAsientosDesdeNube, totalesRemMes, REMF};
+

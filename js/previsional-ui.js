@@ -1,11 +1,13 @@
 // previsional-ui.js — Configuración editable de instituciones previsionales.
-// Vive dentro de la sección Indicadores.
+// Vive dentro de Remuneraciones (botón ⚙️ del encabezado).
 
 import {toast, fmtC} from './core.js';
 import {S} from './state.js';
 import {getPrevisional, tasaAccidentes, tasasAFC, CONTRATOS_AFC, reformaTramos, reformaVigente, REFORMA_DEFAULT, SEGURO_SOCIAL_SIS_CEV, AFP_DEFAULT, ISAPRES_DEFAULT, MUTUALES_DEFAULT,
         CAJAS_DEFAULT, PATRONAL_DEFAULT} from './previsional.js';
 import {logAccion} from './firebase.js';
+import {mesesRemCerrados} from './libroremuneraciones.js';
+import {actualizarAsientosRem} from './remuneraciones.js';
 
 export function renderPrevisional(){
   const el=document.getElementById('previsional-content');
@@ -18,7 +20,7 @@ export function renderPrevisional(){
     <td style="text-align:right"><input type="number" step="0.01" id="afp-com-${i}" value="${a.comision}" style="width:80px;text-align:right"> %</td>
   </tr>`).join('');
 
-  el.innerHTML=`
+  el.innerHTML=avisoMesesCerrados()+`
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">🏦 Comisiones AFP</div>
     <div class="info-tip" style="font-size:11px;margin-bottom:10px">
@@ -223,6 +225,7 @@ export async function guardarPrevisional(){
   toast('✅ Configuración previsional guardada');
   logAccion('Actualizó tasas previsionales',`SIS ${patronal.sis}% · ${patronal.mutualInstitucion==='isl'?'ISL':'Mutual'} ${tasaAccidentes(patronal).toFixed(3)}%`);
   renderPrevisional();
+  await aplicarAMesesAbiertos('Se actualizaron los parámetros previsionales.');
 }
 
 export async function restaurarPrevisional(){
@@ -235,4 +238,33 @@ export async function restaurarPrevisional(){
   if(!r||r.ok===false){toast('❌ No se pudieron restaurar las tasas','e');return;}
   renderPrevisional();
   toast('↺ Tasas oficiales 2026 restauradas');
+  await aplicarAMesesAbiertos('Se restauraron las tasas previsionales oficiales.');
+}
+
+/** ⚙️ Muestra u oculta el panel previsional dentro de Remuneraciones. */
+export function togglePrevisionalRem(mostrar){
+  const card=document.getElementById('rem-previsional');
+  if(!card)return;
+  const ver=typeof mostrar==='boolean'?mostrar:card.style.display==='none';
+  card.style.display=ver?'':'none';
+  document.getElementById('btn-rem-previsional')?.classList.toggle('btn-p',ver);
+  if(ver){renderPrevisional();card.scrollIntoView({behavior:'smooth',block:'start'});}
+}
+
+// V2.22.29 — Los parámetros rigen para los meses ABIERTOS. Un mes cerrado
+// conserva los de su cierre; para aplicarle cambios hay que reabrirlo.
+const MES_CORTO=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function avisoMesesCerrados(){
+  const c=mesesRemCerrados();
+  const txt=c.length
+    ? `🔒 <strong>Meses cerrados ${S.empresa.anio}:</strong> ${c.map(m=>MES_CORTO[m-1]).join(', ')}. Conservan los parámetros con que se cerraron; para aplicarles un cambio, reabre el mes en el Libro de Remuneraciones y se recalcula solo.`
+    : `Los cambios se aplican a todos los meses abiertos de ${S.empresa.anio}. Al cerrar un mes, sus parámetros quedan fijos.`;
+  return `<div style="font-size:12px;background:var(--bg2,rgba(0,0,0,.04));border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:12px">${txt}</div>`;
+}
+async function aplicarAMesesAbiertos(motivo){
+  const c=mesesRemCerrados();
+  const abiertos=[1,2,3,4,5,6,7,8,9,10,11,12].filter(m=>!c.includes(m));
+  if(c.length)toast(`ℹ️ Aplicado a los meses abiertos. ${c.map(m=>MES_CORTO[m-1]).join(', ')} ${c.length===1?'está cerrado y conserva':'están cerrados y conservan'} sus parámetros.`);
+  await actualizarAsientosRem(abiertos,motivo);
+  if(window.renderRemuneraciones)window.renderRemuneraciones();
 }

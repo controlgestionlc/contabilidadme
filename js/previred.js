@@ -15,7 +15,7 @@
 
 import {toast, fmtC, MESES} from './core.js';
 import {S} from './state.js';
-import {libroDelMes} from './libroremuneraciones.js';
+import {libroDelMes, previsionalDelLibro} from './libroremuneraciones.js';
 import {getPrevisional} from './previsional.js';
 import {datosAsistencia, TIPOS_LICENCIA} from './asistencia.js';
 import {getIndicadores} from './indicadores.js';
@@ -77,7 +77,7 @@ function nombresTrabajador(t){
 }
 
 // ── Movimientos de personal del mes (Tabla 7) ──
-function movimientosDelMes(t,anio,mes){
+function movimientosDelMes(t,anio,mes,mutualInst){
   const dm=new Date(anio,mes,0).getDate();
   const ini=`${anio}-${String(mes).padStart(2,'0')}-01`, fin=`${anio}-${String(mes).padStart(2,'0')}-${String(dm).padStart(2,'0')}`;
   const recorta=(d,h)=>({desde:d<ini?ini:d,hasta:h>fin?fin:h});
@@ -89,7 +89,7 @@ function movimientosDelMes(t,anio,mes){
     const r=recorta(e.desde,e.hasta||e.desde);
     if(e.tipo==='licencia'){
       const accidente=e.licTipo==='5'||e.licTipo==='6';
-      const pagadorKey=accidente?getPrevisional().patronal.mutualInstitucion:(t.salud||'fonasa');
+      const pagadorKey=accidente?(mutualInst||getPrevisional().patronal.mutualInstitucion):(t.salud||'fonasa');
       const lic=TIPOS_LICENCIA.find(x=>x.k===String(e.licTipo));
       movs.push({codigo:accidente?6:3,...r,pagador:PAGADOR_SUBSIDIO[pagadorKey]||'',pagadorKey,nm:lic?lic.nm:'Licencia médica'});
     }else if(e.tipo==='permiso_sin')movs.push({codigo:4,...r,nm:'Permiso sin goce de sueldo'});
@@ -135,7 +135,7 @@ function lineaMovimiento(c,mv){
 function construirPrevired(mes){
   const anio=+S.empresa.anio;
   const L=libroDelMes(mes);
-  const P=getPrevisional().patronal;
+  const P=previsionalDelLibro(L).patronal;   // V2.22.29: los del cierre si el mes está cerrado
   const per=`${String(mes).padStart(2,'0')}${anio}`;
   const errores=[],advertencias=[],lineas=[];
   const err=(tr,campo,msg)=>errores.push({trabajador:tr,campo,msg});
@@ -171,7 +171,7 @@ function construirPrevired(mes){
     const dias=Math.max(0,Math.min(30,+l.diasPagados||0));
     c[13]=String(dias);
     c[14]='00';
-    const movs=movimientosDelMes(t,anio,mes);
+    const movs=movimientosDelMes(t,anio,mes,P.mutualInstitucion);
     if(movs.length)lineaMovimiento(c,movs[0]);else c[15]='0';
     if(dias===0&&!movs.some(m=>m.codigo===3||m.codigo===6||m.codigo===4||m.codigo===11||m.codigo===2||m.codigo===1||m.codigo===7))
       err(quien,'Campo 13','0 días trabajados sin movimiento de personal: registra la ausencia en Asistencia.');

@@ -44,7 +44,7 @@ import {savePDC, renderPDC, abrirPdcForm, editarCuenta, cerrarPdcForm,
 import {renderIndicadores, guardarIndicadores, restaurarIndicadoresDefault,
         getIndicadores, IND, actualizarDesdeBancoCentral,
         renderIUSCTabla, setIUSC, addIUSCTramo, delIUSCTramo, restaurarIUSCTabla, setIUSCPrueba} from './indicadores.js';
-import {renderPrevisional, guardarPrevisional, restaurarPrevisional, renderPrevisionalAccidentes, agregarTramoReforma, quitarTramoReforma} from './previsional-ui.js';
+import {renderPrevisional, guardarPrevisional, restaurarPrevisional, renderPrevisionalAccidentes, agregarTramoReforma, quitarTramoReforma, togglePrevisionalRem, togglePrevisionalRem} from './previsional-ui.js';
 import {acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
         axAcBuscar, axAcTecla, axAcElegir, axAcCerrar} from './buscadorcuentas.js';
 import {prAcBuscar, prAcTecla, prAcElegir, prAcCerrarDif} from './buscadorproductos.js';
@@ -767,7 +767,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   renderPDC, abrirPdcForm, editarCuenta, cerrarPdcForm, guardarCuenta, eliminarCuenta, resetPDC,
   renderIndicadores, guardarIndicadores, restaurarIndicadoresDefault, actualizarDesdeBancoCentral,
   renderIUSCTabla, setIUSC, addIUSCTramo, delIUSCTramo, restaurarIUSCTabla, setIUSCPrueba,
-  renderPrevisional, guardarPrevisional, restaurarPrevisional, renderPrevisionalAccidentes, agregarTramoReforma, quitarTramoReforma,
+  renderPrevisional, guardarPrevisional, restaurarPrevisional, renderPrevisionalAccidentes, agregarTramoReforma, quitarTramoReforma, togglePrevisionalRem,
   renderCentrosCosto, abrirFormCC, editarCC, cerrarFormCC, guardarCC, borrarCC,
   renderInventario, invSetTab, invSetFiltro, invCerrarModal,
   invAbrirGrupo, invGuardarGrupo, invAbrirBodega, invGuardarBodega,

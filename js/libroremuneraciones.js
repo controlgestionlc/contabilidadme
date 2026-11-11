@@ -14,10 +14,10 @@
 import {toast, fmtC, fmt, MESES} from './core.js';
 import {S} from './state.js';
 import {logAccion} from './firebase.js';
-import {liquidacionMes, getUF, getUTM} from './remuneraciones.js';
+import {liquidacionMes, getUF, getUTM, actualizarAsientosRem} from './remuneraciones.js';
 import {getIndicadores} from './indicadores.js';
 import {ufDelPeriodo, cargarUFHistorico, fmtUF} from './uf-historico.js';
-import {SIS_A_SEGURO_SOCIAL_DESDE} from './previsional.js';
+import {SIS_A_SEGURO_SOCIAL_DESDE, getPrevisional} from './previsional.js';
 import './storage.js';
 
 // Vista activa de la sección Remuneraciones
@@ -57,6 +57,8 @@ function lineaLibro(t,uf,utm,mes){
     id:t.id, nombre:t.nombre, rut:t.rut||'', cargo:t.cargo||'',
     afp:l.afpNm, salud:l.saludNm, afpKey:t.afp||'', saludKey:t.salud||'',
     contrato:t.contrato||'indefinido', lre,
+    // V2.22.29: instituciones del empleador vigentes al calcular (quedan fijas al cerrar)
+    mutualInst:getPrevisional().patronal.mutualInstitucion||'', cajaInst:getPrevisional().patronal.cajaInstitucion||'ninguna',
     // Asistencia del mes
     diasPagados:a?a.diasPagados:30, diasLicencia:a?a.diasLicencia:0, diasPermisoSin:a?a.diasPermisoSin:0,
     diasAusencia:a?a.diasAusencia:0, horas:l.porHora?l.horas:null,
@@ -133,6 +135,19 @@ export function libroDelMes(mes){
   return {periodo:per,anio:S.empresa.anio,mes,uf,utm,lineas,totales:totalizar(lineas),cerrado:false};
 }
 
+/**
+ * V2.22.29 — Parámetros previsionales con que se calculó el libro: los guardados
+ * al cerrar el mes, o los vigentes si está abierto (o es un cierre antiguo).
+ */
+export function previsionalDelLibro(L){
+  return (L&&L.cerrado&&L.previsional&&L.previsional.patronal)?L.previsional:getPrevisional();
+}
+/** Meses del ejercicio con el libro de remuneraciones cerrado. */
+export function mesesRemCerrados(){
+  const anio=String(S.empresa.anio);
+  return Object.keys(librosRem()).filter(k=>k.startsWith(anio+'-')).map(k=>+k.slice(5)).sort((a,b)=>a-b);
+}
+
 // ── Cerrar / reabrir el mes ──
 export async function cerrarMesRem(){
   const mes=+(document.getElementById('rem-mes')?.value||1);
@@ -158,6 +173,8 @@ export async function cerrarMesRem(){
     periodo:per,anio:S.empresa.anio,mes,uf,utm,lineas,totales,
     cerradoEl:new Date().toISOString(),
     indicadores:{ingresoMinimo:getIndicadores().ingresoMinimo,gratifPct:getIndicadores().gratifPct,gratifTopeIMM:getIndicadores().gratifTopeIMM},
+    // V2.22.29: parámetros previsionales del cierre (los cambios posteriores no afectan al mes)
+    previsional:JSON.parse(JSON.stringify(getPrevisional())),
   };
   await guardarLibroRem();
   toast(`📗 Libro de ${MESES[mes-1]} cerrado — ${lineas.length} trabajador(es), líquido ${fmtC(totales.liquido)}`);
@@ -168,12 +185,14 @@ export async function reabrirMesRem(){
   const mes=+(document.getElementById('rem-mes')?.value||1);
   const per=periodoDe(mes);
   if(!librosRem()[per]){toast('Este mes no está cerrado');return;}
-  if(!confirm(`Reabrir el libro de ${MESES[mes-1]} ${S.empresa.anio}.\n\nEl libro volverá a calcularse con los datos vigentes de cada trabajador y se perderá la fotografía guardada.\n¿Continuar?`))return;
+  if(!confirm(`Reabrir el libro de ${MESES[mes-1]} ${S.empresa.anio}.\n\nEl libro volverá a calcularse con los datos vigentes de cada trabajador y con los parámetros previsionales actuales (⚙️), y se perderá la fotografía guardada.\n¿Continuar?`))return;
   delete librosRem()[per];
   await guardarLibroRem();
-  toast('🔓 Libro reabierto — vuelve a mostrarse en vivo');
+  toast('🔓 Libro reabierto — se recalcula en vivo con los parámetros vigentes');
   logAccion('Reabrió libro de remuneraciones',`${MESES[mes-1]} ${S.empresa.anio}`);
   renderLibroRem();
+  await actualizarAsientosRem([mes],`Se reabrió ${MESES[mes-1]} ${S.empresa.anio} y se recalculó con los parámetros vigentes.`);
+  if(getRemView()==='libro')renderLibroRem();
 }
 
 // ── Vista ──
