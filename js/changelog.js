@@ -8,13 +8,17 @@
 // Módulo puro: sin imports, para que cualquiera pueda leer APP_VERSION sin
 // arrastrar dependencias ni arriesgar ciclos.
 
-const APP_VERSION='v2026.11.10-1330';
+const APP_VERSION='v2026.11.11-0930';
 
 // Historial, de la más reciente a la más antigua.
 //   tipo: 'nuevo' | 'arreglo' | 'cambio'
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.28',fecha:'11-11-2026',titulo:'Archivo Previred: renta imponible IPS/Fonasa',items:[
+    {tipo:'arreglo',txt:'Previred rechazaba la nómina con «Renta Imponible IPS igual a cero, con cotización FONASA mayor a cero» y «Cotización FONASA inválida»: el archivo no informaba la renta imponible IPS/ISL/Fonasa (campo 64). Ahora se informa cuando el trabajador cotiza a Fonasa o hay cotización al ISL.'},
+    {tipo:'arreglo',txt:'La solicitud de subsidio trabajador joven (campo 25) va en «N» en vez de en blanco (Previred lo advertía).'},
+  ]},
   {version:'V2.22.27',fecha:'10-11-2026',titulo:'Un documento de compra o venta se registra una sola vez',items:[
     {tipo:'arreglo',txt:'El importador del RCV de ventas podía contabilizar dos veces el mismo documento: usaba la marca de duplicado calculada al cargar el archivo, que quedaba vieja si se importaba dos veces, desde otra pestaña o con el paso 2. Ahora compras y ventas buscan el documento en el libro al momento de contabilizar y, si ya está, lo actualizan en vez de crear otro. Un folio repetido dentro del mismo archivo tampoco entra dos veces.'},
     {tipo:'cambio',txt:'La clave del documento (RUT + tipo + folio) se compara normalizada: «000518778» y «518778», o «07.987.955» y «7987955», son el mismo documento. Además se revisan los documentos registrados dentro de asientos manuales y los libros del ejercicio anterior y siguiente: si el documento ya está ahí, no se registra y se indica dónde está.'},

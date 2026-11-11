@@ -124,6 +124,7 @@ function identificacion(c,t,per){
   c[9]=per;                   // mmaaaa
   c[11]='AFP';
   c[12]=String(t.tipoTrabajador||'0');
+  c[25]='N';   // V2.22.28 · Solicitud subsidio trabajador joven: S o N (en blanco, Previred advierte)
 }
 function lineaMovimiento(c,mv){
   c[15]=String(mv.codigo);
@@ -246,6 +247,10 @@ function construirPrevired(mes){
     // Accidentes del trabajo (71 ISL o 96-99 mutual)
     if(codMutual==='0')c[71]=num(l.mutual);
     else{c[96]=codMutual;c[97]=num(baseAFP);c[98]=num(l.mutual);c[99]=num(cfgPrevired().sucursalMutual||0);}
+    // V2.22.28 · Renta imponible IPS/ISL/Fonasa (64): Previred la exige cuando hay
+    // cotización a Fonasa (70) o al ISL (71). Sin ella rechaza la línea con
+    // «Renta Imponible IPS igual a cero, con cotización FONASA mayor a cero».
+    if(+(c[70]||0)>0||+(c[71]||0)>0)c[64]=num(baseAFP);
     // CCAF (83-84)
     if(conCaja&&codCaja){c[83]=codCaja;c[84]=num(baseAFP);}
     // Seguro de cesantía (100-102)
