@@ -44,7 +44,7 @@ import {savePDC, renderPDC, abrirPdcForm, editarCuenta, cerrarPdcForm,
 import {renderIndicadores, guardarIndicadores, restaurarIndicadoresDefault,
         getIndicadores, IND, actualizarDesdeBancoCentral,
         renderIUSCTabla, setIUSC, addIUSCTramo, delIUSCTramo, restaurarIUSCTabla, setIUSCPrueba} from './indicadores.js';
-import {renderPrevisional, guardarPrevisional, restaurarPrevisional, renderPrevisionalAccidentes, agregarTramoReforma, quitarTramoReforma, togglePrevisionalRem, togglePrevisionalRem} from './previsional-ui.js';
+import {renderPrevisional, guardarPrevisional, restaurarPrevisional, renderPrevisionalAccidentes, agregarTramoReforma, quitarTramoReforma, togglePrevisionalRem} from './previsional-ui.js';
 import {acBuscar, acTecla, acElegir, acCerrarDif, inputCuenta, buscarCuentas, inputCC, ccAcBuscar, ccAcTecla, ccAcElegir, ccAcCerrarDif,
         axAcBuscar, axAcTecla, axAcElegir, axAcCerrar} from './buscadorcuentas.js';
 import {prAcBuscar, prAcTecla, prAcElegir, prAcCerrarDif} from './buscadorproductos.js';

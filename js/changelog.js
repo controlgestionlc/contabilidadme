@@ -15,6 +15,9 @@ const APP_VERSION='v2026.11.11-0930';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.31',fecha:'11-11-2026',titulo:'Corrección: la app no cargaba',items:[
+    {tipo:'arreglo',txt:'La V2.22.30 no permitía iniciar sesión: una función quedó importada dos veces y el navegador detenía la carga de la aplicación.'}
+  ]},
   {version:'V2.22.30',fecha:'11-11-2026',titulo:'Parámetros previsionales y meses cerrados',items:[
     {tipo:'mejora',txt:'Los cambios en los parámetros previsionales (⚙️) se aplican sólo a los meses abiertos. Un mes con el libro cerrado conserva los parámetros con que se cerró: liquidaciones, libro, Previred, LRE, imposiciones y asiento.'},
     {tipo:'mejora',txt:'Al reabrir un mes, se recalcula automáticamente con los parámetros vigentes y, si su asiento de remuneraciones ya no cuadra, se ofrece actualizarlo (el anterior queda anulado).'},
