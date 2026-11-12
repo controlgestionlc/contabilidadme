@@ -260,7 +260,7 @@ function construirMovs(){
     let debe=0,haber=0;
     if(PE.tipo==='proveedor'){ if(l.direccion==='abono')debe=monto; else haber=monto; }
     else { if(l.direccion==='abono')haber=monto; else debe=monto; }
-    movs.push({cd,nm:pdcNm(cd),desc,debe,haber,rutCodigo:l.rutCodigo,rutDV:l.rutDV,folio:l.numero,tipoDTE:l.tipoDTE,docId:l.docId});
+    movs.push({cd,nm:pdcNm(cd),desc,debe,haber,rutCodigo:l.rutCodigo,rutDV:l.rutDV,razonSocial:l.razonSocial||'',folio:l.numero,tipoDTE:l.tipoDTE,docId:l.docId});
     documentos.push({docId:l.docId,monto:l.direccion==='abono'?monto:-monto,tipo:PE.tipo});
   });
   const sumD=movs.reduce((s,m)=>s+m.debe,0),sumH=movs.reduce((s,m)=>s+m.haber,0);

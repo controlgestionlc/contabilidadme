@@ -534,13 +534,13 @@ async function ejecutarPago(){
       movs.push({
         cd:cuentaDoc, nm:pdcNm(cuentaDoc), desc:descLinea,
         debe:monto, haber:0,
-        rutCodigo:d.rutCodigo, rutDV:d.rutDV, folio:d.numero, tipoDTE:d.tipoDTE, docId:d.id,
+        rutCodigo:d.rutCodigo, rutDV:d.rutDV, razonSocial:d.razonSocial||d.nombre||'', folio:d.numero, tipoDTE:d.tipoDTE, docId:d.id,
       });
     }else{
       movs.push({
         cd:cuentaAux, nm:nomAux, desc:descLinea,
         debe:0, haber:monto,
-        rutCodigo:d.rutCodigo, rutDV:d.rutDV, folio:d.numero, tipoDTE:d.tipoDTE, docId:d.id,
+        rutCodigo:d.rutCodigo, rutDV:d.rutDV, razonSocial:d.razonSocial||d.nombre||'', folio:d.numero, tipoDTE:d.tipoDTE, docId:d.id,
       });
     }
   });
@@ -899,7 +899,7 @@ function movsAbonoTarjetas(){
   if(dep>0)movs.push({cd:T.banco,nm:pdcNm(T.banco),desc:'Abono ventas con tarjeta',debe:dep,haber:0});
   if(com>0){
     if(T.trato==='gasto')movs.push({cd:T.cuentaGasto,nm:pdcNm(T.cuentaGasto),desc:'Comisión ventas con tarjeta',debe:com,haber:0});
-    else movs.push({cd:'2102001',nm:pdcNm('2102001'),desc:`Comisión ${T.razon||'operador de tarjetas'}`.trim(),debe:com,haber:0,rutCodigo:r.codigo||'',rutDV:r.dv||''});
+    else movs.push({cd:'2102001',nm:pdcNm('2102001'),desc:`Comisión ${T.razon||'operador de tarjetas'}`.trim(),debe:com,haber:0,rutCodigo:r.codigo||'',rutDV:r.dv||'',razonSocial:T.razon||''});
   }
   if(bruto>0)movs.push({cd:CTA_TARJETAS,nm:pdcNm(CTA_TARJETAS),desc:'Ventas con tarjeta abonadas',debe:0,haber:bruto});
   return {movs,dep,com,bruto,rut:r};

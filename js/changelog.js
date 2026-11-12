@@ -15,6 +15,10 @@ const APP_VERSION='v2026.11.11-0930';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.32',fecha:'12-11-2026',titulo:'Pagos y cobros: razón social del auxiliar',items:[
+    {tipo:'arreglo',txt:'Los pagos y cobros (y la comisión de tarjetas) graban la razón social de cada cliente o proveedor en sus líneas auxiliares.'},
+    {tipo:'arreglo',txt:'Al editar un asiento con líneas auxiliares sin razón social (pagos ya grabados), se completa sola desde el documento o el RUT, y ya no aparece el error "falta la razón social" al guardar.'}
+  ]},
   {version:'V2.22.31',fecha:'11-11-2026',titulo:'Corrección: la app no cargaba',items:[
     {tipo:'arreglo',txt:'La V2.22.30 no permitía iniciar sesión: una función quedó importada dos veces y el navegador detenía la carga de la aplicación.'}
   ]},

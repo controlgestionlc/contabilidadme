@@ -12,7 +12,7 @@ import {fmt, fmtC, MESES, pdcNm, today, toast, rutFmt, dteV, dteC, rutParse, DTE
 import {S, getCurSec} from './state.js';
 import {nav, rerender} from './ui.js';
 import {genDiario, destinoEdicion, corregirDesdeDiario, editarAsientoRef} from './reportes.js';
-import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux, asegurarFormNuevo, todosDocsCompras, todosDocsVentas} from './asientos.js';
+import {editarAsiento, proxFolioAsiento, CUENTAS_AUX, esAux, asegurarFormNuevo, todosDocsCompras, todosDocsVentas, razonSocialDeRut} from './asientos.js';
 import {claveRCV} from './rcv-control.js';
 import {inputCuenta} from './buscadorcuentas.js';
 import {logAccion} from './firebase.js';
@@ -941,7 +941,7 @@ function cmpModalEditar(){
           numero:docOrigen.numero,
           rutCodigo:docOrigen.rutCodigo,
           rutDV:docOrigen.rutDV,
-          razonSocial:docOrigen.razonSocial,
+          razonSocial:docOrigen.razonSocial||razonSocialDeRut(docOrigen.rutCodigo,docOrigen.id),
           neto:docOrigen.neto||0,
           exento:docOrigen.exento||0,
           iva:docOrigen.iva||0,
@@ -956,7 +956,7 @@ function cmpModalEditar(){
       if(m.rutCodigo&&!linea.dte){
         linea.dte={
           fecha:e.fecha,tipoDTE:m.tipoDTE,numero:m.folio,
-          rutCodigo:m.rutCodigo,rutDV:m.rutDV,
+          rutCodigo:m.rutCodigo,rutDV:m.rutDV,razonSocial:m.razonSocial||razonSocialDeRut(m.rutCodigo,m.docId),
         };
       }
       return linea;

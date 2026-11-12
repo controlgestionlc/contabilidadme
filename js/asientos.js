@@ -27,6 +27,28 @@ const AF={editId:null,lineas:[]};
 function fijarAF(editId,lineas){
   AF.editId=editId==null?null:editId;
   AF.lineas=lineas||[];
+  // V2.22.32: líneas auxiliares grabadas sin razón social (p.ej. pagos/cobros
+  // antiguos): se completa desde el documento o desde el RUT para poder editarlas.
+  AF.lineas.forEach(l=>{if(l&&esAux(l.cd)&&l.rutCodigo&&!String(l.razonSocial||'').trim())l.razonSocial=razonSocialDeRut(l.rutCodigo,l.docId);});
+}
+/**
+ * V2.22.32 — Razón social de un RUT auxiliar: primero el documento vinculado
+ * (docId en ventas/compras/honorarios), luego cualquier documento o asiento con
+ * ese RUT. Devuelve '' si no la encuentra.
+ */
+export function razonSocialDeRut(rutCodigo,docId){
+  const rut=String(rutCodigo||'');if(!rut)return '';
+  const docs=[...(S.ventas||[]),...(S.compras||[]),...(S.honorarios||[])];
+  if(docId){const d=docs.find(x=>x&&x.id===docId);const rs=d&&(d.razonSocial||d.nombre);if(rs)return String(rs).trim();}
+  const d=docs.find(x=>x&&String(x.rutCodigo)===rut&&(x.razonSocial||x.nombre));
+  if(d)return String(d.razonSocial||d.nombre).trim();
+  for(const as of (S.asientos||[])){
+    for(const mv of (as.movs||[])){
+      if(String(mv.rutCodigo)===rut&&mv.razonSocial)return String(mv.razonSocial).trim();
+      if(mv.dte&&String(mv.dte.rutCodigo)===rut&&mv.dte.razonSocial)return String(mv.dte.razonSocial).trim();
+    }
+  }
+  return '';
 }
 const lineasEnBlanco=()=>[{cd:'',nm:'',desc:'',debe:0,haber:0},{cd:'',nm:'',desc:'',debe:0,haber:0},{cd:'',nm:'',desc:'',debe:0,haber:0}];
 
@@ -1017,10 +1039,11 @@ async function guardarAsiento(){
     const l=lineas[i];
     if(esAux(l.cd)){
       const tipo=CUENTAS_AUX[l.cd];
-      if(l.dte){l.rutCodigo=l.dte.rutCodigo;l.rutDV=l.dte.rutDV;l.razonSocial=l.dte.razonSocial;}
+      if(l.dte){l.rutCodigo=l.dte.rutCodigo;l.rutDV=l.dte.rutDV;l.razonSocial=l.dte.razonSocial||l.razonSocial;}
       const idxHumano=i+1;
       if(!l.rutCodigo||!l.rutDV){toast(`⚠️ Línea ${idxHumano} (${pdcNm(l.cd)}): falta el RUT del ${tipo}. Usa el botón "📄 DTE" o ingresa RUT manualmente.`,'e');return;}
       if(rutDV(l.rutCodigo)!==String(l.rutDV).toUpperCase()){toast(`⚠️ Línea ${idxHumano}: RUT inválido (DV no coincide)`,'e');return;}
+      if(!String(l.razonSocial||'').trim())l.razonSocial=razonSocialDeRut(l.rutCodigo,l.docId);
       if(!l.razonSocial||!String(l.razonSocial).trim()){toast(`⚠️ Línea ${idxHumano} (${pdcNm(l.cd)}): falta la razón social del ${tipo}`,'e');return;}
     }
   }
