@@ -1,0 +1,16 @@
+{
+  "name": "SCI · Sistema Control Inventario y Cuaderno de Campo",
+  "short_name": "SCI La Cabaña",
+  "description": "Inventario, cuaderno de campo y presupuesto — Sociedad Agrícola y Forestal La Cabaña",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#354a5f",
+  "theme_color": "#354a5f",
+  "lang": "es-CL",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
