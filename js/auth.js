@@ -80,6 +80,7 @@ const SECCIONES=[
   {id:'f29',lbl:'Formulario 29'},
   {id:'ppm',lbl:'PPM'},
   {id:'renta',lbl:'Declaración de Renta'},
+  {id:'devrenta',lbl:'Devolución de Renta'},
   {id:'dj',lbl:'Declaraciones Juradas'},
   {id:'asigcc',lbl:'Asignar Centros de Costo'},
   {id:'activofijo',lbl:'Activos Fijos'},

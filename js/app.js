@@ -190,6 +190,7 @@ import {DJ, renderDJ, cargarDJ, resetDJ, setDJVerTodas, setDJEstado, editarDJ, n
 import {renderRenta, setRentaTab, setRentaParam, restaurarTasaLegal, toggleRechazada,
         addRentaLinea, setRentaLinea, delRentaLinea, setRentaCredito, exportRentaXLSX,
         resetRenta} from './renta.js';
+import {renderDevRenta, guardarSoloF22, generarAsientoF22} from './devrenta.js';
 import {setFCView, renderFlujoCaja} from './flujocaja.js';
 import {renderConciliacion, onSaldoBancoChange, toggleConciliado,
         marcarTodosConciliados, cargarCartola, autoConciliarCartola} from './conciliacion.js';
@@ -664,6 +665,7 @@ function renderSec(s){
   else if(s==='inicio')renderInicio();
   else if(s==='ppm')renderPPM();
   else if(s==='renta')renderRenta();
+  else if(s==='devrenta')renderDevRenta();
   else if(s==='dj')renderDJ();
   else if(s==='asigcc')renderAsigCC();
   else if(s==='activofijo')renderActivoFijo();
@@ -753,6 +755,8 @@ Object.assign(window,{setUFMes,traerUFFinDeMes,
 Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS, 
   // utilidades
   toast, normalizarMontos,
+  // devolución de renta (F22)
+  renderDevRenta, guardarSoloF22, generarAsientoF22,
   // navegación y arranque
   nav, rerender, renderSec, toggleNav, cerrarNavMovil, toggleNavGroup, changeYear, saveAll, init, initApp,
   // auth / usuarios

@@ -15,6 +15,11 @@ const APP_VERSION='v2026.11.11-0930';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.33',fecha:'12-11-2026',titulo:'Devolución de renta (resultado del F22)',items:[
+    {tipo:'nuevo',txt:'Nueva pantalla «Devolución de Renta» en Tributario SII: registra lo que presentaste en el F22 (impuesto determinado, PPM reajustados, devolución solicitada, folio y fecha) y, cuando llega la transferencia, genera el asiento.'},
+    {tipo:'nuevo',txt:'El asiento descarga los PPM acumulados (1108001), reconoce el impuesto de primera categoría (3601001) y lleva el reajuste a corrección monetaria (3501001). Sirve igual cuando en vez de devolución queda impuesto a pagar.'},
+    {tipo:'nuevo',txt:'Las cifras vienen precargadas desde la Declaración de Renta del año y se pueden corregir para que calcen con el F22 presentado. Avisa si lo transferido no coincide con el F22.'}
+  ]},
   {version:'V2.22.32',fecha:'12-11-2026',titulo:'Pagos y cobros: razón social del auxiliar',items:[
     {tipo:'arreglo',txt:'Los pagos y cobros (y la comisión de tarjetas) graban la razón social de cada cliente o proveedor en sus líneas auxiliares.'},
     {tipo:'arreglo',txt:'Al editar un asiento con líneas auxiliares sin razón social (pagos ya grabados), se completa sola desde el documento o el RUT, y ya no aparece el error "falta la razón social" al guardar.'}
