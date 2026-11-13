@@ -82,6 +82,7 @@ const SECCIONES=[
   {id:'renta',lbl:'Declaración de Renta'},
   {id:'devrenta',lbl:'Devolución de Renta'},
   {id:'dj',lbl:'Declaraciones Juradas'},
+  {id:'costeo',lbl:'Costeo de Ventas'},
   {id:'asigcc',lbl:'Asignar Centros de Costo'},
   {id:'activofijo',lbl:'Activos Fijos'},
   {id:'provisiones',lbl:'Provisiones'},
