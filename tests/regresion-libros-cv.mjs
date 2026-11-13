@@ -18,6 +18,8 @@ const core=await modulo(`
  export const fmtC=x=>String(x); export const rutFmt=(c,d)=>c+'-'+d;
  const m={33:{nm:'Factura Electrónica',signo:1},34:{nm:'Factura Exenta Electrónica',signo:1},61:{nm:'Nota de Crédito',signo:-1}};
  export const dteC=x=>m[+x]||null; export const dteV=x=>m[+x]||null;
+ export const esDteHonorario=x=>+x===70||+x===71;
+ export const toast=()=>{};
 `);
 const asientos=await modulo(`export const todosDocsCompras=()=>globalThis.S_REF.compras; export const todosDocsVentas=()=>globalThis.S_REF.ventas;`);
 const motor=await modulo(`export const periodoContableCompra=d=>d.periodoContable||String(d.fecha||'').slice(0,7);`);

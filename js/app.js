@@ -191,6 +191,7 @@ import {renderRenta, setRentaTab, setRentaParam, restaurarTasaLegal, toggleRecha
         addRentaLinea, setRentaLinea, delRentaLinea, setRentaCredito, exportRentaXLSX,
         resetRenta} from './renta.js';
 import {renderDevRenta, guardarSoloF22, generarAsientoF22} from './devrenta.js';
+import {renderCosteo, generarAsientoCosteo, guardarConteoCosteo, resetCosteo} from './costeo.js';
 import {setFCView, renderFlujoCaja} from './flujocaja.js';
 import {renderConciliacion, onSaldoBancoChange, toggleConciliado,
         marcarTodosConciliados, cargarCartola, autoConciliarCartola} from './conciliacion.js';
@@ -345,6 +346,7 @@ async function loadYear(y){
   resetDJ();    // ídem el catálogo y el control de declaraciones juradas
   resetAsigCC(); // ídem los filtros de asignación de centros de costo
   resetCierreMes(); // el mes elegido para cerrar costos es de este ejercicio
+  resetCosteo(); // la configuración de costeo y los conteos son por empresa
 
   const leer=async(clave,aplicar)=>{
     const r=await window.storage.leerConEstado(clave);
@@ -666,6 +668,7 @@ function renderSec(s){
   else if(s==='ppm')renderPPM();
   else if(s==='renta')renderRenta();
   else if(s==='devrenta')renderDevRenta();
+  else if(s==='costeo')renderCosteo();
   else if(s==='dj')renderDJ();
   else if(s==='asigcc')renderAsigCC();
   else if(s==='activofijo')renderActivoFijo();
@@ -757,6 +760,7 @@ Object.assign(window,{reiniciarMonitorFS, resumenMonitorFS,
   toast, normalizarMontos,
   // devolución de renta (F22)
   renderDevRenta, guardarSoloF22, generarAsientoF22,
+  renderCosteo, generarAsientoCosteo, guardarConteoCosteo, resetCosteo,
   // navegación y arranque
   nav, rerender, renderSec, toggleNav, cerrarNavMovil, toggleNavGroup, changeYear, saveAll, init, initApp,
   // auth / usuarios

@@ -15,6 +15,12 @@ const APP_VERSION='v2026.11.11-0930';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.34',fecha:'13-11-2026',titulo:'Costeo de ventas',items:[
+    {tipo:'nuevo',txt:'Nueva pantalla «Costeo de Ventas» en Registros: registra el costo de lo vendido cuando no hay inventario permanente, que es el caso de las empresas que sólo mandan el registro de compras y ventas sin detalle.'},
+    {tipo:'nuevo',txt:'Tres formas de costear, elegibles por empresa: margen sobre las ventas, un margen distinto por cada cuenta de venta, o las compras del mes. El sistema propone el margen comparando las compras con las ventas del año, y se puede cambiar.'},
+    {tipo:'nuevo',txt:'El saldo de existencias queda como control: si crece sin parar avisa que el margen está muy alto, y si se va a negativo, que está muy bajo. El asiento del mes carga la cuenta de costo y descarga las existencias a prorrata de su saldo.'},
+    {tipo:'nuevo',txt:'Ajuste por conteo físico: se ingresa el inventario real a una fecha y el sistema genera el asiento que deja las existencias en su valor verdadero. Sirve para el cierre de diciembre y para enderezar un saldo arrastrado de años anteriores.'}
+  ]},
   {version:'V2.22.33',fecha:'12-11-2026',titulo:'Devolución de renta (resultado del F22)',items:[
     {tipo:'nuevo',txt:'Nueva pantalla «Devolución de Renta» en Tributario SII: registra lo que presentaste en el F22 (impuesto determinado, PPM reajustados, devolución solicitada, folio y fecha) y, cuando llega la transferencia, genera el asiento.'},
     {tipo:'nuevo',txt:'El asiento descarga los PPM acumulados (1108001), reconoce el impuesto de primera categoría (3601001) y lleva el reajuste a corrección monetaria (3501001). Sirve igual cuando en vez de devolución queda impuesto a pagar.'},
