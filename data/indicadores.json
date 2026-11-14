@@ -2,10 +2,10 @@
   "autor": "mindicador.cl",
   "bitcoin": {
     "codigo": "bitcoin",
-    "fecha": "2026-11-09T03:00:00.000Z",
+    "fecha": "2026-11-13T03:00:00.000Z",
     "nombre": "Bitcoin",
     "unidad_medida": "Dólar",
-    "valor": 75215.41
+    "valor": 68232.31
   },
   "dolar": {
     "codigo": "dolar",
@@ -28,7 +28,7 @@
     "unidad_medida": "Pesos",
     "valor": 1096.91
   },
-  "fecha": "2026-11-13T21:00:00.000Z",
+  "fecha": "2026-11-14T16:00:00.000Z",
   "imacec": {
     "codigo": "imacec",
     "fecha": "2026-09-01T04:00:00.000Z",
@@ -45,10 +45,10 @@
   },
   "ivp": {
     "codigo": "ivp",
-    "fecha": "2026-11-13T03:00:00.000Z",
+    "fecha": "2026-11-14T03:00:00.000Z",
     "nombre": "Indice de valor promedio (IVP)",
     "unidad_medida": "Pesos",
-    "valor": 42846.36
+    "valor": 42850.37
   },
   "libra_cobre": {
     "codigo": "libra_cobre",
@@ -73,10 +73,10 @@
   },
   "uf": {
     "codigo": "uf",
-    "fecha": "2026-11-13T03:00:00.000Z",
+    "fecha": "2026-11-14T03:00:00.000Z",
     "nombre": "Unidad de fomento (UF)",
     "unidad_medida": "Pesos",
-    "valor": 41322.93
+    "valor": 41329.8
   },
   "utm": {
     "codigo": "utm",
