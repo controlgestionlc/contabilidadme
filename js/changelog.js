@@ -15,6 +15,9 @@ const APP_VERSION='v2026.11.11-0930';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.35',fecha:'15-11-2026',titulo:'Montos legibles en tablas desde el celular',items:[
+    {tipo:'arreglo',txt:'En el celular los montos de las tablas ya no se parten dígito a dígito (filas gigantes y detalle ilegible, p.ej. el asiento de compensación de IVA del F29): el monto queda en una línea, la descripción se ajusta y la tabla se puede desplazar si no cabe.'}
+  ]},
   {version:'V2.22.34',fecha:'13-11-2026',titulo:'Costeo de ventas',items:[
     {tipo:'nuevo',txt:'Nueva pantalla «Costeo de Ventas» en Registros: registra el costo de lo vendido cuando no hay inventario permanente, que es el caso de las empresas que sólo mandan el registro de compras y ventas sin detalle.'},
     {tipo:'nuevo',txt:'Tres formas de costear, elegibles por empresa: margen sobre las ventas, un margen distinto por cada cuenta de venta, o las compras del mes. El sistema propone el margen comparando las compras con las ventas del año, y se puede cambiar.'},
