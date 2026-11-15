@@ -1169,6 +1169,12 @@ input[type="number"]{-moz-appearance:textfield;appearance:textfield}
   /* Evitar que textos técnicos, RUT, hashes o nombres largos expandan cards. */
   .section p,.section div,.section span{overflow-wrap:break-word}
   .mono,[style*="font-family:var(--mono)"]{overflow-wrap:anywhere}
+  /* V2.22.35 — En celdas de tabla un monto nunca se parte carácter a carácter
+     (dejaba columnas de 1 dígito y filas gigantes, p.ej. F29 compensación):
+     el monto queda en una línea y es la descripción la que envuelve. */
+  td.mono,td[style*="font-family:var(--mono)"]{overflow-wrap:normal!important;word-break:normal!important;white-space:nowrap}
+  .card-np{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .card-np>table td.tl{white-space:normal;overflow-wrap:break-word}
 
   /* Importador SII Compras: el contenedor flex del modal comprimía el listado
      de cientos de DTE hasta dejar visible sólo la barra horizontal. Se reserva
