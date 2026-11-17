@@ -4,6 +4,10 @@
   "nombre": "Unidad Tributaria Mensual (UTM)",
   "serie": [
     {
+      "fecha": "2026-12-01T03:00:00.000Z",
+      "valor": 72802
+    },
+    {
       "fecha": "2026-11-01T03:00:00.000Z",
       "valor": 72440
     },
