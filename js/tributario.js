@@ -25,6 +25,13 @@ const F29DECL={anio:null,items:{},anterior:{},loaded:false,cargando:false};
 const F29_CODIGOS_DECL=[503,502,110,111,758,759,538,39,511,519,520,584,562,537,504,77,89,563,62,151,48,595,556,557,558,543,598,573,547,91];
 // Códigos agregados en V2.21.92: los F29 guardados antes no los tienen y no
 // deben aparecer como diferencias.
+// Conceptos del F29 en el orden del formulario. Lo usan el panel de la
+// declaración y el detalle de diferencias. V2.22.36: se agregó el 563 (base
+// imponible PPM), que se comparaba al marcar presentado pero no se mostraba,
+// así que una diferencia ahí quedaba contada sin poder verse.
+const F29_CONCEPTOS=[[503,'Cantidad facturas emitidas'],[502,'Débito facturas emitidas'],[110,'Cantidad boletas'],[111,'Débito boletas'],[758,'Cantidad comprobantes pago electrónico'],[759,'Débito comprobantes pago electrónico'],[538,'Total débitos'],[39,'IVA retenido'],[511,'Crédito IVA documentos electrónicos'],[519,'Cantidad facturas recibidas del giro'],[520,'Crédito facturas del giro'],[584,'Cantidad compras exentas / no gravadas'],[562,'Monto compras exentas / no gravadas'],[504,'Remanente anterior reajustado'],[537,'Total créditos'],[77,'Remanente siguiente'],[89,'IVA a pagar'],[563,'Base imponible PPM'],[62,'PPM'],[151,'Ret. honorarios'],[48,'IUSC trabajadores'],[595,'Sub total imp. determinado anverso'],[556,'IVA anticipado del período'],[557,'Remanente anticipo mes anterior'],[558,'Devolución mes anterior'],[543,'Total anticipo cambio de sujeto'],[598,'Anticipo a imputar'],[573,'Remanente anticipo período siguiente'],[547,'Total determinado'],[91,'Total a pagar']];
+const F29_CODIGOS_CANTIDAD=new Set([503,110,758,519,584]);
+const conceptoF29=c=>(F29_CONCEPTOS.find(x=>x[0]===+c)||[c,'Código '+c])[1];
 const F29_CODIGOS_NUEVOS=new Set([503,502,110,111,758,759,511,519,520,584,562,595,556,557,558,543,598,573,547]);
 const claveF29Decl=anio=>`f29-declaraciones-${anio}`;
 const periodoF29=mes=>`${S.empresa.anio}-${String(mes).padStart(2,'0')}`;
@@ -608,7 +615,7 @@ function renderF29Anual(data,el){
   const filas=data.map(d=>{
     const decl=d.declaracion, pres=esF29Presentado(decl), difs=pres?diferenciasF29(d,decl):[];
     const vacio=!d.nDocsV&&!d.nDocsC&&!d.retencionHon&&!d.iusc&&!d.remanenteAnt;
-    const estado=pres?`<span style="color:${difs.length?'var(--warn)':'var(--ok,#107e3e)'}">✓ Presentado${difs.length?' · '+difs.length+' dif.':''}</span>`:decl?'<span style="color:var(--mt)">Borrador</span>':'';
+    const estado=pres?`<span style="color:${difs.length?'var(--warn)':'var(--ok,#107e3e)'}">✓ Presentado</span>${difs.length?` <a href="#" onclick="verDifsF29(${d.m});return false" title="Ver qué códigos difieren" style="color:var(--warn);text-decoration:underline;font-weight:600">· ${difs.length} dif.</a>`:''}`:decl?'<span style="color:var(--mt)">Borrador</span>':'';
     return `<tr${vacio?' style="opacity:.45"':''}>
       <td class="tl"><a href="#" onclick="verF29Mes(${d.m});return false" style="color:var(--ac);font-weight:600;text-decoration:none">${MESES[d.m-1]}</a></td>
       <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(d.debitoTotal)}</td>
@@ -631,6 +638,58 @@ function renderF29Anual(data,el){
     <td class="money-cell" style="font-family:var(--mono);text-align:right">${fmtC(tot('totalPagar'))}</td><td></td></tr></tfoot>
   </table></div></div>
   <div style="font-size:11px;color:var(--mt);margin-top:10px">Haz clic en el nombre de un mes para ver el detalle por código, declarar, generar la compensación de IVA y registrar el pago.</div>`;
+}
+// Ventana con el detalle de las diferencias de un mes presentado.
+// "Declarado" es lo que quedó grabado al marcar el F29 como presentado;
+// "Calculado hoy" es lo que resulta de los libros en este momento.
+function verDifsF29(m){
+  cerrarDifsF29();
+  const d=calcularF29Anual()[m-1], per=periodoF29(m), decl=declaracionF29(per);
+  const difs=diferenciasF29(d,decl);
+  const f=(c,v)=>F29_CODIGOS_CANTIDAD.has(+c)?fmt(v):fmtC(v);
+  const filas=difs.map(x=>{const df=x.calc-x.decl;return `<tr>
+    <td class="tl" style="font-family:var(--mono)">${x.cod}</td><td class="tl">${conceptoF29(x.cod)}</td>
+    <td style="font-family:var(--mono);text-align:right">${f(x.cod,x.decl)}</td>
+    <td style="font-family:var(--mono);text-align:right">${f(x.cod,x.calc)}</td>
+    <td style="font-family:var(--mono);text-align:right;color:var(--warn);font-weight:600">${df>0?'+':''}${f(x.cod,df)}</td></tr>`;}).join('');
+  const fecha=decl?.fechaPresentacion?` el ${decl.fechaPresentacion.split('-').reverse().join('-')}`:'';
+  const ov=document.createElement('div');
+  ov.id='f29-difs-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick=e=>{if(e.target===ov)cerrarDifsF29();};
+  ov.innerHTML=`<div class="card" role="dialog" aria-modal="true" style="max-width:760px;width:100%;max-height:88vh;overflow:auto;margin:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div><div class="card-title">⚠️ Diferencias F29 · ${MESES[m-1]} ${S.empresa.anio}</div>
+      <div style="font-size:11px;color:var(--mt)">Declaración presentada${fecha}${decl?.folio?' · folio '+decl.folio:''}</div></div>
+      <button class="btn btn-g" onclick="cerrarDifsF29()" title="Cerrar">✕</button>
+    </div>
+    ${difs.length?`<div class="tw" style="margin-top:12px"><table><thead><tr><th class="tl">CÓDIGO</th><th class="tl">CONCEPTO</th><th>DECLARADO</th><th>CALCULADO HOY</th><th>DIFERENCIA</th></tr></thead><tbody>${filas}</tbody></table></div>`
+      :'<div style="margin-top:12px;font-size:12px">Ya no hay diferencias: el cálculo actual coincide con lo declarado.</div>'}
+    <div style="font-size:12px;line-height:1.6;margin-top:12px">
+      <strong>¿Qué significa?</strong> <em>Declarado</em> es lo que quedó registrado al marcar este F29 como presentado.
+      <em>Calculado hoy</em> es lo que resulta ahora de los libros de compras, ventas, honorarios y remuneraciones.
+      La diferencia aparece cuando, después de presentar, se agregó, modificó o eliminó algún documento del período,
+      cambió un valor ingresado a mano, o cambió el remanente que viene del mes anterior.
+    </div>
+    <div style="font-size:12px;line-height:1.6;margin-top:8px">
+      <strong>¿Qué hacer?</strong> Revisa los documentos del mes. Si lo declarado era lo correcto, corrige los libros hasta que
+      la diferencia desaparezca. Si lo correcto es el cálculo actual, corresponde rectificar ante el SII y luego
+      reabrir el F29 en el sistema para actualizar lo declarado.
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px">
+      <button class="btn btn-g" onclick="cerrarDifsF29()">Cerrar</button>
+      <button class="btn btn-p" onclick="cerrarDifsF29();verF29Mes(${m})">Ver detalle del mes</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const esc=e=>{if(e.key==='Escape'){cerrarDifsF29();}};
+  ov._esc=esc;document.addEventListener('keydown',esc);
+}
+function cerrarDifsF29(){
+  const ov=document.getElementById('f29-difs-ov');
+  if(!ov)return;
+  if(ov._esc)document.removeEventListener('keydown',ov._esc);
+  ov.remove();
 }
 function barraMesF29(mSel){
   return `<div class="no-print" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
@@ -659,10 +718,10 @@ function renderF29(){
   const declVal=cod=>decl?.declarado?.[String(cod)]!=null?decl.declarado[String(cod)]:(d.codigos?.[cod]||0);
   const panelDeclaracion=`<div class="card" style="max-width:760px;margin-top:14px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div><div class="card-title">📌 Declaración F29 presentada</div><div style="font-size:11px;color:var(--mt)">Separa el cálculo dinámico del sistema de lo efectivamente declarado al SII.</div></div><span class="badge ${presentado?'bg':'bi'}">${presentado?'PRESENTADO':'BORRADOR'}</span></div>
-    ${presentado&&difs.length?`<div class="info-tip" style="margin:10px 0;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ El cálculo actual difiere de la declaración presentada en <strong>${difs.length}</strong> código(s). La historia declarada no fue modificada; revisa la conciliación antes de rectificar.</div>`:''}
+    ${presentado&&difs.length?`<div class="info-tip" style="margin:10px 0;background:rgba(210,153,34,.10);border-color:var(--warn)">⚠️ El cálculo actual difiere de la declaración presentada en <strong>${difs.length}</strong> código(s): ${difs.map(x=>x.cod).join(', ')}. La historia declarada no fue modificada; revisa la conciliación antes de rectificar. <a href="#" onclick="verDifsF29(${mSel});return false" style="color:var(--ac)">Ver explicación</a></div>`:''}
     <div class="fg" style="margin:10px 0"><div class="grp"><label>Fecha presentación</label><input type="date" value="${decl?.fechaPresentacion||''}" onchange="setF29DeclCampo('fechaPresentacion',this.value)" ${presentado?'disabled':''}></div><div class="grp"><label>Folio / N° declaración</label><input type="text" value="${String(decl?.folio||'').replace(/"/g,'&quot;')}" onchange="setF29DeclCampo('folio',this.value)" ${presentado?'disabled':''}></div></div>
     <div class="card-np"><div class="tw"><table><thead><tr><th class="tl">CÓDIGO</th><th class="tl">CONCEPTO</th><th>CALCULADO</th><th>DECLARADO</th><th>DIF.</th></tr></thead><tbody>
-    ${[[503,'Cantidad facturas emitidas'],[502,'Débito facturas emitidas'],[110,'Cantidad boletas'],[111,'Débito boletas'],[758,'Cantidad comprobantes pago electrónico'],[759,'Débito comprobantes pago electrónico'],[538,'Total débitos'],[39,'IVA retenido'],[511,'Crédito IVA documentos electrónicos'],[519,'Cantidad facturas recibidas del giro'],[520,'Crédito facturas del giro'],[584,'Cantidad compras exentas / no gravadas'],[562,'Monto compras exentas / no gravadas'],[504,'Remanente anterior reajustado'],[537,'Total créditos'],[77,'Remanente siguiente'],[89,'IVA a pagar'],[62,'PPM'],[151,'Ret. honorarios'],[48,'IUSC trabajadores'],[595,'Sub total imp. determinado anverso'],[556,'IVA anticipado del período'],[557,'Remanente anticipo mes anterior'],[558,'Devolución mes anterior'],[543,'Total anticipo cambio de sujeto'],[598,'Anticipo a imputar'],[573,'Remanente anticipo período siguiente'],[547,'Total determinado'],[91,'Total a pagar']].map(([c,l])=>{const cv=Math.round(+d.codigos?.[c]||0),dv=Math.round(+declVal(c)||0),df=dv-cv,fc=[503,110,758,519,584].includes(c)?fmt:fmtC;return `<tr><td class="tl" style="font-family:var(--mono)">${c}</td><td class="tl">${l}</td><td>${fc(cv)}</td><td><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${fmtMontoF29(dv)}" onchange="setF29Declarado(${c},this.value)" ${presentado?'disabled':''} style="text-align:right;font-family:var(--mono);max-width:130px"></td><td style="font-family:var(--mono);color:${df?'var(--warn)':'var(--ach)'}">${df?fc(df):'—'}</td></tr>`}).join('')}
+    ${F29_CONCEPTOS.map(([c,l])=>{const cv=Math.round(+d.codigos?.[c]||0),dv=Math.round(+declVal(c)||0),df=dv-cv,fc=F29_CODIGOS_CANTIDAD.has(c)?fmt:fmtC;return `<tr><td class="tl" style="font-family:var(--mono)">${c}</td><td class="tl">${l}</td><td>${fc(cv)}</td><td><input type="text" inputmode="numeric" autocomplete="off" class="money-input" min="0" value="${fmtMontoF29(dv)}" onchange="setF29Declarado(${c},this.value)" ${presentado?'disabled':''} style="text-align:right;font-family:var(--mono);max-width:130px"></td><td style="font-family:var(--mono);color:${df?'var(--warn)':'var(--ach)'}">${df?fc(df):'—'}</td></tr>`}).join('')}
     </tbody></table></div></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px">${presentado?`<button class="btn btn-g" onclick="reabrirF29()">🔓 Reabrir declaración</button>`:`<button class="btn btn-g" onclick="copiarCalculadoAF29()">↙ Copiar calculado</button><button class="btn btn-s" onclick="guardarBorradorF29()">💾 Guardar borrador</button><button class="btn btn-p" onclick="presentarF29()">✅ Marcar presentado</button>`}</div>
   </div>`;
@@ -1620,7 +1679,7 @@ async function generarAsientoPagoF29(){
   renderF29();
 }
 
-export {setRemanenteAnticipoInicialF29, setF29Manual, setF29Anticipo, setF29TasaPPM, tasaPPMPeriodo, iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
+export {verDifsF29, cerrarDifsF29, setRemanenteAnticipoInicialF29, setF29Manual, setF29Anticipo, setF29TasaPPM, tasaPPMPeriodo, iniciarVistaF29, verF29Anual, verF29Mes, calcularF29Anual, remanenteInicialF29, setRemanenteInicialF29, conciliarF29Periodo, renderConciliacionF29, renderF29, renderPPM, cargarDeclaracionesF29, declaracionF29, diferenciasF29, F29DECL, setF29Declarado, setF29DeclCampo, setF29UTM, copiarCalculadoAF29, guardarBorradorF29, presentarF29, reabrirF29,
         IVAC, calcularCompensacionIVA, renderCompensacionIVA, generarAsientoIVA,
         setIvacCuenta, setIvacCampo, resetIvacCuentas, crearCuentaRemanente, asientoIVAExistente,
         clasificarAsientoF29, esAsientoF29De, movimientosDebitoIVA, cuadraturaDebitoIVA, renderCuadraturaIVA, EXPLICACION_IVA,
