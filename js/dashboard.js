@@ -21,6 +21,10 @@ import {empresaActiva, EMPRESAS} from './empresas.js';
 const DB={mes:null,cuenta:'',acumulado:false,clave:''};
 const tipoDe=cd=>(PDC.find(c=>c.cd===cd)||{}).tp||'';
 const esDisponible=cd=>/^1101\d{3}$/.test(cd);
+// Naturaleza de la cuenta: las acreedoras (ingresos, pasivos, patrimonio)
+// crecen por el Haber. V2.22.37: el saldo y el neto se muestran según esa
+// naturaleza; antes todo era Debe − Haber y los ingresos salían negativos.
+const esAcreedora=cd=>{const c=PDC.find(x=>x.cd===cd)||{};if(c.nat)return c.nat==='C';if(c.tp)return c.tp==='I'||c.tp==='P';return /^[24]/.test(cd);};
 const pct=(a,b)=>b?((a-b)/Math.abs(b))*100:null;
 const fmtPct=v=>v==null||!isFinite(v)?'':(v>0?'+':'')+v.toLocaleString('es-CL',{maximumFractionDigits:1})+'%';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -205,11 +209,12 @@ export function renderDashboard(){
   const cuentasMov=Object.keys(porCta).filter(cd=>PDC.some(c=>c.cd===cd)).sort();
   const cta=DB.cuenta&&porCta[DB.cuenta]?DB.cuenta:(cuentasMov.find(esDisponible)||cuentasMov[0]||'');
   let filasSaldo='',serieSaldo=[];
+  const ctaAcreedora=cta?esAcreedora(cta):false;
   if(cta){
-    let acc=0;
+    let acc=0;const sg=ctaAcreedora?-1:1;
     for(let m=0;m<=12;m++){
       if(m>Math.max(hasta,mes))break;
-      const v=porCta[cta][m],neto=v.d-v.h;acc+=neto;
+      const v=porCta[cta][m],neto=(v.d-v.h)*sg;acc+=neto;
       if(m>0)serieSaldo.push(DB.acumulado?acc:neto);
       const sal=DB.acumulado?acc:neto;
       filasSaldo+=`<tr${m===mes?' class="db-sel"':''}><td class="tl">${m===0?'Apertura':MESES[m-1].slice(0,3)+' '+anio}</td><td>${fmt(Math.round(v.d))}</td><td>${fmt(Math.round(v.h))}</td><td style="color:${sal<0?'var(--err)':'var(--tx)'}">${fmt(Math.round(sal))}</td></tr>`;
@@ -257,6 +262,7 @@ export function renderDashboard(){
         <select onchange="setDashCuenta(this.value)" style="flex:1;min-width:200px">${cuentasMov.map(cd=>`<option value="${cd}" ${cd===cta?'selected':''}>${cd} · ${esc(pdcNm(cd))}</option>`).join('')}</select>
         <label style="display:flex;align-items:center;gap:6px;font-size:11px;text-transform:none;letter-spacing:0;color:var(--tx);cursor:pointer"><input type="checkbox" ${DB.acumulado?'checked':''} onchange="setDashAcumulado(this.checked)" style="width:auto">Saldo acumulado</label>
       </div>
+      ${cta?`<div style="font-size:11px;color:var(--mt);margin:-4px 0 8px">Cuenta de naturaleza ${ctaAcreedora?'acreedora: el neto es Haber − Debe':'deudora: el neto es Debe − Haber'}. En rojo, un saldo contrario a su naturaleza.</div>`:''}
       ${cta?`<div class="db-saldo"><div>${graficoLineas({series:[{nombre:DB.acumulado?'Saldo acumulado':'Movimiento neto del mes',color:'var(--ac)',valores:serieSaldo}],etiquetas:etq.slice(0,serieSaldo.length),alto:240,marcar:mes-1,ancho:520})}</div><div><table class="db-tabla"><thead><tr><th class="tl">Período</th><th>Debe</th><th>Haber</th><th>${DB.acumulado?'Saldo':'Neto'}</th></tr></thead><tbody>${filasSaldo}</tbody></table></div></div>`:'<div style="font-size:12px;color:var(--mt)">Sin movimientos.</div>'}
     </div>
     <div class="card"><div class="card-title">Gastos por cuenta · enero a ${MESES[mes-1].toLowerCase()}</div>

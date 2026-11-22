@@ -15,6 +15,10 @@ const APP_VERSION='v2026.11.11-0930';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.37',fecha:'22-11-2026',titulo:'Resumen: saldo según la naturaleza de la cuenta',items:[
+    {tipo:'arreglo',txt:'En la Consulta de saldo del Resumen de la empresa, las cuentas de ingresos, pasivos y patrimonio se mostraban con el signo invertido: el neto era siempre Debe − Haber y las ventas aparecían negativas. Ahora las cuentas acreedoras se muestran como Haber − Debe, así que los ingresos suben en el gráfico.'},
+    {tipo:'cambio',txt:'Bajo el selector de cuenta se indica si la cuenta es deudora o acreedora. El rojo marca un saldo contrario a su naturaleza.'},
+  ]},
   {version:'V2.22.36',fecha:'19-11-2026',titulo:'Formulario 29: detalle de las diferencias',items:[
     {tipo:'nuevo',txt:'En la tabla anual del Formulario 29, el aviso "· N dif." de un mes presentado ahora se puede clicar: abre una ventana con cada código que difiere, lo declarado, lo calculado hoy y la diferencia, más una explicación de qué significa y qué hacer.'},
     {tipo:'arreglo',txt:'La diferencia en el código 563 (base imponible PPM) se contaba en el aviso pero no aparecía en la tabla de la declaración del mes. Ahora se muestra.'},
