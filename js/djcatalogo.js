@@ -1,18 +1,19 @@
 // djcatalogo.js — Catálogo de Declaraciones Juradas de Renta.
 //
-// Trae el listado oficial del Año Tributario 2026 como SEMILLA, no como verdad
+// Trae el listado oficial del Año Tributario 2027 como SEMILLA, no como verdad
 // fija: la ley tributaria cambia todos los años y el SII renumera, agrega y
 // deroga declaraciones. Por eso el catálogo se guarda en la base de datos y se
 // puede editar entero desde la aplicación —plazos, nombres, a qué régimen
 // aplica— e incluso crear declaraciones que todavía no existen aquí.
 //
 // Fuente de la semilla:
-//   · Resolución Ex. SII N°123 del 25-09-2025, que fija los vencimientos AT 2026
+//   · Resolución Ex. SII N°135 del 02-10-2026, que fija los vencimientos AT 2027
 //   · Tabla de «Principales Declaraciones Juradas por Régimen Tributario» del SII
 //
-// Cuando salga el calendario del AT 2027 hay dos caminos: editar los plazos a
-// mano desde la pantalla, o actualizar esta semilla y pulsar «Restaurar
-// catálogo oficial», que descarta los cambios locales y vuelve a esto.
+// Cuando salga el calendario de un año nuevo se actualiza esta semilla y, en
+// PLAZOS_ANTERIORES, los plazos del año anterior: las copias guardadas que aún
+// los conservan se ponen al día solas (actualizarCatalogo). Lo editado a mano
+// no se toca; «Restaurar catálogo oficial» descarta todo y vuelve a esto.
 
 // Códigos de régimen tal como los define regimenes.js
 const TODOS = ['14A', '14D3', '14D8', '34AGRI', '34TRANS', '34MIN', 'NOSUJ'];
@@ -32,13 +33,13 @@ export const DJ_SEMILLA = [
   {
     n: '1887', nm: 'Rentas del Art. 42 N°1 (sueldos)',
     desc: 'Sueldos, remuneraciones y retenciones de Impuesto Único de Segunda Categoría de cada trabajador.',
-    plazo: '03-27', regimenes: TODOS, fuente: 'sueldos', cert: 'Certificado N°6',
+    plazo: '03-29', regimenes: TODOS, fuente: 'sueldos', cert: 'Certificado N°6',
     nota: 'Sólo si hubo trabajadores con remuneración en el ejercicio.',
   },
   {
     n: '1879', nm: 'Retenciones del Art. 42 N°2 (honorarios)',
     desc: 'Honorarios pagados y retenciones practicadas a profesionales independientes.',
-    plazo: '03-27', regimenes: TODOS, fuente: 'honorarios', cert: 'Certificado N°1',
+    plazo: '03-29', regimenes: TODOS, fuente: 'honorarios', cert: 'Certificado N°1',
     nota: 'Sólo si se pagaron boletas de honorarios con retención.',
   },
 
@@ -60,18 +61,18 @@ export const DJ_SEMILLA = [
   {
     n: '1948', nm: 'Retiros, remesas y dividendos',
     desc: 'Retiros, remesas y dividendos distribuidos a los dueños, con sus créditos asociados.',
-    plazo: '03-27',
-    plazoTxt: '16, 24 o 27 de marzo según el tipo de propietario',
+    plazo: '03-29',
+    plazoTxt: '16, 24 o 29 de marzo, o junto con el F22, según el tipo de propietario',
     regimenes: ['14A', '14D3'], cert: 'Certificado N°70',
-    nota: 'S.A. abiertas al 16 de marzo · socios personas jurídicas al 24 · socios personas naturales al 27.',
+    nota: 'S.A. abiertas al 16 de marzo · socios personas jurídicas al 24 · socios personas naturales al 29 · empresario individual junto con el F22.',
   },
 
   // ── Pro Pyme Transparente (14 D N°8) ──
   {
     n: '1947', nm: 'Base imponible Pro Pyme Transparente',
     desc: 'Base imponible que se atribuye a los dueños, con sus créditos y PPM.',
-    plazo: '03-27',
-    plazoTxt: 'Junto con el Formulario 22',
+    plazo: '03-29',
+    plazoTxt: '29 de marzo (sociedades) o junto con el F22 (empresario individual)',
     regimenes: ['14D8'], fuente: 'rli', cert: 'Certificado N°71',
     nota: 'La empresa no paga IDPC: son los dueños quienes declaran esta base.',
   },
@@ -80,7 +81,7 @@ export const DJ_SEMILLA = [
   {
     n: '1943', nm: 'Contribuyentes acogidos a renta presunta',
     desc: 'Declaración anual de quienes tributan sobre renta presunta.',
-    plazo: '03-27', regimenes: ['34AGRI', '34TRANS', '34MIN'], fuente: 'presunta',
+    plazo: '03-29', regimenes: ['34AGRI', '34TRANS', '34MIN'], fuente: 'presunta',
   },
   {
     n: '1949', nm: 'Retiros y dividendos de renta presunta',
@@ -91,9 +92,29 @@ export const DJ_SEMILLA = [
 
 // Estructura vacía de una declaración nueva creada por el usuario
 export const DJ_NUEVA = () => ({
-  n: '', nm: '', desc: '', plazo: '03-27', plazoTxt: '',
+  n: '', nm: '', desc: '', plazo: '03-29', plazoTxt: '',
   regimenes: [], fuente: '', cert: '', nota: '', propia: true,
 });
+
+// Plazos de la semilla anterior (AT 2026, Res. Ex. N°123 de 2025).
+const PLAZOS_ANTERIORES = {
+  '1887': { plazo: '03-27' }, '1879': { plazo: '03-27' }, '1943': { plazo: '03-27' },
+  '1948': { plazo: '03-27', plazoTxt: '16, 24 o 27 de marzo según el tipo de propietario' },
+  '1947': { plazo: '03-27', plazoTxt: 'Junto con el Formulario 22' },
+};
+
+// Pone al día una copia guardada del catálogo: las declaraciones de la semilla
+// que conservan el plazo del año anterior pasan al vigente (con su texto y nota).
+// Las editadas a mano o creadas por el usuario quedan como están.
+export function actualizarCatalogo(catalogo) {
+  return catalogo.map(d => {
+    const viejo = PLAZOS_ANTERIORES[String(d.n)];
+    const nueva = DJ_SEMILLA.find(x => x.n === String(d.n));
+    if (!viejo || !nueva || d.propia) return d;
+    if (String(d.plazo || '') !== viejo.plazo || String(d.plazoTxt || '') !== String(viejo.plazoTxt || '')) return d;
+    return { ...d, plazo: nueva.plazo, plazoTxt: nueva.plazoTxt || '', nota: nueva.nota || d.nota };
+  });
+}
 
 // Fuentes de datos que el sistema sabe resumir. Las demás quedan sin resumen y
 // se completan directamente en el portal del SII.

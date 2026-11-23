@@ -83,6 +83,10 @@ export const REGIMENES=[
     correccionMonetaria:true,
     deprInstantanea:false,
     creditoIDPC:65,
+    // Ley 21.850 (D.O. 17-10-2026): rebaja escalonada desde el año comercial 2027
+    // y restitución del crédito de 30% (2027), 20% (2028) y sin restitución desde 2029.
+    tasasDesde:{2027:25.5, 2028:24, 2029:23},
+    creditoIDPCDesde:{2027:70, 2028:80, 2029:100},
     rentaPresunta:false,
     topeIngresosUF:null,
     topeIngresosAnualUF:null,
@@ -199,7 +203,23 @@ export const regimenInfo=k=>REGIMENES.find(r=>r.k===k)||REGIMENES.find(r=>r.k===
 export function tasaIDPC(k,anio){
   const r=regimenInfo(k);
   const esp=r.tasasPorAnio&&r.tasasPorAnio[anio];
-  return esp!=null?esp:r.tasaBase;
+  if(esp!=null)return esp;
+  const desde=valorDesde(r.tasasDesde,anio);
+  return desde!=null?desde:r.tasaBase;
+}
+
+// Valor de una tabla escalonada {año: valor}: el del mayor año ≤ anio.
+function valorDesde(tabla,anio){
+  if(!tabla)return null;
+  const anios=Object.keys(tabla).map(Number).filter(a=>a<=anio);
+  return anios.length?tabla[Math.max(...anios)]:null;
+}
+
+// % del IDPC que los dueños imputan contra sus impuestos finales en el año comercial.
+export function creditoIDPCAnio(k,anio){
+  const r=regimenInfo(k);
+  const desde=valorDesde(r.creditoIDPCDesde,anio);
+  return desde!=null?desde:r.creditoIDPC;
 }
 
 // Tasa de PPM sugerida. null = variable, la fija el contribuyente según su F22.
@@ -218,7 +238,9 @@ export function notaTasa(k,anio){
   if(r.tasasPorAnio&&r.tasasPorAnio[anio]!=null)
     return 'Rebaja transitoria Pyme (Circular SII N°53/2025): '+String(r.tasasPorAnio[anio]).replace('.',',')+
            '% para el año comercial '+anio+', condicionada al cumplimiento del pago de cotizaciones previsionales.';
-  if(r.k==='14A')return 'Tasa del régimen semi integrado (Art. 14 A LIR).';
+  if(r.k==='14A')return anio>=2027
+    ?'Tasa del régimen semi integrado rebajada por la Ley 21.850: '+String(tasaIDPC('14A',anio)).replace('.',',')+'% para el año comercial '+anio+'.'
+    :'Tasa del régimen semi integrado (Art. 14 A LIR).';
   return 'Tasa permanente del régimen '+r.corto+'.';
 }
 

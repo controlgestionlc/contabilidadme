@@ -15,6 +15,11 @@ const APP_VERSION='v2026.11.11-0930';
 // Cada entrada describe QUÉ cambia para quien usa el sistema, no qué función se
 // tocó: esto lo lee un contador, no quien programa.
 const CHANGELOG=[
+  {version:'V2.22.38',fecha:'23-11-2026',titulo:'Operación Renta AT 2027',items:[
+    {tipo:'cambio',txt:'Declaraciones juradas al calendario del AT 2027 (Res. Ex. SII N°135 de 2026): sueldos (1887), honorarios (1879) y renta presunta (1943) vencen el 29 de marzo; la 1948 el 16, 24 o 29 de marzo, o junto con el F22, según el tipo de propietario; la 1947 el 29 de marzo (sociedades) o junto con el F22 (empresario individual). Si el catálogo de la empresa conservaba las fechas del AT 2026, se actualiza solo; lo editado a mano no se toca.'},
+    {tipo:'cambio',txt:'Régimen 14 A con la rebaja de la Ley 21.850: 25,5% en el año comercial 2027, 24% en 2028 y 23% desde 2029, y el crédito de los dueños sube a 70%, 80% y 100%. La renta del AT 2027 (año comercial 2026) sigue con 27% y 65%.'},
+    {tipo:'nuevo',txt:'UTM oficial de noviembre ($72.440) y diciembre ($72.802) de 2026.'},
+  ]},
   {version:'V2.22.37',fecha:'22-11-2026',titulo:'Resumen: saldo según la naturaleza de la cuenta',items:[
     {tipo:'arreglo',txt:'En la Consulta de saldo del Resumen de la empresa, las cuentas de ingresos, pasivos y patrimonio se mostraban con el signo invertido: el neto era siempre Debe − Haber y las ventas aparecían negativas. Ahora las cuentas acreedoras se muestran como Haber − Debe, así que los ingresos suben en el gráfico.'},
     {tipo:'cambio',txt:'Bajo el selector de cuenta se indica si la cuenta es deudora o acreedora. El rojo marca un saldo contrario a su naturaleza.'},
