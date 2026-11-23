@@ -20,7 +20,7 @@ import {retencionHonorarios} from './indicadores.js';
 import {libroDelMes} from './libroremuneraciones.js';
 import {buildMayor} from './reportes.js';
 import {calcularRenta} from './renta.js';
-import {DJ_SEMILLA, DJ_NUEVA, FUENTES, plazoLbl, fechaLbl, fechaVence, aplicaA} from './djcatalogo.js';
+import {DJ_SEMILLA, DJ_NUEVA, FUENTES, actualizarCatalogo, plazoLbl, fechaLbl, fechaVence, aplicaA} from './djcatalogo.js';
 import './storage.js';
 
 const esc = s => String(s == null ? '' : s)
@@ -55,7 +55,7 @@ export async function cargarDJ() {
     const r = await window.storage.get(CLAVE_CAT);
     if (r && r.value) {
       const p = JSON.parse(r.value);
-      if (Array.isArray(p) && p.length) DJ.catalogo = p;
+      if (Array.isArray(p) && p.length) DJ.catalogo = actualizarCatalogo(p);
     }
   } catch (e) {}
   if (!DJ.catalogo) DJ.catalogo = DJ_SEMILLA.map(d => ({ ...d }));

@@ -28,7 +28,7 @@ import {calcularF29Anual} from './tributario.js';
 import {logAccion} from './firebase.js';
 // El catálogo de regímenes y sus parámetros vive en regimenes.js, que es la
 // única fuente de verdad compartida con empresas.js y la ficha de empresa.
-import {REGIMENES, regimenInfo, tasaIDPC, notaTasa, REGIMEN_DEFAULT} from './regimenes.js';
+import {REGIMENES, regimenInfo, tasaIDPC, notaTasa, creditoIDPCAnio, REGIMEN_DEFAULT} from './regimenes.js';
 import {conciliacionDepreciacionAF} from './activofijo.js';
 import './storage.js';
 
@@ -363,7 +363,7 @@ function bloqueCabecera(R,at){
         Contabilidad ${esc(R.reg.contabilidad)} ·
         ${R.reg.correccionMonetaria?'aplica':'liberado de'} corrección monetaria ·
         depreciación ${R.reg.deprInstantanea?'instantánea':'según vida útil'} ·
-        crédito IDPC a los dueños ${R.reg.creditoIDPC}%${R.reg.topeIngresosUF?' · tope '+fmtC(R.reg.topeIngresosUF).replace('$ ','')+' UF de ingresos':''}
+        crédito IDPC a los dueños ${creditoIDPCAnio(R.reg.k,R.anio)}%${R.reg.topeIngresosUF?' · tope '+fmtC(R.reg.topeIngresosUF).replace('$ ','')+' UF de ingresos':''}
       </span>
       ${R.reg.nota?`<br><span style="color:var(--warn)">⚠ ${esc(R.reg.nota)}</span>`:''}
     </div>
